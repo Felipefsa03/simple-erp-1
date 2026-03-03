@@ -1,274 +1,190 @@
-import React from 'react';
-import { 
-  Package, 
-  Plus, 
-  Search, 
-  Filter, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  AlertTriangle,
-  MoreHorizontal,
-  X,
-  CheckCircle2,
-  Trash2,
-  Edit2
-} from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Package, Plus, Search, Filter, ArrowUpRight, ArrowDownRight, AlertTriangle, Edit2, Trash2, CheckCircle2, History, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-
-const initialStock = [
-  { id: 1, name: 'Resina Composta A2', category: 'Consumíveis', quantity: 45, minQuantity: 10, unit: 'un', price: 'R$ 85,00' },
-  { id: 2, name: 'Luvas de Procedimento (M)', category: 'EPI', quantity: 12, minQuantity: 20, unit: 'caixas', price: 'R$ 45,00' },
-  { id: 3, name: 'Anestésico Lidocaína', category: 'Medicamentos', quantity: 8, minQuantity: 15, unit: 'caixas', price: 'R$ 120,00' },
-  { id: 4, name: 'Máscara Descartável', category: 'EPI', quantity: 150, minQuantity: 50, unit: 'un', price: 'R$ 1,50' },
-  { id: 5, name: 'Sugador Descartável', category: 'Consumíveis', quantity: 500, minQuantity: 100, unit: 'un', price: 'R$ 0,25' },
-];
+import { useClinicStore } from '@/stores/clinicStore';
+import { useDebounce, toast, formatCurrency } from '@/hooks/useShared';
+import { Modal, EmptyState, ConfirmDialog, LoadingButton } from '@/components/shared';
 
 export function Estoque() {
-  const [items, setItems] = React.useState(initialStock);
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [editingItem, setEditingItem] = React.useState<any>(null);
-  const [showSuccess, setShowSuccess] = React.useState(false);
-  const [successMsg, setSuccessMsg] = React.useState('');
-  const [newItem, setNewItem] = React.useState({
-    name: '',
-    category: 'Consumíveis',
-    quantity: '',
-    minQuantity: '',
-    unit: 'un',
-    price: ''
-  });
+  const { stockItems, stockMovements, addStockItem, updateStockItem, deleteStockItem, addStockMovement } = useClinicStore();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
-  const triggerSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
-  };
+  const [form, setForm] = useState({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' });
 
-  const handleAddItem = (e: React.FormEvent) => {
+  const filteredItems = useMemo(() => {
+    let result = stockItems;
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      result = result.filter(i => i.name.toLowerCase().includes(q) || i.category.toLowerCase().includes(q));
+    }
+    if (categoryFilter !== 'all') result = result.filter(i => i.category === categoryFilter);
+    return result;
+  }, [stockItems, debouncedSearch, categoryFilter]);
+
+  const totalValue = useMemo(() => stockItems.reduce((s, i) => s + (i.quantity * i.unit_cost), 0), [stockItems]);
+  const lowStockCount = useMemo(() => stockItems.filter(i => i.quantity <= i.min_quantity).length, [stockItems]);
+  const categories = useMemo(() => [...new Set(stockItems.map(i => i.category))], [stockItems]);
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingItem) {
-      setItems(items.map(i => i.id === editingItem.id ? {
-        ...i,
-        name: newItem.name,
-        category: newItem.category,
-        quantity: Number(newItem.quantity),
-        minQuantity: Number(newItem.minQuantity),
-        unit: newItem.unit,
-        price: newItem.price.startsWith('R$') ? newItem.price : `R$ ${newItem.price}`
-      } : i));
-      triggerSuccess('Item atualizado com sucesso!');
+      updateStockItem(editingItem, {
+        name: form.name, category: form.category, quantity: Number(form.quantity),
+        min_quantity: Number(form.min_quantity), unit: form.unit, unit_cost: parseFloat(form.price.replace(',', '.')),
+      });
+      toast('Item atualizado com sucesso!');
     } else {
-      const item = {
-        id: items.length + 1,
-        name: newItem.name,
-        category: newItem.category,
-        quantity: Number(newItem.quantity),
-        minQuantity: Number(newItem.minQuantity),
-        unit: newItem.unit,
-        price: `R$ ${newItem.price}`
-      };
-      setItems([item, ...items]);
-      triggerSuccess('Item adicionado ao estoque!');
+      addStockItem({
+        clinic_id: 'clinic-1', name: form.name, category: form.category,
+        quantity: Number(form.quantity), min_quantity: Number(form.min_quantity),
+        unit: form.unit, unit_cost: parseFloat(form.price.replace(',', '.')),
+      });
+      toast('Item adicionado ao estoque!');
     }
     setIsModalOpen(false);
     setEditingItem(null);
-    setNewItem({ name: '', category: 'Consumíveis', quantity: '', minQuantity: '', unit: 'un', price: '' });
+    setForm({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' });
   };
 
-  const handleDeleteItem = (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este item?')) {
-      setItems(items.filter(i => i.id !== id));
-      triggerSuccess('Item excluído com sucesso!');
-    }
-  };
-
-  const handleEditItem = (item: any) => {
-    setEditingItem(item);
-    setNewItem({
-      name: item.name,
-      category: item.category,
-      quantity: item.quantity.toString(),
-      minQuantity: item.minQuantity.toString(),
-      unit: item.unit,
-      price: item.price.replace('R$ ', '')
-    });
+  const handleEdit = (id: string) => {
+    const item = stockItems.find(i => i.id === id);
+    if (!item) return;
+    setEditingItem(id);
+    setForm({ name: item.name, category: item.category, quantity: String(item.quantity), min_quantity: String(item.min_quantity), unit: item.unit, price: String(item.unit_cost) });
     setIsModalOpen(true);
   };
 
-  return (
-    <div className="space-y-8 relative">
-      <AnimatePresence>
-        {showSuccess && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="fixed top-8 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold flex items-center gap-2"
-          >
-            <CheckCircle2 className="w-5 h-5" />
-            {successMsg}
-          </motion.div>
-        )}
-      </AnimatePresence>
+  const handleDelete = () => {
+    if (!deleteConfirm) return;
+    deleteStockItem(deleteConfirm);
+    setDeleteConfirm(null);
+    toast('Item excluído com sucesso!');
+  };
 
+  return (
+    <div className="space-y-8">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Gestão de Estoque</h1>
           <p className="text-slate-500">Controle seus insumos, materiais e medicamentos.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-cyan-600 rounded-xl text-sm font-medium text-white hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-200"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Item
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowHistory(true)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <History className="w-4 h-4 inline mr-2" />Movimentações
+          </button>
+          <button onClick={() => { setEditingItem(null); setForm({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' }); setIsModalOpen(true); }} className="px-4 py-2 bg-cyan-600 rounded-xl text-sm font-medium text-white hover:bg-cyan-700 shadow-sm shadow-cyan-200">
+            <Plus className="w-4 h-4 inline mr-2" />Novo Item
+          </button>
+        </div>
       </header>
 
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
-            >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h3 className="text-lg font-bold text-slate-900">{editingItem ? 'Editar Item' : 'Novo Item no Estoque'}</h3>
-                <button onClick={() => { setIsModalOpen(false); setEditingItem(null); }} className="p-2 hover:bg-white rounded-xl transition-colors">
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
-              </div>
-              <form onSubmit={handleAddItem} className="p-6 space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome do Produto</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={newItem.name}
-                    onChange={e => setNewItem({...newItem, name: e.target.value})}
-                    className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" 
-                    placeholder="Ex: Resina A3"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Categoria</label>
-                    <select 
-                      value={newItem.category}
-                      onChange={e => setNewItem({...newItem, category: e.target.value})}
-                      className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
-                    >
-                      <option>Consumíveis</option>
-                      <option>EPI</option>
-                      <option>Medicamentos</option>
-                      <option>Instrumental</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Unidade</label>
-                    <select 
-                      value={newItem.unit}
-                      onChange={e => setNewItem({...newItem, unit: e.target.value})}
-                      className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
-                    >
-                      <option>un</option>
-                      <option>caixas</option>
-                      <option>pacotes</option>
-                      <option>ml</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Qtd. Atual</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={newItem.quantity}
-                      onChange={e => setNewItem({...newItem, quantity: e.target.value})}
-                      className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" 
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Qtd. Mínima</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={newItem.minQuantity}
-                      onChange={e => setNewItem({...newItem, minQuantity: e.target.value})}
-                      className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" 
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Preço Unitário (R$)</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={newItem.price}
-                    onChange={e => setNewItem({...newItem, price: e.target.value})}
-                    className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" 
-                    placeholder="0,00"
-                  />
-                </div>
-                <button type="submit" className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4">
-                  Salvar no Estoque
-                </button>
-              </form>
-            </motion.div>
+      {/* Stock Item Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingItem(null); }} title={editingItem ? 'Editar Item' : 'Novo Item no Estoque'}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome do Produto *</label>
+            <input required type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" placeholder="Ex: Resina A3" />
           </div>
-        )}
-      </AnimatePresence>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Categoria</label>
+              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none">
+                <option>Consumíveis</option><option>EPI</option><option>Medicamentos</option><option>Instrumental</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Unidade</label>
+              <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none">
+                <option>un</option><option>caixas</option><option>pacotes</option><option>ml</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Qtd. Atual *</label>
+              <input required type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Qtd. Mín *</label>
+              <input required type="number" value={form.min_quantity} onChange={e => setForm({ ...form, min_quantity: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Custo (R$) *</label>
+              <input required type="text" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" placeholder="0,00" />
+            </div>
+          </div>
+          <button type="submit" className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 shadow-lg shadow-cyan-200 mt-4">Salvar</button>
+        </form>
+      </Modal>
 
+      {/* Movement History Drawer */}
+      <Modal isOpen={showHistory} onClose={() => setShowHistory(false)} title="Histórico de Movimentações" maxWidth="max-w-lg">
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {stockMovements.length === 0 ? (
+            <EmptyState title="Nenhuma movimentação" description="Movimentações serão registradas automaticamente ao finalizar atendimentos." />
+          ) : stockMovements.map(m => (
+            <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+              <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", m.type === 'in' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
+                {m.type === 'in' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-900 truncate">{m.stock_item_name}</p>
+                <p className="text-xs text-slate-500">{m.note} • {new Date(m.created_at).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <span className={cn("text-sm font-bold", m.type === 'in' ? "text-emerald-600" : "text-red-600")}>
+                {m.type === 'in' ? '+' : '-'}{m.qty}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Modal>
+
+      <ConfirmDialog isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} onConfirm={handleDelete} title="Excluir Item?" message="Tem certeza que deseja excluir este item do estoque? Esta ação não pode ser desfeita." confirmLabel="Excluir" variant="danger" />
+
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-cyan-50 text-cyan-600 rounded-xl">
-              <Package className="w-6 h-6" />
-            </div>
-          </div>
+          <div className="flex items-center justify-between mb-4"><div className="p-2 bg-cyan-50 text-cyan-600 rounded-xl"><Package className="w-6 h-6" /></div></div>
           <p className="text-sm text-slate-500 mb-1">Total de Itens</p>
-          <p className="text-2xl font-bold text-slate-900">{items.length}</p>
+          <p className="text-2xl font-bold text-slate-900">{stockItems.length}</p>
         </div>
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Atenção</span>
+          <div className="flex items-center justify-between mb-4"><div className="p-2 bg-amber-50 text-amber-600 rounded-xl"><AlertTriangle className="w-6 h-6" /></div>
+            {lowStockCount > 0 && <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Atenção</span>}
           </div>
           <p className="text-sm text-slate-500 mb-1">Itens em Baixa</p>
-          <p className="text-2xl font-bold text-slate-900">{items.filter(i => i.quantity <= i.minQuantity).length}</p>
+          <p className="text-2xl font-bold text-slate-900">{lowStockCount}</p>
         </div>
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-              <ArrowUpRight className="w-6 h-6" />
-            </div>
-          </div>
+          <div className="flex items-center justify-between mb-4"><div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><ArrowUpRight className="w-6 h-6" /></div></div>
           <p className="text-sm text-slate-500 mb-1">Valor Total em Estoque</p>
-          <p className="text-2xl font-bold text-slate-900">R$ 12.450,00</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalValue)}</p>
         </div>
       </div>
 
+      {/* Search & Filter */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Buscar item..." 
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
-            />
+            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar item..." className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" />
           </div>
-          <button className="flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-            <Filter className="w-4 h-4" />
-            Filtros
-          </button>
+          <div className="flex gap-1">
+            <button onClick={() => setCategoryFilter('all')} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold", categoryFilter === 'all' ? "bg-cyan-50 text-cyan-600" : "text-slate-400")}>Todos</button>
+            {categories.map(c => (
+              <button key={c} onClick={() => setCategoryFilter(c)} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold", categoryFilter === c ? "bg-cyan-50 text-cyan-600" : "text-slate-400")}>{c}</button>
+            ))}
+          </div>
         </div>
+
+        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -281,45 +197,26 @@ export function Estoque() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors group">
+              {filteredItems.map(item => (
+                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-slate-900">{item.name}</p>
-                    <p className="text-xs text-slate-500">{item.price} / {item.unit}</p>
+                    <p className="text-xs text-slate-500">{formatCurrency(item.unit_cost)} / {item.unit}</p>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
-                      {item.category}
-                    </span>
-                  </td>
+                  <td className="px-6 py-4"><span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{item.category}</span></td>
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-slate-900">{item.quantity} {item.unit}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Mín: {item.minQuantity}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Mín: {item.min_quantity}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={cn(
-                      "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold",
-                      item.quantity <= item.minQuantity 
-                        ? "bg-red-50 text-red-700" 
-                        : "bg-emerald-50 text-emerald-700"
-                    )}>
-                      {item.quantity <= item.minQuantity ? 'Reposição Necessária' : 'Em Estoque'}
+                    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold", item.quantity <= item.min_quantity ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>
+                      {item.quantity <= item.min_quantity ? 'Reposição Necessária' : 'Em Estoque'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button 
-                        onClick={() => handleEditItem(item)}
-                        className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-all"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteItem(item.id)}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <button onClick={() => handleEdit(item.id)} className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => setDeleteConfirm(item.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>

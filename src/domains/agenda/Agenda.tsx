@@ -1,55 +1,121 @@
-import React from 'react';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  Clock, 
-  User, 
-  Stethoscope,
-  MoreVertical,
-  X
+import React, { useMemo, useState } from 'react';
+import {
+  ChevronLeft, ChevronRight, Plus, Clock, User,
+  X, MapPin
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, startOfWeek, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfWeek, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, getHours, getMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
+import { useClinicStore } from '@/stores/clinicStore';
+import { useAuth } from '@/hooks/useAuth';
+import { toast, formatCurrency } from '@/hooks/useShared';
+import { Modal, LoadingButton, EmptyState } from '@/components/shared';
+import type { Appointment } from '@/types';
 
-const initialAppointments = [
-  { id: 1, patient: 'Ana Paula Souza', time: '09:00', duration: '60 min', type: 'Limpeza', status: 'confirmed' },
-  { id: 2, patient: 'Carlos Eduardo Lima', time: '10:30', duration: '45 min', type: 'Avaliação', status: 'pending' },
-  { id: 3, patient: 'Juliana Mendes', time: '14:00', duration: '120 min', type: 'Botox', status: 'confirmed' },
-  { id: 4, patient: 'Ricardo Oliveira', time: '16:30', duration: '60 min', type: 'Implante', status: 'confirmed' },
-];
+interface AgendaProps {
+  onNavigate?: (tab: string, ctx?: { patientId?: string; appointmentId?: string }) => void;
+}
 
-export function Agenda() {
-  const [currentDate, setCurrentDate] = React.useState(new Date());
-  const [view, setView] = React.useState<'day' | 'week' | 'month'>('week');
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [newAppointment, setNewAppointment] = React.useState({
-    patient: '',
-    time: '09:00',
-    type: 'Consulta',
-    professional: 'Dr. Lucas Silva'
-  });
+export function Agenda({ onNavigate }: AgendaProps) {
+  const { user } = useAuth();
+  const { appointments, patients, professionals, services, addAppointment, startAppointment, updateAppointmentStatus } = useClinicStore();
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [view, setView] = useState<'day' | 'week' | 'month'>('week');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+  const [newApt, setNewApt] = useState({ patient_id: '', professional_id: professionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
 
   const handleNavigate = (direction: 'prev' | 'next') => {
-    if (view === 'day') {
-      setCurrentDate(prev => direction === 'next' ? addDays(prev, 1) : addDays(prev, -1));
-    } else if (view === 'week') {
-      setCurrentDate(prev => direction === 'next' ? addDays(prev, 7) : addDays(prev, -7));
-    } else {
-      setCurrentDate(prev => direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1));
-    }
+    setCurrentDate(prev => {
+      if (view === 'day') return addDays(prev, direction === 'next' ? 1 : -1);
+      if (view === 'week') return addDays(prev, direction === 'next' ? 7 : -7);
+      return direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1);
+    });
   };
 
-  const handleAddAppointment = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real app, we'd add to state/DB
+  const getAppointmentsForDay = (day: Date) => {
+    const dayStr = format(day, 'yyyy-MM-dd');
+    return appointments.filter(a => a.scheduled_at.startsWith(dayStr) && a.status !== 'cancelled');
+  };
+
+  const handleAddAppointment = () => {
+    if (!newApt.patient_id || !newApt.professional_id || !newApt.date || !newApt.time) {
+      toast('Preencha todos os campos obrigatórios', 'error');
+      return;
+    }
+    const patient = patients.find(p => p.id === newApt.patient_id);
+    const prof = professionals.find(p => p.id === newApt.professional_id);
+    const service = services.find(s => s.id === newApt.service_id);
+
+    addAppointment({
+      clinic_id: user?.clinic_id || 'clinic-1',
+      patient_id: newApt.patient_id,
+      patient_name: patient?.name || '',
+      professional_id: newApt.professional_id,
+      professional_name: prof?.name || '',
+      service_id: newApt.service_id || undefined,
+      service_name: service?.name || 'Consulta',
+      scheduled_at: `${newApt.date}T${newApt.time}:00`,
+      duration_min: service?.avg_duration_min || 60,
+      status: 'scheduled',
+      base_value: service?.base_price || 0,
+    });
+
     setIsModalOpen(false);
-    setNewAppointment({ patient: '', time: '09:00', type: 'Consulta' });
+    setNewApt({ patient_id: '', professional_id: professionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
+    toast('Agendamento criado com sucesso!');
+  };
+
+  const handleStartAppointment = (apt: Appointment) => {
+    startAppointment(apt.id);
+    toast(`Atendimento de ${apt.patient_name} iniciado!`);
+    onNavigate?.('prontuarios', { patientId: apt.patient_id, appointmentId: apt.id });
+  };
+
+  const statusColors: Record<string, { bg: string; border: string; text: string }> = {
+    scheduled: { bg: 'bg-blue-50', border: 'border-blue-500', text: 'text-blue-700' },
+    confirmed: { bg: 'bg-cyan-50', border: 'border-cyan-500', text: 'text-cyan-700' },
+    in_progress: { bg: 'bg-amber-50', border: 'border-amber-500', text: 'text-amber-700' },
+    done: { bg: 'bg-emerald-50', border: 'border-emerald-500', text: 'text-emerald-700' },
+    no_show: { bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-700' },
+  };
+
+  const statusLabels: Record<string, string> = {
+    scheduled: 'Agendado',
+    confirmed: 'Confirmado',
+    in_progress: 'Em Atendimento',
+    done: 'Concluído',
+    no_show: 'Faltou',
+    cancelled: 'Cancelado',
+  };
+
+  const hours = Array.from({ length: 12 }, (_, i) => i + 8);
+
+  const renderAppointmentCard = (apt: Appointment, compact = false) => {
+    const colors = statusColors[apt.status] || statusColors.scheduled;
+    return (
+      <div
+        key={apt.id}
+        onClick={() => setSelectedApt(apt)}
+        className={cn(
+          "rounded-lg p-2 shadow-sm cursor-pointer transition-all hover:shadow-md border-l-4 overflow-hidden",
+          colors.bg, colors.border
+        )}
+      >
+        <p className={cn("text-[10px] font-bold truncate", colors.text)}>{apt.patient_name.toUpperCase()}</p>
+        <p className={cn("text-[9px] truncate", colors.text.replace('700', '600'))}>{apt.service_name}</p>
+        {!compact && (
+          <div className="flex items-center gap-1 mt-1">
+            <Clock className="w-2 h-2 text-slate-400" />
+            <span className="text-[8px] text-slate-500 font-bold">{format(parseISO(apt.scheduled_at), 'HH:mm')}</span>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -74,7 +140,7 @@ export function Agenda() {
               </button>
             ))}
           </div>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200"
           >
@@ -84,236 +150,270 @@ export function Agenda() {
         </div>
       </header>
 
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+      {/* New Appointment Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Novo Agendamento">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Paciente *</label>
+            <select
+              value={newApt.patient_id}
+              onChange={e => setNewApt({ ...newApt, patient_id: e.target.value })}
+              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
             >
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <h3 className="text-lg font-bold text-slate-900">Novo Agendamento</h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white rounded-xl transition-colors">
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
+              <option value="">Selecione o paciente...</option>
+              {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Profissional *</label>
+            <select
+              value={newApt.professional_id}
+              onChange={e => setNewApt({ ...newApt, professional_id: e.target.value })}
+              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+            >
+              {professionals.filter(p => p.role !== 'receptionist').map(p => (
+                <option key={p.id} value={p.id}>{p.name} ({p.role === 'dentist' ? 'Dentista' : 'Esteticista'})</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Procedimento</label>
+            <select
+              value={newApt.service_id}
+              onChange={e => setNewApt({ ...newApt, service_id: e.target.value })}
+              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+            >
+              <option value="">Consulta Geral</option>
+              {services.filter(s => s.active).map(s => (
+                <option key={s.id} value={s.id}>{s.name} - {formatCurrency(s.base_price)}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Data *</label>
+              <input
+                type="date"
+                value={newApt.date}
+                onChange={e => setNewApt({ ...newApt, date: e.target.value })}
+                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horário *</label>
+              <input
+                type="time"
+                value={newApt.time}
+                onChange={e => setNewApt({ ...newApt, time: e.target.value })}
+                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+              />
+            </div>
+          </div>
+          <LoadingButton
+            onClick={handleAddAppointment}
+            className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4"
+          >
+            Confirmar Agendamento
+          </LoadingButton>
+        </div>
+      </Modal>
+
+      {/* Selected Appointment Detail */}
+      <Modal isOpen={!!selectedApt} onClose={() => setSelectedApt(null)} title="Detalhes do Agendamento">
+        {selectedApt && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-lg">
+                {selectedApt.patient_name.charAt(0)}
               </div>
-              <form onSubmit={handleAddAppointment} className="p-6 space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Paciente</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={newAppointment.patient}
-                    onChange={e => setNewAppointment({...newAppointment, patient: e.target.value})}
-                    className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" 
-                    placeholder="Buscar paciente..."
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Profissional</label>
-                  <select 
-                    value={newAppointment.professional}
-                    onChange={e => setNewAppointment({...newAppointment, professional: e.target.value})}
-                    className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+              <div>
+                <h4 className="font-bold text-slate-900">{selectedApt.patient_name}</h4>
+                <p className="text-xs text-slate-500">{selectedApt.service_name} • {selectedApt.professional_name}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-3 rounded-xl">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Horário</p>
+                <p className="text-sm font-bold text-slate-900">{format(parseISO(selectedApt.scheduled_at), 'HH:mm')}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Valor</p>
+                <p className="text-sm font-bold text-slate-900">{formatCurrency(selectedApt.base_value)}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Duração</p>
+                <p className="text-sm font-bold text-slate-900">{selectedApt.duration_min} min</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl">
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Status</p>
+                <p className={cn("text-sm font-bold", statusColors[selectedApt.status]?.text || 'text-slate-900')}>
+                  {statusLabels[selectedApt.status]}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {(selectedApt.status === 'scheduled' || selectedApt.status === 'confirmed') && (
+                <>
+                  <button
+                    onClick={() => { updateAppointmentStatus(selectedApt.id, 'confirmed'); setSelectedApt({ ...selectedApt, status: 'confirmed' }); toast('Agendamento confirmado!'); }}
+                    className="flex-1 py-2.5 bg-cyan-50 text-cyan-600 font-bold rounded-xl text-sm hover:bg-cyan-100 transition-all"
                   >
-                    <option>Dr. Lucas Silva (Dentista)</option>
-                    <option>Dra. Julia Paiva (Ortodontista)</option>
-                    <option>Mariana Costa (Esteticista)</option>
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horário</label>
-                    <input 
-                      required
-                      type="time" 
-                      value={newAppointment.time}
-                      onChange={e => setNewAppointment({...newAppointment, time: e.target.value})}
-                      className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" 
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tipo</label>
-                    <select 
-                      value={newAppointment.type}
-                      onChange={e => setNewAppointment({...newAppointment, type: e.target.value})}
-                      className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
-                    >
-                      <option>Consulta</option>
-                      <option>Limpeza</option>
-                      <option>Avaliação</option>
-                      <option>Procedimento</option>
-                    </select>
-                  </div>
-                </div>
-                <button type="submit" className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4">
-                  Confirmar Agendamento
+                    Confirmar
+                  </button>
+                  <button
+                    onClick={() => { handleStartAppointment(selectedApt); setSelectedApt(null); }}
+                    className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 transition-all"
+                  >
+                    Iniciar Atendimento
+                  </button>
+                </>
+              )}
+              {selectedApt.status === 'in_progress' && (
+                <button
+                  onClick={() => { onNavigate?.('prontuarios', { patientId: selectedApt.patient_id, appointmentId: selectedApt.id }); setSelectedApt(null); }}
+                  className="flex-1 py-2.5 bg-amber-600 text-white font-bold rounded-xl text-sm hover:bg-amber-700 transition-all"
+                >
+                  Continuar Atendimento
                 </button>
-              </form>
-            </motion.div>
+              )}
+              {['scheduled', 'confirmed'].includes(selectedApt.status) && (
+                <button
+                  onClick={() => { updateAppointmentStatus(selectedApt.id, 'no_show'); setSelectedApt(null); toast('Paciente marcado como falta', 'warning'); }}
+                  className="py-2.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl text-sm hover:bg-red-100 transition-all"
+                >
+                  Faltou
+                </button>
+              )}
+            </div>
           </div>
         )}
-      </AnimatePresence>
+      </Modal>
 
+      {/* Date Navigation */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm gap-4">
         <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
           <h2 className="text-lg font-bold text-slate-900 capitalize">
             {view === 'day' ? format(currentDate, "dd 'de' MMMM yyyy", { locale: ptBR }) : format(currentDate, 'MMMM yyyy', { locale: ptBR })}
           </h2>
           <div className="flex items-center gap-1">
-            <button 
-              onClick={() => handleNavigate('prev')}
-              className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
-            >
+            <button onClick={() => handleNavigate('prev')} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <button 
-              onClick={() => setCurrentDate(new Date())}
-              className="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-900"
-            >
-              HOJE
-            </button>
-            <button 
-              onClick={() => handleNavigate('next')}
-              className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
-            >
+            <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-900">HOJE</button>
+            <button onClick={() => handleNavigate('next')} className="p-1.5 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-slate-600 transition-colors">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
-        
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-cyan-500" />
-            <span className="text-xs text-slate-500 font-medium">Confirmado</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-amber-500" />
-            <span className="text-xs text-slate-500 font-medium">Pendente</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500" />
-            <span className="text-xs text-slate-500 font-medium">Faltou</span>
-          </div>
+          {Object.entries(statusLabels).filter(([k]) => k !== 'cancelled').map(([key, label]) => (
+            <div key={key} className="flex items-center gap-2">
+              <div className={cn("w-3 h-3 rounded-full", statusColors[key]?.border.replace('border', 'bg') || 'bg-slate-300')} />
+              <span className="text-xs text-slate-500 font-medium">{label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
+      {/* Calendar Grid */}
       <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-        {/* Week/Month Header */}
-        <div className="grid grid-cols-2 md:grid-cols-8 border-b border-slate-100">
-          <div className="hidden md:block p-4 border-r border-slate-100" />
-          {view === 'day' ? (
-            <div className="col-span-1 md:col-span-7 p-4 text-center bg-cyan-50/30">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                {format(currentDate, 'eeee', { locale: ptBR })}
-              </p>
-              <p className="text-lg font-bold text-cyan-600">
-                {format(currentDate, 'dd')}
-              </p>
-            </div>
-          ) : view === 'week' ? (
-            weekDays.map((day, idx) => (
-              <div key={day.toString()} className={cn(
-                "p-4 text-center border-r border-slate-100 last:border-r-0",
-                isSameDay(day, new Date()) && "bg-cyan-50/30",
-                idx > 1 && "hidden md:block"
-              )}>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                  {format(day, 'eee', { locale: ptBR })}
-                </p>
-                <p className={cn(
-                  "text-lg font-bold",
-                  isSameDay(day, new Date()) ? "text-cyan-600" : "text-slate-900"
-                )}>
-                  {format(day, 'dd')}
-                </p>
-              </div>
-            ))
-          ) : (
-            ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
-              <div key={d} className="p-4 text-center border-r border-slate-100 last:border-r-0 hidden md:block">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{d}</p>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Time/Month Grid */}
-        <div className="flex-1 overflow-y-auto">
-          {view === 'month' ? (
-            <div className="grid grid-cols-7 h-full">
-              {eachDayOfInterval({
-                start: startOfMonth(currentDate),
-                end: endOfMonth(currentDate)
-              }).map((day, i) => (
-                <div key={day.toString()} className={cn(
-                  "min-h-[100px] p-2 border-r border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer",
-                  !isSameDay(day, currentDate) && "text-slate-400",
-                  isSameDay(day, new Date()) && "bg-cyan-50/20"
-                )}>
-                  <p className={cn(
-                    "text-xs font-bold mb-2",
-                    isSameDay(day, new Date()) ? "text-cyan-600" : "text-slate-900"
-                  )}>
-                    {format(day, 'd')}
-                  </p>
-                  {isSameDay(day, new Date()) && (
-                    <div className="bg-cyan-500 text-white text-[8px] p-1 rounded mb-1 truncate font-bold">
-                      4 Agendamentos
-                    </div>
-                  )}
+        {view === 'month' ? (
+          <>
+            <div className="grid grid-cols-7 border-b border-slate-100">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
+                <div key={d} className="p-3 text-center border-r border-slate-100 last:border-r-0">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{d}</p>
                 </div>
               ))}
             </div>
-          ) : (
-            Array.from({ length: 12 }).map((_, hour) => (
-              <div key={hour} className="grid grid-cols-2 md:grid-cols-8 border-b border-slate-50 group">
-                <div className="hidden md:block p-4 border-r border-slate-100 text-right">
-                  <span className="text-xs font-bold text-slate-400">{hour + 8}:00</span>
-                </div>
-                {view === 'day' ? (
-                  <div className="col-span-1 md:col-span-7 border-r border-slate-100 last:border-r-0 relative min-h-[80px] hover:bg-slate-50/50 transition-colors cursor-pointer">
-                    <div className="md:hidden absolute top-1 left-1 text-[8px] font-bold text-slate-300">{hour + 8}:00</div>
-                    {isSameDay(currentDate, new Date()) && hour === 1 && (
-                      <div className="absolute inset-1 bg-cyan-50 border-l-4 border-cyan-500 rounded-lg p-2 shadow-sm z-10 overflow-hidden">
-                        <p className="text-[10px] font-bold text-cyan-700 truncate">ANA PAULA SOUZA</p>
-                        <p className="text-[9px] text-cyan-600 truncate">Limpeza (Dr. Lucas Silva)</p>
-                      </div>
-                    )}
-                  </div>
-                ) : weekDays.map((day, i) => (
-                  <div key={day.toString()} className={cn(
-                    "border-r border-slate-100 last:border-r-0 relative min-h-[80px] hover:bg-slate-50/50 transition-colors cursor-pointer",
-                    i > 1 && "hidden md:block"
-                  )}>
-                    {/* Mobile Hour Indicator */}
-                    <div className="md:hidden absolute top-1 left-1 text-[8px] font-bold text-slate-300">{hour + 8}:00</div>
-                    
-                    {/* Mock Appointment */}
-                    {isSameDay(day, new Date()) && hour === 1 && (
-                      <div className="absolute inset-1 bg-cyan-50 border-l-4 border-cyan-500 rounded-lg p-2 shadow-sm z-10 overflow-hidden">
-                        <p className="text-[10px] font-bold text-cyan-700 truncate">ANA PAULA SOUZA</p>
-                        <p className="text-[9px] text-cyan-600 truncate">Limpeza</p>
-                        <div className="flex items-center gap-1 mt-1">
-                          <Clock className="w-2 h-2 text-cyan-400" />
-                          <span className="text-[8px] text-cyan-500 font-bold">09:00</span>
-                        </div>
-                      </div>
-                    )}
-                    {i === 3 && hour === 3 && (
-                      <div className="absolute inset-1 bg-amber-50 border-l-4 border-amber-500 rounded-lg p-2 shadow-sm z-10 overflow-hidden">
-                        <p className="text-[10px] font-bold text-amber-700 truncate">CARLOS EDUARDO</p>
-                        <p className="text-[9px] text-amber-600 truncate">Avaliação</p>
-                      </div>
-                    )}
-                  </div>
+            <div className="flex-1 overflow-y-auto">
+              <div className="grid grid-cols-7">
+                {/* Padding for start of month */}
+                {Array.from({ length: startOfMonth(currentDate).getDay() }).map((_, i) => (
+                  <div key={`pad-${i}`} className="min-h-[100px] p-2 border-r border-b border-slate-50 bg-slate-50/30" />
                 ))}
+                {eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) }).map((day) => {
+                  const dayApts = getAppointmentsForDay(day);
+                  return (
+                    <div
+                      key={day.toString()}
+                      onClick={() => { setCurrentDate(day); setView('day'); }}
+                      className={cn(
+                        "min-h-[100px] p-2 border-r border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer",
+                        isSameDay(day, new Date()) && "bg-cyan-50/20"
+                      )}
+                    >
+                      <p className={cn("text-xs font-bold mb-2", isSameDay(day, new Date()) ? "text-cyan-600" : "text-slate-900")}>
+                        {format(day, 'd')}
+                      </p>
+                      {dayApts.slice(0, 2).map(apt => (
+                        <div key={apt.id} className={cn("text-[8px] p-1 rounded mb-1 truncate font-bold text-white", statusColors[apt.status]?.border.replace('border', 'bg') || 'bg-cyan-500')}>
+                          {format(parseISO(apt.scheduled_at), 'HH:mm')} {apt.patient_name.split(' ')[0]}
+                        </div>
+                      ))}
+                      {dayApts.length > 2 && (
+                        <div className="text-[8px] text-slate-400 font-bold">+{dayApts.length - 2} mais</div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            ))
-          )}
-        </div>
+            </div>
+          </>
+        ) : view === 'day' ? (
+          <>
+            <div className="border-b border-slate-100 p-4 text-center bg-cyan-50/30">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                {format(currentDate, 'eeee', { locale: ptBR })}
+              </p>
+              <p className="text-lg font-bold text-cyan-600">{format(currentDate, 'dd')}</p>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {hours.map(hour => {
+                const hourApts = getAppointmentsForDay(currentDate).filter(a => getHours(parseISO(a.scheduled_at)) === hour);
+                return (
+                  <div key={hour} className="flex border-b border-slate-50 min-h-[80px]">
+                    <div className="w-20 p-4 border-r border-slate-100 text-right flex-shrink-0">
+                      <span className="text-xs font-bold text-slate-400">{hour}:00</span>
+                    </div>
+                    <div className="flex-1 p-2 space-y-1">
+                      {hourApts.map(apt => renderAppointmentCard(apt))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-8 border-b border-slate-100">
+              <div className="p-4 border-r border-slate-100" />
+              {weekDays.map((day) => (
+                <div key={day.toString()} className={cn("p-4 text-center border-r border-slate-100 last:border-r-0", isSameDay(day, new Date()) && "bg-cyan-50/30")}>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{format(day, 'eee', { locale: ptBR })}</p>
+                  <p className={cn("text-lg font-bold", isSameDay(day, new Date()) ? "text-cyan-600" : "text-slate-900")}>{format(day, 'dd')}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {hours.map(hour => (
+                <div key={hour} className="grid grid-cols-8 border-b border-slate-50">
+                  <div className="p-4 border-r border-slate-100 text-right">
+                    <span className="text-xs font-bold text-slate-400">{hour}:00</span>
+                  </div>
+                  {weekDays.map(day => {
+                    const hourApts = getAppointmentsForDay(day).filter(a => getHours(parseISO(a.scheduled_at)) === hour);
+                    return (
+                      <div key={day.toString()} className={cn("border-r border-slate-100 min-h-[80px] p-1 hover:bg-slate-50/50 transition-colors cursor-pointer space-y-1", isSameDay(day, new Date()) && "bg-cyan-50/10")}>
+                        {hourApts.map(apt => renderAppointmentCard(apt, true))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
