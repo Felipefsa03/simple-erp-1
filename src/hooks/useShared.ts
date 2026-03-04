@@ -3,15 +3,18 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 // ---- Anti-double-click hook ----
 export function useSubmitOnce<T extends any[]>(fn: (...args: T) => Promise<void> | void) {
     const [loading, setLoading] = useState(false);
+    const loadingRef = useRef(false);
     const submit = useCallback(async (...args: T) => {
-        if (loading) return;
+        if (loadingRef.current) return;
+        loadingRef.current = true;
         setLoading(true);
         try {
             await fn(...args);
         } finally {
+            loadingRef.current = false;
             setLoading(false);
         }
-    }, [fn, loading]);
+    }, [fn]);
     return { submit, loading };
 }
 
@@ -40,7 +43,10 @@ export function registerToastCallback(cb: (msg: ToastMsg) => void) {
 
 export function toast(message: string, type: ToastMsg['type'] = 'success') {
     if (toastCallback) {
-        toastCallback({ id: crypto.randomUUID(), message, type });
+        const id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+            ? crypto.randomUUID()
+            : `toast-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        toastCallback({ id, message, type });
     }
 }
 

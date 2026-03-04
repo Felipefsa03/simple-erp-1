@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Download, CreditCard, PieChart, Calendar, CheckCircle2, X } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Download, CreditCard, PieChart, Calendar, CheckCircle2, X, FileText, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
@@ -13,30 +13,78 @@ interface FinanceiroProps {
 }
 
 export function Financeiro({ onNavigate }: FinanceiroProps) {
-  const { user } = useAuth();
-  const { transactions, addTransaction, processPayment, getMonthlyIncome, getMonthlyExpenses, getBalance } = useClinicStore();
+  const { user, hasPermission } = useAuth();
+  const {
+    transactions,
+    addTransaction,
+    processPayment,
+    generatePayment,
+    getMonthlyIncome,
+    getMonthlyExpenses,
+    getBalance,
+    navigationContext,
+    clearNavigationContext,
+  } = useClinicStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [txnType, setTxnType] = useState<'income' | 'expense'>('income');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('');
   const [newTxn, setNewTxn] = useState({ description: '', amount: '', category: 'Procedimento', patient_name: '' });
+  const [chargeModalOpen, setChargeModalOpen] = useState(false);
+  const [chargeTarget, setChargeTarget] = useState<FinancialTransaction | null>(null);
+  const [chargeMethod, setChargeMethod] = useState<'pix' | 'card' | 'manual'>('pix');
+  const [chargeInstallments, setChargeInstallments] = useState('1');
+  const [highlightedTxnId, setHighlightedTxnId] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
 
-  const monthlyIncome = getMonthlyIncome();
-  const monthlyExpenses = getMonthlyExpenses();
-  const balance = getBalance();
+  // Handle navigation context — highlight appointment transaction
+  useEffect(() => {
+    if (navigationContext.appointmentId && navigationContext.fromModule === 'prontuarios') {
+      const txn = transactions.find(t => t.appointment_id === navigationContext.appointmentId && t.type === 'income');
+      if (txn) {
+        setHighlightedTxnId(txn.id);
+        // Scroll to highlighted after a brief delay for DOM update
+        setTimeout(() => {
+          highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+        // Clear highlight after 5 seconds
+        setTimeout(() => setHighlightedTxnId(null), 5000);
+      }
+      clearNavigationContext();
+    }
+  }, [navigationContext, transactions, clearNavigationContext]);
+
+  const clinicId = user?.clinic_id || 'clinic-1';
+  const canView = hasPermission('view_financial');
+  const canManage = hasPermission('manage_financial');
+
+  const monthlyIncome = getMonthlyIncome(clinicId);
+  const monthlyExpenses = getMonthlyExpenses(clinicId);
+  const balance = getBalance(clinicId);
+
+  if (!canView) {
+    return (
+      <EmptyState
+        title="Acesso restrito"
+        description="Você não tem permissão para visualizar o financeiro."
+      />
+    );
+  }
 
   const filteredTransactions = useMemo(() => {
-    let result = [...transactions];
+    let result = transactions.filter(t => t.clinic_id === clinicId);
     if (filterStatus !== 'all') result = result.filter(t => t.status === filterStatus);
     if (dateFilter) result = result.filter(t => t.created_at.startsWith(dateFilter));
     return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [transactions, filterStatus, dateFilter]);
+  }, [transactions, filterStatus, dateFilter, clinicId]);
 
   const expenseCategories = useMemo(() => {
     const cats: Record<string, number> = {};
-    transactions.filter(t => t.type === 'expense' && t.status === 'paid').forEach(t => {
-      cats[t.category] = (cats[t.category] || 0) + t.amount;
-    });
+    transactions
+      .filter(t => t.type === 'expense' && t.status === 'paid' && t.clinic_id === clinicId)
+      .forEach(t => {
+        cats[t.category] = (cats[t.category] || 0) + t.amount;
+      });
     const total = Object.values(cats).reduce((s, v) => s + v, 0) || 1;
     return Object.entries(cats).map(([label, value]) => ({
       label, value, pct: Math.round((value / total) * 100),
@@ -44,15 +92,17 @@ export function Financeiro({ onNavigate }: FinanceiroProps) {
   }, [transactions]);
 
   const handleAddTransaction = () => {
+    if (!canManage) { toast('Você não tem permissão para lançar transações.', 'error'); return; }
     if (!newTxn.description || !newTxn.amount) { toast('Preencha descrição e valor', 'error'); return; }
     addTransaction({
-      clinic_id: user?.clinic_id || 'clinic-1',
+      clinic_id: clinicId,
       type: txnType,
       category: newTxn.category,
       description: newTxn.description,
       amount: parseFloat(newTxn.amount.replace(',', '.')),
       status: txnType === 'expense' ? 'paid' : 'pending',
       patient_name: newTxn.patient_name || undefined,
+      idempotency_key: `manual:${Date.now()}`,
     });
     setIsModalOpen(false);
     setNewTxn({ description: '', amount: '', category: 'Procedimento', patient_name: '' });
@@ -60,17 +110,44 @@ export function Financeiro({ onNavigate }: FinanceiroProps) {
   };
 
   const { submit: handleProcessPayment, loading: paymentLoading } = useSubmitOnce(async (id: string) => {
+    if (!canManage) { toast('Você não tem permissão para processar pagamentos.', 'error'); return; }
     await new Promise(r => setTimeout(r, 400));
     processPayment(id, 'manual');
     toast('Pagamento processado com sucesso!');
   });
 
+  const handleOpenCharge = (txn: FinancialTransaction) => {
+    if (!canManage) {
+      toast('Você não tem permissão para gerar cobranças.', 'error');
+      return;
+    }
+    setChargeTarget(txn);
+    setChargeMethod('pix');
+    setChargeInstallments('1');
+    setChargeModalOpen(true);
+  };
+
+  const handleConfirmCharge = () => {
+    if (!chargeTarget) return;
+    const installments = Math.max(1, parseInt(chargeInstallments, 10) || 1);
+    generatePayment(chargeTarget.id, chargeMethod, chargeMethod === 'card' ? installments : 1);
+    toast('Cobrança gerada com sucesso!');
+    setChargeModalOpen(false);
+    setChargeTarget(null);
+  };
+
   const handleExportDRE = () => {
-    const income = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
-    const expenses = transactions.filter(t => t.type === 'expense' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+    const income = transactions
+      .filter(t => t.type === 'income' && t.status === 'paid' && t.clinic_id === clinicId)
+      .reduce((s, t) => s + t.amount, 0);
+    const expenses = transactions
+      .filter(t => t.type === 'expense' && t.status === 'paid' && t.clinic_id === clinicId)
+      .reduce((s, t) => s + t.amount, 0);
     const csv = [
       'Tipo,Categoria,Descrição,Valor,Status,Data',
-      ...transactions.map(t => `${t.type},${t.category},"${t.description}",${t.amount},${t.status},${t.created_at}`),
+      ...transactions
+        .filter(t => t.clinic_id === clinicId)
+        .map(t => `${t.type},${t.category},"${t.description}",${t.amount},${t.status},${t.created_at}`),
       '',
       `RECEITA TOTAL,,, ${income},,`,
       `DESPESA TOTAL,,, ${expenses},,`,
@@ -105,7 +182,11 @@ export function Financeiro({ onNavigate }: FinanceiroProps) {
           <button onClick={handleExportDRE} className="flex-1 md:flex-none px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Download className="w-4 h-4 inline mr-2" />Exportar DRE
           </button>
-          <button onClick={() => setIsModalOpen(true)} className="flex-1 md:flex-none px-4 py-2 bg-cyan-600 rounded-xl text-sm font-medium text-white hover:bg-cyan-700 shadow-sm shadow-cyan-200">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            disabled={!canManage}
+            className="flex-1 md:flex-none px-4 py-2 bg-cyan-600 rounded-xl text-sm font-medium text-white hover:bg-cyan-700 shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
             <Plus className="w-4 h-4 inline mr-2" />Novo Lançamento
           </button>
         </div>
@@ -144,7 +225,54 @@ export function Financeiro({ onNavigate }: FinanceiroProps) {
               <input type="text" value={newTxn.patient_name} onChange={e => setNewTxn({ ...newTxn, patient_name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" placeholder="Nome do paciente" />
             </div>
           )}
-          <button onClick={handleAddTransaction} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 shadow-lg shadow-cyan-200 mt-4">Confirmar Lançamento</button>
+          <button
+            onClick={handleAddTransaction}
+            disabled={!canManage}
+            className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 shadow-lg shadow-cyan-200 mt-4 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            Confirmar Lançamento
+          </button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={chargeModalOpen} onClose={() => setChargeModalOpen(false)} title="Gerar Cobrança">
+        <div className="space-y-4">
+          {chargeTarget && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <p className="text-xs text-slate-500">Paciente</p>
+              <p className="text-sm font-bold text-slate-900">{chargeTarget.patient_name || 'Paciente não informado'}</p>
+              <p className="text-xs text-slate-500 mt-2">Valor</p>
+              <p className="text-sm font-bold text-slate-900">{formatCurrency(chargeTarget.amount)}</p>
+            </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Método</label>
+            <select value={chargeMethod} onChange={e => setChargeMethod(e.target.value as 'pix' | 'card' | 'manual')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none">
+              <option value="pix">Pix</option>
+              <option value="card">Cartão</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+          {chargeMethod === 'card' && (
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Parcelas</label>
+              <input
+                type="number"
+                min={1}
+                max={12}
+                value={chargeInstallments}
+                onChange={e => setChargeInstallments(e.target.value)}
+                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+              />
+            </div>
+          )}
+          <button
+            onClick={handleConfirmCharge}
+            disabled={!chargeTarget}
+            className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            Gerar Cobrança
+          </button>
         </div>
       </Modal>
 
@@ -197,36 +325,79 @@ export function Financeiro({ onNavigate }: FinanceiroProps) {
                 <EmptyState title="Nenhuma transação" description="Adicione lançamentos para acompanhar suas finanças." />
               ) : filteredTransactions.map(t => (
                 <React.Fragment key={t.id}>
-                  <div className="p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+                  <div
+                    ref={t.id === highlightedTxnId ? highlightRef : undefined}
+                    className={cn("p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors", t.id === highlightedTxnId && "bg-cyan-50 ring-2 ring-cyan-400 ring-inset rounded-xl")}
+                  >
                     <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", t.type === 'income' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
                       {t.type === 'income' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-slate-900 truncate">{t.description}</p>
-                      <p className="text-xs text-slate-500">{t.category} • {new Date(t.created_at).toLocaleDateString('pt-BR')}</p>
+                      <p className="text-xs text-slate-500">{t.category} • {new Date(t.created_at).toLocaleDateString('pt-BR')}{t.professional_name ? ` • ${t.professional_name}` : ''}</p>
+                      {t.type === 'income' && typeof t.material_cost === 'number' && (
+                        <p className="text-[10px] text-slate-400">
+                          Custo material {formatCurrency(t.material_cost)} · Margem {formatCurrency(t.amount - t.material_cost)}
+                        </p>
+                      )}
                     </div>
-                    <div className="text-right">
-                      <p className={cn("text-sm font-bold", t.type === 'income' ? "text-emerald-600" : "text-red-600")}>
-                        {t.type === 'income' ? '+' : '-'} {formatCurrency(t.amount)}
-                      </p>
-                      <span className={cn("text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md",
-                        t.status === 'paid' ? "bg-emerald-50 text-emerald-600" :
-                          t.status === 'awaiting_payment' ? "bg-cyan-50 text-cyan-600" :
-                            t.status === 'pending' ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"
-                      )}>
-                        {statusLabels[t.status] || t.status}
-                      </span>
+                    <div className="flex items-center gap-3">
+                      {t.appointment_id && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onNavigate?.('prontuarios', { patientId: t.patient_id, appointmentId: t.appointment_id }); }}
+                          className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-all" title="Ver Prontuário"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                      )}
+                      <div className="text-right">
+                        <p className={cn("text-sm font-bold", t.type === 'income' ? "text-emerald-600" : "text-red-600")}>
+                          {t.type === 'income' ? '+' : '-'} {formatCurrency(t.amount)}
+                        </p>
+                        <span className={cn("text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md",
+                          t.status === 'paid' ? "bg-emerald-50 text-emerald-600" :
+                            t.status === 'awaiting_payment' ? "bg-cyan-50 text-cyan-600" :
+                              t.status === 'pending' ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"
+                        )}>
+                          {statusLabels[t.status] || t.status}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  {(t.status === 'awaiting_payment' || t.status === 'pending') && t.type === 'income' && (
-                    <div className="px-4 pb-4 pt-0 flex items-center gap-2">
+                  {t.type === 'income' && t.status === 'pending' && (
+                    <div className="px-4 pb-4 pt-0 flex items-center gap-2 flex-wrap">
                       {t.items && t.items.map(item => (
                         <span key={item} className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">{item}</span>
                       ))}
+                      <button
+                        onClick={() => handleOpenCharge(t)}
+                        disabled={!canManage}
+                        className="ml-auto text-[10px] font-bold text-white bg-slate-900 px-3 py-1 rounded-lg hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        Gerar Cobrança
+                      </button>
+                    </div>
+                  )}
+                  {t.type === 'income' && t.status === 'awaiting_payment' && (
+                    <div className="px-4 pb-4 pt-0 flex items-center gap-2 flex-wrap">
+                      {t.items && t.items.map(item => (
+                        <span key={item} className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">{item}</span>
+                      ))}
+                      {t.payment_reference && (
+                        <span className="text-[9px] bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full border border-cyan-100">
+                          Ref: {t.payment_reference}
+                        </span>
+                      )}
+                      {t.pix_code && (
+                        <span className="text-[9px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-100">
+                          Pix: {t.pix_code}
+                        </span>
+                      )}
                       <LoadingButton
                         loading={paymentLoading}
                         onClick={() => handleProcessPayment(t.id)}
-                        className="ml-auto text-[10px] font-bold text-white bg-cyan-600 px-3 py-1 rounded-lg hover:bg-cyan-700"
+                        disabled={!canManage}
+                        className="ml-auto text-[10px] font-bold text-white bg-cyan-600 px-3 py-1 rounded-lg hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         Receber Agora
                       </LoadingButton>
@@ -264,7 +435,7 @@ export function Financeiro({ onNavigate }: FinanceiroProps) {
             <CreditCard className="w-8 h-8 mb-4 opacity-80" />
             <h3 className="font-bold text-lg mb-1">Integração Asaas</h3>
             <p className="text-sm text-cyan-100 mb-4">Gere cobranças automáticas via Pix e Cartão com um clique.</p>
-            <button onClick={() => { window.open('https://www.asaas.com', '_blank'); toast('Abrindo portal Asaas...', 'info'); }} className="w-full py-2 bg-white text-cyan-700 font-bold rounded-xl hover:bg-cyan-50 transition-colors">
+            <button onClick={() => onNavigate?.('configuracoes')} className="w-full py-2 bg-white text-cyan-700 font-bold rounded-xl hover:bg-cyan-50 transition-colors">
               Configurar Gateway
             </button>
           </div>

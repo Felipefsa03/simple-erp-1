@@ -237,3 +237,69 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md' 
         </div>
     );
 }
+
+// ---- Error Boundary ----
+interface ErrorBoundaryProps {
+    children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+    hasError: boolean;
+    error?: Error;
+}
+
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+    state: ErrorBoundaryState = { hasError: false };
+
+    static getDerivedStateFromError(error: Error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error: Error, info: React.ErrorInfo) {
+        console.error('UI error boundary:', error, info);
+    }
+
+    private handleReload = () => {
+        window.location.reload();
+    };
+
+    private handleClearAndReload = () => {
+        localStorage.removeItem('luminaflow-auth');
+        localStorage.removeItem('luminaflow-clinic-store');
+        window.location.reload();
+    };
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="flex items-center justify-center min-h-[60vh] p-6">
+                    <div className="bg-white border border-slate-200 rounded-3xl shadow-sm p-8 max-w-md w-full text-center">
+                        <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-50 flex items-center justify-center">
+                            <AlertTriangle className="w-7 h-7 text-amber-600" />
+                        </div>
+                        <h2 className="text-lg font-bold text-slate-900 mb-2">Opa! Algo deu errado.</h2>
+                        <p className="text-sm text-slate-500 mb-6">Estamos evitando a tela branca e recarregando resolve na maioria dos casos.</p>
+                        {this.state.error?.message && (
+                            <p className="text-xs text-slate-400 mb-4 break-words">{this.state.error.message}</p>
+                        )}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={this.handleReload}
+                                className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all text-sm"
+                            >
+                                Recarregar
+                            </button>
+                            <button
+                                onClick={this.handleClearAndReload}
+                                className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all text-sm"
+                            >
+                                Limpar Cache
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}

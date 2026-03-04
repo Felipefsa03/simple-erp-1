@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Mic, Camera, FileText, History, Plus, Save, User, Activity, ClipboardList, Image as ImageIcon, X, Lock, ChevronLeft, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -6,7 +6,7 @@ import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast, formatCurrency, useSubmitOnce } from '@/hooks/useShared';
 import { Modal, EmptyState, ConfirmDialog, LoadingButton } from '@/components/shared';
-import type { OdontogramEntry, TreatmentPlanItem } from '@/types';
+import type { OdontogramEntry, TreatmentPlanItem, AppointmentMaterial } from '@/types';
 
 const tabs = [
   { id: 'evolucao', label: 'Evolução', icon: History },
@@ -30,25 +30,55 @@ interface ProntuarioProps {
 export function Prontuario({ onNavigate }: ProntuarioProps) {
   const { user, hasPermission } = useAuth();
   const store = useClinicStore();
-  const { navigationContext, patients, appointments, services, stockItems, getPatient, getRecordsForPatient, saveEvolution, getOdontogramData, setOdontogramEntry, saveAnamnese, getAnamnese, getPlansForPatient, addTreatmentPlan, finalizeAppointment } = store;
+  const {
+    navigationContext,
+    patients,
+    appointments,
+    services,
+    stockItems,
+    getPatient,
+    getRecordsForPatient,
+    saveEvolution,
+    getOdontogramData,
+    setOdontogramEntry,
+    saveAnamnese,
+    getAnamnese,
+    getPlansForPatient,
+    addTreatmentPlan,
+    finalizeAppointment,
+    getAppointmentMaterials,
+    setAppointmentMaterials,
+    patientPhotos,
+    addPatientPhoto,
+    removePatientPhoto,
+  } = store;
 
-  const patientId = navigationContext.patientId || patients[0]?.id;
+  const clinicId = user?.clinic_id || 'clinic-1';
+  const clinicPatients = useMemo(() => patients.filter(p => p.clinic_id === clinicId), [patients, clinicId]);
+  const clinicAppointments = useMemo(() => appointments.filter(a => a.clinic_id === clinicId), [appointments, clinicId]);
+  const clinicServices = useMemo(() => services.filter(s => s.clinic_id === clinicId), [services, clinicId]);
+  const clinicStockItems = useMemo(() => stockItems.filter(s => s.clinic_id === clinicId), [stockItems, clinicId]);
+
+  const patientId = navigationContext.patientId || clinicPatients[0]?.id;
   const appointmentId = navigationContext.appointmentId;
   const patient = getPatient(patientId);
-  const appointment = appointmentId ? appointments.find(a => a.id === appointmentId) : undefined;
+  const appointment = appointmentId ? clinicAppointments.find(a => a.id === appointmentId) : undefined;
   const isLocked = appointment?.status === 'done';
+  const canEdit = hasPermission('edit_record');
+  const canFinalize = hasPermission('finalize_appointment');
 
   const [activeSubTab, setActiveSubTab] = useState('evolucao');
   const [evolutionText, setEvolutionText] = useState('');
   const [selectedProcedure, setSelectedProcedure] = useState<string | null>(null);
   const [toothModal, setToothModal] = useState<number | null>(null);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Anamnese state
   const [anamneseForm, setAnamneseForm] = useState({ medical_history: '', current_medications: '', allergies: '', habits: '', complaints: '', observations: '' });
 
   // Stock consumption state
-  const [consumptionItems, setConsumptionItems] = useState<{ id: string; name: string; qty: number }[]>([]);
+  const [consumptionItems, setConsumptionItems] = useState<AppointmentMaterial[]>([]);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState('');
 
@@ -60,6 +90,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
   const patientRecords = useMemo(() => patientId ? getRecordsForPatient(patientId) : [], [patientId, store.medicalRecords]);
   const odontogramData = useMemo(() => patientId ? getOdontogramData(patientId) : [], [patientId, store.odontogramData]);
   const treatmentPlans = useMemo(() => patientId ? getPlansForPatient(patientId) : [], [patientId, store.treatmentPlans]);
+  const photos = useMemo(() => patientId ? (patientPhotos[patientId] || []) : [], [patientId, patientPhotos]);
 
   // Load anamnese data
   useEffect(() => {
@@ -71,13 +102,28 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
 
   // Auto-populate stock consumption from service materials
   useEffect(() => {
-    if (appointment?.service_id && consumptionItems.length === 0) {
-      const service = services.find(s => s.id === appointment.service_id);
+    if (!appointmentId) return;
+    const stored = getAppointmentMaterials(appointmentId);
+    if (stored.length > 0) {
+      setConsumptionItems(stored);
+      return;
+    }
+    if (appointment?.service_id) {
+      const service = clinicServices.find(s => s.id === appointment.service_id);
       if (service?.materials) {
-        setConsumptionItems(service.materials.map(m => ({ id: m.stock_item_id, name: m.stock_item_name, qty: m.qty_per_use })));
+        setConsumptionItems(service.materials.map(m => ({
+          stock_item_id: m.stock_item_id,
+          stock_item_name: m.stock_item_name,
+          qty: m.qty_per_use,
+        })));
       }
     }
-  }, [appointment]);
+  }, [appointmentId, appointment?.service_id, clinicServices, getAppointmentMaterials]);
+
+  useEffect(() => {
+    if (!appointmentId) return;
+    setAppointmentMaterials(appointmentId, consumptionItems);
+  }, [appointmentId, consumptionItems, setAppointmentMaterials]);
 
   const getToothStatus = (toothNum: number): OdontogramEntry | undefined => odontogramData.find(e => e.tooth_number === toothNum);
 
@@ -90,6 +136,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
       case 'Canal': return 'bg-amber-500 border-amber-600';
       case 'Extraído': return 'bg-slate-800 border-slate-900';
       case 'Implante': return 'bg-purple-500 border-purple-600';
+      case 'Pendente': return 'bg-amber-300 border-amber-400';
       case 'Saudável': return 'bg-emerald-500 border-emerald-600';
       default: return 'bg-white border-slate-300';
     }
@@ -97,26 +144,39 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
 
   const { submit: handleFinish, loading: finishLoading } = useSubmitOnce(async () => {
     if (!appointmentId || !user) return;
+    if (!canFinalize) {
+      toast('Você não tem permissão para finalizar atendimentos.', 'error');
+      return;
+    }
     await new Promise(r => setTimeout(r, 500));
-    finalizeAppointment(appointmentId, user.id, user.name);
+    const ok = finalizeAppointment(appointmentId, user.id, user.name);
+    if (!ok) {
+      toast('Inicie o atendimento antes de finalizar.', 'warning');
+      return;
+    }
     toast('Atendimento finalizado! Prontuário bloqueado. Redirecionando para o Financeiro...');
+    store.setNavigationContext({ appointmentId, fromModule: 'prontuarios' });
     setTimeout(() => onNavigate?.('financeiro', { appointmentId }), 1500);
   });
 
   const handleSaveEvolution = () => {
-    if (!patientId || !appointmentId || !user) return;
-    saveEvolution(appointmentId, patientId, user.clinic_id || 'clinic-1', user.id, evolutionText);
+    if (!patientId || !user) return;
+    if (!canEdit) { toast('Você não tem permissão para editar o prontuário.', 'error'); return; }
+    saveEvolution(appointmentId || undefined, patientId, user.clinic_id || 'clinic-1', user.id, evolutionText);
     toast('Evolução salva com sucesso!');
+    setEvolutionText('');
   };
 
   const handleSaveAnamnese = () => {
     if (!patientId) return;
+    if (!canEdit) { toast('Você não tem permissão para editar o prontuário.', 'error'); return; }
     saveAnamnese({ ...anamneseForm, patient_id: patientId, clinic_id: user?.clinic_id || 'clinic-1', updated_at: new Date().toISOString() });
     toast('Anamnese salva com sucesso!');
   };
 
   const handleToothClick = (toothNum: number) => {
     if (isLocked) { toast('Prontuário bloqueado após finalização', 'warning'); return; }
+    if (!canEdit) { toast('Você não tem permissão para editar o odontograma.', 'error'); return; }
     setToothModal(toothNum);
   };
 
@@ -129,13 +189,13 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
 
   const handleAddConsumptionItem = () => {
     if (!selectedStockItem) return;
-    const item = stockItems.find(s => s.id === selectedStockItem);
+    const item = clinicStockItems.find(s => s.id === selectedStockItem);
     if (!item) return;
-    if (consumptionItems.some(c => c.id === item.id)) {
+    if (consumptionItems.some(c => c.stock_item_id === item.id)) {
       toast('Item já adicionado', 'warning');
       return;
     }
-    setConsumptionItems(prev => [...prev, { id: item.id, name: item.name, qty: 1 }]);
+    setConsumptionItems(prev => [...prev, { stock_item_id: item.id, stock_item_name: item.name, qty: 1 }]);
     setSelectedStockItem('');
     setIsAddingItem(false);
   };
@@ -156,6 +216,22 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
     toast('Plano de tratamento criado!');
   };
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!patientId) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (dataUrl) {
+        addPatientPhoto(patientId, dataUrl);
+        toast('Foto adicionada ao prontuário!');
+      }
+    };
+    reader.readAsDataURL(file);
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
   if (!patient) {
     return (
       <EmptyState
@@ -167,6 +243,8 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
     );
   }
 
+  const patientAllergies = patient.allergies || [];
+  const patientTags = patient.tags || [];
   const age = patient.birth_date ? Math.floor((Date.now() - new Date(patient.birth_date).getTime()) / 31557600000) : null;
 
   return (
@@ -213,7 +291,8 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
             <LoadingButton
               loading={finishLoading}
               onClick={() => setShowFinishConfirm(true)}
-              className="flex-1 md:flex-none px-4 py-2 bg-cyan-600 rounded-xl text-sm font-medium text-white hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-200"
+              disabled={!canFinalize}
+              className="flex-1 md:flex-none px-4 py-2 bg-cyan-600 rounded-xl text-sm font-medium text-white hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               Finalizar Atendimento
             </LoadingButton>
@@ -253,7 +332,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
               <textarea
                 value={evolutionText}
                 onChange={e => setEvolutionText(e.target.value)}
-                disabled={isLocked}
+                disabled={isLocked || !canEdit}
                 placeholder="Descreva a evolução do paciente..."
                 className="w-full min-h-[250px] p-6 bg-slate-50 border-none rounded-2xl text-slate-700 focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none resize-none disabled:opacity-50"
               />
@@ -263,7 +342,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
                 </div>
                 <button
                   onClick={handleSaveEvolution}
-                  disabled={isLocked || !evolutionText.trim()}
+                  disabled={isLocked || !canEdit || !evolutionText.trim()}
                   className="px-6 py-2 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all disabled:opacity-50"
                 >
                   Salvar Evolução
@@ -314,12 +393,12 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
 
               {/* Legend */}
               <div className="mt-8 grid grid-cols-3 md:grid-cols-6 gap-3">
-                {['Cárie', 'Restauração', 'Canal', 'Extraído', 'Implante', 'Saudável'].map(label => (
+                {['Cárie', 'Restauração', 'Canal', 'Extraído', 'Implante', 'Pendente', 'Saudável'].map(label => (
                   <div key={label} className="flex items-center gap-2 text-xs">
                     <div className={cn("w-4 h-4 rounded border", getToothColor(0).includes('white') ? '' :
                       label === 'Cárie' ? 'bg-red-500' : label === 'Restauração' ? 'bg-blue-500' :
                         label === 'Canal' ? 'bg-amber-500' : label === 'Extraído' ? 'bg-slate-800' :
-                          label === 'Implante' ? 'bg-purple-500' : 'bg-emerald-500'
+                          label === 'Implante' ? 'bg-purple-500' : label === 'Pendente' ? 'bg-amber-300' : 'bg-emerald-500'
                     )} />
                     <span className="text-slate-600 font-medium">{label}</span>
                   </div>
@@ -329,7 +408,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
               {/* Tooth Modal */}
               <Modal isOpen={toothModal !== null} onClose={() => setToothModal(null)} title={`Dente ${toothModal} — Procedimento`}>
                 <div className="space-y-3">
-                  {['Cárie', 'Restauração', 'Canal', 'Extraído', 'Implante', 'Saudável'].map(proc => (
+                  {['Cárie', 'Restauração', 'Canal', 'Extraído', 'Implante', 'Pendente', 'Saudável'].map(proc => (
                     <button
                       key={proc}
                       onClick={() => handleToothProcedure(proc)}
@@ -338,7 +417,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
                       <div className={cn("w-4 h-4 rounded-full",
                         proc === 'Cárie' ? 'bg-red-500' : proc === 'Restauração' ? 'bg-blue-500' :
                           proc === 'Canal' ? 'bg-amber-500' : proc === 'Extraído' ? 'bg-slate-800' :
-                            proc === 'Implante' ? 'bg-purple-500' : 'bg-emerald-500'
+                            proc === 'Implante' ? 'bg-purple-500' : proc === 'Pendente' ? 'bg-amber-300' : 'bg-emerald-500'
                       )} />
                       <span className="text-sm font-bold text-slate-700">{proc}</span>
                     </button>
@@ -365,13 +444,13 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
                   <textarea
                     value={(anamneseForm as any)[field.key]}
                     onChange={e => setAnamneseForm(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    disabled={isLocked}
+                    disabled={isLocked || !canEdit}
                     placeholder={field.placeholder}
                     className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none resize-none min-h-[60px] disabled:opacity-50"
                   />
                 </div>
               ))}
-              <button onClick={handleSaveAnamnese} disabled={isLocked} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50">Salvar Anamnese</button>
+              <button onClick={handleSaveAnamnese} disabled={isLocked || !canEdit} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50">Salvar Anamnese</button>
             </motion.div>
           )}
 
@@ -380,17 +459,17 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-900">Consumo de Materiais</h2>
-                {!isLocked && (
+                {!isLocked && canEdit && (
                   <button onClick={() => setIsAddingItem(true)} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white text-sm font-bold rounded-xl hover:bg-cyan-700">
                     <Plus className="w-4 h-4" />Adicionar Item
                   </button>
                 )}
               </div>
-              {isAddingItem && (
+              {isAddingItem && canEdit && (
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex gap-2">
                   <select value={selectedStockItem} onChange={e => setSelectedStockItem(e.target.value)} className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none">
                     <option value="">Selecionar material...</option>
-                    {stockItems.map(s => <option key={s.id} value={s.id}>{s.name} ({s.quantity} {s.unit} disp.)</option>)}
+                    {clinicStockItems.map(s => <option key={s.id} value={s.id}>{s.name} ({s.quantity} {s.unit} disp.)</option>)}
                   </select>
                   <button onClick={handleAddConsumptionItem} className="px-4 py-2 bg-cyan-600 text-white font-bold rounded-xl text-sm">Adicionar</button>
                   <button onClick={() => setIsAddingItem(false)} className="p-2 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
@@ -400,13 +479,13 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
                 {consumptionItems.length === 0 ? (
                   <EmptyState title="Nenhum material adicionado" description="Adicione os materiais utilizados neste atendimento." />
                 ) : consumptionItems.map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <span className="text-sm font-bold text-slate-900">{item.name}</span>
+                  <div key={item.stock_item_id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <span className="text-sm font-bold text-slate-900">{item.stock_item_name}</span>
                     <div className="flex items-center gap-3">
-                      <button onClick={() => setConsumptionItems(prev => prev.map(i => i.id === item.id ? { ...i, qty: Math.max(1, i.qty - 1) } : i))} disabled={isLocked} className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-400 hover:text-cyan-600 disabled:opacity-50">-</button>
+                      <button onClick={() => setConsumptionItems(prev => prev.map(i => i.stock_item_id === item.stock_item_id ? { ...i, qty: Math.max(1, i.qty - 1) } : i))} disabled={isLocked || !canEdit} className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-400 hover:text-cyan-600 disabled:opacity-50">-</button>
                       <span className="text-sm font-bold text-slate-900 w-4 text-center">{item.qty}</span>
-                      <button onClick={() => setConsumptionItems(prev => prev.map(i => i.id === item.id ? { ...i, qty: i.qty + 1 } : i))} disabled={isLocked} className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-400 hover:text-cyan-600 disabled:opacity-50">+</button>
-                      {!isLocked && <button onClick={() => setConsumptionItems(prev => prev.filter(i => i.id !== item.id))} className="p-1 text-slate-400 hover:text-red-600"><X className="w-4 h-4" /></button>}
+                      <button onClick={() => setConsumptionItems(prev => prev.map(i => i.stock_item_id === item.stock_item_id ? { ...i, qty: i.qty + 1 } : i))} disabled={isLocked || !canEdit} className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 rounded-md text-slate-400 hover:text-cyan-600 disabled:opacity-50">+</button>
+                      {!isLocked && canEdit && <button onClick={() => setConsumptionItems(prev => prev.filter(i => i.stock_item_id !== item.stock_item_id))} className="p-1 text-slate-400 hover:text-red-600"><X className="w-4 h-4" /></button>}
                     </div>
                   </div>
                 ))}
@@ -417,14 +496,37 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
           {/* Photos */}
           {activeSubTab === 'fotos' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {!isLocked && (
-                <div className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-cyan-300 hover:text-cyan-500 transition-all cursor-pointer">
+              {!isLocked && canEdit && (
+                <div
+                  onClick={() => photoInputRef.current?.click()}
+                  className="aspect-square bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-cyan-300 hover:text-cyan-500 transition-all cursor-pointer"
+                >
                   <Camera className="w-8 h-8" />
                   <span className="text-xs font-bold">Adicionar Foto</span>
-                  <span className="text-[10px] text-slate-300">Em breve</span>
                 </div>
               )}
-              <EmptyState title="Módulo de fotos" description="Upload de fotos será integrado com armazenamento em nuvem." />
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
+              {photos.length === 0 ? (
+                <EmptyState title="Nenhuma foto adicionada" description="Adicione fotos clínicas para acompanhamento." />
+              ) : photos.map((src, index) => (
+                <div key={`${src}-${index}`} className="relative group">
+                  <img src={src} alt="Foto clínica" className="aspect-square object-cover rounded-3xl border border-slate-100 shadow-sm" />
+                  {!isLocked && canEdit && (
+                    <button
+                      onClick={() => removePatientPhoto(patientId!, index)}
+                      className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-full text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
             </motion.div>
           )}
 
@@ -433,7 +535,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-900">Planos de Tratamento</h2>
-                {!isLocked && (
+                {!isLocked && canEdit && (
                   <button onClick={() => setShowPlanModal(true)} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white text-sm font-bold rounded-xl hover:bg-cyan-700">
                     <Plus className="w-4 h-4" />Novo Plano
                   </button>
@@ -469,7 +571,17 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
                       <button onClick={() => setNewPlanItems(prev => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
                     </div>
                   ))}
-                  <button onClick={() => setNewPlanItems(prev => [...prev, { id: crypto.randomUUID(), service_name: '', tooth: undefined, status: 'pending', estimated_price: 0 }])} className="text-sm text-cyan-600 font-bold hover:underline">+ Adicionar Procedimento</button>
+                  <button
+                    onClick={() => {
+                      const newId = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+                        ? crypto.randomUUID()
+                        : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+                      setNewPlanItems(prev => [...prev, { id: newId, service_name: '', tooth: undefined, status: 'pending', estimated_price: 0 }]);
+                    }}
+                    className="text-sm text-cyan-600 font-bold hover:underline"
+                  >
+                    + Adicionar Procedimento
+                  </button>
                   <button onClick={handleSavePlan} disabled={!newPlanTitle || newPlanItems.length === 0} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl disabled:opacity-50">Criar Plano</button>
                 </div>
               </Modal>
@@ -482,10 +594,10 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
             <h3 className="font-bold text-slate-900 mb-4">Resumo Clínico</h3>
             <div className="space-y-4">
-              {patient.allergies.length > 0 && (
+              {patientAllergies.length > 0 && (
                 <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
                   <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Alergias</p>
-                  <p className="text-sm text-amber-900 font-medium">{patient.allergies.join(', ')}</p>
+                  <p className="text-sm text-amber-900 font-medium">{patientAllergies.join(', ')}</p>
                 </div>
               )}
               {appointment && (
@@ -495,9 +607,9 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
                   <p className="text-xs text-cyan-600 mt-1">Prof: {appointment.professional_name}</p>
                 </div>
               )}
-              {patient.tags.length > 0 && (
+              {patientTags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {patient.tags.map(tag => <span key={tag} className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full font-medium">{tag}</span>)}
+                  {patientTags.map(tag => <span key={tag} className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full font-medium">{tag}</span>)}
                 </div>
               )}
             </div>
@@ -506,7 +618,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
             <h3 className="font-bold text-slate-900 mb-4">Histórico de Atendimentos</h3>
             <div className="space-y-3">
-              {appointments.filter(a => a.patient_id === patientId && a.status === 'done').slice(0, 5).map(a => (
+              {clinicAppointments.filter(a => a.patient_id === patientId && a.status === 'done').slice(0, 5).map(a => (
                 <div key={a.id} className="flex items-start gap-3 pb-3 border-b border-slate-50 last:border-0 last:pb-0">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5" />
                   <div>
@@ -515,7 +627,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
                   </div>
                 </div>
               ))}
-              {appointments.filter(a => a.patient_id === patientId && a.status === 'done').length === 0 && (
+              {clinicAppointments.filter(a => a.patient_id === patientId && a.status === 'done').length === 0 && (
                 <p className="text-xs text-slate-400">Nenhum atendimento anterior.</p>
               )}
             </div>

@@ -46,9 +46,25 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }: SidebarProps) {
-  const { user, clinic, logout } = useAuth();
+  const { user, clinic, logout, hasPermission } = useAuth();
   
-  const menuItems = user?.role === 'super_admin' ? adminMenuItems : clinicMenuItems;
+  const permissionByTab: Record<string, string | null> = {
+    dashboard: 'view_dashboard',
+    agenda: 'create_appointment',
+    pacientes: 'view_patients',
+    prontuarios: 'view_patients',
+    financeiro: 'view_financial',
+    estoque: 'manage_stock',
+    marketing: 'view_dashboard',
+    configuracoes: 'manage_settings',
+  };
+
+  const baseItems = user?.role === 'super_admin' ? adminMenuItems : clinicMenuItems;
+  const menuItems = baseItems.filter(item => {
+    const perm = permissionByTab[item.id];
+    if (!perm) return true;
+    return hasPermission(perm);
+  });
 
   const handleTabClick = (id: string) => {
     onTabChange(id);

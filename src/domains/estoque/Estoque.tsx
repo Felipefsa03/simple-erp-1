@@ -3,10 +3,12 @@ import { Package, Plus, Search, Filter, ArrowUpRight, ArrowDownRight, AlertTrian
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
+import { useAuth } from '@/hooks/useAuth';
 import { useDebounce, toast, formatCurrency } from '@/hooks/useShared';
-import { Modal, EmptyState, ConfirmDialog, LoadingButton } from '@/components/shared';
+import { Modal, EmptyState, ConfirmDialog } from '@/components/shared';
 
 export function Estoque() {
+  const { user, hasPermission } = useAuth();
   const { stockItems, stockMovements, addStockItem, updateStockItem, deleteStockItem, addStockMovement } = useClinicStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
@@ -17,23 +19,44 @@ export function Estoque() {
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   const [form, setForm] = useState({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' });
+  const clinicId = user?.clinic_id || 'clinic-1';
+  const canManageStock = hasPermission('manage_stock');
+
+  const clinicStockItems = useMemo(
+    () => stockItems.filter(item => item.clinic_id === clinicId),
+    [stockItems, clinicId]
+  );
+  const clinicStockMovements = useMemo(
+    () => stockMovements.filter(m => m.clinic_id === clinicId),
+    [stockMovements, clinicId]
+  );
+
+  if (!canManageStock) {
+    return (
+      <EmptyState
+        title="Acesso restrito"
+        description="Você não tem permissão para gerenciar o estoque."
+      />
+    );
+  }
 
   const filteredItems = useMemo(() => {
-    let result = stockItems;
+    let result = clinicStockItems;
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
       result = result.filter(i => i.name.toLowerCase().includes(q) || i.category.toLowerCase().includes(q));
     }
     if (categoryFilter !== 'all') result = result.filter(i => i.category === categoryFilter);
     return result;
-  }, [stockItems, debouncedSearch, categoryFilter]);
+  }, [clinicStockItems, debouncedSearch, categoryFilter]);
 
-  const totalValue = useMemo(() => stockItems.reduce((s, i) => s + (i.quantity * i.unit_cost), 0), [stockItems]);
-  const lowStockCount = useMemo(() => stockItems.filter(i => i.quantity <= i.min_quantity).length, [stockItems]);
-  const categories = useMemo(() => [...new Set(stockItems.map(i => i.category))], [stockItems]);
+  const totalValue = useMemo(() => clinicStockItems.reduce((s, i) => s + (i.quantity * i.unit_cost), 0), [clinicStockItems]);
+  const lowStockCount = useMemo(() => clinicStockItems.filter(i => i.quantity <= i.min_quantity).length, [clinicStockItems]);
+  const categories = useMemo(() => [...new Set(clinicStockItems.map(i => i.category))], [clinicStockItems]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageStock) { toast('Você não tem permissão para gerenciar estoque.', 'error'); return; }
     if (editingItem) {
       updateStockItem(editingItem, {
         name: form.name, category: form.category, quantity: Number(form.quantity),
@@ -42,7 +65,7 @@ export function Estoque() {
       toast('Item atualizado com sucesso!');
     } else {
       addStockItem({
-        clinic_id: 'clinic-1', name: form.name, category: form.category,
+        clinic_id: clinicId, name: form.name, category: form.category,
         quantity: Number(form.quantity), min_quantity: Number(form.min_quantity),
         unit: form.unit, unit_cost: parseFloat(form.price.replace(',', '.')),
       });
@@ -54,7 +77,7 @@ export function Estoque() {
   };
 
   const handleEdit = (id: string) => {
-    const item = stockItems.find(i => i.id === id);
+    const item = clinicStockItems.find(i => i.id === id);
     if (!item) return;
     setEditingItem(id);
     setForm({ name: item.name, category: item.category, quantity: String(item.quantity), min_quantity: String(item.min_quantity), unit: item.unit, price: String(item.unit_cost) });
@@ -127,9 +150,9 @@ export function Estoque() {
       {/* Movement History Drawer */}
       <Modal isOpen={showHistory} onClose={() => setShowHistory(false)} title="Histórico de Movimentações" maxWidth="max-w-lg">
         <div className="space-y-3 max-h-96 overflow-y-auto">
-          {stockMovements.length === 0 ? (
+          {clinicStockMovements.length === 0 ? (
             <EmptyState title="Nenhuma movimentação" description="Movimentações serão registradas automaticamente ao finalizar atendimentos." />
-          ) : stockMovements.map(m => (
+          ) : clinicStockMovements.map(m => (
             <div key={m.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
               <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", m.type === 'in' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
                 {m.type === 'in' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}

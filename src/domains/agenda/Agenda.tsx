@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, Clock, User,
   X, MapPin
@@ -9,7 +9,7 @@ import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
-import { toast, formatCurrency } from '@/hooks/useShared';
+import { toast, formatCurrency, useSubmitOnce } from '@/hooks/useShared';
 import { Modal, LoadingButton, EmptyState } from '@/components/shared';
 import type { Appointment } from '@/types';
 
@@ -18,13 +18,67 @@ interface AgendaProps {
 }
 
 export function Agenda({ onNavigate }: AgendaProps) {
-  const { user } = useAuth();
-  const { appointments, patients, professionals, services, addAppointment, startAppointment, updateAppointmentStatus } = useClinicStore();
+  const { user, hasPermission } = useAuth();
+  const {
+    appointments,
+    patients,
+    professionals,
+    services,
+    navigationContext,
+    setNavigationContext,
+    clearNavigationContext,
+    addAppointment,
+    startAppointment,
+    updateAppointmentStatus,
+  } = useClinicStore();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('week');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
-  const [newApt, setNewApt] = useState({ patient_id: '', professional_id: professionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
+  const [newApt, setNewApt] = useState({ patient_id: '', professional_id: '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
+  const swipeStartX = useRef<number | null>(null);
+  const clinicId = user?.clinic_id || 'clinic-1';
+  const canCreate = hasPermission('create_appointment');
+  const canFinalize = hasPermission('finalize_appointment');
+
+  const clinicAppointments = useMemo(
+    () => appointments.filter(a => a.clinic_id === clinicId),
+    [appointments, clinicId]
+  );
+  const clinicPatients = useMemo(
+    () => patients.filter(p => p.clinic_id === clinicId),
+    [patients, clinicId]
+  );
+  const clinicProfessionals = useMemo(
+    () => professionals.filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'),
+    [professionals, clinicId]
+  );
+  const clinicServices = useMemo(
+    () => services.filter(s => s.clinic_id === clinicId && s.active),
+    [services, clinicId]
+  );
+
+  useEffect(() => {
+    if (!newApt.professional_id && clinicProfessionals.length > 0) {
+      setNewApt(prev => ({ ...prev, professional_id: clinicProfessionals[0].id }));
+    }
+  }, [clinicProfessionals, newApt.professional_id]);
+
+  useEffect(() => {
+    if (!navigationContext.patientId && !navigationContext.appointmentId) return;
+    if (navigationContext.patientId) {
+      setNewApt(prev => ({ ...prev, patient_id: navigationContext.patientId || '' }));
+    }
+    if (navigationContext.appointmentId) {
+      const apt = clinicAppointments.find(a => a.id === navigationContext.appointmentId);
+      if (apt) {
+        setCurrentDate(new Date(apt.scheduled_at));
+        setView('day');
+        setSelectedApt(apt);
+      }
+    }
+    clearNavigationContext();
+  }, [navigationContext, clinicAppointments, clearNavigationContext]);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
@@ -39,20 +93,24 @@ export function Agenda({ onNavigate }: AgendaProps) {
 
   const getAppointmentsForDay = (day: Date) => {
     const dayStr = format(day, 'yyyy-MM-dd');
-    return appointments.filter(a => a.scheduled_at.startsWith(dayStr) && a.status !== 'cancelled');
+    return clinicAppointments.filter(a => a.scheduled_at.startsWith(dayStr) && a.status !== 'cancelled');
   };
 
-  const handleAddAppointment = () => {
+  const { submit: handleAddAppointment, loading: addLoading } = useSubmitOnce(async () => {
+    if (!canCreate) {
+      toast('Você não tem permissão para criar agendamentos.', 'error');
+      return;
+    }
     if (!newApt.patient_id || !newApt.professional_id || !newApt.date || !newApt.time) {
       toast('Preencha todos os campos obrigatórios', 'error');
       return;
     }
-    const patient = patients.find(p => p.id === newApt.patient_id);
-    const prof = professionals.find(p => p.id === newApt.professional_id);
-    const service = services.find(s => s.id === newApt.service_id);
+    const patient = clinicPatients.find(p => p.id === newApt.patient_id);
+    const prof = clinicProfessionals.find(p => p.id === newApt.professional_id);
+    const service = clinicServices.find(s => s.id === newApt.service_id);
 
-    addAppointment({
-      clinic_id: user?.clinic_id || 'clinic-1',
+    const created = addAppointment({
+      clinic_id: clinicId,
       patient_id: newApt.patient_id,
       patient_name: patient?.name || '',
       professional_id: newApt.professional_id,
@@ -65,15 +123,36 @@ export function Agenda({ onNavigate }: AgendaProps) {
       base_value: service?.base_price || 0,
     });
 
+    if (!created) {
+      toast('Conflito de horário para este profissional.', 'error');
+      return;
+    }
+
     setIsModalOpen(false);
-    setNewApt({ patient_id: '', professional_id: professionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
+    setNewApt({ patient_id: '', professional_id: clinicProfessionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
     toast('Agendamento criado com sucesso!');
-  };
+  });
 
   const handleStartAppointment = (apt: Appointment) => {
+    if (!canFinalize) {
+      toast('Você não tem permissão para iniciar atendimentos.', 'error');
+      return;
+    }
     startAppointment(apt.id);
     toast(`Atendimento de ${apt.patient_name} iniciado!`);
     onNavigate?.('prontuarios', { patientId: apt.patient_id, appointmentId: apt.id });
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    swipeStartX.current = e.clientX;
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (swipeStartX.current === null) return;
+    const delta = e.clientX - swipeStartX.current;
+    swipeStartX.current = null;
+    if (Math.abs(delta) < 60) return;
+    handleNavigate(delta < 0 ? 'next' : 'prev');
   };
 
   const statusColors: Record<string, { bg: string; border: string; text: string }> = {
@@ -142,7 +221,8 @@ export function Agenda({ onNavigate }: AgendaProps) {
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200"
+            disabled={!canCreate}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             Novo Agendamento
@@ -161,7 +241,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
               className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
             >
               <option value="">Selecione o paciente...</option>
-              {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
           <div className="space-y-1">
@@ -171,7 +251,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
               onChange={e => setNewApt({ ...newApt, professional_id: e.target.value })}
               className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
             >
-              {professionals.filter(p => p.role !== 'receptionist').map(p => (
+              {clinicProfessionals.map(p => (
                 <option key={p.id} value={p.id}>{p.name} ({p.role === 'dentist' ? 'Dentista' : 'Esteticista'})</option>
               ))}
             </select>
@@ -184,7 +264,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
               className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
             >
               <option value="">Consulta Geral</option>
-              {services.filter(s => s.active).map(s => (
+              {clinicServices.map(s => (
                 <option key={s.id} value={s.id}>{s.name} - {formatCurrency(s.base_price)}</option>
               ))}
             </select>
@@ -211,6 +291,8 @@ export function Agenda({ onNavigate }: AgendaProps) {
           </div>
           <LoadingButton
             onClick={handleAddAppointment}
+            loading={addLoading}
+            disabled={!canCreate}
             className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4"
           >
             Confirmar Agendamento
@@ -256,12 +338,14 @@ export function Agenda({ onNavigate }: AgendaProps) {
                 <>
                   <button
                     onClick={() => { updateAppointmentStatus(selectedApt.id, 'confirmed'); setSelectedApt({ ...selectedApt, status: 'confirmed' }); toast('Agendamento confirmado!'); }}
+                    disabled={!canCreate}
                     className="flex-1 py-2.5 bg-cyan-50 text-cyan-600 font-bold rounded-xl text-sm hover:bg-cyan-100 transition-all"
                   >
                     Confirmar
                   </button>
                   <button
                     onClick={() => { handleStartAppointment(selectedApt); setSelectedApt(null); }}
+                    disabled={!canFinalize}
                     className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 transition-all"
                   >
                     Iniciar Atendimento
@@ -276,10 +360,27 @@ export function Agenda({ onNavigate }: AgendaProps) {
                   Continuar Atendimento
                 </button>
               )}
+              {selectedApt.status === 'done' && (
+                <div className="flex w-full gap-2">
+                  <button
+                    onClick={() => { onNavigate?.('prontuarios', { patientId: selectedApt.patient_id, appointmentId: selectedApt.id }); setSelectedApt(null); }}
+                    className="flex-1 py-2.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl text-sm hover:bg-emerald-100 transition-all"
+                  >
+                    Ver Prontuário
+                  </button>
+                  <button
+                    onClick={() => { setNavigationContext({ appointmentId: selectedApt.id, fromModule: 'agenda' }); onNavigate?.('financeiro', { appointmentId: selectedApt.id }); setSelectedApt(null); }}
+                    className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-sm hover:bg-emerald-700 transition-all"
+                  >
+                    Ver no Financeiro
+                  </button>
+                </div>
+              )}
               {['scheduled', 'confirmed'].includes(selectedApt.status) && (
                 <button
                   onClick={() => { updateAppointmentStatus(selectedApt.id, 'no_show'); setSelectedApt(null); toast('Paciente marcado como falta', 'warning'); }}
-                  className="py-2.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl text-sm hover:bg-red-100 transition-all"
+                  disabled={!canCreate}
+                  className="py-2.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl text-sm hover:bg-red-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Faltou
                 </button>
@@ -316,7 +417,14 @@ export function Agenda({ onNavigate }: AgendaProps) {
       </div>
 
       {/* Calendar Grid */}
-      <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+      <div
+        className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col"
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={() => { swipeStartX.current = null; }}
+        onPointerCancel={() => { swipeStartX.current = null; }}
+        style={{ touchAction: 'pan-y' }}
+      >
         {view === 'month' ? (
           <>
             <div className="grid grid-cols-7 border-b border-slate-100">

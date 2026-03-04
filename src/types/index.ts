@@ -57,6 +57,7 @@ export interface Service {
     estimated_cost: number;
     materials: ServiceMaterial[];
     active: boolean;
+    professional_prices?: Record<string, number>;
 }
 
 export interface ServiceMaterial {
@@ -84,13 +85,14 @@ export interface Appointment {
     notes?: string;
     started_at?: string;
     finished_at?: string;
+    service_time_min?: number;
     created_at: string;
 }
 
 // --- Medical Records ---
 export interface MedicalRecord {
     id: string;
-    appointment_id: string;
+    appointment_id?: string;
     clinic_id: string;
     patient_id: string;
     professional_id: string;
@@ -181,13 +183,25 @@ export interface FinancialTransaction {
     category: string;
     description: string;
     amount: number;
+    material_cost?: number;
+    service_time_min?: number;
     status: TransactionStatus;
     payment_method?: string;
+    payment_reference?: string;
+    payment_url?: string;
+    pix_code?: string;
     idempotency_key: string;
     items?: string[];
     installments?: number;
+    due_date?: string;
     created_at: string;
     paid_at?: string;
+}
+
+export interface AppointmentMaterial {
+    stock_item_id: string;
+    stock_item_name: string;
+    qty: number;
 }
 
 // --- Audit Log ---
@@ -226,4 +240,58 @@ export interface NavigationContext {
     patientId?: string;
     appointmentId?: string;
     fromModule?: string;
+}
+
+// --- Asaas Integration ---
+export interface AsaasConfig {
+    api_key: string;
+    wallet_id: string;
+    environment: 'sandbox' | 'production';
+    enabled: boolean;
+    webhook_url?: string;
+    connected_at?: string;
+}
+
+// --- Subscriptions (Super Admin) ---
+export interface PlatformSubscription {
+    id: string;
+    clinic_id: string;
+    clinic_name: string;
+    plan: 'basic' | 'pro' | 'ultra';
+    status: 'active' | 'suspended' | 'cancelled' | 'past_due';
+    amount: number;
+    billing_cycle: 'monthly' | 'yearly';
+    next_billing_date: string;
+    created_at: string;
+    payment_history: SubscriptionPayment[];
+}
+
+export interface SubscriptionPayment {
+    id: string;
+    date: string;
+    amount: number;
+    status: 'paid' | 'pending' | 'failed';
+    method: string;
+}
+
+// --- Security (Super Admin) ---
+export interface SecurityLog {
+    id: string;
+    user_id: string;
+    user_name: string;
+    action: string;
+    ip_address: string;
+    details: string;
+    created_at: string;
+}
+
+export interface ActiveSession {
+    id: string;
+    user_id: string;
+    user_name: string;
+    clinic_name: string;
+    ip_address: string;
+    device: string;
+    started_at: string;
+    last_activity: string;
 }

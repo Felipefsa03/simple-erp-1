@@ -1,32 +1,322 @@
-import React, { useState } from 'react';
-import { Sparkles, Send, Target, TrendingUp, Users, MessageSquare, Zap, Star, BarChart3, ArrowRight, CalendarDays } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Send, Target, TrendingUp, Users, MessageSquare, Zap, ArrowRight, Facebook, Mail, MonitorSmartphone, X, CheckCircle2, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
+import { useAuth } from '@/hooks/useAuth';
 import { toast, formatCurrency } from '@/hooks/useShared';
+import { Modal, LoadingButton } from '@/components/shared';
+
+// The HTML Template provided by the user
+const generateEmailTemplate = (clinicName: string, whatsapp: string) => `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { margin:0; padding:0; background:#f9f9f9; font-family: 'Segoe UI', Arial, sans-serif; }
+  .wrapper { max-width:600px; margin:auto; background:#ffffff; border: 1px solid #eeeeee; }
+  
+  /* Header */
+  .header { 
+    background:#0891b2; /* Cyan-600 to match ERP */
+    padding: 40px 0 60px 0; 
+    position: relative;
+    text-align: left;
+  }
+  
+  .logo-container { padding-left: 30px; margin-bottom: 25px; color: white; font-size: 28px; font-weight: bold; }
+  
+  /* Pílula branca encostada na direita */
+  .card-container { text-align: right; }
+  .card {
+    display: inline-block;
+    background: #ffffff;
+    color: #0891b2;
+    padding: 15px 35px;
+    border-radius: 40px 0 0 40px;
+    font-size: 24px;
+    font-weight: bold;
+  }
+
+  .content { padding: 45px 30px; color: #333333; }
+  
+  .nome { 
+    font-size: 32px; 
+    font-weight: 800; 
+    line-height: 1.1; 
+    color: #1a1a1a;
+    margin-bottom: 25px;
+  }
+
+  .texto { font-size: 16px; line-height: 1.6; color: #444444; }
+
+  .button {
+    margin-top: 30px;
+    display: inline-block;
+    background: #25D366;
+    color: #ffffff !important;
+    text-decoration: none;
+    padding: 18px 35px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 16px;
+  }
+
+  .footer { 
+    background: #0f172a; /* Slate-900 */
+    color: #ffffff; 
+    padding: 45px 30px; 
+    text-align: left; 
+    font-size: 14px; 
+    line-height: 1.8;
+  }
+  
+  .footer p { margin: 10px 0; }
+  .footer a { color: #22d3ee; text-decoration: none; font-weight: bold; }
+</style>
+</head>
+
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <div class="logo-container">
+        ${clinicName}
+      </div>
+      <div class="card-container">
+        <div class="card">Aviso Importante</div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="nome">Olá {{nomeFormatado}},</div>
+
+      <div class="texto">
+        A equipe da <b>${clinicName}</b> informa que é hora do seu retorno.<br><br>
+
+        Manter suas consultas em dia é fundamental para garantir sua saúde e bem-estar.<br><br>
+
+        <b>Canais de Atendimento:</b><br>
+        📞 ${whatsapp}
+      </div>
+
+      <a href="https://wa.me/55${whatsapp.replace(/\D/g, '')}" class="button">Falar com Atendimento Agora</a>
+    </div>
+
+    <div class="footer">
+      <p>Abraços,<br><b>Equipe ${clinicName}</b></p>
+      
+      <p>Siga-nos nas redes sociais e acompanhe nossas novidades.</p>
+      
+      <hr style="border: 0; border-top: 1px solid #334155; margin: 25px 0;">
+      
+      <p>Quer tirar dúvidas sobre nossos serviços? Então acesse aqui:</p>
+      <p>Quer falar com a gente? Estamos à disposição.</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
 
 export function Marketing() {
+  const { user, clinic } = useAuth();
   const { patients, appointments, transactions } = useClinicStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'insights'>('overview');
+  const clinicId = user?.clinic_id || 'clinic-1';
 
-  const atRiskPatients = patients.filter(p => p.status === 'risk' || p.status === 'inactive');
-  const totalRevenue = transactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
-  const avgTicket = appointments.filter(a => a.status === 'done').length > 0
-    ? totalRevenue / appointments.filter(a => a.status === 'done').length : 0;
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'insights'>('overview');
+  const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
+  const [campaignStep, setCampaignStep] = useState(1);
+  const [campaignType, setCampaignType] = useState('');
+  const [campaignName, setCampaignName] = useState('');
+  const [campaignTarget, setCampaignTarget] = useState('all');
+  const [previewTemplate, setPreviewTemplate] = useState('');
+  const [whatsAppRows, setWhatsAppRows] = useState('');
+  const [whatsAppDefaultMessage, setWhatsAppDefaultMessage] = useState('');
+  const [whatsAppLinks, setWhatsAppLinks] = useState<{ phone: string; message: string; url: string }[]>([]);
+  const [whatsAppDelaySec, setWhatsAppDelaySec] = useState(25);
+  const [whatsAppQueueIndex, setWhatsAppQueueIndex] = useState(0);
+  const [whatsAppStatuses, setWhatsAppStatuses] = useState<('pending' | 'opened' | 'sent' | 'skipped')[]>([]);
+  const [whatsAppCooldownUntil, setWhatsAppCooldownUntil] = useState<number | null>(null);
+  const [whatsAppSessionActive, setWhatsAppSessionActive] = useState(false);
+  const [whatsAppNow, setWhatsAppNow] = useState(() => Date.now());
+  const [whatsAppLog, setWhatsAppLog] = useState<string[]>([]);
+
+  const clinicPatients = patients.filter(p => p.clinic_id === clinicId);
+  const clinicAppointments = appointments.filter(a => a.clinic_id === clinicId);
+  const clinicTransactions = transactions.filter(t => t.clinic_id === clinicId);
+
+  const atRiskPatients = clinicPatients.filter(p => p.status === 'risk' || p.status === 'inactive');
+  const totalRevenue = clinicTransactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+  const avgTicket = clinicAppointments.filter(a => a.status === 'done').length > 0
+    ? totalRevenue / clinicAppointments.filter(a => a.status === 'done').length : 0;
 
   const campaigns = [
-    { id: 1, name: 'Lembrete de Retorno', status: 'active', sent: 45, opened: 38, converted: 12 },
-    { id: 2, name: 'Promoção Limpeza', status: 'draft', sent: 0, opened: 0, converted: 0 },
-    { id: 3, name: 'Aniversariantes do Mês', status: 'active', sent: 8, opened: 7, converted: 3 },
+    { id: 1, name: 'Lembrete de Retorno (Out)', type: 'whatsapp', status: 'active', sent: 45, opened: 38, converted: 12 },
+    { id: 2, name: 'Promoção Limpeza', type: 'email', status: 'draft', sent: 0, opened: 0, converted: 0 },
+    { id: 3, name: 'Captação Implante FB', type: 'facebook', status: 'active', sent: 1200, opened: 450, converted: 15 },
   ];
 
+  const handleOpenPreview = () => {
+    const html = generateEmailTemplate(clinic?.name || 'Sua Clínica', clinic?.phone || '(11) 99999-9999');
+    setPreviewTemplate(html);
+  };
+
+  const handleCreateCampaign = async () => {
+    toast('Campanha disparada com sucesso!', 'success');
+    setIsCampaignModalOpen(false);
+    setCampaignStep(1);
+    setCampaignType('');
+    setCampaignName('');
+  };
+
+  const handleGenerateWhatsAppLinks = () => {
+    const lines = whatsAppRows.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) {
+      toast('Adicione números e mensagens para gerar os links.', 'error');
+      return;
+    }
+    const links = lines.map((line) => {
+      const parts = line.split(';');
+      const rawNumber = parts[0] || '';
+      const rawMessage = parts.slice(1).join(';');
+      let numero = rawNumber.toString().replace(/\D/g, '');
+      if (numero && !numero.startsWith('55')) {
+        numero = `55${numero}`;
+      }
+      const mensagem = (rawMessage || whatsAppDefaultMessage || '').toString().trim();
+      const url = numero && mensagem ? `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}` : '';
+      return { phone: numero, message: mensagem, url };
+    }).filter(item => item.phone && item.message && item.url);
+
+    if (links.length === 0) {
+      toast('Nenhum link válido foi gerado. Verifique os dados.', 'error');
+      return;
+    }
+    setWhatsAppLinks(links);
+    setWhatsAppStatuses(Array.from({ length: links.length }, () => 'pending'));
+    setWhatsAppQueueIndex(0);
+    setWhatsAppCooldownUntil(null);
+    setWhatsAppSessionActive(false);
+    setWhatsAppLog([]);
+    toast('Links gerados com sucesso!');
+  };
+
+
+  const appendWhatsAppLog = (message: string) => {
+    setWhatsAppLog(prev => [message, ...prev].slice(0, 12));
+  };
+
+  const updateWhatsAppStatus = (index: number, status: 'pending' | 'opened' | 'sent' | 'skipped') => {
+    setWhatsAppStatuses(prev => {
+      const base = prev.length ? [...prev] : Array.from({ length: whatsAppLinks.length }, () => 'pending');
+      base[index] = status;
+      return base;
+    });
+  };
+
+  const handleStartWhatsAppAssist = () => {
+    if (whatsAppLinks.length === 0) {
+      toast('Gere os links antes de iniciar o modo assistido.', 'error');
+      return;
+    }
+    if (!whatsAppStatuses.length) {
+      setWhatsAppStatuses(Array.from({ length: whatsAppLinks.length }, () => 'pending'));
+    }
+    setWhatsAppSessionActive(true);
+    appendWhatsAppLog('Modo assistido iniciado.');
+  };
+
+  const handleStopWhatsAppAssist = () => {
+    setWhatsAppSessionActive(false);
+    appendWhatsAppLog('Modo assistido pausado.');
+  };
+
+  const handleResetWhatsAppQueue = () => {
+    setWhatsAppQueueIndex(0);
+    setWhatsAppStatuses(Array.from({ length: whatsAppLinks.length }, () => 'pending'));
+    setWhatsAppCooldownUntil(null);
+    setWhatsAppSessionActive(false);
+    setWhatsAppLog([]);
+  };
+
+  const handleOpenCurrentWhatsApp = () => {
+    const current = whatsAppLinks[whatsAppQueueIndex];
+    if (!current) return;
+    if (!whatsAppSessionActive) {
+      toast('Inicie o modo assistido para abrir links.', 'warning');
+      return;
+    }
+    if (cooldownLeft > 0) {
+      toast(`Aguarde ${cooldownLeft}s para o proximo envio.`, 'warning');
+      return;
+    }
+    window.open(current.url, '_blank');
+    updateWhatsAppStatus(whatsAppQueueIndex, 'opened');
+    appendWhatsAppLog(`Link aberto para +${current.phone}.`);
+  };
+
+  const handleMarkWhatsAppSent = (simulated: boolean = false) => {
+    const current = whatsAppLinks[whatsAppQueueIndex];
+    if (!current) return;
+    if (!whatsAppSessionActive) {
+      toast('Inicie o modo assistido para marcar envios.', 'warning');
+      return;
+    }
+    updateWhatsAppStatus(whatsAppQueueIndex, 'sent');
+    appendWhatsAppLog(`${simulated ? 'Simulado' : 'Enviado'} para +${current.phone}.`);
+    setWhatsAppQueueIndex(prev => prev + 1);
+    const nextDelay = Math.max(5, Number(whatsAppDelaySec) || 5);
+    setWhatsAppCooldownUntil(Date.now() + nextDelay * 1000);
+  };
+
+  const handleSkipWhatsApp = () => {
+    const current = whatsAppLinks[whatsAppQueueIndex];
+    if (!current) return;
+    if (!whatsAppSessionActive) {
+      toast('Inicie o modo assistido para pular.', 'warning');
+      return;
+    }
+    updateWhatsAppStatus(whatsAppQueueIndex, 'skipped');
+    appendWhatsAppLog(`Pulou +${current.phone}.`);
+    setWhatsAppQueueIndex(prev => prev + 1);
+    const nextDelay = Math.max(5, Number(whatsAppDelaySec) || 5);
+    setWhatsAppCooldownUntil(Date.now() + nextDelay * 1000);
+  };
+
+  useEffect(() => {
+    if (!whatsAppSessionActive) return;
+    const timer = setInterval(() => setWhatsAppNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [whatsAppSessionActive]);
+
+  useEffect(() => {
+    if (whatsAppSessionActive && whatsAppLinks.length > 0 && whatsAppQueueIndex >= whatsAppLinks.length) {
+      setWhatsAppSessionActive(false);
+      appendWhatsAppLog('Fila concluida.');
+    }
+  }, [whatsAppSessionActive, whatsAppQueueIndex, whatsAppLinks.length]);
+
+  const cooldownLeft = whatsAppCooldownUntil ? Math.max(0, Math.ceil((whatsAppCooldownUntil - whatsAppNow) / 1000)) : 0;
+  const currentWhatsApp = whatsAppLinks[whatsAppQueueIndex];
+  const queueDone = whatsAppLinks.length > 0 && whatsAppQueueIndex >= whatsAppLinks.length;
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Sparkles className="w-6 h-6 text-yellow-500" />Marketing & IA
-        </h1>
-        <p className="text-slate-500">Engajamento inteligente e retenção de pacientes.</p>
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-yellow-500" />Marketing & Campanhas
+          </h1>
+          <p className="text-slate-500">Automações, captação e retenção inteligente de pacientes.</p>
+        </div>
+        {activeTab === 'campaigns' && (
+          <button
+            onClick={() => setIsCampaignModalOpen(true)}
+            className="bg-cyan-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-cyan-700 shadow-lg shadow-cyan-200"
+          >
+            + Criar Campanha
+          </button>
+        )}
       </header>
 
       <div className="flex bg-white border border-slate-100 rounded-2xl p-1">
@@ -66,43 +356,317 @@ export function Marketing() {
       {activeTab === 'campaigns' && (
         <div className="space-y-4">
           {campaigns.map(c => (
-            <div key={c.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-4">
-              <div className={cn("w-3 h-3 rounded-full", c.status === 'active' ? "bg-emerald-500" : "bg-slate-300")} />
-              <div className="flex-1">
-                <p className="font-bold text-slate-900">{c.name}</p>
-                <p className="text-xs text-slate-500">{c.status === 'active' ? 'Ativa' : 'Rascunho'}</p>
+            <div key={c.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center gap-4">
+              <div className="flex items-center gap-4 flex-1">
+                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center",
+                  c.type === 'facebook' ? 'bg-blue-50 text-blue-600' :
+                    c.type === 'email' ? 'bg-purple-50 text-purple-600' : 'bg-green-50 text-green-600'
+                )}>
+                  {c.type === 'facebook' ? <Facebook className="w-6 h-6" /> : c.type === 'email' ? <Mail className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900 flex items-center gap-2">
+                    {c.name}
+                    <span className={cn("text-[10px] uppercase px-2 py-0.5 rounded-full font-bold", c.status === 'active' ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600")}>
+                      {c.status}
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-500 capitalize">Canal: {c.type}</p>
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-6 text-center">
-                <div><p className="text-lg font-bold text-slate-900">{c.sent}</p><p className="text-[10px] text-slate-400 uppercase font-bold">Enviados</p></div>
-                <div><p className="text-lg font-bold text-cyan-600">{c.opened}</p><p className="text-[10px] text-slate-400 uppercase font-bold">Abertos</p></div>
-                <div><p className="text-lg font-bold text-emerald-600">{c.converted}</p><p className="text-[10px] text-slate-400 uppercase font-bold">Convertidos</p></div>
+              <div className="grid grid-cols-3 gap-6 text-center bg-slate-50 p-3 rounded-xl">
+                <div><p className="text-lg font-bold text-slate-900">{c.sent}</p><p className="text-[10px] text-slate-400 uppercase font-bold">Alcance</p></div>
+                <div><p className="text-lg font-bold text-cyan-600">{c.opened}</p><p className="text-[10px] text-slate-400 uppercase font-bold">Engajamento</p></div>
+                <div><p className="text-lg font-bold text-emerald-600">{c.converted}</p><p className="text-[10px] text-slate-400 uppercase font-bold">Conversões</p></div>
               </div>
             </div>
           ))}
-          <button onClick={() => toast('Criação de campanhas em breve!', 'info')} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-2xl text-sm font-bold text-slate-400 hover:border-cyan-300 hover:text-cyan-500 transition-all">+ Nova Campanha</button>
+          {campaigns.length === 0 && (
+            <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 border-dashed">
+              <Target className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500 font-medium">Você ainda não tem campanhas rodando.</p>
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === 'insights' && (
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 text-white">
-          <div className="flex items-center gap-2 mb-6">
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 text-white relative overflow-hidden">
+          <div className="absolute -right-20 -top-20 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl" />
+          <div className="flex items-center gap-2 mb-6 relative z-10">
             <Sparkles className="w-6 h-6 text-yellow-400" />
             <h2 className="text-xl font-bold">Insights da IA</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
             {[
               { icon: '📊', title: 'Horários de Pico', desc: 'Terças e Quintas às 10h são os horários mais demandados. Considere horários estendidos.' },
-              { icon: '🔄', title: 'Retorno de Pacientes', desc: `${atRiskPatients.length} pacientes não retornaram nos últimos 90 dias. Uma campanha de retorno pode recuperar até 30%.` },
+              { icon: '🔄', title: 'Retorno de Pacientes', desc: `${atRiskPatients.length} pacientes não retornaram nos últimos 90 dias. Uma campanha de e-mail pode recuperar até 30%.` },
               { icon: '💰', title: 'Upselling', desc: 'Pacientes de limpeza têm 45% de chance de aceitar clareamento. Sugira no pós-atendimento.' },
               { icon: '⭐', title: 'Satisfação', desc: 'Implemente NPS após cada consulta para medir a satisfação e identificar promotores.' },
             ].map((insight, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="p-4 bg-white/5 rounded-2xl border border-white/10">
+              <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:bg-white/10 transition-colors">
                 <p className="text-2xl mb-2">{insight.icon}</p>
-                <p className="font-bold mb-1">{insight.title}</p>
-                <p className="text-xs text-slate-400">{insight.desc}</p>
-              </motion.div>
+                <p className="font-bold mb-1 col-span-2">{insight.title}</p>
+                <p className="text-xs text-slate-400 leading-relaxed">{insight.desc}</p>
+              </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Create Campaign Modal */}
+      <Modal isOpen={isCampaignModalOpen} onClose={() => { setIsCampaignModalOpen(false); setCampaignStep(1); }} title="Nova Campanha">
+        {campaignStep === 1 && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500 mb-4">Onde você quer rodar esta campanha?</p>
+            <div className="grid grid-cols-1 gap-3">
+              {[
+                { id: 'facebook', name: 'Facebook & Instagram Ads', icon: Facebook, color: 'text-blue-600', bg: 'bg-blue-50' },
+                { id: 'email', name: 'E-mail Marketing', icon: Mail, color: 'text-purple-600', bg: 'bg-purple-50' },
+                { id: 'whatsapp', name: 'Automação WhatsApp', icon: MessageSquare, color: 'text-green-600', bg: 'bg-green-50' },
+              ].map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => { setCampaignType(c.id); setCampaignStep(2); }}
+                  className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200 hover:border-cyan-500 hover:shadow-md transition-all text-left"
+                >
+                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", c.bg, c.color)}>
+                    <c.icon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900">{c.name}</p>
+                    <p className="text-xs text-slate-500">Fluxos integrados com seu ERP.</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {campaignStep === 2 && (
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome da Campanha</label>
+              <input
+                type="text"
+                value={campaignName}
+                onChange={e => setCampaignName(e.target.value)}
+                placeholder="Ex: Recuperação de Inativos - 2026"
+                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/20"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Público-Alvo</label>
+              <select value={campaignTarget} onChange={e => setCampaignTarget(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none">
+                <option value="all">Toda a Base ({patients.length} pacientes)</option>
+                <option value="inactive">Pacientes Inativos ({atRiskPatients.length} pacientes)</option>
+                <option value="birthdays">Aniversariantes do Mês</option>
+              </select>
+            </div>
+
+            {campaignType === 'email' && (
+              <div className="p-4 bg-cyan-50 rounded-xl border border-cyan-100">
+                <p className="text-sm font-bold text-cyan-800 mb-2">Template "Aviso Importante"</p>
+                <p className="text-xs text-cyan-600 mb-4">Utilizaremos o template institucional para disparos focados em retorno preventivo e engajamento.</p>
+                <button onClick={handleOpenPreview} className="text-xs font-bold bg-white text-cyan-700 px-3 py-1.5 rounded-lg shadow-sm border border-cyan-200 hover:bg-cyan-50">
+                  Pré-visualizar HTML
+                </button>
+              </div>
+            )}
+            {campaignType === 'facebook' && (
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <p className="text-sm font-bold text-blue-800 mb-2">Público Semelhante (Lookalike)</p>
+                <p className="text-xs text-blue-600">O LuminaFlow enviará sua lista de pacientes rentáveis para o Facebook criar públicos altamente segmentados e gerar novos leads direto no seu funil.</p>
+              </div>
+            )}
+
+            {campaignType === 'whatsapp' && (
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+                  <p className="text-sm font-bold text-green-800 mb-2">Envio por Links Individuais (Manual)</p>
+                  <p className="text-xs text-green-700">Este modo gera links no estilo planilha/wa.me. Nao automatiza envios em massa, evitando bloqueios.</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mensagem Padrao (opcional)</label>
+                  <textarea
+                    value={whatsAppDefaultMessage}
+                    onChange={e => setWhatsAppDefaultMessage(e.target.value)}
+                    placeholder="Ex: Ola! Gostariamos de confirmar seu retorno..."
+                    className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none min-h-[80px]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Lista (um por linha)</label>
+                  <textarea
+                    value={whatsAppRows}
+                    onChange={e => setWhatsAppRows(e.target.value)}
+                    placeholder="11999999999;Ola Ana, sua consulta esta agendada
+21988887777;Ola Joao, temos horario disponivel"
+                    className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none min-h-[140px]"
+                  />
+                  <p className="text-[10px] text-slate-400">Formato: numero;mensagem. Se a mensagem estiver vazia, usa a Mensagem Padrao.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleGenerateWhatsAppLinks}
+                    className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700"
+                  >
+                    Gerar Links
+                  </button>
+                  <button
+                    onClick={() => { setWhatsAppRows(''); setWhatsAppLinks([]); }}
+                    className="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-200"
+                  >
+                    Limpar
+                  </button>
+                </div>
+                {whatsAppLinks.length > 0 && (
+                  <div className="bg-white border border-slate-100 rounded-xl p-3 max-h-48 overflow-auto">
+                    <p className="text-xs font-bold text-slate-500 mb-2">Links Gerados</p>
+                    <div className="space-y-2">
+                      {whatsAppLinks.map((item, idx) => (
+                        <a
+                          key={`${item.phone}-${idx}`}
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block text-xs text-emerald-700 font-bold hover:underline"
+                        >
+                          Enviar mensagem para +{item.phone}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {whatsAppLinks.length > 0 && (
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Modo assistido</p>
+                        <p className="text-[10px] text-slate-500">Envio manual com intervalo recomendado para reduzir bloqueios.</p>
+                      </div>
+                      <span className="text-xs font-bold text-slate-500">{Math.min(whatsAppQueueIndex + 1, whatsAppLinks.length)}/{whatsAppLinks.length}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Intervalo (seg)</label>
+                        <input
+                          type="number"
+                          min={5}
+                          max={900}
+                          value={whatsAppDelaySec}
+                          onChange={e => setWhatsAppDelaySec(Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none"
+                        />
+                      </div>
+                      <div className="flex items-end gap-2 md:col-span-2">
+                        <button
+                          onClick={handleStartWhatsAppAssist}
+                          className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700"
+                        >
+                          Iniciar
+                        </button>
+                        <button
+                          onClick={handleStopWhatsAppAssist}
+                          className="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-200"
+                        >
+                          Pausar
+                        </button>
+                        <button
+                          onClick={handleResetWhatsAppQueue}
+                          className="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50"
+                        >
+                          Reiniciar fila
+                        </button>
+                      </div>
+                    </div>
+
+                    {queueDone ? (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 font-bold">
+                        Fila concluida.
+                      </div>
+                    ) : (
+                      <div className="bg-white border border-slate-100 rounded-xl p-3">
+                        <p className="text-xs font-bold text-slate-500 mb-2">Proximo envio</p>
+                        <div className="text-sm text-slate-700">
+                          <span className="font-bold">+{currentWhatsApp?.phone || '-'} </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">{currentWhatsApp?.message || 'Sem mensagem'} </p>
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          <button
+                            onClick={handleOpenCurrentWhatsApp}
+                            disabled={!whatsAppSessionActive || cooldownLeft > 0 || !currentWhatsApp}
+                            className="px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            Abrir link
+                          </button>
+                          <button
+                            onClick={() => handleMarkWhatsAppSent(false)}
+                            disabled={!whatsAppSessionActive || !currentWhatsApp}
+                            className="px-3 py-2 bg-cyan-600 text-white text-xs font-bold rounded-lg hover:bg-cyan-700 disabled:opacity-50"
+                          >
+                            Marcar enviado
+                          </button>
+                          <button
+                            onClick={() => handleMarkWhatsAppSent(true)}
+                            disabled={!whatsAppSessionActive || !currentWhatsApp}
+                            className="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-200 disabled:opacity-50"
+                          >
+                            Simular envio
+                          </button>
+                          <button
+                            onClick={handleSkipWhatsApp}
+                            disabled={!whatsAppSessionActive || !currentWhatsApp}
+                            className="px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Pular
+                          </button>
+                        </div>
+                        {cooldownLeft > 0 && (
+                          <p className="text-[10px] text-amber-600 mt-2">Aguarde {cooldownLeft}s para o proximo envio.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {whatsAppLog.length > 0 && (
+                      <div className="text-[10px] text-slate-500 space-y-1">
+                        {whatsAppLog.map((item, i) => (
+                          <div key={`${item}-${i}`}>{item}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-6">
+              <button onClick={() => setCampaignStep(1)} className="flex-1 py-3 text-slate-600 font-bold bg-slate-100 rounded-xl hover:bg-slate-200">Voltar</button>
+              <button onClick={handleCreateCampaign} disabled={!campaignName} className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50">Lançar Campanha</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Email Template Preview Modal */}
+      {previewTemplate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 sm:p-6">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col h-[80vh]">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2"><MonitorSmartphone className="w-5 h-5" /> Preview da Campanha</h3>
+              <button onClick={() => setPreviewTemplate('')} className="p-1 hover:bg-slate-100 rounded-lg text-slate-500"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 bg-slate-100 overflow-hidden relative p-4 lg:p-8">
+              <iframe
+                srcDoc={previewTemplate}
+                className="w-full h-full bg-white rounded-xl shadow-sm mx-auto"
+                style={{ maxWidth: '600px' }}
+                title="Email Preview"
+              />
+            </div>
+          </motion.div>
         </div>
       )}
     </div>

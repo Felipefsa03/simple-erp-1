@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Search, Plus, Filter, MoreHorizontal, Phone, Mail, Calendar as CalendarIcon, X, Upload, Eye, FileText, Trash2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,6 +21,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importData, setImportData] = useState<any[]>([]);
+  const [importErrors, setImportErrors] = useState<{ row: number; errors: string[] }[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<Patient | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -27,6 +29,87 @@ export function PatientList({ onNavigate }: PatientListProps) {
   const ITEMS_PER_PAGE = 20;
 
   const [newPatient, setNewPatient] = useState({ name: '', phone: '', email: '', cpf: '', birth_date: '', tags: '', allergies: '' });
+  const canView = hasPermission('view_patients');
+  const canManage = hasPermission('manage_patients');
+  const canImport = hasPermission('import_patients');
+
+  const normalizeHeader = (header: string) => header.toLowerCase().trim();
+
+  const parseCsv = (text: string) => {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    const cleaned = text.replace(/^\uFEFF/, '');
+
+    for (let i = 0; i < cleaned.length; i++) {
+      const char = cleaned[i];
+      if (char === '"') {
+        const next = cleaned[i + 1];
+        if (inQuotes && next === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+      if (char === ',' && !inQuotes) {
+        row.push(current);
+        current = '';
+        continue;
+      }
+      if ((char === '\n' || char === '\r') && !inQuotes) {
+        if (char === '\r' && cleaned[i + 1] === '\n') i++;
+        row.push(current);
+        if (row.some(cell => cell.trim())) rows.push(row);
+        row = [];
+        current = '';
+        continue;
+      }
+      current += char;
+    }
+    if (current.length || row.length) {
+      row.push(current);
+      if (row.some(cell => cell.trim())) rows.push(row);
+    }
+    return rows;
+  };
+
+  const mapImportRows = (rows: Record<string, string>[]) => {
+    return rows.map(row => ({
+      name: row.nome || row.name || '',
+      phone: row.telefone || row.phone || '',
+      email: row.email || '',
+      cpf: row.cpf || '',
+      birth_date: row.nascimento || row.birth_date || '',
+      tags: row.tags || '',
+      allergies: row.alergias || row.allergies || '',
+    }));
+  };
+
+  const validateImportRows = (rows: ReturnType<typeof mapImportRows>) => {
+    const errors: { row: number; errors: string[] }[] = [];
+    rows.forEach((row, index) => {
+      const rowErrors: string[] = [];
+      if (!row.name) rowErrors.push('Nome');
+      if (!row.phone) rowErrors.push('Telefone');
+      if (!row.email) rowErrors.push('Email');
+      if (rowErrors.length > 0) {
+        errors.push({ row: index + 2, errors: rowErrors });
+      }
+    });
+    return errors;
+  };
+
+  if (!canView) {
+    return (
+      <EmptyState
+        title="Acesso restrito"
+        description="Você não tem permissão para visualizar pacientes."
+      />
+    );
+  }
 
   const filteredPatients = useMemo(() => {
     let result = patients.filter(p => p.clinic_id === (user?.clinic_id || 'clinic-1'));
@@ -51,9 +134,11 @@ export function PatientList({ onNavigate }: PatientListProps) {
   }, [filteredPatients, currentPage]);
 
   const totalPages = Math.ceil(filteredPatients.length / ITEMS_PER_PAGE);
+  const errorRowSet = useMemo(() => new Set(importErrors.map(e => e.row)), [importErrors]);
 
   const handleAddPatient = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManage) { toast('Você não tem permissão para cadastrar pacientes.', 'error'); return; }
     addPatient({
       clinic_id: user?.clinic_id || 'clinic-1',
       name: newPatient.name,
@@ -76,21 +161,46 @@ export function PatientList({ onNavigate }: PatientListProps) {
 
     const ext = file.name.split('.').pop()?.toLowerCase();
     try {
+      if (!canImport) {
+        toast('Você não tem permissão para importar pacientes.', 'error');
+        return;
+      }
+      let data: Record<string, string>[] = [];
       if (ext === 'csv') {
         const text = await file.text();
-        const lines = text.split('\n').filter(l => l.trim());
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        const data = lines.slice(1).map(line => {
-          const values = line.split(',');
+        const rows = parseCsv(text);
+        if (rows.length === 0) {
+          toast('Arquivo CSV vazio.', 'warning');
+          return;
+        }
+        const headers = rows.shift()!.map(h => normalizeHeader(h));
+        data = rows.map(row => {
           const obj: Record<string, string> = {};
-          headers.forEach((h, i) => { obj[h] = values[i]?.trim() || ''; });
+          headers.forEach((h, i) => { obj[h] = (row[i] || '').trim(); });
           return obj;
-        }).filter(row => row.nome || row.name);
-        setImportData(data);
-        setShowImportPreview(true);
+        });
+      } else if (ext === 'xlsx') {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+        data = raw.map(row => {
+          const obj: Record<string, string> = {};
+          Object.entries(row).forEach(([key, value]) => {
+            obj[normalizeHeader(key)] = String(value ?? '').trim();
+          });
+          return obj;
+        });
       } else {
-        toast('Por favor, use um arquivo CSV para importação.', 'warning');
+        toast('Use um arquivo CSV ou XLSX para importação.', 'warning');
+        return;
       }
+
+      const mapped = mapImportRows(data).filter(row => row.name || row.email || row.phone);
+      const errors = validateImportRows(mapped);
+      setImportData(mapped);
+      setImportErrors(errors);
+      setShowImportPreview(true);
     } catch (err) {
       toast('Erro ao ler arquivo. Verifique o formato.', 'error');
     }
@@ -98,22 +208,44 @@ export function PatientList({ onNavigate }: PatientListProps) {
   };
 
   const handleConfirmImport = () => {
+    if (importErrors.length > 0) {
+      toast('Corrija os erros antes de confirmar a importação.', 'warning');
+      return;
+    }
+    const clinicId = user?.clinic_id || 'clinic-1';
+    const existingEmails = new Set(
+      patients.filter(p => p.clinic_id === clinicId).map(p => p.email.toLowerCase())
+    );
+    const existingCpfs = new Set(
+      patients.filter(p => p.clinic_id === clinicId).map(p => p.cpf || '')
+    );
+    let duplicates = 0;
+
     const newPatients = importData.map(row => ({
-      clinic_id: user?.clinic_id || 'clinic-1',
-      name: row.nome || row.name || '',
-      phone: row.telefone || row.phone || '',
+      clinic_id: clinicId,
+      name: row.name || '',
+      phone: row.phone || '',
       email: row.email || '',
       cpf: row.cpf || undefined,
-      birth_date: row.nascimento || row.birth_date || undefined,
-      allergies: [] as string[],
-      tags: [] as string[],
+      birth_date: row.birth_date || undefined,
+      allergies: row.allergies ? row.allergies.split(',').map((a: string) => a.trim()).filter(Boolean) : [],
+      tags: row.tags ? row.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       status: 'active' as const,
-    })).filter(p => p.name);
+    })).filter(p => {
+      const emailKey = p.email.toLowerCase();
+      const cpfKey = p.cpf || '';
+      if (emailKey && existingEmails.has(emailKey)) { duplicates += 1; return false; }
+      if (cpfKey && existingCpfs.has(cpfKey)) { duplicates += 1; return false; }
+      if (emailKey) existingEmails.add(emailKey);
+      if (cpfKey) existingCpfs.add(cpfKey);
+      return !!p.name;
+    });
 
     const count = importPatients(newPatients);
     setShowImportPreview(false);
     setImportData([]);
-    toast(`${count} pacientes importados com sucesso!`);
+    setImportErrors([]);
+    toast(`${count} pacientes importados com sucesso!${duplicates ? ` (${duplicates} duplicados ignorados)` : ''}`);
   };
 
   return (
@@ -125,7 +257,8 @@ export function PatientList({ onNavigate }: PatientListProps) {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200"
+          disabled={!canManage}
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <Plus className="w-4 h-4" />
           Novo Paciente
@@ -177,33 +310,41 @@ export function PatientList({ onNavigate }: PatientListProps) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-all border border-slate-200 flex items-center justify-center gap-2"
+            disabled={!canImport}
+            className="w-full py-3 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-all border border-slate-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Upload className="w-4 h-4" />
-            Cadastro em Massa (CSV)
+            Cadastro em Massa (CSV/XLSX)
           </button>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
+          <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.xlsx" onChange={handleFileUpload} />
         </form>
       </Modal>
 
       {/* Import Preview Modal */}
-      <Modal isOpen={showImportPreview} onClose={() => { setShowImportPreview(false); setImportData([]); }} title={`Preview de Importação (${importData.length} registros)`} maxWidth="max-w-2xl">
+      <Modal isOpen={showImportPreview} onClose={() => { setShowImportPreview(false); setImportData([]); setImportErrors([]); }} title={`Preview de Importação (${importData.length} registros)`} maxWidth="max-w-2xl">
         <div className="space-y-4">
+          {importErrors.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700">
+              {importErrors.length} linha(s) com erro. Corrija os campos obrigatórios (Nome, Telefone, Email) antes de importar.
+            </div>
+          )}
           <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-100">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 sticky top-0">
                 <tr>
-                  {importData[0] && Object.keys(importData[0]).map(h => (
+                  {['name', 'phone', 'email', 'cpf', 'birth_date'].map(h => (
                     <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-400 uppercase">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {importData.slice(0, 10).map((row, i) => (
-                  <tr key={i}>
-                    {Object.values(row).map((v, j) => (
-                      <td key={j} className="px-3 py-2 text-xs text-slate-600">{v as string}</td>
-                    ))}
+                  <tr key={i} className={errorRowSet.has(i + 2) ? 'bg-amber-50/60' : ''}>
+                    <td className="px-3 py-2 text-xs text-slate-600">{row.name}</td>
+                    <td className="px-3 py-2 text-xs text-slate-600">{row.phone}</td>
+                    <td className="px-3 py-2 text-xs text-slate-600">{row.email}</td>
+                    <td className="px-3 py-2 text-xs text-slate-600">{row.cpf}</td>
+                    <td className="px-3 py-2 text-xs text-slate-600">{row.birth_date}</td>
                   </tr>
                 ))}
               </tbody>
@@ -212,7 +353,13 @@ export function PatientList({ onNavigate }: PatientListProps) {
           {importData.length > 10 && <p className="text-xs text-slate-400">Mostrando 10 de {importData.length} registros</p>}
           <div className="flex gap-3">
             <button onClick={() => { setShowImportPreview(false); setImportData([]); }} className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl">Cancelar</button>
-            <button onClick={handleConfirmImport} className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700">Confirmar Importação</button>
+            <button
+              onClick={handleConfirmImport}
+              disabled={importErrors.length > 0}
+              className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Confirmar Importação
+            </button>
           </div>
         </div>
       </Modal>
@@ -251,7 +398,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
           icon={AlertCircle}
           title={searchQuery ? "Nenhum paciente encontrado" : "Nenhum paciente cadastrado"}
           description={searchQuery ? "Tente buscar por outro termo." : "Cadastre seu primeiro paciente para começar."}
-          action={!searchQuery ? { label: 'Cadastrar Paciente', onClick: () => setIsModalOpen(true) } : undefined}
+          action={!searchQuery && canManage ? { label: 'Cadastrar Paciente', onClick: () => setIsModalOpen(true) } : undefined}
         />
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -283,7 +430,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-900 truncate">{patient.name}</p>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {patient.tags.map(tag => (
+                            {(patient.tags || []).map(tag => (
                               <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-md font-medium">{tag}</span>
                             ))}
                           </div>

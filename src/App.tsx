@@ -10,15 +10,16 @@ import { Marketing } from './domains/marketing/Marketing';
 import { Configuracoes } from './domains/configuracoes/Configuracoes';
 import { SuperAdminDashboard } from './domains/admin/SuperAdminDashboard';
 import { LandingPage } from './domains/marketing/LandingPage';
-import { ToastProvider } from './components/shared';
+import { ToastProvider, ErrorBoundary } from './components/shared';
 import { useAuth } from './hooks/useAuth';
 import { toast } from './hooks/useShared';
 import { useClinicStore } from './stores/clinicStore';
+import { useEventBus } from './stores/eventBus';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, Sparkles, Menu, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function App() {
-  const { user, login, logout } = useAuth();
+  const { user, login, logout, hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,13 +45,49 @@ export default function App() {
 
   useEffect(() => {
     if (user?.role === 'super_admin') {
-      setActiveTab('admin-dashboard');
+      setActiveTab(prev => prev.startsWith('admin-') ? prev : 'admin-dashboard');
     } else if (user) {
-      setActiveTab('dashboard');
+      setActiveTab(prev => prev === 'admin-dashboard' || prev.startsWith('admin-') ? 'dashboard' : (prev || 'dashboard'));
     }
-  }, [user]);
+  }, [user?.id]);
+
+  useEffect(() => {
+    const offFinished = useEventBus.getState().on('APPOINTMENT_FINISHED', () => {
+      if (activeTab !== 'financeiro') {
+        toast('Atendimento finalizado e lançado no financeiro.', 'info');
+      }
+    });
+    const offPayment = useEventBus.getState().on('PAYMENT_RECEIVED', () => {
+      toast('Pagamento recebido com sucesso.', 'success');
+    });
+    const offImported = useEventBus.getState().on('PATIENTS_IMPORTED', (event) => {
+      const count = event.payload?.count ?? 0;
+      toast(`${count} pacientes importados.`, 'success');
+    });
+    return () => {
+      offFinished();
+      offPayment();
+      offImported();
+    };
+  }, [activeTab]);
+
+  const tabPermissions: Record<string, string | null> = {
+    dashboard: 'view_dashboard',
+    agenda: 'create_appointment',
+    pacientes: 'view_patients',
+    prontuarios: 'view_patients',
+    financeiro: 'view_financial',
+    estoque: 'manage_stock',
+    marketing: 'view_dashboard',
+    configuracoes: 'manage_settings',
+  };
 
   const handleNavigate = (tab: string, ctx?: { patientId?: string; appointmentId?: string }) => {
+    const required = tabPermissions[tab];
+    if (required && !hasPermission(required)) {
+      toast('Acesso restrito para este módulo.', 'error');
+      return;
+    }
     if (ctx) {
       useClinicStore.getState().setNavigationContext({ ...ctx, fromModule: activeTab });
     }
@@ -67,8 +104,10 @@ export default function App() {
       case 'estoque': return <Estoque />;
       case 'marketing': return <Marketing />;
       case 'configuracoes': return <Configuracoes onNavigate={handleNavigate} />;
-      case 'admin-dashboard': return <SuperAdminDashboard />;
-      case 'admin-clinicas': return <SuperAdminDashboard />;
+      case 'admin-dashboard': return <SuperAdminDashboard initialTab="dashboard" />;
+      case 'admin-clinicas': return <SuperAdminDashboard initialTab="clinicas" />;
+      case 'admin-assinaturas': return <SuperAdminDashboard initialTab="assinaturas" />;
+      case 'admin-seguranca': return <SuperAdminDashboard initialTab="seguranca" />;
       default: return (
         <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
           <AlertCircle className="w-12 h-12 opacity-20" />
@@ -104,13 +143,16 @@ export default function App() {
     if (!showLogin) {
       return (
         <ToastProvider>
-          <LandingPage onLoginClick={() => setShowLogin(true)} />
+          <ErrorBoundary key="guest-landing">
+            <LandingPage onLoginClick={() => setShowLogin(true)} />
+          </ErrorBoundary>
         </ToastProvider>
       );
     }
 
     return (
       <ToastProvider>
+        <ErrorBoundary key="guest-login">
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -217,12 +259,14 @@ export default function App() {
             </div>
           </motion.div>
         </div>
+        </ErrorBoundary>
       </ToastProvider>
     );
   }
 
   return (
     <ToastProvider>
+      <ErrorBoundary key={`auth-${user?.id || 'anon'}`}>
       <div className="flex h-screen bg-slate-50 overflow-hidden relative">
         <Sidebar
           activeTab={activeTab}
@@ -249,21 +293,24 @@ export default function App() {
           )}
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8 relative z-0">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="max-w-7xl mx-auto h-full"
-              >
-                {renderContent()}
-              </motion.div>
-            </AnimatePresence>
+            <ErrorBoundary key={`${activeTab}-${user?.id || 'anon'}`}>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={`${activeTab}-${user?.id || 'anon'}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="max-w-7xl mx-auto h-full"
+                >
+                  {renderContent()}
+                </motion.div>
+              </AnimatePresence>
+            </ErrorBoundary>
           </main>
         </div>
       </div>
+      </ErrorBoundary>
     </ToastProvider>
   );
 }
