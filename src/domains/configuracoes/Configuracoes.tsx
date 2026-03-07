@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Settings, Users, Shield, Bell, CreditCard, Stethoscope, Plus, Save, Edit2, Trash2, X, Package, DollarSign, BarChart3, Wifi, WifiOff, CheckCircle2, ArrowUpRight, Link2 } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Settings, Users, Shield, Bell, CreditCard, Stethoscope, Plus, Save, Edit2, Trash2, X, Check, Package, DollarSign, BarChart3, Wifi, WifiOff, CheckCircle2, ArrowUpRight, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast, formatCurrency } from '@/hooks/useShared';
 import { Modal, EmptyState, ConfirmDialog } from '@/components/shared';
 import type { Service, ServiceMaterial, AsaasConfig, UserRole } from '@/types';
+import { integrationsApi } from '@/lib/integrationsApi';
 
 interface ConfiguracoesProps {
   onNavigate?: (tab: string, ctx?: any) => void;
@@ -38,6 +39,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     getProfessionalStats,
     notificationPrefs,
     setNotificationPref,
+    setIntegrationConfig,
+    integrationConfig,
   } = store;
 
   const [activeSubTab, setActiveSubTab] = useState('clinica');
@@ -53,9 +56,19 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const [editingCommission, setEditingCommission] = useState<{ id: string; pct: string } | null>(null);
   const [newUserForm, setNewUserForm] = useState({ name: '', email: '', phone: '', role: 'receptionist' as UserRole, commission_pct: '0', password: '' });
   const [upgradeModal, setUpgradeModal] = useState<{ plan: string; price: number } | null>(null);
-  const [asaasConfig, setAsaasConfig] = useState<AsaasConfig>({ api_key: '', wallet_id: '', environment: 'sandbox', enabled: false });
+  const [asaasConfig, setAsaasConfig] = useState<AsaasConfig>({ api_key: '', wallet_id: '', environment: 'sandbox', enabled: false, webhook_url: '' });
   const [asaasTesting, setAsaasTesting] = useState(false);
   const [asaasConnected, setAsaasConnected] = useState(false);
+  const [integrationForm, setIntegrationForm] = useState({
+    memed_api_url: integrationConfig.memed_api_url || '',
+    memed_api_token: integrationConfig.memed_api_token || '',
+    tiss_provider_name: integrationConfig.tiss_provider_name || '',
+    tiss_ans_code: integrationConfig.tiss_ans_code || '',
+    rd_station_token: integrationConfig.rd_station_token || '',
+    meta_pixel_id: integrationConfig.meta_pixel_id || '',
+    google_ads_customer_id: integrationConfig.google_ads_customer_id || '',
+    google_calendar_email: integrationConfig.google_calendar_email || '',
+  });
   const canManageSettings = hasPermission('manage_settings');
   const canManageCommissions = hasPermission('manage_commissions');
   const canManageTeam = hasPermission('manage_team');
@@ -116,6 +129,28 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     () => stockItems.filter(s => s.clinic_id === clinicId),
     [stockItems, clinicId]
   );
+
+  useEffect(() => {
+    setAsaasConfig(prev => ({
+      ...prev,
+      api_key: prev.api_key || localStorage.getItem('luminaflow-asaas-api-key') || '',
+      wallet_id: prev.wallet_id || localStorage.getItem('luminaflow-asaas-wallet-id') || '',
+      webhook_url: prev.webhook_url || localStorage.getItem('luminaflow-asaas-webhook-url') || '',
+    }));
+  }, []);
+
+  useEffect(() => {
+    setIntegrationForm({
+      memed_api_url: integrationConfig.memed_api_url || '',
+      memed_api_token: integrationConfig.memed_api_token || '',
+      tiss_provider_name: integrationConfig.tiss_provider_name || '',
+      tiss_ans_code: integrationConfig.tiss_ans_code || '',
+      rd_station_token: integrationConfig.rd_station_token || '',
+      meta_pixel_id: integrationConfig.meta_pixel_id || '',
+      google_ads_customer_id: integrationConfig.google_ads_customer_id || '',
+      google_calendar_email: integrationConfig.google_calendar_email || '',
+    });
+  }, [integrationConfig]);
 
   const handleSaveClinic = () => {
     updateClinic(clinicForm);
@@ -225,12 +260,61 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const handleTestAsaas = async () => {
     if (!asaasConfig.api_key) { toast('Insira a chave de API.', 'error'); return; }
     setAsaasTesting(true);
-    // Simulated API test
-    await new Promise(r => setTimeout(r, 2000));
-    setAsaasTesting(false);
-    setAsaasConnected(true);
-    setAsaasConfig(prev => ({ ...prev, enabled: true, connected_at: new Date().toISOString() }));
-    toast('Conexão com Asaas estabelecida com sucesso!');
+    try {
+      await integrationsApi.asaasTest({ apiKey: asaasConfig.api_key, environment: asaasConfig.environment });
+      setAsaasConnected(true);
+      setAsaasConfig(prev => ({ ...prev, enabled: true, connected_at: new Date().toISOString() }));
+      toast('Conexao com Asaas estabelecida com sucesso!');
+    } catch (error) {
+      console.error(error);
+      setAsaasConnected(false);
+      toast('Falha ao validar credenciais do Asaas.', 'error');
+    } finally {
+      setAsaasTesting(false);
+    }
+  };
+
+  const handleSaveAsaasCredentials = () => {
+    if (!asaasConfig.api_key) {
+      toast('Preencha a API Key antes de salvar.', 'error');
+      return;
+    }
+    localStorage.setItem('luminaflow-asaas-api-key', asaasConfig.api_key);
+    localStorage.setItem('luminaflow-asaas-wallet-id', asaasConfig.wallet_id || '');
+    localStorage.setItem('luminaflow-asaas-webhook-url', asaasConfig.webhook_url || '');
+    toast('Credenciais Asaas salvas com sucesso!');
+  };
+
+  const handleSaveIntegrations = () => {
+    setIntegrationConfig({
+      memed_api_url: integrationForm.memed_api_url,
+      memed_api_token: integrationForm.memed_api_token,
+      tiss_provider_name: integrationForm.tiss_provider_name,
+      tiss_ans_code: integrationForm.tiss_ans_code,
+      rd_station_token: integrationForm.rd_station_token,
+      meta_pixel_id: integrationForm.meta_pixel_id,
+      google_ads_customer_id: integrationForm.google_ads_customer_id,
+      google_calendar_email: integrationForm.google_calendar_email,
+    });
+    toast('Configuracoes de integracoes salvas!');
+  };
+
+  const handleTestTissExport = async () => {
+    try {
+      await integrationsApi.tissExport({
+        registro_ans: integrationForm.tiss_ans_code,
+        numero_guia: `GUIA-${Date.now()}`,
+        patient_name: 'Paciente Teste',
+        card_number: '0000000',
+        procedure_code: '10101012',
+        procedure_name: 'Consulta odontologica',
+        amount: 150,
+      });
+      toast('Exportacao TISS simulada com sucesso!');
+    } catch (error) {
+      console.error(error);
+      toast('Falha ao testar exportacao TISS.', 'error');
+    }
   };
 
   const profStats = useMemo(() => {
@@ -584,22 +668,22 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       {/* Permissions */}
       {activeSubTab === 'permissoes' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-          <h2 className="text-lg font-bold text-slate-900 mb-6">Matriz de Permiss??es</h2>
+          <h2 className="text-lg font-bold text-slate-900 mb-6">Matriz de Permissões</h2>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-            <p className="text-xs text-slate-500">Clique nos indicadores para liberar ou bloquear. As altera????es s??o salvas automaticamente.</p>
+            <p className="text-xs text-slate-500">Clique nos indicadores para liberar ou bloquear. As alterações são salvas automaticamente.</p>
             <button
               onClick={handleResetPermissions}
               disabled={!canManageSettings}
               className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Restaurar padr??o
+              Restaurar padrão
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-4 text-xs font-bold text-slate-400 uppercase">A????o</th>
+                  <th className="text-left py-3 px-4 text-xs font-bold text-slate-400 uppercase">Ação</th>
                   {permissionRoles.map(role => (
                     <th key={role.key} className="py-3 px-4 text-xs font-bold text-slate-400 uppercase text-center">{role.label}</th>
                   ))}
@@ -626,7 +710,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                             aria-label={`${row.label} - ${role.label}`}
                             title={allowed ? 'Permitido' : 'Bloqueado'}
                           >
-                            {allowed ? '?' : ''}
+                            {allowed ? <Check className="w-4 h-4 text-white" /> : <X className="w-4 h-4 text-slate-500" />}
                           </button>
                         </td>
                       );
@@ -816,7 +900,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 )}
               </button>
               <button
-                onClick={() => { toast('Credenciais Asaas salvas com sucesso!'); }}
+                onClick={handleSaveAsaasCredentials}
                 disabled={!asaasConfig.api_key}
                 className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-xl text-sm hover:bg-slate-800 transition-all disabled:opacity-50"
               >
@@ -843,6 +927,76 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     <p className="text-sm font-bold text-slate-900">{feature.label}</p>
                   </div>
                   <p className="text-xs text-slate-500 pl-6">{feature.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {activeSubTab === 'integracoes' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
+            <h2 className="text-lg font-bold text-slate-900">Integracoes Clinicas</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Memed API URL
+                <input value={integrationForm.memed_api_url} onChange={e => setIntegrationForm(prev => ({ ...prev, memed_api_url: e.target.value }))} className="mt-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+              </label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Memed API Token
+                <input value={integrationForm.memed_api_token} onChange={e => setIntegrationForm(prev => ({ ...prev, memed_api_token: e.target.value }))} className="mt-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+              </label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Operadora / Convenio (TISS)
+                <input value={integrationForm.tiss_provider_name} onChange={e => setIntegrationForm(prev => ({ ...prev, tiss_provider_name: e.target.value }))} className="mt-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+              </label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Registro ANS
+                <input value={integrationForm.tiss_ans_code} onChange={e => setIntegrationForm(prev => ({ ...prev, tiss_ans_code: e.target.value }))} className="mt-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+              </label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                RD Station Token
+                <input value={integrationForm.rd_station_token} onChange={e => setIntegrationForm(prev => ({ ...prev, rd_station_token: e.target.value }))} className="mt-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+              </label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Google Calendar (email)
+                <input value={integrationForm.google_calendar_email} onChange={e => setIntegrationForm(prev => ({ ...prev, google_calendar_email: e.target.value }))} className="mt-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+              </label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Meta Pixel ID
+                <input value={integrationForm.meta_pixel_id} onChange={e => setIntegrationForm(prev => ({ ...prev, meta_pixel_id: e.target.value }))} className="mt-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+              </label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Google Ads Customer ID
+                <input value={integrationForm.google_ads_customer_id} onChange={e => setIntegrationForm(prev => ({ ...prev, google_ads_customer_id: e.target.value }))} className="mt-1 w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button onClick={handleSaveIntegrations} className="px-5 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700">
+                Salvar Integracoes
+              </button>
+              <button onClick={handleTestTissExport} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50">
+                Testar Exportacao TISS
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Status rapido</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { label: 'Memed', enabled: !!integrationForm.memed_api_url && !!integrationForm.memed_api_token },
+                { label: 'TISS / Convenios', enabled: !!integrationForm.tiss_ans_code },
+                { label: 'RD Station', enabled: !!integrationForm.rd_station_token },
+                { label: 'Meta Pixel', enabled: !!integrationForm.meta_pixel_id },
+                { label: 'Google Ads', enabled: !!integrationForm.google_ads_customer_id },
+                { label: 'Google Calendar', enabled: !!integrationForm.google_calendar_email },
+              ].map(item => (
+                <div key={item.label} className={cn('p-4 rounded-2xl border', item.enabled ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-100 bg-slate-50/30')}>
+                  <p className="text-sm font-bold text-slate-900">{item.label}</p>
+                  <p className={cn('text-xs mt-1', item.enabled ? 'text-emerald-700' : 'text-slate-500')}>{item.enabled ? 'Configurado' : 'Pendente'}</p>
                 </div>
               ))}
             </div>

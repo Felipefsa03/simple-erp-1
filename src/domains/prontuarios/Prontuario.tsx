@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Mic, Camera, FileText, History, Plus, Save, User, Activity, ClipboardList, Image as ImageIcon, X, Lock, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { Mic, Camera, FileText, History, Plus, Save, User, Activity, ClipboardList, Image as ImageIcon, X, Lock, ChevronLeft, AlertTriangle, Link2, PenLine, Download, FileSignature } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast, formatCurrency, useSubmitOnce } from '@/hooks/useShared';
 import { Modal, EmptyState, ConfirmDialog, LoadingButton } from '@/components/shared';
 import type { OdontogramEntry, TreatmentPlanItem, AppointmentMaterial } from '@/types';
+import { integrationsApi } from '@/lib/integrationsApi';
 
 const tabs = [
   { id: 'evolucao', label: 'Evolução', icon: History },
@@ -15,6 +16,7 @@ const tabs = [
   { id: 'estoque', label: 'Uso de Estoque', icon: Plus },
   { id: 'fotos', label: 'Fotos', icon: ImageIcon },
   { id: 'plano', label: 'Plano de Tratamento', icon: FileText },
+  { id: 'documentos', label: 'Documentos', icon: FileSignature },
 ];
 
 // FDI Tooth Numbering System
@@ -27,31 +29,45 @@ interface ProntuarioProps {
   onNavigate?: (tab: string, ctx?: any) => void;
 }
 
+
 export function Prontuario({ onNavigate }: ProntuarioProps) {
   const { user, hasPermission } = useAuth();
-  const store = useClinicStore();
-  const {
-    navigationContext,
-    patients,
-    appointments,
-    services,
-    stockItems,
-    getPatient,
-    getRecordsForPatient,
-    saveEvolution,
-    getOdontogramData,
-    setOdontogramEntry,
-    saveAnamnese,
-    getAnamnese,
-    getPlansForPatient,
-    addTreatmentPlan,
-    finalizeAppointment,
-    getAppointmentMaterials,
-    setAppointmentMaterials,
-    patientPhotos,
-    addPatientPhoto,
-    removePatientPhoto,
-  } = store;
+
+  // Atomic Selectors for ultra-stability
+  const navigationContext = useClinicStore(s => s.navigationContext);
+  const patients = useClinicStore(s => s.patients);
+  const appointments = useClinicStore(s => s.appointments);
+  const services = useClinicStore(s => s.services);
+  const stockItems = useClinicStore(s => s.stockItems);
+  const medicalRecords = useClinicStore(s => s.medicalRecords);
+  const odontogramState = useClinicStore(s => s.odontogramData);
+  const plansState = useClinicStore(s => s.treatmentPlans);
+  const anamneseLinks = useClinicStore(s => s.anamneseLinks);
+  const anamneseData = useClinicStore(s => s.anamneseData);
+  const patientPhotos = useClinicStore(s => s.patientPhotos);
+  const signatures = useClinicStore(s => s.signatures);
+  const clinicalDocuments = useClinicStore(s => s.clinicalDocuments);
+
+  // Actions (getState to avoid reactivity on functions)
+  const getPatient = useClinicStore.getState().getPatient;
+  const getRecordsForPatient = useClinicStore.getState().getRecordsForPatient;
+  const saveEvolution = useClinicStore.getState().saveEvolution;
+  const getOdontogramData = useClinicStore.getState().getOdontogramData;
+  const setOdontogramEntry = useClinicStore.getState().setOdontogramEntry;
+  const saveAnamnese = useClinicStore.getState().saveAnamnese;
+  const getAnamnese = useClinicStore.getState().getAnamnese;
+  const generateAnamneseLink = useClinicStore.getState().generateAnamneseLink;
+  const getPlansForPatient = useClinicStore.getState().getPlansForPatient;
+  const addTreatmentPlan = useClinicStore.getState().addTreatmentPlan;
+  const finalizeAppointment = useClinicStore.getState().finalizeAppointment;
+  const getAppointmentMaterials = useClinicStore.getState().getAppointmentMaterials;
+  const setAppointmentMaterials = useClinicStore.getState().setAppointmentMaterials;
+  const addPatientPhoto = useClinicStore.getState().addPatientPhoto;
+  const removePatientPhoto = useClinicStore.getState().removePatientPhoto;
+  const addSignature = useClinicStore.getState().addSignature;
+  const createClinicalDocument = useClinicStore.getState().createClinicalDocument;
+  const getDocumentsForPatient = useClinicStore.getState().getDocumentsForPatient;
+  const setNavigationContext = useClinicStore.getState().setNavigationContext;
 
   const clinicId = user?.clinic_id || 'clinic-1';
   const clinicPatients = useMemo(() => patients.filter(p => p.clinic_id === clinicId), [patients, clinicId]);
@@ -59,7 +75,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
   const clinicServices = useMemo(() => services.filter(s => s.clinic_id === clinicId), [services, clinicId]);
   const clinicStockItems = useMemo(() => stockItems.filter(s => s.clinic_id === clinicId), [stockItems, clinicId]);
 
-  const patientId = navigationContext.patientId || clinicPatients[0]?.id;
+  const patientId = navigationContext.patientId || (patients.filter(p => p.clinic_id === (user?.clinic_id || 'clinic-1'))[0]?.id);
   const appointmentId = navigationContext.appointmentId;
   const patient = getPatient(patientId);
   const appointment = appointmentId ? clinicAppointments.find(a => a.id === appointmentId) : undefined;
@@ -86,11 +102,33 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [newPlanTitle, setNewPlanTitle] = useState('');
   const [newPlanItems, setNewPlanItems] = useState<TreatmentPlanItem[]>([]);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signatureRole, setSignatureRole] = useState<'patient' | 'professional'>('professional');
+  const [signatureName, setSignatureName] = useState('');
+  const [docType, setDocType] = useState<'contract' | 'consent' | 'prescription' | 'certificate' | 'custom'>('consent');
+  const [docTitle, setDocTitle] = useState('Termo de Consentimento');
+  const [docContent, setDocContent] = useState('');
+  const [selectedPatientSignatureId, setSelectedPatientSignatureId] = useState('');
+  const [selectedProfessionalSignatureId, setSelectedProfessionalSignatureId] = useState('');
+  const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingRef = useRef(false);
 
-  const patientRecords = useMemo(() => patientId ? getRecordsForPatient(patientId) : [], [patientId, store.medicalRecords]);
-  const odontogramData = useMemo(() => patientId ? getOdontogramData(patientId) : [], [patientId, store.odontogramData]);
-  const treatmentPlans = useMemo(() => patientId ? getPlansForPatient(patientId) : [], [patientId, store.treatmentPlans]);
+  const patientRecords = useMemo(() => patientId ? getRecordsForPatient(patientId) : [], [patientId, medicalRecords, getRecordsForPatient]);
+  const odontogramData = useMemo(() => patientId ? getOdontogramData(patientId) : [], [patientId, odontogramState, getOdontogramData]);
+  const treatmentPlans = useMemo(() => patientId ? getPlansForPatient(patientId) : [], [patientId, plansState, getPlansForPatient]);
   const photos = useMemo(() => patientId ? (patientPhotos[patientId] || []) : [], [patientId, patientPhotos]);
+  const patientAnamneseLinks = useMemo(
+    () => patientId ? anamneseLinks.filter(link => link.patient_id === patientId) : [],
+    [patientId, anamneseLinks]
+  );
+  const patientSignatures = useMemo(
+    () => patientId ? signatures.filter(sig => sig.patient_id === patientId) : [],
+    [patientId, signatures]
+  );
+  const patientDocuments = useMemo(
+    () => patientId ? getDocumentsForPatient(patientId) : [],
+    [patientId, clinicalDocuments, getDocumentsForPatient]
+  );
 
   // Load anamnese data
   useEffect(() => {
@@ -125,6 +163,34 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
     setAppointmentMaterials(appointmentId, consumptionItems);
   }, [appointmentId, consumptionItems, setAppointmentMaterials]);
 
+  useEffect(() => {
+    const patientName = patient?.name || 'Paciente';
+    const defaults: Record<typeof docType, { title: string; content: string }> = {
+      contract: {
+        title: 'Contrato de Prestação de Serviços',
+        content: `<h2>Contrato</h2><p>Eu, ${patientName}, concordo com o plano de tratamento e condições comerciais apresentadas.</p>`,
+      },
+      consent: {
+        title: 'Termo de Consentimento',
+        content: `<h2>Consentimento Informado</h2><p>Eu, ${patientName}, fui orientado sobre riscos, benefícios e alternativas do procedimento.</p>`,
+      },
+      prescription: {
+        title: 'Receituário',
+        content: `<h2>Receituário</h2><p>Paciente: ${patientName}</p><p>Prescrição:</p><ul><li></li></ul>`,
+      },
+      certificate: {
+        title: 'Atestado',
+        content: `<h2>Atestado</h2><p>Atesto que ${patientName} esteve em atendimento nesta clínica nesta data.</p>`,
+      },
+      custom: {
+        title: 'Documento Clínico',
+        content: '<h2>Documento</h2><p>Descreva o conteúdo.</p>',
+      },
+    };
+    setDocTitle(defaults[docType].title);
+    setDocContent(defaults[docType].content);
+  }, [docType, patient?.name]);
+
   const getToothStatus = (toothNum: number): OdontogramEntry | undefined => odontogramData.find(e => e.tooth_number === toothNum);
 
   const getToothColor = (toothNum: number) => {
@@ -155,7 +221,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
       return;
     }
     toast('Atendimento finalizado! Prontuário bloqueado. Redirecionando para o Financeiro...');
-    store.setNavigationContext({ appointmentId, fromModule: 'prontuarios' });
+    setNavigationContext({ appointmentId, fromModule: 'prontuarios' });
     setTimeout(() => onNavigate?.('financeiro', { appointmentId }), 1500);
   });
 
@@ -174,7 +240,126 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
     toast('Anamnese salva com sucesso!');
   };
 
+  const handleGenerateAnamneseLink = async () => {
+    if (!patientId || !user) return;
+    const link = generateAnamneseLink(patientId, user.id, 72);
+    const share = `${window.location.origin}/#anamnese-form?token=${link.token}`;
+    try {
+      await navigator.clipboard.writeText(share);
+      toast('Link de anamnese copiado para envio ao paciente!');
+    } catch {
+      toast('Link gerado. Copie manualmente na lista abaixo.', 'info');
+    }
+  };
+
+  const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.moveTo(event.clientX - rect.left, event.clientY - rect.top);
+    drawingRef.current = true;
+  };
+
+  const drawSignature = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.lineTo(event.clientX - rect.left, event.clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const endDrawing = () => {
+    drawingRef.current = false;
+  };
+
+  const clearSignature = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const handleSaveSignature = () => {
+    if (!patientId || !signatureName.trim()) {
+      toast('Informe o nome de quem vai assinar.', 'error');
+      return;
+    }
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const image = canvas.toDataURL('image/png');
+    const created = addSignature({
+      clinic_id: user?.clinic_id || 'clinic-1',
+      patient_id: patientId,
+      appointment_id: appointmentId || undefined,
+      role: signatureRole,
+      signer_name: signatureName.trim(),
+      image_data_url: image,
+    });
+    if (created.role === 'patient') setSelectedPatientSignatureId(created.id);
+    if (created.role === 'professional') setSelectedProfessionalSignatureId(created.id);
+    setSignatureName('');
+    setShowSignatureModal(false);
+    clearSignature();
+    toast('Assinatura registrada com sucesso!');
+  };
+
+  const handleCreateDocument = async () => {
+    if (!patientId || !user) return;
+    if (!docTitle.trim() || !docContent.trim()) {
+      toast('Preencha titulo e conteudo do documento.', 'error');
+      return;
+    }
+    const document = createClinicalDocument({
+      clinic_id: user.clinic_id || 'clinic-1',
+      patient_id: patientId,
+      appointment_id: appointmentId || undefined,
+      type: docType,
+      title: docTitle,
+      content_html: docContent,
+      patient_signature_id: selectedPatientSignatureId || undefined,
+      professional_signature_id: selectedProfessionalSignatureId || undefined,
+      created_by: user.id,
+    });
+
+    if (docType === 'prescription') {
+      try {
+        await integrationsApi.memedPrescription({
+          patient_name: patient?.name,
+          document_id: document.id,
+          content: document.content_html,
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    toast('Documento clinico gerado com sucesso!');
+  };
+
+  const handleDownloadDocument = (docId: string) => {
+    const doc = patientDocuments.find(item => item.id === docId);
+    if (!doc) return;
+    const blob = new Blob([`<html><body>${doc.content_html}</body></html>`], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${doc.title.replace(/\s+/g, '_')}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleToothClick = (toothNum: number) => {
+
     if (isLocked) { toast('Prontuário bloqueado após finalização', 'warning'); return; }
     if (!canEdit) { toast('Você não tem permissão para editar o odontograma.', 'error'); return; }
     setToothModal(toothNum);
@@ -450,7 +635,25 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
                   />
                 </div>
               ))}
-              <button onClick={handleSaveAnamnese} disabled={isLocked || !canEdit} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50">Salvar Anamnese</button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button onClick={handleSaveAnamnese} disabled={isLocked || !canEdit} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50">Salvar Anamnese</button>
+                <button onClick={handleGenerateAnamneseLink} disabled={isLocked || !canEdit} className="w-full py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 disabled:opacity-50 inline-flex items-center justify-center gap-2">
+                  <Link2 className="w-4 h-4" />
+                  Gerar Link para Paciente
+                </button>
+              </div>
+              {patientAnamneseLinks.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Links gerados</p>
+                  {patientAnamneseLinks.slice(0, 3).map(link => (
+                    <div key={link.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <p className="text-xs text-slate-500">Validade: {new Date(link.expires_at).toLocaleString('pt-BR')}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Status: {link.status}</p>
+                      <code className="text-[11px] text-cyan-700 break-all">{`${window.location.origin}/#anamnese-form?token=${link.token}`}</code>
+                    </div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -587,6 +790,140 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
               </Modal>
             </motion.div>
           )}
+
+          {activeSubTab === 'documentos' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900">Documentos e Assinaturas</h2>
+                <button
+                  onClick={() => setShowSignatureModal(true)}
+                  className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-2"
+                >
+                  <PenLine className="w-4 h-4" />
+                  Nova Assinatura
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Tipo de documento
+                  <select
+                    value={docType}
+                    onChange={e => setDocType(e.target.value as typeof docType)}
+                    className="mt-1 w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+                  >
+                    <option value="consent">Termo de Consentimento</option>
+                    <option value="contract">Contrato</option>
+                    <option value="prescription">Receituario</option>
+                    <option value="certificate">Atestado</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Titulo
+                  <input
+                    value={docTitle}
+                    onChange={e => setDocTitle(e.target.value)}
+                    className="mt-1 w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+                  />
+                </label>
+              </div>
+
+              <textarea
+                value={docContent}
+                onChange={e => setDocContent(e.target.value)}
+                className="w-full min-h-[220px] p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm outline-none"
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Assinatura do profissional
+                  <select
+                    value={selectedProfessionalSignatureId}
+                    onChange={e => setSelectedProfessionalSignatureId(e.target.value)}
+                    className="mt-1 w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+                  >
+                    <option value="">Sem assinatura</option>
+                    {patientSignatures.filter(sig => sig.role === 'professional').map(sig => (
+                      <option key={sig.id} value={sig.id}>{sig.signer_name} • {new Date(sig.signed_at).toLocaleDateString('pt-BR')}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Assinatura do paciente
+                  <select
+                    value={selectedPatientSignatureId}
+                    onChange={e => setSelectedPatientSignatureId(e.target.value)}
+                    className="mt-1 w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+                  >
+                    <option value="">Sem assinatura</option>
+                    {patientSignatures.filter(sig => sig.role === 'patient').map(sig => (
+                      <option key={sig.id} value={sig.id}>{sig.signer_name} • {new Date(sig.signed_at).toLocaleDateString('pt-BR')}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <button
+                onClick={handleCreateDocument}
+                className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700"
+              >
+                Gerar Documento
+              </button>
+
+              <div className="space-y-2 pt-2 border-t border-slate-100">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Documentos gerados</p>
+                {patientDocuments.length === 0 ? (
+                  <p className="text-sm text-slate-400">Nenhum documento gerado para este paciente.</p>
+                ) : patientDocuments.map(doc => (
+                  <div key={doc.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">{doc.title}</p>
+                      <p className="text-xs text-slate-500">{doc.type} • {new Date(doc.created_at).toLocaleString('pt-BR')}</p>
+                    </div>
+                    <button onClick={() => handleDownloadDocument(doc.id)} className="p-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50">
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          <Modal isOpen={showSignatureModal} onClose={() => setShowSignatureModal(false)} title="Capturar Assinatura" maxWidth="max-w-lg">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={signatureRole}
+                  onChange={e => setSignatureRole(e.target.value as 'patient' | 'professional')}
+                  className="px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+                >
+                  <option value="professional">Profissional</option>
+                  <option value="patient">Paciente</option>
+                </select>
+                <input
+                  value={signatureName}
+                  onChange={e => setSignatureName(e.target.value)}
+                  placeholder="Nome do assinante"
+                  className="px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+                />
+              </div>
+              <canvas
+                ref={signatureCanvasRef}
+                width={560}
+                height={180}
+                onPointerDown={startDrawing}
+                onPointerMove={drawSignature}
+                onPointerUp={endDrawing}
+                onPointerLeave={endDrawing}
+                className="w-full h-40 bg-white border border-slate-200 rounded-xl touch-none"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={clearSignature} className="py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200">Limpar</button>
+                <button onClick={handleSaveSignature} className="py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700">Salvar Assinatura</button>
+              </div>
+            </div>
+          </Modal>
         </div>
 
         {/* Sidebar - Patient Info */}

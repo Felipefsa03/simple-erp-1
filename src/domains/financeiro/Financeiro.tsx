@@ -1,30 +1,28 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Download, CreditCard, PieChart, Calendar, CheckCircle2, X, FileText, ExternalLink } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight, Plus, Filter, Download, CreditCard, PieChart, Calendar, CheckCircle2, X, FileText, ExternalLink, AlertTriangle, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
-import { toast, formatCurrency, useSubmitOnce } from '@/hooks/useShared';
+import { toast, formatCurrency } from '@/hooks/useShared';
 import { Modal, LoadingButton, EmptyState, ConfirmDialog } from '@/components/shared';
 import type { FinancialTransaction } from '@/types';
+import { integrationsApi } from '@/lib/integrationsApi';
 
 interface FinanceiroProps {
   onNavigate?: (tab: string, ctx?: any) => void;
 }
 
-export function Financeiro({ onNavigate }: FinanceiroProps) {
+export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   const { user, hasPermission } = useAuth();
-  const {
-    transactions,
-    addTransaction,
-    processPayment,
-    generatePayment,
-    getMonthlyIncome,
-    getMonthlyExpenses,
-    getBalance,
-    navigationContext,
-    clearNavigationContext,
-  } = useClinicStore();
+  const colors = ['bg-cyan-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-slate-300'];
+
+  // Triple Shielded Stable Selectors - Atomic Primitives
+  const rawTransactions = useClinicStore(s => s.transactions);
+  const rawProfessionals = useClinicStore(s => s.professionals);
+  const navId = useClinicStore(s => s.navigationContext?.appointmentId || null);
+  const fromMod = useClinicStore(s => s.navigationContext?.fromModule || null);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [txnType, setTxnType] = useState<'income' | 'expense'>('income');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -35,412 +33,492 @@ export function Financeiro({ onNavigate }: FinanceiroProps) {
   const [chargeMethod, setChargeMethod] = useState<'pix' | 'card' | 'manual'>('pix');
   const [chargeInstallments, setChargeInstallments] = useState('1');
   const [highlightedTxnId, setHighlightedTxnId] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState(false);
+  const [activeTab, setActiveTab] = useState<'transactions' | 'dre' | 'commissions'>('transactions');
+  const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7));
+
   const highlightRef = useRef<HTMLDivElement>(null);
-
-  // Handle navigation context — highlight appointment transaction
-  useEffect(() => {
-    if (navigationContext.appointmentId && navigationContext.fromModule === 'prontuarios') {
-      const txn = transactions.find(t => t.appointment_id === navigationContext.appointmentId && t.type === 'income');
-      if (txn) {
-        setHighlightedTxnId(txn.id);
-        // Scroll to highlighted after a brief delay for DOM update
-        setTimeout(() => {
-          highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 300);
-        // Clear highlight after 5 seconds
-        setTimeout(() => setHighlightedTxnId(null), 5000);
-      }
-      clearNavigationContext();
-    }
-  }, [navigationContext, transactions, clearNavigationContext]);
-
   const clinicId = user?.clinic_id || 'clinic-1';
-  const canView = hasPermission('view_financial');
-  const canManage = hasPermission('manage_financial');
 
-  const monthlyIncome = getMonthlyIncome(clinicId);
-  const monthlyExpenses = getMonthlyExpenses(clinicId);
-  const balance = getBalance(clinicId);
+  // ---- Data retrieval via getState() or stable dependencies ----
+  // Ultra-stable memoized values to satisfy React 18 / getSnapshot
+  const transactions = useMemo(() => {
+    return rawTransactions.filter(t => t.clinic_id === clinicId);
+  }, [clinicId, rawTransactions]);
 
-  if (!canView) {
-    return (
-      <EmptyState
-        title="Acesso restrito"
-        description="Você não tem permissão para visualizar o financeiro."
-      />
-    );
-  }
+  const stats = useMemo(() => {
+    const store = useClinicStore.getState();
+    return {
+      income: store.getMonthlyIncome(clinicId),
+      expenses: store.getMonthlyExpenses(clinicId),
+      balance: store.getBalance(clinicId)
+    };
+  }, [clinicId, rawTransactions]);
+
+  const dre = useMemo(() => {
+    return useClinicStore.getState().getClinicDRE(clinicId, reportMonth);
+  }, [clinicId, reportMonth, rawTransactions]);
+
+  const professionalStats = useMemo(() => {
+    const store = useClinicStore.getState();
+    const pros = rawProfessionals.filter(p => p.clinic_id === clinicId && p.role !== 'receptionist');
+    return pros.map(p => ({
+      ...p,
+      stats: store.getProfessionalCommissions(p.id, reportMonth)
+    }));
+  }, [clinicId, rawProfessionals, reportMonth, rawTransactions]);
 
   const filteredTransactions = useMemo(() => {
-    let result = transactions.filter(t => t.clinic_id === clinicId);
+    let result = [...transactions];
     if (filterStatus !== 'all') result = result.filter(t => t.status === filterStatus);
     if (dateFilter) result = result.filter(t => t.created_at.startsWith(dateFilter));
     return result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [transactions, filterStatus, dateFilter, clinicId]);
+  }, [transactions, filterStatus, dateFilter]);
 
   const expenseCategories = useMemo(() => {
     const cats: Record<string, number> = {};
-    transactions
-      .filter(t => t.type === 'expense' && t.status === 'paid' && t.clinic_id === clinicId)
-      .forEach(t => {
-        cats[t.category] = (cats[t.category] || 0) + t.amount;
-      });
+    const list = transactions.filter(t => t.type === 'expense' && t.status === 'paid');
+    list.forEach(t => { cats[t.category] = (cats[t.category] || 0) + t.amount; });
     const total = Object.values(cats).reduce((s, v) => s + v, 0) || 1;
     return Object.entries(cats).map(([label, value]) => ({
       label, value, pct: Math.round((value / total) * 100),
     })).sort((a, b) => b.value - a.value).slice(0, 5);
   }, [transactions]);
 
-  const handleAddTransaction = () => {
-    if (!canManage) { toast('Você não tem permissão para lançar transações.', 'error'); return; }
-    if (!newTxn.description || !newTxn.amount) { toast('Preencha descrição e valor', 'error'); return; }
-    addTransaction({
+  // ---- Handlers ----
+  const handleAddTransaction = useCallback(() => {
+    const amount = parseFloat(newTxn.amount.replace(',', '.'));
+    if (!newTxn.description || isNaN(amount)) { toast('Verifique os dados', 'warning'); return; }
+    useClinicStore.getState().addTransaction({
       clinic_id: clinicId,
       type: txnType,
       category: newTxn.category,
       description: newTxn.description,
-      amount: parseFloat(newTxn.amount.replace(',', '.')),
+      amount,
       status: txnType === 'expense' ? 'paid' : 'pending',
       patient_name: newTxn.patient_name || undefined,
-      idempotency_key: `manual:${Date.now()}`,
+      idempotency_key: `manual:${Date.now()}`
     });
     setIsModalOpen(false);
     setNewTxn({ description: '', amount: '', category: 'Procedimento', patient_name: '' });
-    toast(`${txnType === 'income' ? 'Receita' : 'Despesa'} registrada com sucesso!`);
-  };
+    toast('Transação registrada!');
+  }, [clinicId, newTxn, txnType]);
 
-  const { submit: handleProcessPayment, loading: paymentLoading } = useSubmitOnce(async (id: string) => {
-    if (!canManage) { toast('Você não tem permissão para processar pagamentos.', 'error'); return; }
-    await new Promise(r => setTimeout(r, 400));
-    processPayment(id, 'manual');
-    toast('Pagamento processado com sucesso!');
-  });
-
-  const handleOpenCharge = (txn: FinancialTransaction) => {
-    if (!canManage) {
-      toast('Você não tem permissão para gerar cobranças.', 'error');
-      return;
+  const handleProcessPayment = useCallback(async (id: string) => {
+    const txn = useClinicStore.getState().transactions.find(t => t.id === id);
+    if (!txn) return;
+    if (txn.asaas_payment_id) {
+      setReconciling(true);
+      try {
+        const res = await integrationsApi.reconcileAsaas({ items: [{ transaction_id: txn.id, payment_id: txn.asaas_payment_id }] });
+        const upd = res?.updates?.[0];
+        if (upd) {
+          useClinicStore.getState().reconcileTransaction(txn.id, upd.next_status, { asaas_status: upd.asaas_status, paid_at: upd.paid_at });
+          toast('Atualizado via Asaas!');
+          return;
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setReconciling(false);
+      }
     }
-    setChargeTarget(txn);
-    setChargeMethod('pix');
-    setChargeInstallments('1');
-    setChargeModalOpen(true);
-  };
+    useClinicStore.getState().processPayment(id, 'manual');
+    toast('Pago!');
+  }, []);
 
-  const handleConfirmCharge = () => {
+  const handleConfirmCharge = useCallback(async () => {
     if (!chargeTarget) return;
-    const installments = Math.max(1, parseInt(chargeInstallments, 10) || 1);
-    generatePayment(chargeTarget.id, chargeMethod, chargeMethod === 'card' ? installments : 1);
-    toast('Cobrança gerada com sucesso!');
+    const installments = parseInt(chargeInstallments, 10) || 1;
+    useClinicStore.getState().generatePayment(chargeTarget.id, chargeMethod, chargeMethod === 'card' ? installments : 1);
+    try {
+      const result = await integrationsApi.createAsaasCharge({
+        patient: { id: chargeTarget.patient_id || 'manual', name: chargeTarget.patient_name || 'Paciente', phone: '00', email: '' },
+        transaction: { ...chargeTarget, method: chargeMethod, installments: chargeMethod === 'card' ? installments : 1 },
+        config: { environment: 'sandbox' }
+      });
+      useClinicStore.getState().setTransactionAsaasData(chargeTarget.id, {
+        asaas_payment_id: result.payment?.id,
+        asaas_status: result.payment?.status,
+        pix_code: result.payment?.pixCopyPaste
+      });
+      toast('Cobrança Asaas gerada!');
+    } catch (e) { toast('Erro Asaas. Usando manual.', 'info'); }
     setChargeModalOpen(false);
-    setChargeTarget(null);
-  };
+  }, [chargeTarget, chargeInstallments, chargeMethod]);
 
-  const handleExportDRE = () => {
-    const income = transactions
-      .filter(t => t.type === 'income' && t.status === 'paid' && t.clinic_id === clinicId)
-      .reduce((s, t) => s + t.amount, 0);
-    const expenses = transactions
-      .filter(t => t.type === 'expense' && t.status === 'paid' && t.clinic_id === clinicId)
-      .reduce((s, t) => s + t.amount, 0);
-    const csv = [
-      'Tipo,Categoria,Descrição,Valor,Status,Data',
-      ...transactions
-        .filter(t => t.clinic_id === clinicId)
-        .map(t => `${t.type},${t.category},"${t.description}",${t.amount},${t.status},${t.created_at}`),
-      '',
-      `RECEITA TOTAL,,, ${income},,`,
-      `DESPESA TOTAL,,, ${expenses},,`,
-      `RESULTADO,,, ${income - expenses},,`,
-    ].join('\n');
+  const handleExportCSV = useCallback(() => {
+    const csv = ['Data,Tipo,Cat,Desc,Valor,Status', ...transactions.map(t => `${t.created_at},${t.type},${t.category},${t.description},${t.amount},${t.status}`)].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'DRE-LuminaFlow.csv'; a.click();
-    URL.revokeObjectURL(url);
-    toast('Relatório DRE exportado!');
-  };
+    a.href = url; a.download = 'financeiro.csv'; a.click();
+    toast('Exportado!');
+  }, [transactions]);
 
-  const statusLabels: Record<string, string> = {
-    pending: 'Pendente',
-    paid: 'Pago',
-    awaiting_payment: 'Aguardando',
-    cancelled: 'Cancelado',
-    refunded: 'Estornado',
-  };
+  // ---- Navigation Sync ----
+  useEffect(() => {
+    if (navId && fromMod === 'prontuarios') {
+      const txn = useClinicStore.getState().transactions.find(t => t.appointment_id === navId && t.type === 'income');
+      if (txn) {
+        setHighlightedTxnId(txn.id);
+        setTimeout(() => highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
+        setTimeout(() => setHighlightedTxnId(null), 5000);
+      }
+      const timer = setTimeout(() => useClinicStore.getState().clearNavigationContext(), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [navId, fromMod]);
 
-  const colors = ['bg-cyan-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-slate-300'];
+  if (!hasPermission('view_financial')) {
+    return <EmptyState title="Acesso Restrito" description="Consulte o administrador para acesso financeiro." />;
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Financeiro</h1>
-          <p className="text-slate-500">Controle seu fluxo de caixa e faturamento em tempo real.</p>
+          <p className="text-slate-500">Gestão de fluxo de caixa, DRE e comissões profissionais.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleExportDRE} className="flex-1 md:flex-none px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
-            <Download className="w-4 h-4 inline mr-2" />Exportar DRE
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            <Download className="w-4 h-4 inline mr-2" />Exportar
           </button>
           <button
-            onClick={() => setIsModalOpen(true)}
-            disabled={!canManage}
-            className="flex-1 md:flex-none px-4 py-2 bg-cyan-600 rounded-xl text-sm font-medium text-white hover:bg-cyan-700 shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={() => { setTxnType('income'); setIsModalOpen(true); }}
+            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 hover:opacity-90 transition-all"
           >
-            <Plus className="w-4 h-4 inline mr-2" />Novo Lançamento
+            <Plus className="w-4 h-4 inline mr-2" />Nova Receita
+          </button>
+          <button
+            onClick={() => { setTxnType('expense'); setIsModalOpen(true); }}
+            className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-200 hover:opacity-90 transition-all"
+          >
+            <Plus className="w-4 h-4 inline mr-2" />Nova Despesa
           </button>
         </div>
       </header>
 
-      {/* New Transaction Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Novo Lançamento">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { label: 'Receita Mensal', value: monthlyIncome, icon: TrendingUp, color: 'emerald' },
+          { label: 'Despesas Mensais', value: monthlyExpenses, icon: TrendingDown, color: 'red' },
+          { label: 'Saldo em Caixa', value: balance, icon: DollarSign, color: 'blue' }
+        ].map((item, i) => (
+          <motion.div
+            key={item.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            {[
+              { label: 'Receita Mensal', value: stats.income, icon: TrendingUp, color: 'emerald' },
+              { label: 'Despesas Mensais', value: stats.expenses, icon: TrendingDown, color: 'red' },
+              { label: 'Saldo em Caixa', value: stats.balance, icon: DollarSign, color: 'blue' }
+            ].map((item, i) => (
+      </div>
+
+      {/* Tabs */}
+      <div className="flex bg-white border border-slate-100 rounded-2xl p-1 overflow-x-auto no-scrollbar">
+        {[
+          { id: 'transactions', label: 'Transações', icon: History },
+          { id: 'dre', label: 'DRE (Resultados)', icon: FileText },
+          { id: 'commissions', label: 'Comissões Profissionais', icon: PieChart }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={cn(
+              "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
+              activeTab === tab.id ? "bg-cyan-50 text-cyan-700 shadow-sm" : "text-slate-500 hover:text-slate-900"
+            )}
+          >
+            <tab.icon className="w-4 h-4" />{tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <AnimatePresence mode="wait">
+        {activeTab === 'transactions' && (
+          <motion.div key="txns" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h2 className="font-bold text-slate-900">Histórico de Movimentações</h2>
+              <div className="flex gap-2">
+                <input type="month" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-cyan-500/20" />
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-cyan-500/20">
+                  <option value="all">Todos os Status</option>
+                  <option value="paid">Pago / Concluído</option>
+                  <option value="pending">Aguardando Pagamento</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descrição</th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Categoria</th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Valor</th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-20 text-center text-slate-400">Nenhuma transação encontrada.</td>
+                      </tr>
+                    ) : filteredTransactions.map(t => (
+                      <tr
+                        key={t.id}
+                        ref={highlightedTxnId === t.id ? highlightRef : null}
+                        className={cn(
+                          "border-b border-slate-50 hover:bg-slate-50/50 transition-colors group",
+                          highlightedTxnId === t.id && "bg-cyan-50 animate-pulse ring-2 ring-cyan-200 ring-inset"
+                        )}
+                      >
+                        <td className="px-6 py-4 text-xs text-slate-500">{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-bold text-slate-900">{t.description}</p>
+                          {t.patient_name && <p className="text-[10px] font-medium text-slate-400">Paciente: {t.patient_name}</p>}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-bold">{t.category}</span>
+                        </td>
+                        <td className={cn("px-6 py-4 text-sm font-black text-right", t.type === 'income' ? 'text-emerald-600' : 'text-red-500')}>
+                          {t.type === 'income' ? '+' : '-'} {formatCurrency(t.amount)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1.5">
+                            <div className={cn("w-1.5 h-1.5 rounded-full",
+                              t.status === 'paid' ? 'bg-emerald-500' :
+                                t.status === 'pending' ? 'bg-amber-500' : 'bg-blue-500'
+                            )} />
+                            <span className="text-xs font-bold text-slate-600">
+                              {t.status === 'paid' ? 'Pago' : t.status === 'pending' ? 'Pendente' : 'Aguardando'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {t.status !== 'paid' && (
+                              <button
+                                onClick={() => handleProcessPayment(t.id)}
+                                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {t.status === 'pending' && t.type === 'income' && (
+                              <button
+                                onClick={() => { setChargeTarget(t); setChargeModalOpen(true); }}
+                                className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-colors"
+                              >
+                                <CreditCard className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'dre' && (
+          <motion.div key="dre" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-slate-900">Demonstrativo de Resultados (DRE)</h2>
+              <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none" />
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden p-8">
+              <div className="max-w-4xl mx-auto space-y-6 font-mono text-sm">
+                <div className="space-y-2 border-b-2 border-slate-900 pb-4">
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>RECEITA BRUTA (+)</span>
+                    <span>{formatCurrency(dre.total_income)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-slate-400 mb-2 mt-4">DESPESAS OPERACIONAIS (-)</p>
+                  {dre.expenses_by_category.map(cat => (
+                    <div key={cat.label} className="flex justify-between pl-4 text-slate-600">
+                      <span>{cat.label}</span>
+                      <span>{formatCurrency(cat.value)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between pt-2 border-t border-slate-100 font-bold">
+                    <span>TOTAL DESPESAS OPERACIONAIS</span>
+                    <span className="text-red-600">({formatCurrency(dre.total_expenses)})</span>
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-4 border-t-2 border-slate-900 space-y-4">
+                  <div className="flex justify-between font-bold text-xl">
+                    <span>LUCRO LÍQUIDO (=)</span>
+                    <span className={dre.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                      {formatCurrency(dre.net_profit)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-500 font-bold">
+                    <span>MARGEM LÍQUIDA (%)</span>
+                    <div className="flex items-center gap-2">
+                      {dre.margin_pct < 15 && dre.total_income > 0 && <AlertTriangle className="w-4 h-4 text-amber-500" />}
+                      <span>{dre.margin_pct.toFixed(2)}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {dre.margin_pct < 15 && dre.total_income > 0 && (
+                  <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl text-amber-800 text-xs mt-6 leading-relaxed">
+                    <p className="font-bold mb-1 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" /> Alerta de Margem Baixa
+                    </p>
+                    <p>Sua margem está abaixo de 15%. Revise suas despesas operacionais e custos de materiais para melhorar a saúde financeira da clínica.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'commissions' && (
+          <motion.div key="comm" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-slate-900">Comissões de Profissionais</h2>
+              <input type="month" value={reportMonth} onChange={e => setReportMonth(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {professionalStats.map((p, i) => (
+                <div key={p.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
+                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold", colors[i % colors.length])}>
+                      {p.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900">{p.name}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{p.role === 'dentist' ? 'Dentista' : 'Esteticista'} • {p.commission_pct || 0}%</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <div className="bg-slate-50 p-3 rounded-2xl">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Produzido</p>
+                      <p className="text-sm font-bold text-slate-900">{formatCurrency(p.stats.total_produced)}</p>
+                    </div>
+                    <div className="bg-cyan-50/50 p-3 rounded-2xl">
+                      <p className="text-[9px] font-bold text-cyan-600 uppercase mb-1">A Receber</p>
+                      <p className="text-sm font-bold text-cyan-700">{formatCurrency(p.stats.commission_amount)}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
+                    <span>Atendimentos</span>
+                    <span className="font-bold text-slate-700">{p.stats.appointment_count}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modals for Add / Charge */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Lançar ${txnType === 'income' ? 'Receita' : 'Despesa'}`}>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <button onClick={() => setTxnType('income')} className={cn("py-3 font-bold rounded-xl border-2 transition-all", txnType === 'income' ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-white text-slate-400 border-slate-100")}>Receita</button>
-            <button onClick={() => setTxnType('expense')} className={cn("py-3 font-bold rounded-xl border-2 transition-all", txnType === 'expense' ? "bg-red-50 text-red-700 border-red-200" : "bg-white text-slate-400 border-slate-100")}>Despesa</button>
-          </div>
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Descrição *</label>
-            <input type="text" value={newTxn.description} onChange={e => setNewTxn({ ...newTxn, description: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Pagamento Ana Paula" />
+            <label className="text-xs font-bold text-slate-400 uppercase">Descrição</label>
+            <input type="text" value={newTxn.description} onChange={e => setNewTxn({ ...newTxn, description: e.target.value })} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Valor (R$) *</label>
-              <input type="text" value={newTxn.amount} onChange={e => setNewTxn({ ...newTxn, amount: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="0,00" />
+              <label className="text-xs font-bold text-slate-400 uppercase">Valor</label>
+              <input type="text" value={newTxn.amount} onChange={e => setNewTxn({ ...newTxn, amount: e.target.value })} placeholder="0,00" className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Categoria</label>
-              <select value={newTxn.category} onChange={e => setNewTxn({ ...newTxn, category: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none">
+              <label className="text-xs font-bold text-slate-400 uppercase">Categoria</label>
+              <select value={newTxn.category} onChange={e => setNewTxn({ ...newTxn, category: e.target.value })} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none">
                 {txnType === 'income' ? (
-                  <>{['Procedimento', 'Consulta', 'Atendimento', 'Outro'].map(c => <option key={c}>{c}</option>)}</>
+                  ['Procedimento', 'Venda Produto', 'Outros'].map(c => <option key={c} value={c}>{c}</option>)
                 ) : (
-                  <>{['Material', 'Aluguel', 'Marketing', 'Equipamento', 'Folha', 'Outro'].map(c => <option key={c}>{c}</option>)}</>
+                  ['Aluguel', 'Salários', 'Material', 'Marketing', 'Energia', 'Outros'].map(c => <option key={c} value={c}>{c}</option>)
                 )}
               </select>
             </div>
           </div>
           {txnType === 'income' && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Paciente (Opcional)</label>
-              <input type="text" value={newTxn.patient_name} onChange={e => setNewTxn({ ...newTxn, patient_name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" placeholder="Nome do paciente" />
+              <label className="text-xs font-bold text-slate-400 uppercase">Paciente (Opcional)</label>
+              <input type="text" value={newTxn.patient_name} onChange={e => setNewTxn({ ...newTxn, patient_name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none" />
             </div>
           )}
-          <button
-            onClick={handleAddTransaction}
-            disabled={!canManage}
-            className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 shadow-lg shadow-cyan-200 mt-4 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            Confirmar Lançamento
-          </button>
+          <button onClick={handleAddTransaction} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg mt-2">Confirmar Lançamento</button>
         </div>
       </Modal>
 
-      <Modal isOpen={chargeModalOpen} onClose={() => setChargeModalOpen(false)} title="Gerar Cobrança">
+      <Modal isOpen={chargeModalOpen} onClose={() => setChargeModalOpen(false)} title="Gerar Cobrança Asaas">
         <div className="space-y-4">
-          {chargeTarget && (
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <p className="text-xs text-slate-500">Paciente</p>
-              <p className="text-sm font-bold text-slate-900">{chargeTarget.patient_name || 'Paciente não informado'}</p>
-              <p className="text-xs text-slate-500 mt-2">Valor</p>
-              <p className="text-sm font-bold text-slate-900">{formatCurrency(chargeTarget.amount)}</p>
+          <div className="bg-slate-50 p-4 rounded-2xl mb-4">
+            <p className="text-xs text-slate-400 uppercase font-bold mb-1">Destino</p>
+            <p className="font-bold text-slate-900">{chargeTarget?.patient_name || 'Paciente Manual'}</p>
+            <p className="text-lg font-black text-cyan-600">{formatCurrency(chargeTarget?.amount || 0)}</p>
+          </div>
+          <div className="space-y-3">
+            <label className="text-xs font-bold text-slate-400 uppercase">Método de Pagamento</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'pix', label: 'Pix' },
+                { id: 'card', label: 'Cartão' },
+                { id: 'manual', label: 'Manual' }
+              ].map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setChargeMethod(m.id as any)}
+                  className={cn(
+                    "py-3 rounded-xl border text-sm font-bold transition-all",
+                    chargeMethod === m.id ? "bg-cyan-50 border-cyan-500 text-cyan-700" : "bg-white border-slate-100 text-slate-500"
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
-          )}
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Método</label>
-            <select value={chargeMethod} onChange={e => setChargeMethod(e.target.value as 'pix' | 'card' | 'manual')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none">
-              <option value="pix">Pix</option>
-              <option value="card">Cartão</option>
-              <option value="manual">Manual</option>
-            </select>
           </div>
           {chargeMethod === 'card' && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Parcelas</label>
-              <input
-                type="number"
-                min={1}
-                max={12}
-                value={chargeInstallments}
-                onChange={e => setChargeInstallments(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
-              />
+              <label className="text-xs font-bold text-slate-400 uppercase">Parcelas</label>
+              <select value={chargeInstallments} onChange={e => setChargeInstallments(e.target.value)} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none font-bold">
+                {[1, 2, 3, 4, 5, 6, 10, 12].map(i => <option key={i} value={i}>{i}x sem juros</option>)}
+              </select>
             </div>
           )}
-          <button
-            onClick={handleConfirmCharge}
-            disabled={!chargeTarget}
-            className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            Gerar Cobrança
+          <button onClick={handleConfirmCharge} className="w-full py-4 bg-cyan-600 text-white font-bold rounded-2xl shadow-xl shadow-cyan-100 hover:bg-cyan-700 transition-all flex items-center justify-center gap-2">
+            <CreditCard className="w-5 h-5" /> Confirmar e Enviar Cobrança
           </button>
         </div>
       </Modal>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><TrendingUp className="w-6 h-6" /></div>
-          </div>
-          <p className="text-sm text-slate-500 mb-1">Receita Mensal</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(monthlyIncome)}</p>
-        </div>
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-red-50 text-red-600 rounded-xl"><TrendingDown className="w-6 h-6" /></div>
-          </div>
-          <p className="text-sm text-slate-500 mb-1">Despesas Mensais</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(monthlyExpenses)}</p>
-        </div>
-        <div className="bg-slate-900 p-6 rounded-3xl shadow-xl shadow-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-2 bg-white/10 text-white rounded-xl"><DollarSign className="w-6 h-6" /></div>
-          </div>
-          <p className="text-sm text-slate-400 mb-1">Saldo em Caixa</p>
-          <p className="text-2xl font-bold text-white">{formatCurrency(balance)}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Filters */}
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900">Transações</h2>
-            <div className="flex items-center gap-2">
-              <input type="month" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none" />
-              <div className="flex gap-1">
-                {['all', 'paid', 'pending', 'awaiting_payment'].map(s => (
-                  <button key={s} onClick={() => setFilterStatus(s)} className={cn("px-2 py-1 rounded-lg text-[10px] font-bold transition-all", filterStatus === s ? "bg-cyan-50 text-cyan-600" : "text-slate-400 hover:text-slate-600")}>
-                    {s === 'all' ? 'Todos' : statusLabels[s]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Transaction List */}
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="divide-y divide-slate-50">
-              {filteredTransactions.length === 0 ? (
-                <EmptyState title="Nenhuma transação" description="Adicione lançamentos para acompanhar suas finanças." />
-              ) : filteredTransactions.map(t => (
-                <React.Fragment key={t.id}>
-                  <div
-                    ref={t.id === highlightedTxnId ? highlightRef : undefined}
-                    className={cn("p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors", t.id === highlightedTxnId && "bg-cyan-50 ring-2 ring-cyan-400 ring-inset rounded-xl")}
-                  >
-                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", t.type === 'income' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
-                      {t.type === 'income' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{t.description}</p>
-                      <p className="text-xs text-slate-500">{t.category} • {new Date(t.created_at).toLocaleDateString('pt-BR')}{t.professional_name ? ` • ${t.professional_name}` : ''}</p>
-                      {t.type === 'income' && typeof t.material_cost === 'number' && (
-                        <p className="text-[10px] text-slate-400">
-                          Custo material {formatCurrency(t.material_cost)} · Margem {formatCurrency(t.amount - t.material_cost)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {t.appointment_id && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onNavigate?.('prontuarios', { patientId: t.patient_id, appointmentId: t.appointment_id }); }}
-                          className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-all" title="Ver Prontuário"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </button>
-                      )}
-                      <div className="text-right">
-                        <p className={cn("text-sm font-bold", t.type === 'income' ? "text-emerald-600" : "text-red-600")}>
-                          {t.type === 'income' ? '+' : '-'} {formatCurrency(t.amount)}
-                        </p>
-                        <span className={cn("text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md",
-                          t.status === 'paid' ? "bg-emerald-50 text-emerald-600" :
-                            t.status === 'awaiting_payment' ? "bg-cyan-50 text-cyan-600" :
-                              t.status === 'pending' ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"
-                        )}>
-                          {statusLabels[t.status] || t.status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  {t.type === 'income' && t.status === 'pending' && (
-                    <div className="px-4 pb-4 pt-0 flex items-center gap-2 flex-wrap">
-                      {t.items && t.items.map(item => (
-                        <span key={item} className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">{item}</span>
-                      ))}
-                      <button
-                        onClick={() => handleOpenCharge(t)}
-                        disabled={!canManage}
-                        className="ml-auto text-[10px] font-bold text-white bg-slate-900 px-3 py-1 rounded-lg hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        Gerar Cobrança
-                      </button>
-                    </div>
-                  )}
-                  {t.type === 'income' && t.status === 'awaiting_payment' && (
-                    <div className="px-4 pb-4 pt-0 flex items-center gap-2 flex-wrap">
-                      {t.items && t.items.map(item => (
-                        <span key={item} className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200">{item}</span>
-                      ))}
-                      {t.payment_reference && (
-                        <span className="text-[9px] bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full border border-cyan-100">
-                          Ref: {t.payment_reference}
-                        </span>
-                      )}
-                      {t.pix_code && (
-                        <span className="text-[9px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-100">
-                          Pix: {t.pix_code}
-                        </span>
-                      )}
-                      <LoadingButton
-                        loading={paymentLoading}
-                        onClick={() => handleProcessPayment(t.id)}
-                        disabled={!canManage}
-                        className="ml-auto text-[10px] font-bold text-white bg-cyan-600 px-3 py-1 rounded-lg hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        Receber Agora
-                      </LoadingButton>
-                    </div>
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
+      {reconciling && (
+        <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-[2px] z-[100] flex items-center justify-center">
+          <div className="bg-white p-6 rounded-3xl shadow-2xl flex items-center gap-4 border border-slate-100">
+            <div className="w-8 h-8 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+            <p className="font-bold text-slate-800">Sincronizando com Asaas...</p>
           </div>
         </div>
-
-        <div className="space-y-6">
-          {/* Expense Distribution */}
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-            <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2"><PieChart className="w-5 h-5 text-cyan-500" />Distribuição de Gastos</h3>
-            <div className="space-y-4">
-              {expenseCategories.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center">Nenhuma despesa registrada</p>
-              ) : expenseCategories.map((item, i) => (
-                <div key={item.label}>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-slate-500 uppercase">{item.label}</span>
-                    <span className="text-slate-900">{item.pct}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div className={cn("h-full rounded-full", colors[i] || colors[4])} style={{ width: `${item.pct}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Asaas Integration */}
-          <div className="bg-gradient-to-br from-cyan-600 to-blue-700 rounded-3xl p-6 text-white shadow-xl shadow-cyan-200/50">
-            <CreditCard className="w-8 h-8 mb-4 opacity-80" />
-            <h3 className="font-bold text-lg mb-1">Integração Asaas</h3>
-            <p className="text-sm text-cyan-100 mb-4">Gere cobranças automáticas via Pix e Cartão com um clique.</p>
-            <button onClick={() => onNavigate?.('configuracoes')} className="w-full py-2 bg-white text-cyan-700 font-bold rounded-xl hover:bg-cyan-50 transition-colors">
-              Configurar Gateway
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
-}
+});

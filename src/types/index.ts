@@ -68,6 +68,8 @@ export interface ServiceMaterial {
 
 // --- Appointments ---
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'done' | 'no_show' | 'cancelled';
+export type AppointmentSource = 'internal' | 'online';
+export type ReminderChannel = 'whatsapp' | 'sms' | 'email';
 
 export interface Appointment {
     id: string;
@@ -86,6 +88,50 @@ export interface Appointment {
     started_at?: string;
     finished_at?: string;
     service_time_min?: number;
+    source?: AppointmentSource;
+    recurrence_id?: string;
+    google_event_url?: string;
+    created_at: string;
+}
+
+export interface WaitingListEntry {
+    id: string;
+    clinic_id: string;
+    patient_id: string;
+    patient_name: string;
+    service_id?: string;
+    service_name?: string;
+    preferred_days: number[];
+    preferred_time_range: 'morning' | 'afternoon' | 'evening' | 'any';
+    channels: ReminderChannel[];
+    notes?: string;
+    status: 'waiting' | 'contacted' | 'scheduled' | 'cancelled';
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AppointmentRecurrence {
+    id: string;
+    clinic_id: string;
+    patient_id: string;
+    service_id?: string;
+    professional_id: string;
+    start_date: string;
+    frequency: 'weekly' | 'biweekly' | 'monthly';
+    occurrences: number;
+    created_at: string;
+}
+
+export interface AppointmentConfirmation {
+    id: string;
+    clinic_id: string;
+    appointment_id: string;
+    patient_id: string;
+    channel: ReminderChannel;
+    status: 'queued' | 'sent' | 'failed';
+    message: string;
+    provider_response?: string;
+    sent_at?: string;
     created_at: string;
 }
 
@@ -142,6 +188,46 @@ export interface AnamneseData {
     updated_at: string;
 }
 
+export interface AnamneseFormLink {
+    id: string;
+    clinic_id: string;
+    patient_id: string;
+    token: string;
+    expires_at: string;
+    submitted_at?: string;
+    status: 'active' | 'submitted' | 'expired';
+    created_by?: string;
+    created_at: string;
+}
+
+export interface DigitalSignature {
+    id: string;
+    clinic_id: string;
+    patient_id: string;
+    appointment_id?: string;
+    role: 'patient' | 'professional';
+    signer_name: string;
+    signer_document?: string;
+    image_data_url: string;
+    signed_at: string;
+}
+
+export type ClinicalDocumentType = 'contract' | 'consent' | 'prescription' | 'certificate' | 'custom';
+
+export interface ClinicalDocument {
+    id: string;
+    clinic_id: string;
+    patient_id: string;
+    appointment_id?: string;
+    type: ClinicalDocumentType;
+    title: string;
+    content_html: string;
+    professional_signature_id?: string;
+    patient_signature_id?: string;
+    created_by: string;
+    created_at: string;
+}
+
 // --- Stock ---
 export interface StockItem {
     id: string;
@@ -190,6 +276,8 @@ export interface FinancialTransaction {
     payment_reference?: string;
     payment_url?: string;
     pix_code?: string;
+    asaas_payment_id?: string;
+    asaas_status?: string;
     idempotency_key: string;
     items?: string[];
     installments?: number;
@@ -227,7 +315,14 @@ export type DomainEventType =
     | 'STOCK_CONSUMED'
     | 'PATIENT_CREATED'
     | 'PATIENTS_IMPORTED'
-    | 'RECORD_LOCKED';
+    | 'RECORD_LOCKED'
+    | 'APPOINTMENT_REMINDER_SENT'
+    | 'WAITING_LIST_CONTACTED'
+    | 'ANAMNESE_LINK_CREATED'
+    | 'DOCUMENT_CREATED'
+    | 'NPS_REQUESTED'
+    | 'ASAAS_RECONCILED'
+    | 'INTEGRATION_EVENT_SENT';
 
 export interface DomainEvent {
     type: DomainEventType;
@@ -250,6 +345,67 @@ export interface AsaasConfig {
     enabled: boolean;
     webhook_url?: string;
     connected_at?: string;
+}
+
+export interface IntegrationConfig {
+    memed_api_url?: string;
+    memed_api_token?: string;
+    tiss_provider_name?: string;
+    tiss_ans_code?: string;
+    rd_station_token?: string;
+    meta_pixel_id?: string;
+    google_ads_customer_id?: string;
+    google_calendar_email?: string;
+}
+
+export interface AutomationRule {
+    id: string;
+    clinic_id: string;
+    name: string;
+    type: 'nps' | 'reactivation' | 'billing' | 'birthday';
+    channel: ReminderChannel;
+    enabled: boolean;
+    trigger: {
+        event: 'appointment_done' | 'patient_inactive' | 'payment_overdue' | 'birthday';
+        delay_hours?: number;
+        inactivity_days?: number;
+    };
+    template: string;
+    created_at: string;
+}
+
+export interface AutomationRun {
+    id: string;
+    clinic_id: string;
+    rule_id: string;
+    target_id: string;
+    channel: ReminderChannel;
+    status: 'queued' | 'sent' | 'failed';
+    response?: string;
+    created_at: string;
+}
+
+export interface Lead {
+    id: string;
+    clinic_id: string;
+    name: string;
+    phone?: string;
+    email?: string;
+    source: 'instagram' | 'google_ads' | 'facebook_ads' | 'referral' | 'walk_in' | 'other';
+    interested_service?: string;
+    score: number;
+    owner_id?: string;
+    stage_id: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface FunnelStage {
+    id: string;
+    clinic_id: string;
+    name: string;
+    order: number;
+    color: string;
 }
 
 // --- Subscriptions (Super Admin) ---

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Send, Target, TrendingUp, Users, MessageSquare, Zap, ArrowRight, Facebook, Mail, MonitorSmartphone, X, CheckCircle2, BarChart3 } from 'lucide-react';
+import { Sparkles, Send, Target, TrendingUp, Users, MessageSquare, Zap, ArrowRight, Facebook, Mail, MonitorSmartphone, X, CheckCircle2, BarChart3, KanbanSquare, UserPlus2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast, formatCurrency } from '@/hooks/useShared';
 import { Modal, LoadingButton } from '@/components/shared';
+import { integrationsApi } from '@/lib/integrationsApi';
 
 // The HTML Template provided by the user
 const generateEmailTemplate = (clinicName: string, whatsapp: string) => `
@@ -121,10 +122,10 @@ const generateEmailTemplate = (clinicName: string, whatsapp: string) => `
 
 export function Marketing() {
   const { user, clinic } = useAuth();
-  const { patients, appointments, transactions } = useClinicStore();
+  const { patients, appointments, transactions, leads, funnelStages, automationRules, addLead, moveLeadStage, addAutomationRule } = useClinicStore();
   const clinicId = user?.clinic_id || 'clinic-1';
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'insights'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'insights' | 'crm'>('overview');
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
   const [campaignStep, setCampaignStep] = useState(1);
   const [campaignType, setCampaignType] = useState('');
@@ -141,10 +142,16 @@ export function Marketing() {
   const [whatsAppSessionActive, setWhatsAppSessionActive] = useState(false);
   const [whatsAppNow, setWhatsAppNow] = useState(() => Date.now());
   const [whatsAppLog, setWhatsAppLog] = useState<string[]>([]);
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadPhone, setNewLeadPhone] = useState('');
+  const [newLeadSource, setNewLeadSource] = useState<'instagram' | 'google_ads' | 'facebook_ads' | 'referral' | 'walk_in' | 'other'>('instagram');
 
   const clinicPatients = patients.filter(p => p.clinic_id === clinicId);
   const clinicAppointments = appointments.filter(a => a.clinic_id === clinicId);
   const clinicTransactions = transactions.filter(t => t.clinic_id === clinicId);
+  const clinicLeads = leads.filter(l => l.clinic_id === clinicId);
+  const clinicStages = funnelStages.filter(s => s.clinic_id === clinicId).sort((a, b) => a.order - b.order);
+  const clinicRules = automationRules.filter(rule => rule.clinic_id === clinicId);
 
   const atRiskPatients = clinicPatients.filter(p => p.status === 'risk' || p.status === 'inactive');
   const totalRevenue = clinicTransactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
@@ -163,11 +170,88 @@ export function Marketing() {
   };
 
   const handleCreateCampaign = async () => {
+    try {
+      if (campaignType === 'facebook') {
+        await integrationsApi.pixelEvent('meta', {
+          event_name: campaignName || 'campanha_facebook',
+          target: campaignTarget,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      if (campaignType === 'email') {
+        await integrationsApi.rdEvent('EMAIL_CAMPAIGN_CREATED', {
+          campaign_name: campaignName,
+          target: campaignTarget,
+          clinic_id: clinicId,
+        });
+      }
+      if (campaignType === 'whatsapp') {
+        await integrationsApi.sendNotification({
+          channel: 'whatsapp',
+          recipients: clinicPatients.slice(0, 3).map(p => p.phone || p.id),
+          message: whatsAppDefaultMessage || 'Campanha enviada via CRM LuminaFlow.',
+          metadata: { campaign_name: campaignName, target: campaignTarget },
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      toast('Campanha criada, mas houve falha em alguma integracao.', 'warning');
+    }
     toast('Campanha disparada com sucesso!', 'success');
     setIsCampaignModalOpen(false);
     setCampaignStep(1);
     setCampaignType('');
     setCampaignName('');
+  };
+
+  const handleAddLead = () => {
+    if (!newLeadName.trim()) {
+      toast('Informe o nome do lead.', 'error');
+      return;
+    }
+    const firstStage = clinicStages[0];
+    if (!firstStage) {
+      toast('Configure as etapas do funil antes de cadastrar leads.', 'error');
+      return;
+    }
+    addLead({
+      clinic_id: clinicId,
+      name: newLeadName.trim(),
+      phone: newLeadPhone.trim() || undefined,
+      source: newLeadSource,
+      score: 50,
+      stage_id: firstStage.id,
+    });
+    setNewLeadName('');
+    setNewLeadPhone('');
+    setNewLeadSource('instagram');
+    toast('Lead adicionado no funil!');
+  };
+
+  const handleEnableDefaultAutomations = () => {
+    if (clinicRules.length > 0) {
+      toast('Automações já configuradas.', 'info');
+      return;
+    }
+    addAutomationRule({
+      clinic_id: clinicId,
+      name: 'Cobrança automática 3 dias',
+      type: 'billing',
+      channel: 'whatsapp',
+      enabled: true,
+      trigger: { event: 'payment_overdue', delay_hours: 72 },
+      template: 'Oi {{nome}}, identificamos uma pendência. Precisa de ajuda para regularizar?',
+    });
+    addAutomationRule({
+      clinic_id: clinicId,
+      name: 'Reativação de inativos',
+      type: 'reactivation',
+      channel: 'email',
+      enabled: true,
+      trigger: { event: 'patient_inactive', inactivity_days: 90 },
+      template: 'Estamos com saudade! Clique para agendar seu retorno.',
+    });
+    toast('Automações padrão ativadas com sucesso!');
   };
 
   const handleGenerateWhatsAppLinks = () => {
@@ -324,6 +408,7 @@ export function Marketing() {
           { id: 'overview', label: 'Visão Geral', icon: BarChart3 },
           { id: 'campaigns', label: 'Campanhas', icon: Send },
           { id: 'insights', label: 'IA Insights', icon: Zap },
+          { id: 'crm', label: 'CRM & Funil', icon: KanbanSquare },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={cn("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all", activeTab === tab.id ? "bg-cyan-50 text-cyan-600" : "text-slate-500 hover:text-slate-900")}>
             <tab.icon className="w-4 h-4" />{tab.label}
@@ -414,6 +499,98 @@ export function Marketing() {
         </div>
       )}
 
+      {activeTab === 'crm' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
+              <input
+                value={newLeadName}
+                onChange={e => setNewLeadName(e.target.value)}
+                placeholder="Nome do lead"
+                className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none"
+              />
+              <input
+                value={newLeadPhone}
+                onChange={e => setNewLeadPhone(e.target.value)}
+                placeholder="Telefone"
+                className="w-full md:w-52 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none"
+              />
+              <select
+                value={newLeadSource}
+                onChange={e => setNewLeadSource(e.target.value as any)}
+                className="w-full md:w-52 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none"
+              >
+                <option value="instagram">Instagram</option>
+                <option value="google_ads">Google Ads</option>
+                <option value="facebook_ads">Facebook Ads</option>
+                <option value="referral">Indicacao</option>
+                <option value="walk_in">Presencial</option>
+                <option value="other">Outro</option>
+              </select>
+              <button onClick={handleAddLead} className="px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 inline-flex items-center gap-2">
+                <UserPlus2 className="w-4 h-4" />
+                Novo Lead
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            {clinicStages.map(stage => {
+              const stageLeads = clinicLeads.filter(lead => lead.stage_id === stage.id);
+              return (
+                <div key={stage.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold text-slate-900">{stage.name}</h3>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{stageLeads.length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {stageLeads.length === 0 ? (
+                      <p className="text-xs text-slate-400">Sem leads nesta etapa.</p>
+                    ) : stageLeads.map(lead => (
+                      <div key={lead.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-sm font-bold text-slate-800">{lead.name}</p>
+                        <p className="text-xs text-slate-500">{lead.source} • score {lead.score}</p>
+                        <div className="flex gap-1 mt-2 flex-wrap">
+                          {clinicStages.filter(s => s.order > stage.order).slice(0, 1).map(next => (
+                            <button key={next.id} onClick={() => moveLeadStage(lead.id, next.id)} className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-1 rounded-md">
+                              Mover para {next.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Automações CRM</h3>
+              <button onClick={handleEnableDefaultAutomations} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800">
+                Ativar automações padrão
+              </button>
+            </div>
+            <div className="space-y-2">
+              {clinicRules.length === 0 ? (
+                <p className="text-sm text-slate-400">Nenhuma automação cadastrada.</p>
+              ) : clinicRules.map(rule => (
+                <div key={rule.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{rule.name}</p>
+                    <p className="text-xs text-slate-500">{rule.channel} • trigger {rule.trigger.event}</p>
+                  </div>
+                  <span className={cn('text-xs font-bold px-2 py-1 rounded-full', rule.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600')}>
+                    {rule.enabled ? 'Ativa' : 'Pausada'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Campaign Modal */}
       <Modal isOpen={isCampaignModalOpen} onClose={() => { setIsCampaignModalOpen(false); setCampaignStep(1); }} title="Nova Campanha">
         {campaignStep === 1 && (
@@ -484,14 +661,14 @@ export function Marketing() {
               <div className="space-y-4">
                 <div className="p-4 bg-green-50 rounded-xl border border-green-100">
                   <p className="text-sm font-bold text-green-800 mb-2">Envio por Links Individuais (Manual)</p>
-                  <p className="text-xs text-green-700">Este modo gera links no estilo planilha/wa.me. Nao automatiza envios em massa, evitando bloqueios.</p>
+                  <p className="text-xs text-green-700">Este modo gera links no estilo planilha/wa.me. Não automatiza envios em massa, evitando bloqueios.</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mensagem Padrao (opcional)</label>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mensagem Padrão (opcional)</label>
                   <textarea
                     value={whatsAppDefaultMessage}
                     onChange={e => setWhatsAppDefaultMessage(e.target.value)}
-                    placeholder="Ex: Ola! Gostariamos de confirmar seu retorno..."
+                    placeholder="Ex: Olá! Gostaríamos de confirmar seu retorno..."
                     className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none min-h-[80px]"
                   />
                 </div>
@@ -500,11 +677,11 @@ export function Marketing() {
                   <textarea
                     value={whatsAppRows}
                     onChange={e => setWhatsAppRows(e.target.value)}
-                    placeholder="11999999999;Ola Ana, sua consulta esta agendada
-21988887777;Ola Joao, temos horario disponivel"
+                    placeholder="11999999999;Olá Ana, sua consulta está agendada
+21988887777;Olá João, temos horário disponível"
                     className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none min-h-[140px]"
                   />
-                  <p className="text-[10px] text-slate-400">Formato: numero;mensagem. Se a mensagem estiver vazia, usa a Mensagem Padrao.</p>
+                  <p className="text-[10px] text-slate-400">Formato: número;mensagem. Se a mensagem estiver vazia, usa a Mensagem Padrão.</p>
                 </div>
                 <div className="flex gap-2">
                   <button

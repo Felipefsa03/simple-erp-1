@@ -8,6 +8,8 @@ import type {
     StockItem, StockMovement, FinancialTransaction, TransactionStatus,
     Service, AuditLog, OdontogramEntry, AnamneseData,
     TreatmentPlan, TreatmentPlanItem, NavigationContext, User, AppointmentMaterial, DomainEventType,
+    WaitingListEntry, AppointmentRecurrence, AppointmentConfirmation, AnamneseFormLink,
+    DigitalSignature, ClinicalDocument, AutomationRule, AutomationRun, Lead, FunnelStage, IntegrationConfig,
 } from '@/types';
 import { useEventBus } from '@/stores/eventBus';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +21,7 @@ const uid = () => {
     return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 const now = () => new Date().toISOString();
+const EMPTY_NAV_CONTEXT: NavigationContext = {};
 const emitEvent = (type: DomainEventType, payload: Record<string, any>) => {
     useEventBus.getState().emit(type, payload);
 };
@@ -87,6 +90,69 @@ const DEMO_TRANSACTIONS: FinancialTransaction[] = [
     { id: 'txn-5', clinic_id: 'clinic-1', patient_id: 'pat-3', patient_name: 'Juliana Mendes', professional_id: 'prof-3', professional_name: 'Mariana Costa', type: 'income', category: 'Procedimento', description: 'Juliana Mendes - Botox', amount: 1800, status: 'paid', idempotency_key: uid(), created_at: '2026-02-04', paid_at: '2026-02-04' },
 ];
 
+const DEMO_FUNNEL_STAGES: FunnelStage[] = [
+    { id: 'funnel-1', clinic_id: 'clinic-1', name: 'Novo Lead', order: 1, color: '#2563eb' },
+    { id: 'funnel-2', clinic_id: 'clinic-1', name: 'Contato Realizado', order: 2, color: '#0891b2' },
+    { id: 'funnel-3', clinic_id: 'clinic-1', name: 'Orcamento Enviado', order: 3, color: '#f59e0b' },
+    { id: 'funnel-4', clinic_id: 'clinic-1', name: 'Fechado', order: 4, color: '#10b981' },
+];
+
+const DEMO_AUTOMATION_RULES: AutomationRule[] = [
+    {
+        id: 'rule-1',
+        clinic_id: 'clinic-1',
+        name: 'NPS pos-consulta',
+        type: 'nps',
+        channel: 'whatsapp',
+        enabled: true,
+        trigger: { event: 'appointment_done', delay_hours: 24 },
+        template: 'Ola {{nome}}, como foi sua experiencia hoje? Responda com uma nota de 0 a 10.',
+        created_at: '2026-02-10',
+    },
+    {
+        id: 'rule-2',
+        clinic_id: 'clinic-1',
+        name: 'Reativacao 90 dias',
+        type: 'reactivation',
+        channel: 'whatsapp',
+        enabled: true,
+        trigger: { event: 'patient_inactive', inactivity_days: 90 },
+        template: 'Sentimos sua falta, {{nome}}. Temos horarios disponiveis para seu retorno.',
+        created_at: '2026-02-10',
+    },
+];
+
+const DEMO_LEADS: Lead[] = [
+    {
+        id: 'lead-1',
+        clinic_id: 'clinic-1',
+        name: 'Patricia Campos',
+        phone: '(11) 98888-0001',
+        email: 'patricia.campos@email.com',
+        source: 'instagram',
+        interested_service: 'Clareamento',
+        score: 78,
+        owner_id: 'prof-4',
+        stage_id: 'funnel-1',
+        created_at: '2026-03-01',
+        updated_at: '2026-03-01',
+    },
+    {
+        id: 'lead-2',
+        clinic_id: 'clinic-1',
+        name: 'Rafael Prado',
+        phone: '(11) 97777-0002',
+        email: 'rafael.prado@email.com',
+        source: 'google_ads',
+        interested_service: 'Implante',
+        score: 90,
+        owner_id: 'prof-1',
+        stage_id: 'funnel-3',
+        created_at: '2026-03-02',
+        updated_at: '2026-03-03',
+    },
+];
+
 // ---- STORE INTERFACE ----
 interface ClinicStore {
     // Data
@@ -106,6 +172,17 @@ interface ClinicStore {
     finalizingAppointments: Record<string, boolean>;
     notificationPrefs: Record<string, boolean>;
     patientPhotos: Record<string, string[]>; // keyed by patient_id
+    waitingList: WaitingListEntry[];
+    recurrences: AppointmentRecurrence[];
+    appointmentConfirmations: AppointmentConfirmation[];
+    anamneseLinks: AnamneseFormLink[];
+    signatures: DigitalSignature[];
+    clinicalDocuments: ClinicalDocument[];
+    automationRules: AutomationRule[];
+    automationRuns: AutomationRun[];
+    leads: Lead[];
+    funnelStages: FunnelStage[];
+    integrationConfig: IntegrationConfig;
     navigationContext: NavigationContext;
 
     // Patient Actions
@@ -119,6 +196,17 @@ interface ClinicStore {
     updateAppointmentStatus: (id: string, status: AppointmentStatus) => void;
     startAppointment: (id: string) => void;
     finalizeAppointment: (id: string, userId: string, userName: string) => boolean;
+    createRecurringAppointments: (input: {
+        base: Omit<Appointment, 'id' | 'created_at' | 'scheduled_at'>;
+        startDateTime: string;
+        frequency: 'weekly' | 'biweekly' | 'monthly';
+        occurrences: number;
+    }) => Appointment[];
+    addToWaitingList: (entry: Omit<WaitingListEntry, 'id' | 'created_at' | 'updated_at' | 'status'>) => WaitingListEntry;
+    updateWaitingListStatus: (id: string, status: WaitingListEntry['status']) => void;
+    fitWaitingListEntry: (id: string, scheduledAt: string, durationMin?: number) => Appointment | null;
+    queueAppointmentConfirmation: (appointmentId: string, channel: AppointmentConfirmation['channel'], message: string) => AppointmentConfirmation | null;
+    markAppointmentConfirmation: (confirmationId: string, status: 'sent' | 'failed', providerResponse?: string) => void;
 
     // Medical Record Actions
     saveEvolution: (appointmentId: string | undefined, patientId: string, clinicId: string, professionalId: string, content: string) => void;
@@ -127,6 +215,11 @@ interface ClinicStore {
     getOdontogramData: (patientId: string) => OdontogramEntry[];
     saveAnamnese: (data: AnamneseData) => void;
     getAnamnese: (patientId: string) => AnamneseData | undefined;
+    generateAnamneseLink: (patientId: string, createdBy?: string, hoursValid?: number) => AnamneseFormLink;
+    submitAnamneseByToken: (token: string, data: Omit<AnamneseData, 'patient_id' | 'clinic_id' | 'updated_at'>) => boolean;
+    addSignature: (data: Omit<DigitalSignature, 'id' | 'signed_at'>) => DigitalSignature;
+    createClinicalDocument: (doc: Omit<ClinicalDocument, 'id' | 'created_at'>) => ClinicalDocument;
+    getDocumentsForPatient: (patientId: string) => ClinicalDocument[];
 
     // Treatment Plan Actions
     addTreatmentPlan: (plan: Omit<TreatmentPlan, 'id' | 'created_at'>) => void;
@@ -144,6 +237,8 @@ interface ClinicStore {
     addTransaction: (t: Omit<FinancialTransaction, 'id' | 'created_at'> & { idempotency_key?: string }) => FinancialTransaction;
     processPayment: (id: string, method?: string) => void;
     generatePayment: (id: string, method: string, installments?: number) => void;
+    setTransactionAsaasData: (id: string, data: Partial<Pick<FinancialTransaction, 'asaas_payment_id' | 'asaas_status' | 'payment_reference' | 'payment_url' | 'pix_code'>>) => void;
+    reconcileTransaction: (id: string, nextStatus: TransactionStatus, payload?: { asaas_status?: string; paid_at?: string }) => void;
     getMonthlyIncome: (clinicId?: string) => number;
     getMonthlyExpenses: (clinicId?: string) => number;
     getBalance: (clinicId?: string) => number;
@@ -156,6 +251,14 @@ interface ClinicStore {
     // Professional Actions
     addProfessional: (p: Omit<User, 'id' | 'created_at'>) => User | null;
     updateProfessional: (id: string, data: Partial<User>) => void;
+    getProfessionalCommissions: (professionalId: string, month?: string) => { total_produced: number; commission_amount: number; appointment_count: number };
+    getClinicDRE: (clinicId: string, month: string) => {
+        total_income: number;
+        total_expenses: number;
+        net_profit: number;
+        margin_pct: number;
+        expenses_by_category: { label: string; value: number; color: string }[];
+    };
     getProfessionalStats: (id: string, clinicId?: string) => { appointments: number; revenue: number; ticketMedio: number; noShows: number; attendanceRate: number; topProcedures: { name: string; count: number }[] };
 
     // Navigation
@@ -169,6 +272,7 @@ interface ClinicStore {
     // Notifications
     setNotificationPrefs: (prefs: Record<string, boolean>) => void;
     setNotificationPref: (key: string, value: boolean) => void;
+    setIntegrationConfig: (config: Partial<IntegrationConfig>) => void;
 
     // Photos
     addPatientPhoto: (patientId: string, dataUrl: string) => void;
@@ -176,6 +280,13 @@ interface ClinicStore {
 
     // Audit
     addAuditLog: (log: Omit<AuditLog, 'id' | 'created_at'>) => void;
+
+    // CRM & Automation
+    addAutomationRule: (rule: Omit<AutomationRule, 'id' | 'created_at'>) => AutomationRule;
+    updateAutomationRule: (id: string, data: Partial<AutomationRule>) => void;
+    addAutomationRun: (run: Omit<AutomationRun, 'id' | 'created_at'>) => AutomationRun;
+    addLead: (lead: Omit<Lead, 'id' | 'created_at' | 'updated_at'>) => Lead;
+    moveLeadStage: (leadId: string, stageId: string) => void;
 }
 
 export const useClinicStore = create<ClinicStore>()(
@@ -206,6 +317,17 @@ export const useClinicStore = create<ClinicStore>()(
                 dailySummary: true,
             },
             patientPhotos: {},
+            waitingList: [],
+            recurrences: [],
+            appointmentConfirmations: [],
+            anamneseLinks: [],
+            signatures: [],
+            clinicalDocuments: [],
+            automationRules: DEMO_AUTOMATION_RULES,
+            automationRuns: [],
+            leads: DEMO_LEADS,
+            funnelStages: DEMO_FUNNEL_STAGES,
+            integrationConfig: {},
             navigationContext: {},
 
             // ---- Patients ----
@@ -242,7 +364,7 @@ export const useClinicStore = create<ClinicStore>()(
                 });
                 if (conflict) return null;
 
-                const appointment: Appointment = { ...a, clinic_id, id: uid(), created_at: now() };
+                const appointment: Appointment = { ...a, clinic_id, source: a.source || 'internal', id: uid(), created_at: now() };
                 set(s => ({ appointments: [...s.appointments, appointment] }));
                 emitEvent('APPOINTMENT_CREATED', {
                     appointment_id: appointment.id,
@@ -250,6 +372,11 @@ export const useClinicStore = create<ClinicStore>()(
                     patient_id: appointment.patient_id,
                     professional_id: appointment.professional_id,
                 });
+                if (get().notificationPrefs.agendaConfirmation) {
+                    const msg = `Ola ${appointment.patient_name}, seu agendamento para ${appointment.service_name || 'consulta'} foi criado para ${new Date(appointment.scheduled_at).toLocaleString('pt-BR')}.`;
+                    get().queueAppointmentConfirmation(appointment.id, 'whatsapp', msg);
+                    get().queueAppointmentConfirmation(appointment.id, 'email', msg);
+                }
                 return appointment;
             },
             updateAppointmentStatus: (id, status) => {
@@ -392,11 +519,151 @@ export const useClinicStore = create<ClinicStore>()(
                     professional_id: appointment.professional_id,
                 });
 
+                const automationRules = get().automationRules.filter(
+                    rule => rule.clinic_id === appointment.clinic_id && rule.enabled && rule.trigger.event === 'appointment_done'
+                );
+                automationRules.forEach((rule) => {
+                    const message = rule.template.replace('{{nome}}', appointment.patient_name);
+                    const queued = get().queueAppointmentConfirmation(appointment.id, rule.channel, message);
+                    get().addAutomationRun({
+                        clinic_id: appointment.clinic_id,
+                        rule_id: rule.id,
+                        target_id: appointment.patient_id,
+                        channel: rule.channel,
+                        status: queued ? 'queued' : 'failed',
+                        response: queued ? undefined : 'queue_failed',
+                    });
+                    emitEvent('NPS_REQUESTED', {
+                        clinic_id: appointment.clinic_id,
+                        rule_id: rule.id,
+                        appointment_id: appointment.id,
+                        patient_id: appointment.patient_id,
+                    });
+                });
+
                 set(s => ({
                     finalizingAppointments: { ...s.finalizingAppointments, [id]: false },
                 }));
 
                 return true;
+            },
+            createRecurringAppointments: ({ base, startDateTime, frequency, occurrences }) => {
+                const recurrenceId = uid();
+                const created: Appointment[] = [];
+                const start = new Date(startDateTime);
+                const stepDays = frequency === 'weekly' ? 7 : frequency === 'biweekly' ? 14 : 30;
+                const safeOccurrences = Math.min(Math.max(1, occurrences), 48);
+                for (let i = 0; i < safeOccurrences; i++) {
+                    const scheduled = new Date(start);
+                    scheduled.setDate(start.getDate() + (i * stepDays));
+                    const apt = get().addAppointment({
+                        ...base,
+                        scheduled_at: scheduled.toISOString(),
+                        recurrence_id: recurrenceId,
+                    });
+                    if (apt) created.push(apt);
+                }
+                if (created.length > 0) {
+                    const first = created[0];
+                    const recurrence: AppointmentRecurrence = {
+                        id: recurrenceId,
+                        clinic_id: first.clinic_id,
+                        patient_id: first.patient_id,
+                        professional_id: first.professional_id,
+                        service_id: first.service_id,
+                        start_date: first.scheduled_at.split('T')[0],
+                        frequency,
+                        occurrences: created.length,
+                        created_at: now(),
+                    };
+                    set(s => ({ recurrences: [recurrence, ...s.recurrences] }));
+                }
+                return created;
+            },
+            addToWaitingList: (entry) => {
+                const waiting: WaitingListEntry = {
+                    ...entry,
+                    id: uid(),
+                    status: 'waiting',
+                    created_at: now(),
+                    updated_at: now(),
+                };
+                set(s => ({ waitingList: [waiting, ...s.waitingList] }));
+                return waiting;
+            },
+            updateWaitingListStatus: (id, status) => {
+                set(s => ({
+                    waitingList: s.waitingList.map(item => item.id === id ? { ...item, status, updated_at: now() } : item),
+                }));
+            },
+            fitWaitingListEntry: (id, scheduledAt, durationMin = 60) => {
+                const state = get();
+                const entry = state.waitingList.find(w => w.id === id);
+                if (!entry || entry.status === 'cancelled') return null;
+                const patient = state.patients.find(p => p.id === entry.patient_id);
+                const service = state.services.find(s => s.id === entry.service_id);
+                const professional = state.professionals.find(
+                    p => p.clinic_id === entry.clinic_id && p.role !== 'receptionist'
+                );
+                if (!patient || !professional) return null;
+                const appointment = get().addAppointment({
+                    clinic_id: entry.clinic_id,
+                    patient_id: patient.id,
+                    patient_name: patient.name,
+                    professional_id: professional.id,
+                    professional_name: professional.name,
+                    service_id: service?.id,
+                    service_name: service?.name || entry.service_name || 'Consulta',
+                    scheduled_at: scheduledAt,
+                    duration_min: service?.avg_duration_min || durationMin,
+                    status: 'scheduled',
+                    base_value: service?.base_price || 0,
+                    source: 'internal',
+                });
+                if (appointment) {
+                    get().updateWaitingListStatus(entry.id, 'scheduled');
+                    emitEvent('WAITING_LIST_CONTACTED', { entry_id: entry.id, appointment_id: appointment.id, clinic_id: entry.clinic_id });
+                }
+                return appointment;
+            },
+            queueAppointmentConfirmation: (appointmentId, channel, message) => {
+                const appointment = get().appointments.find(a => a.id === appointmentId);
+                if (!appointment) return null;
+                const confirmation: AppointmentConfirmation = {
+                    id: uid(),
+                    clinic_id: appointment.clinic_id,
+                    appointment_id: appointment.id,
+                    patient_id: appointment.patient_id,
+                    channel,
+                    message,
+                    status: 'queued',
+                    created_at: now(),
+                };
+                set(s => ({ appointmentConfirmations: [confirmation, ...s.appointmentConfirmations] }));
+                return confirmation;
+            },
+            markAppointmentConfirmation: (confirmationId, status, providerResponse) => {
+                let updated: AppointmentConfirmation | undefined;
+                set(s => ({
+                    appointmentConfirmations: s.appointmentConfirmations.map(item => {
+                        if (item.id !== confirmationId) return item;
+                        updated = {
+                            ...item,
+                            status,
+                            provider_response: providerResponse,
+                            sent_at: status === 'sent' ? now() : item.sent_at,
+                        };
+                        return updated;
+                    }),
+                }));
+                if (updated && status === 'sent') {
+                    emitEvent('APPOINTMENT_REMINDER_SENT', {
+                        confirmation_id: confirmationId,
+                        appointment_id: updated.appointment_id,
+                        clinic_id: updated.clinic_id,
+                        channel: updated.channel,
+                    });
+                }
             },
 
             // ---- Medical Records ----
@@ -435,6 +702,65 @@ export const useClinicStore = create<ClinicStore>()(
                 set(s => ({ anamneseData: { ...s.anamneseData, [data.patient_id]: data } }));
             },
             getAnamnese: (patientId) => get().anamneseData[patientId],
+            generateAnamneseLink: (patientId, createdBy, hoursValid = 72) => {
+                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const link: AnamneseFormLink = {
+                    id: uid(),
+                    clinic_id,
+                    patient_id: patientId,
+                    token: uid().replace(/-/g, ''),
+                    expires_at: new Date(Date.now() + Math.max(1, hoursValid) * 3600 * 1000).toISOString(),
+                    status: 'active',
+                    created_by: createdBy,
+                    created_at: now(),
+                };
+                set(s => ({ anamneseLinks: [link, ...s.anamneseLinks] }));
+                emitEvent('ANAMNESE_LINK_CREATED', { clinic_id, patient_id: patientId, link_id: link.id });
+                return link;
+            },
+            submitAnamneseByToken: (token, data) => {
+                const state = get();
+                const link = state.anamneseLinks.find(item => item.token === token && item.status === 'active');
+                if (!link) return false;
+                if (new Date(link.expires_at).getTime() < Date.now()) {
+                    set(s => ({
+                        anamneseLinks: s.anamneseLinks.map(item => item.id === link.id ? { ...item, status: 'expired' } : item),
+                    }));
+                    return false;
+                }
+                get().saveAnamnese({
+                    ...data,
+                    patient_id: link.patient_id,
+                    clinic_id: link.clinic_id,
+                    updated_at: now(),
+                });
+                set(s => ({
+                    anamneseLinks: s.anamneseLinks.map(item =>
+                        item.id === link.id ? { ...item, status: 'submitted', submitted_at: now() } : item
+                    ),
+                }));
+                return true;
+            },
+            addSignature: (data) => {
+                const signature: DigitalSignature = {
+                    ...data,
+                    id: uid(),
+                    signed_at: now(),
+                };
+                set(s => ({ signatures: [signature, ...s.signatures] }));
+                return signature;
+            },
+            createClinicalDocument: (doc) => {
+                const next: ClinicalDocument = {
+                    ...doc,
+                    id: uid(),
+                    created_at: now(),
+                };
+                set(s => ({ clinicalDocuments: [next, ...s.clinicalDocuments] }));
+                emitEvent('DOCUMENT_CREATED', { clinic_id: next.clinic_id, patient_id: next.patient_id, document_id: next.id });
+                return next;
+            },
+            getDocumentsForPatient: (patientId) => get().clinicalDocuments.filter(doc => doc.patient_id === patientId),
 
             // ---- Treatment Plans ----
             addTreatmentPlan: (plan) => {
@@ -541,6 +867,28 @@ export const useClinicStore = create<ClinicStore>()(
                 }));
                 emitEvent('PAYMENT_GENERATED', { transaction_id: id, clinic_id: txn.clinic_id });
             },
+            setTransactionAsaasData: (id, data) => {
+                set(s => ({
+                    transactions: s.transactions.map(t => t.id === id ? { ...t, ...data } : t),
+                }));
+            },
+            reconcileTransaction: (id, nextStatus, payload) => {
+                const txn = get().transactions.find(t => t.id === id);
+                if (!txn) return;
+                set(s => ({
+                    transactions: s.transactions.map(t =>
+                        t.id === id
+                            ? {
+                                ...t,
+                                status: nextStatus,
+                                asaas_status: payload?.asaas_status || t.asaas_status,
+                                paid_at: payload?.paid_at || (nextStatus === 'paid' ? now() : t.paid_at),
+                            }
+                            : t
+                    ),
+                }));
+                emitEvent('ASAAS_RECONCILED', { transaction_id: id, clinic_id: txn.clinic_id, status: nextStatus });
+            },
             getMonthlyIncome: (clinicId) => {
                 const thisMonth = new Date().toISOString().slice(0, 7);
                 return get().transactions
@@ -628,14 +976,87 @@ export const useClinicStore = create<ClinicStore>()(
                     topProcedures,
                 };
             },
+            getProfessionalCommissions: (professionalId, month) => {
+                const state = get();
+                const prof = state.professionals.find(p => p.id === professionalId);
+                if (!prof) return { total_produced: 0, commission_amount: 0, appointment_count: 0 };
+
+                const txns = state.transactions.filter(t =>
+                    t.professional_id === professionalId &&
+                    t.type === 'income' &&
+                    (!month || t.created_at.startsWith(month))
+                );
+
+                const aptsCount = state.appointments.filter(a =>
+                    a.professional_id === professionalId &&
+                    a.status === 'done' &&
+                    (!month || a.scheduled_at.startsWith(month))
+                ).length;
+
+                const paid_txns = txns.filter(t => t.status === 'paid');
+                const total_produced = txns.reduce((sum, t) => sum + t.amount, 0);
+                const commission_amount = paid_txns.reduce((sum, t) => sum + (t.amount * (prof.commission_pct / 100)), 0);
+
+                return {
+                    total_produced,
+                    commission_amount,
+                    appointment_count: aptsCount
+                };
+            },
+            getClinicDRE: (clinicId, month) => {
+                const state = get();
+                const txns = state.transactions.filter(t =>
+                    t.clinic_id === clinicId &&
+                    t.created_at.startsWith(month) &&
+                    t.status === 'paid'
+                );
+
+                const total_income = txns.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+
+                const expenses_by_category_map: Record<string, number> = {};
+                txns.filter(t => t.type === 'expense').forEach(t => {
+                    expenses_by_category_map[t.category] = (expenses_by_category_map[t.category] || 0) + t.amount;
+                });
+
+                // Include commissions in expenses
+                let professional_commissions = 0;
+                state.professionals
+                    .filter(p => p.clinic_id === clinicId)
+                    .forEach(p => {
+                        professional_commissions += get().getProfessionalCommissions(p.id, month).commission_amount;
+                    });
+
+                if (professional_commissions > 0) {
+                    expenses_by_category_map['Comissões'] = (expenses_by_category_map['Comissões'] || 0) + professional_commissions;
+                }
+
+                const total_expenses = Object.values(expenses_by_category_map).reduce((sum, v) => sum + v, 0);
+                const net_profit = total_income - total_expenses;
+                const margin_pct = total_income > 0 ? (net_profit / total_income) * 100 : 0;
+
+                const expenses_by_category = Object.entries(expenses_by_category_map).map(([label, value]) => ({
+                    label,
+                    value,
+                    color: label === 'Marketing' ? 'blue' : label === 'Salários' ? 'indigo' : 'slate'
+                }));
+
+                return {
+                    total_income,
+                    total_expenses,
+                    net_profit,
+                    margin_pct,
+                    expenses_by_category
+                };
+            },
 
             // ---- Navigation ----
             setNavigationContext: (ctx) => set({ navigationContext: ctx }),
-            clearNavigationContext: () => set({ navigationContext: {} }),
+            clearNavigationContext: () => set({ navigationContext: EMPTY_NAV_CONTEXT }),
 
             // ---- Notifications ----
             setNotificationPrefs: (prefs) => set({ notificationPrefs: prefs }),
             setNotificationPref: (key, value) => set(s => ({ notificationPrefs: { ...s.notificationPrefs, [key]: value } })),
+            setIntegrationConfig: (config) => set(s => ({ integrationConfig: { ...s.integrationConfig, ...config } })),
 
             // ---- Photos ----
             addPatientPhoto: (patientId, dataUrl) => {
@@ -656,6 +1077,31 @@ export const useClinicStore = create<ClinicStore>()(
             addAuditLog: (log) => {
                 set(s => ({ auditLogs: [{ ...log, id: uid(), created_at: now() }, ...s.auditLogs] }));
             },
+
+            // ---- CRM & Automation ----
+            addAutomationRule: (rule) => {
+                const created: AutomationRule = { ...rule, id: uid(), created_at: now() };
+                set(s => ({ automationRules: [created, ...s.automationRules] }));
+                return created;
+            },
+            updateAutomationRule: (id, data) => {
+                set(s => ({ automationRules: s.automationRules.map(rule => rule.id === id ? { ...rule, ...data } : rule) }));
+            },
+            addAutomationRun: (run) => {
+                const created: AutomationRun = { ...run, id: uid(), created_at: now() };
+                set(s => ({ automationRuns: [created, ...s.automationRuns] }));
+                return created;
+            },
+            addLead: (lead) => {
+                const created: Lead = { ...lead, id: uid(), created_at: now(), updated_at: now() };
+                set(s => ({ leads: [created, ...s.leads] }));
+                return created;
+            },
+            moveLeadStage: (leadId, stageId) => {
+                set(s => ({
+                    leads: s.leads.map(lead => lead.id === leadId ? { ...lead, stage_id: stageId, updated_at: now() } : lead),
+                }));
+            },
         }),
         {
             name: 'luminaflow-clinic-store',
@@ -675,6 +1121,17 @@ export const useClinicStore = create<ClinicStore>()(
                 notificationPrefs: state.notificationPrefs,
                 patientPhotos: state.patientPhotos,
                 auditLogs: state.auditLogs,
+                waitingList: state.waitingList,
+                recurrences: state.recurrences,
+                appointmentConfirmations: state.appointmentConfirmations,
+                anamneseLinks: state.anamneseLinks,
+                signatures: state.signatures,
+                clinicalDocuments: state.clinicalDocuments,
+                automationRules: state.automationRules,
+                automationRuns: state.automationRuns,
+                leads: state.leads,
+                funnelStages: state.funnelStages,
+                integrationConfig: state.integrationConfig,
             }),
             merge: (persistedState, currentState) => {
                 const raw = (persistedState && typeof persistedState === 'object' && 'state' in (persistedState as any))
@@ -696,6 +1153,17 @@ export const useClinicStore = create<ClinicStore>()(
                 next.notificationPrefs = ensureObject<Record<string, boolean>>(raw?.notificationPrefs, currentState.notificationPrefs);
                 next.patientPhotos = ensureObject<Record<string, string[]>>(raw?.patientPhotos, currentState.patientPhotos);
                 next.auditLogs = ensureArray<AuditLog>(raw?.auditLogs, currentState.auditLogs);
+                next.waitingList = ensureArray<WaitingListEntry>(raw?.waitingList, currentState.waitingList);
+                next.recurrences = ensureArray<AppointmentRecurrence>(raw?.recurrences, currentState.recurrences);
+                next.appointmentConfirmations = ensureArray<AppointmentConfirmation>(raw?.appointmentConfirmations, currentState.appointmentConfirmations);
+                next.anamneseLinks = ensureArray<AnamneseFormLink>(raw?.anamneseLinks, currentState.anamneseLinks);
+                next.signatures = ensureArray<DigitalSignature>(raw?.signatures, currentState.signatures);
+                next.clinicalDocuments = ensureArray<ClinicalDocument>(raw?.clinicalDocuments, currentState.clinicalDocuments);
+                next.automationRules = ensureArray<AutomationRule>(raw?.automationRules, currentState.automationRules);
+                next.automationRuns = ensureArray<AutomationRun>(raw?.automationRuns, currentState.automationRuns);
+                next.leads = ensureArray<Lead>(raw?.leads, currentState.leads);
+                next.funnelStages = ensureArray<FunnelStage>(raw?.funnelStages, currentState.funnelStages);
+                next.integrationConfig = ensureObject<IntegrationConfig>(raw?.integrationConfig, currentState.integrationConfig);
                 next.navigationContext = ensureObject<NavigationContext>(raw?.navigationContext, currentState.navigationContext);
                 return next;
             },

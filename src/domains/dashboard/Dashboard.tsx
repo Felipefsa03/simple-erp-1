@@ -42,8 +42,19 @@ const getWeatherEmoji = (code?: number | null, isDay = true) => {
 
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user, hasPermission } = useAuth();
-  const store = useClinicStore();
-  const { appointments, patients, transactions, addAppointment, professionals, services } = store;
+
+  // Atomic Selectors for ultra-stability
+  const appointments = useClinicStore(s => s.appointments);
+  const patients = useClinicStore(s => s.patients);
+  const transactions = useClinicStore(s => s.transactions);
+  const professionals = useClinicStore(s => s.professionals);
+  const services = useClinicStore(s => s.services);
+  const stockItems = useClinicStore(s => s.stockItems);
+
+  // Actions (getState to avoid reactivity on functions)
+  const addAppointment = useClinicStore.getState().addAppointment;
+  const getMonthlyIncome = useClinicStore.getState().getMonthlyIncome;
+
   const [showQuickBook, setShowQuickBook] = useState(false);
   const [qb, setQb] = useState({ patient_id: '', professional_id: '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
   const [greeting, setGreeting] = useState(() => getDayGreeting());
@@ -110,7 +121,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     return () => { cancelled = true; };
   }, []);
 
-  const monthlyIncome = store.getMonthlyIncome(clinicId);
+  const monthlyIncome = getMonthlyIncome(clinicId);
   const today = new Date().toISOString().split('T')[0];
   const newPatientsThisMonth = useMemo(() => {
     const thisMonth = new Date().toISOString().slice(0, 7);
@@ -141,7 +152,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   );
 
   const handleQuickBook = () => {
-    if (!canCreateAppointment) { toast('Você não tem permissão para criar agendamentos.', 'error'); return; }
+    if (!hasPermission('create_appointment')) { toast('Você não tem permissão para criar agendamentos.', 'error'); return; }
     if (!qb.patient_id || !qb.professional_id || !qb.date || !qb.time) {
       toast('Preencha todos os campos', 'error'); return;
     }
@@ -174,13 +185,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const insights = useMemo(() => {
     const results: { title: string; desc: string; action: string; tab: string }[] = [];
     if (pendingPayments > 0) results.push({ title: 'Cobranças Pendentes', desc: `${formatCurrency(pendingPayments)} aguardando pagamento`, action: 'Ver no Financeiro', tab: 'financeiro' });
-    const lowStock = store.stockItems.filter(i => i.quantity <= i.min_quantity && i.clinic_id === clinicId);
+    const lowStock = stockItems.filter(i => i.quantity <= i.min_quantity && i.clinic_id === clinicId);
     if (lowStock.length > 0) results.push({ title: 'Estoque Baixo', desc: `${lowStock.length} itens precisam de reposição`, action: 'Ver Estoque', tab: 'estoque' });
     const riskPatients = clinicPatients.filter(p => p.status === 'risk');
     if (riskPatients.length > 0) results.push({ title: 'Risco de Churn', desc: `${riskPatients.length} pacientes inativos há muito tempo`, action: 'Ver Pacientes', tab: 'pacientes' });
     if (results.length === 0) results.push({ title: 'Tudo em Ordem!', desc: 'Seu sistema está funcionando perfeitamente. Continue assim!', action: 'Ver Agenda', tab: 'agenda' });
     return results;
-  }, [pendingPayments, store.stockItems, clinicPatients, clinicId]);
+  }, [pendingPayments, stockItems, clinicPatients, clinicId]);
 
   if (!canViewDashboard) {
     return (
@@ -227,7 +238,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <input type="date" value={qb.date} onChange={e => setQb({ ...qb, date: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" />
             <input type="time" value={qb.time} onChange={e => setQb({ ...qb, time: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" />
           </div>
-          <button onClick={handleQuickBook} disabled={!canCreateAppointment} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 shadow-lg shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed">Confirmar</button>
+          <button onClick={handleQuickBook} disabled={!hasPermission('create_appointment')} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 shadow-lg shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed">Confirmar</button>
         </div>
       </Modal>
 

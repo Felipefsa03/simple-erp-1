@@ -254,9 +254,9 @@ export function LandingPage({ onLoginClick }: LandingPageProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { name: "Dra. Carolina Mendes", role: "Cl??nica Sorriso Premium", quote: "O m??dulo financeiro com o Asaas integrado mudou nossa vida. Zero inadimpl??ncia e muito mais clareza.", avatar: avatarCarolina },
-              { name: "Dr. Roberto Alves", role: "Alves Odonto", quote: "Antes eu perdia horas montando prontu??rios de papel. Agora em 2 cliques eu acesso o odontograma e as fotos.", avatar: avatarRoberto },
-              { name: "Julia Santos", role: "Gestora, Est??tica Avan??ada", quote: "As campanhas de marketing automatizadas do LuminaFlow trouxeram de volta 40 pacientes inativos s?? no ??ltimo m??s!", avatar: avatarJulia }
+              { name: "Dra. Carolina Mendes", role: "Clínica Sorriso Premium", quote: "O módulo financeiro com o Asaas integrado mudou nossa vida. Zero inadimplência e muito mais clareza.", avatar: avatarCarolina },
+              { name: "Dr. Roberto Alves", role: "Alves Odonto", quote: "Antes eu perdia horas montando prontuários de papel. Agora em 2 cliques eu acesso o odontograma e as fotos.", avatar: avatarRoberto },
+              { name: "Julia Santos", role: "Gestora, Estética Avançada", quote: "As campanhas de marketing automatizadas do LuminaFlow trouxeram de volta 40 pacientes inativos só no último mês!", avatar: avatarJulia }
             ].map((testimonial, i) => (
               <motion.div key={i} whileHover={{ y: -5 }} className="bg-slate-800 p-8 rounded-3xl border border-slate-700 text-left">
                 <div className="flex text-yellow-500 mb-6">

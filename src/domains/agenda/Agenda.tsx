@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, Clock, User,
-  X, MapPin
+  X, MapPin, Link2, Repeat, Bell, CalendarPlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, getHours, getMinutes } from 'date-fns';
@@ -17,25 +17,43 @@ interface AgendaProps {
   onNavigate?: (tab: string, ctx?: { patientId?: string; appointmentId?: string }) => void;
 }
 
+
 export function Agenda({ onNavigate }: AgendaProps) {
   const { user, hasPermission } = useAuth();
-  const {
-    appointments,
-    patients,
-    professionals,
-    services,
-    navigationContext,
-    setNavigationContext,
-    clearNavigationContext,
-    addAppointment,
-    startAppointment,
-    updateAppointmentStatus,
-  } = useClinicStore();
+
+  // Atomic Selectors for ultra-stability (satisfies getSnapshot requirements)
+  const appointments = useClinicStore(s => s.appointments);
+  const patients = useClinicStore(s => s.patients);
+  const professionals = useClinicStore(s => s.professionals);
+  const services = useClinicStore(s => s.services);
+  const waitingList = useClinicStore(s => s.waitingList);
+  const navigationContext = useClinicStore(s => s.navigationContext);
+
+  // Actions (getState to avoid reactivity on functions)
+  const setNavigationContext = useClinicStore.getState().setNavigationContext;
+  const clearNavigationContext = useClinicStore.getState().clearNavigationContext;
+  const addAppointment = useClinicStore.getState().addAppointment;
+  const createRecurringAppointments = useClinicStore.getState().createRecurringAppointments;
+  const addToWaitingList = useClinicStore.getState().addToWaitingList;
+  const fitWaitingListEntry = useClinicStore.getState().fitWaitingListEntry;
+  const queueAppointmentConfirmation = useClinicStore.getState().queueAppointmentConfirmation;
+  const startAppointment = useClinicStore.getState().startAppointment;
+  const updateAppointmentStatus = useClinicStore.getState().updateAppointmentStatus;
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('week');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isWaitModalOpen, setIsWaitModalOpen] = useState(false);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [newApt, setNewApt] = useState({ patient_id: '', professional_id: '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
+  const [recurrence, setRecurrence] = useState<{ enabled: boolean; frequency: 'weekly' | 'biweekly' | 'monthly'; occurrences: number }>({ enabled: false, frequency: 'weekly', occurrences: 4 });
+  const [waitForm, setWaitForm] = useState({
+    patient_id: '',
+    service_id: '',
+    preferred_days: [1, 3, 5] as number[],
+    preferred_time_range: 'any' as 'morning' | 'afternoon' | 'evening' | 'any',
+    notes: '',
+  });
   const swipeStartX = useRef<number | null>(null);
   const clinicId = user?.clinic_id || 'clinic-1';
   const canCreate = hasPermission('create_appointment');
@@ -57,6 +75,14 @@ export function Agenda({ onNavigate }: AgendaProps) {
     () => services.filter(s => s.clinic_id === clinicId && s.active),
     [services, clinicId]
   );
+  const clinicWaitingList = useMemo(
+    () => waitingList.filter(item => item.clinic_id === clinicId && item.status === 'waiting'),
+    [waitingList, clinicId]
+  );
+  const onlineBookingLink = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/#book-online?clinic=${clinicId}`;
+  }, [clinicId]);
 
   useEffect(() => {
     if (!newApt.professional_id && clinicProfessionals.length > 0) {
@@ -109,28 +135,71 @@ export function Agenda({ onNavigate }: AgendaProps) {
     const prof = clinicProfessionals.find(p => p.id === newApt.professional_id);
     const service = clinicServices.find(s => s.id === newApt.service_id);
 
-    const created = addAppointment({
-      clinic_id: clinicId,
-      patient_id: newApt.patient_id,
-      patient_name: patient?.name || '',
-      professional_id: newApt.professional_id,
-      professional_name: prof?.name || '',
-      service_id: newApt.service_id || undefined,
-      service_name: service?.name || 'Consulta',
-      scheduled_at: `${newApt.date}T${newApt.time}:00`,
-      duration_min: service?.avg_duration_min || 60,
-      status: 'scheduled',
-      base_value: service?.base_price || 0,
-    });
+    if (recurrence.enabled) {
+      const created = createRecurringAppointments({
+        base: {
+          clinic_id: clinicId,
+          patient_id: newApt.patient_id,
+          patient_name: patient?.name || '',
+          professional_id: newApt.professional_id,
+          professional_name: prof?.name || '',
+          service_id: newApt.service_id || undefined,
+          service_name: service?.name || 'Consulta',
+          duration_min: service?.avg_duration_min || 60,
+          status: 'scheduled',
+          base_value: service?.base_price || 0,
+          source: 'internal',
+        },
+        startDateTime: `${newApt.date}T${newApt.time}:00`,
+        frequency: recurrence.frequency,
+        occurrences: recurrence.occurrences,
+      });
 
-    if (!created) {
-      toast('Conflito de horário para este profissional.', 'error');
-      return;
+      if (created.length === 0) {
+        toast('Não foi possível criar a recorrência por conflito de horário.', 'error');
+        return;
+      }
+
+      created.forEach((apt) => {
+        queueAppointmentConfirmation(
+          apt.id,
+          'whatsapp',
+          `Oi ${apt.patient_name}, seu retorno de ${apt.service_name || 'consulta'} foi agendado para ${new Date(apt.scheduled_at).toLocaleString('pt-BR')}.`
+        );
+      });
+      toast(`${created.length} sessões recorrentes criadas com sucesso!`);
+    } else {
+      const created = addAppointment({
+        clinic_id: clinicId,
+        patient_id: newApt.patient_id,
+        patient_name: patient?.name || '',
+        professional_id: newApt.professional_id,
+        professional_name: prof?.name || '',
+        service_id: newApt.service_id || undefined,
+        service_name: service?.name || 'Consulta',
+        scheduled_at: `${newApt.date}T${newApt.time}:00`,
+        duration_min: service?.avg_duration_min || 60,
+        status: 'scheduled',
+        base_value: service?.base_price || 0,
+        source: 'internal',
+      });
+
+      if (!created) {
+        toast('Conflito de horário para este profissional.', 'error');
+        return;
+      }
+
+      queueAppointmentConfirmation(
+        created.id,
+        'whatsapp',
+        `Oi ${created.patient_name}, seu agendamento de ${created.service_name || 'consulta'} foi confirmado para ${new Date(created.scheduled_at).toLocaleString('pt-BR')}.`
+      );
+      toast('Agendamento criado com sucesso!');
     }
 
     setIsModalOpen(false);
+    setRecurrence({ enabled: false, frequency: 'weekly', occurrences: 4 });
     setNewApt({ patient_id: '', professional_id: clinicProfessionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
-    toast('Agendamento criado com sucesso!');
   });
 
   const handleStartAppointment = (apt: Appointment) => {
@@ -143,7 +212,61 @@ export function Agenda({ onNavigate }: AgendaProps) {
     onNavigate?.('prontuarios', { patientId: apt.patient_id, appointmentId: apt.id });
   };
 
+  const handleCopyOnlineLink = async () => {
+    if (!onlineBookingLink) return;
+    try {
+      await navigator.clipboard.writeText(onlineBookingLink);
+      toast('Link de agendamento online copiado!');
+    } catch {
+      toast('Não foi possível copiar o link.', 'error');
+    }
+  };
+
+  const handleAddToWaitingList = () => {
+    if (!waitForm.patient_id) {
+      toast('Selecione um paciente para a fila de espera.', 'error');
+      return;
+    }
+    const patient = clinicPatients.find(p => p.id === waitForm.patient_id);
+    const service = clinicServices.find(s => s.id === waitForm.service_id);
+    if (!patient) return;
+    addToWaitingList({
+      clinic_id: clinicId,
+      patient_id: patient.id,
+      patient_name: patient.name,
+      service_id: service?.id,
+      service_name: service?.name,
+      preferred_days: waitForm.preferred_days,
+      preferred_time_range: waitForm.preferred_time_range,
+      channels: ['whatsapp', 'email'],
+      notes: waitForm.notes || undefined,
+    });
+    setWaitForm({
+      patient_id: '',
+      service_id: '',
+      preferred_days: [1, 3, 5],
+      preferred_time_range: 'any',
+      notes: '',
+    });
+    setIsWaitModalOpen(false);
+    toast('Paciente adicionado na fila de espera.');
+  };
+
+  const openGoogleCalendar = (apt: Appointment) => {
+    const date = new Date(apt.scheduled_at);
+    const end = new Date(date.getTime() + (apt.duration_min || 60) * 60000);
+    const fmt = (value: Date) => value.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: `${apt.service_name || 'Consulta'} - ${apt.patient_name}`,
+      dates: `${fmt(date)}/${fmt(end)}`,
+      details: `Profissional: ${apt.professional_name}`,
+    });
+    window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
+  };
+
   const handlePointerDown = (e: React.PointerEvent) => {
+
     swipeStartX.current = e.clientX;
   };
 
@@ -205,6 +328,20 @@ export function Agenda({ onNavigate }: AgendaProps) {
           <p className="text-slate-500">Organize seus atendimentos e otimize seu tempo.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <button
+            onClick={handleCopyOnlineLink}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Link2 className="w-4 h-4" />
+            Link Agendamento Online
+          </button>
+          <button
+            onClick={() => setIsWaitModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Bell className="w-4 h-4" />
+            Fila de Espera ({clinicWaitingList.length})
+          </button>
           <div className="flex bg-white border border-slate-200 rounded-xl p-1 justify-center">
             {(['day', 'week', 'month'] as const).map((v) => (
               <button
@@ -289,6 +426,39 @@ export function Agenda({ onNavigate }: AgendaProps) {
               />
             </div>
           </div>
+          <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <label className="flex items-center gap-2 text-sm font-bold text-slate-700">
+              <input
+                type="checkbox"
+                checked={recurrence.enabled}
+                onChange={e => setRecurrence(prev => ({ ...prev, enabled: e.target.checked }))}
+              />
+              <Repeat className="w-4 h-4 text-cyan-600" />
+              Agendamento recorrente
+            </label>
+            {recurrence.enabled && (
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={recurrence.frequency}
+                  onChange={e => setRecurrence(prev => ({ ...prev, frequency: e.target.value as 'weekly' | 'biweekly' | 'monthly' }))}
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none"
+                >
+                  <option value="weekly">Semanal</option>
+                  <option value="biweekly">Quinzenal</option>
+                  <option value="monthly">Mensal</option>
+                </select>
+                <input
+                  type="number"
+                  min={2}
+                  max={48}
+                  value={recurrence.occurrences}
+                  onChange={e => setRecurrence(prev => ({ ...prev, occurrences: Number(e.target.value || 1) }))}
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none"
+                  placeholder="Qtd. de sessões"
+                />
+              </div>
+            )}
+          </div>
           <LoadingButton
             onClick={handleAddAppointment}
             loading={addLoading}
@@ -297,6 +467,80 @@ export function Agenda({ onNavigate }: AgendaProps) {
           >
             Confirmar Agendamento
           </LoadingButton>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isWaitModalOpen} onClose={() => setIsWaitModalOpen(false)} title="Fila de Espera">
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Paciente *</label>
+            <select
+              value={waitForm.patient_id}
+              onChange={e => setWaitForm(prev => ({ ...prev, patient_id: e.target.value }))}
+              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+            >
+              <option value="">Selecione o paciente...</option>
+              {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Procedimento desejado</label>
+            <select
+              value={waitForm.service_id}
+              onChange={e => setWaitForm(prev => ({ ...prev, service_id: e.target.value }))}
+              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+            >
+              <option value="">Consulta Geral</option>
+              {clinicServices.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Turno preferido</label>
+            <select
+              value={waitForm.preferred_time_range}
+              onChange={e => setWaitForm(prev => ({ ...prev, preferred_time_range: e.target.value as 'morning' | 'afternoon' | 'evening' | 'any' }))}
+              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none"
+            >
+              <option value="any">Qualquer horário</option>
+              <option value="morning">Manhã</option>
+              <option value="afternoon">Tarde</option>
+              <option value="evening">Noite</option>
+            </select>
+          </div>
+          <textarea
+            value={waitForm.notes}
+            onChange={e => setWaitForm(prev => ({ ...prev, notes: e.target.value }))}
+            placeholder="Observacoes adicionais..."
+            className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none min-h-[80px]"
+          />
+          <button
+            onClick={handleAddToWaitingList}
+            className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700"
+          >
+            Adicionar na fila
+          </button>
+
+          {clinicWaitingList.length > 0 && (
+            <div className="space-y-2 pt-3 border-t border-slate-100">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pendentes</p>
+              {clinicWaitingList.slice(0, 6).map(item => (
+                <div key={item.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <p className="text-sm font-bold text-slate-800">{item.patient_name}</p>
+                  <p className="text-xs text-slate-500">{item.service_name || 'Consulta'} • {item.preferred_time_range}</p>
+                  <button
+                    onClick={() => {
+                      const fit = fitWaitingListEntry(item.id, `${format(new Date(), 'yyyy-MM-dd')}T18:00:00`);
+                      if (fit) toast('Paciente encaixado com sucesso!');
+                      else toast('Não foi possível encaixar agora.', 'warning');
+                    }}
+                    className="mt-2 text-xs font-bold text-cyan-700 hover:underline"
+                  >
+                    Encaixar hoje 18:00
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </Modal>
 
@@ -333,6 +577,13 @@ export function Agenda({ onNavigate }: AgendaProps) {
                 </p>
               </div>
             </div>
+            <button
+              onClick={() => openGoogleCalendar(selectedApt)}
+              className="w-full py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+            >
+              <CalendarPlus className="w-4 h-4" />
+              Enviar para Google Calendar
+            </button>
             <div className="flex gap-2">
               {(selectedApt.status === 'scheduled' || selectedApt.status === 'confirmed') && (
                 <>
