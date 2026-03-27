@@ -16,11 +16,12 @@
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./frontend/src/*"]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true
-  }
+    "noEmit": true,
+    "strict": true
+  },
+  "include": ["frontend/src/**/*"],
+  "exclude": ["node_modules", "dist", "e2e/**", "frontend/src/__tests__/**", "frontend/src/**/*.test.*", "frontend/src/**/*.spec.*", "server/**", "frontend/app/**"]
 }
