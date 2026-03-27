@@ -26,7 +26,6 @@ const demoUsers: Record<string, { id: string; name: string; phone: string; passw
 // Armazenamento de códigos de reset (em produção seria no banco de dados)
 const resetCodes: Map<string, { code: string; expiresAt: number; attempts: number }> = new Map();
 const rateLimits: Map<string, { count: number; resetAt: number }> = new Map();
-};
 
 function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
