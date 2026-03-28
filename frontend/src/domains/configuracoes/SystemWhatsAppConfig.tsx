@@ -5,8 +5,8 @@ import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/useShared';
 
-const isDev = import.meta.env.DEV;
-const API_BASE = import.meta.env.VITE_API_BASE_URL || (isDev ? 'http://localhost:8787' : '');
+// Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
+const API_BASE = '';
 const SYSTEM_CLINIC_ID = 'system-global';
 
 type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected';

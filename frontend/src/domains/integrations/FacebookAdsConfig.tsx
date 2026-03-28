@@ -11,7 +11,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = '';
 
 interface FacebookConfigProps {
   clinicId: string;

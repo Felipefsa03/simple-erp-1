@@ -11,7 +11,8 @@ interface PasswordResetFlowProps {
 
 type Step = 'email' | 'code' | 'new-password' | 'success';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+// Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
+const API_BASE = '';
 const SYSTEM_CLINIC_ID = 'system-global';
 
 // Usuários demo para simulação

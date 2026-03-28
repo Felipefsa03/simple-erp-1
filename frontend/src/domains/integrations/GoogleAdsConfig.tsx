@@ -12,7 +12,7 @@ interface GoogleAdsConfigProps {
   onConnectionChange: (connected: boolean) => void;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = '';
 
 export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: GoogleAdsConfigProps) {
   const [developerToken, setDeveloperToken] = useState('');

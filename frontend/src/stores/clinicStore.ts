@@ -16,7 +16,8 @@ import { useEventBus } from '@/stores/eventBus';
 import { useAuth } from '@/hooks/useAuth';
 import { uid, now } from '@/lib/utils';
 
-const CLINIC_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+// Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
+const CLINIC_API_BASE = '';
 
 // Formatar telefone para padrão brasileiro WhatsApp (55 + DDD + 9 + Numero)
 const formatPhoneForWhatsApp = (phone: string | undefined | null): string => {

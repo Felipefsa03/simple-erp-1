@@ -12,7 +12,7 @@ interface EmailMarketingConfigProps {
   onConnectionChange: (connected: boolean) => void;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = '';
 
 type ProviderType = 'RD Station' | 'Mailchimp' | 'SendGrid' | 'Custom';
 

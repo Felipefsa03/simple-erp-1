@@ -144,7 +144,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   React.useEffect(() => {
     if (activeTab === 'sistema') {
       setMetricsLoading(true);
-      fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/health/extended`)
+      fetch('/api/health/extended')
         .then(r => r.json())
         .then(data => {
           setSystemMetrics(data);
@@ -888,7 +888,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                 <h3 className="font-bold text-cyan-900">Documentação API</h3>
                 <p className="text-sm text-cyan-700">Acesse a documentação completa dos endpoints</p>
               </div>
-              <a href={`${import.meta.env.VITE_API_BASE_URL || ''}/api-docs`} target="_blank" rel="noopener noreferrer"
+              <a href={'/api-docs'} target="_blank" rel="noopener noreferrer"
                 className="px-4 py-2 bg-cyan-600 text-white rounded-xl font-medium hover:bg-cyan-700 transition-colors">
                 Ver Docs
               </a>

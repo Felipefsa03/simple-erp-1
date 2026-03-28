@@ -130,7 +130,7 @@ const CHANNEL_META: Record<
 };
 
 function apiBase() {
-  return import.meta.env.VITE_API_BASE_URL || '';
+  return '';
 }
 
 function campaignCacheKey(clinicId: string) {

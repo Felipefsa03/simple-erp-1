@@ -12,7 +12,7 @@ interface AsaasConfigProps {
   onConnectionChange: (connected: boolean) => void;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = '';
 
 export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: AsaasConfigProps) {
   const [apiKey, setApiKey] = useState('');
