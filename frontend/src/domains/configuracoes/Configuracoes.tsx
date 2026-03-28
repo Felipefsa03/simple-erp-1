@@ -94,7 +94,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const canManageSettings = hasPermission('manage_settings');
   const canManageCommissions = hasPermission('manage_commissions');
   const canManageTeam = hasPermission('manage_team');
-  const clinicId = user?.clinic_id || 'clinic-1';
+  const clinicId = 'clinic-1';
   const permissionRoles: { key: UserRole; label: string }[] = [
     { key: 'receptionist', label: 'Recepção' },
     { key: 'dentist', label: 'Dentista' },
@@ -141,15 +141,15 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     toast('Permissões restauradas para o padrão.');
   };
   const clinicProfessionals = useMemo(
-    () => professionals.filter(p => p.clinic_id === clinicId),
+    () => (professionals || []).filter(p => p.clinic_id === clinicId),
     [professionals, clinicId]
   );
   const clinicServices = useMemo(
-    () => services.filter(s => s.clinic_id === clinicId),
+    () => (services || []).filter(s => s.clinic_id === clinicId),
     [services, clinicId]
   );
   const clinicStockItems = useMemo(
-    () => stockItems.filter(s => s.clinic_id === clinicId),
+    () => (stockItems || []).filter(s => s.clinic_id === clinicId),
     [stockItems, clinicId]
   );
 
@@ -189,7 +189,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       if (n > 0) profPrices[id] = n;
     });
     const data = {
-      clinic_id: user?.clinic_id || 'clinic-1',
+      clinic_id: clinicId,
       name: svcForm.name,
       category: svcForm.category,
       base_price: parseFloat(String(svcForm.base_price).replace(',', '.')),

@@ -45,15 +45,17 @@ const procedureColors: Record<string, string> = {
 
 interface ProntuarioProps {
   onNavigate?: (tab: string, ctx?: any) => void;
+  initialTab?: string;
 }
 
-export function Prontuario({ onNavigate }: ProntuarioProps) {
+export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
   const { user, hasPermission } = useAuth();
 
   // Atomic Selectors
   const navigationContext = useClinicStore(s => s.navigationContext);
   const patients = useClinicStore(s => s.patients);
   const appointments = useClinicStore(s => s.appointments);
+  const professionals = useClinicStore(s => s.professionals);
   const services = useClinicStore(s => s.services);
   const stockItems = useClinicStore(s => s.stockItems);
   const medicalRecords = useClinicStore(s => s.medicalRecords);
@@ -89,11 +91,12 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
 
   const addStockMovement = useClinicStore.getState().addStockMovement;
 
-  const clinicId = user?.clinic_id || 'clinic-1';
-  const clinicPatients = useMemo(() => patients.filter(p => p.clinic_id === clinicId), [patients, clinicId]);
-  const clinicAppointments = useMemo(() => appointments.filter(a => a.clinic_id === clinicId), [appointments, clinicId]);
-  const clinicServices = useMemo(() => services.filter(s => s.clinic_id === clinicId), [services, clinicId]);
-  const clinicStockItems = useMemo(() => stockItems.filter(s => s.clinic_id === clinicId), [stockItems, clinicId]);
+  const clinicId = 'clinic-1';
+  const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId), [patients, clinicId]);
+  const clinicAppointments = useMemo(() => (appointments || []).filter(a => a.clinic_id === clinicId), [appointments, clinicId]);
+  const clinicProfessionals = useMemo(() => (professionals || []).filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'), [professionals, clinicId]);
+  const clinicServices = useMemo(() => (services || []).filter(s => s.clinic_id === clinicId), [services, clinicId]);
+  const clinicStockItems = useMemo(() => (stockItems || []).filter(s => s.clinic_id === clinicId), [stockItems, clinicId]);
 
   const patientId = navigationContext.patientId || (patients.filter(p => p.clinic_id === clinicId)[0]?.id);
   const appointmentId = navigationContext.appointmentId;
@@ -197,7 +200,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
   // Get appointment transactions
   const appointmentTransactions = useMemo(() => {
     if (!appointmentId) return [];
-    return transactions.filter(t => t.appointment_id === appointmentId);
+    return (transactions || []).filter(t => t.appointment_id === appointmentId);
   }, [transactions, appointmentId]);
 
   // Calculate totals for summary
@@ -338,7 +341,7 @@ export function Prontuario({ onNavigate }: ProntuarioProps) {
       toast('Você não tem permissão para editar o prontuário.', 'error'); 
       return; 
     }
-    saveAnamnese({ ...anamneseForm, patient_id: patientId, clinic_id: user?.clinic_id || 'clinic-1', updated_at: new Date().toISOString() });
+    saveAnamnese({ ...anamneseForm, patient_id: patientId, clinic_id: clinicId, updated_at: new Date().toISOString() });
     toast('Anamnese salva com sucesso!');
   };
 

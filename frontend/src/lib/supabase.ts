@@ -6,10 +6,12 @@
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-const isConfigured = !!(supabaseUrl && supabaseAnonKey);
+const isConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseAnonKey.startsWith('eyJ'));
 
 if (!isConfigured) {
-  console.warn('[Supabase] Variáveis de ambiente não configuradas. Usando modo demo.');
+  console.warn('[Supabase] Chave não configurada corretamente. Usando modo demo.');
+} else {
+  console.log('[Supabase] Configurado com sucesso. URL:', supabaseUrl);
 }
 
 // Headers padrão para requisições

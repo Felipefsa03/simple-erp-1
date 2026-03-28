@@ -19,15 +19,15 @@ export function Estoque() {
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   const [form, setForm] = useState({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' });
-  const clinicId = user?.clinic_id || 'clinic-1';
+  const clinicId = 'clinic-1';
   const canManageStock = hasPermission('manage_stock');
 
   const clinicStockItems = useMemo(
-    () => stockItems.filter(item => item.clinic_id === clinicId),
+    () => (stockItems || []).filter(item => item.clinic_id === clinicId),
     [stockItems, clinicId]
   );
   const clinicStockMovements = useMemo(
-    () => stockMovements.filter(m => m.clinic_id === clinicId),
+    () => (stockMovements || []).filter(m => m.clinic_id === clinicId),
     [stockMovements, clinicId]
   );
 

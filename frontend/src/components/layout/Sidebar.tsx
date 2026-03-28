@@ -28,6 +28,7 @@ const clinicMenuItems = [
   { id: 'agenda', label: 'Agenda', icon: Calendar },
   { id: 'pacientes', label: 'Pacientes', icon: Users },
   { id: 'prontuarios', label: 'Prontuários', icon: Stethoscope },
+  { id: 'anamnese', label: 'Anamnese', icon: FileText },
   { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
   { id: 'insurance', label: 'Convênios', icon: Shield },
   { id: 'branches', label: 'Filiais', icon: Building2 },

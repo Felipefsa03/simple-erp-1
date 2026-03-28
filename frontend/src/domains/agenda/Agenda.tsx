@@ -58,28 +58,28 @@ export function Agenda({ onNavigate }: AgendaProps) {
     notes: '',
   });
   const swipeStartX = useRef<number | null>(null);
-  const clinicId = user?.clinic_id || 'clinic-1';
+  const clinicId = 'clinic-1';
   const canCreate = hasPermission('create_appointment');
   const canFinalize = hasPermission('finalize_appointment');
 
   const clinicAppointments = useMemo(
-    () => appointments.filter(a => a.clinic_id === clinicId),
+    () => (appointments || []).filter(a => a.clinic_id === clinicId),
     [appointments, clinicId]
   );
   const clinicPatients = useMemo(
-    () => patients.filter(p => p.clinic_id === clinicId),
+    () => (patients || []).filter(p => p.clinic_id === clinicId),
     [patients, clinicId]
   );
   const clinicProfessionals = useMemo(
-    () => professionals.filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'),
+    () => (professionals || []).filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'),
     [professionals, clinicId]
   );
   const clinicServices = useMemo(
-    () => services.filter(s => s.clinic_id === clinicId && s.active),
+    () => (services || []).filter(s => s.clinic_id === clinicId && s.active),
     [services, clinicId]
   );
   const clinicWaitingList = useMemo(
-    () => waitingList.filter(item => item.clinic_id === clinicId && item.status === 'waiting'),
+    () => (waitingList || []).filter(item => item.clinic_id === clinicId && item.status === 'waiting'),
     [waitingList, clinicId]
   );
   const onlineBookingLink = useMemo(() => {

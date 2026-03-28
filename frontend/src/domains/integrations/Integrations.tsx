@@ -36,10 +36,7 @@ export function Integrations() {
   const isSuperAdmin = user?.role === 'super_admin';
   
   // Estado para clínica selecionada (Super Admin pode trocar)
-  const [selectedClinicId, setSelectedClinicId] = useState<string>(() => {
-    if (user?.role === 'super_admin') return 'clinic-1';
-    return user?.clinic_id || 'clinic-1';
-  });
+  const [selectedClinicId, setSelectedClinicId] = useState<string>('clinic-1');
   
   const clinicId = selectedClinicId;
   

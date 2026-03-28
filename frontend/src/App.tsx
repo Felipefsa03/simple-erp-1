@@ -215,6 +215,7 @@ export default function App() {
       case 'pacientes': return <PatientList onNavigate={handleNavigate} />;
       case 'agenda': return <Agenda onNavigate={handleNavigate} />;
       case 'prontuarios': return <Prontuario onNavigate={handleNavigate} />;
+      case 'anamnese': return <Prontuario onNavigate={handleNavigate} initialTab="anamnese" />;
       case 'financeiro': return <Financeiro onNavigate={handleNavigate} />;
       case 'insurance': return <InsurancePanel clinicId={clinic?.id} />;
       case 'branches': return <BranchPanel clinicId={clinic?.id} />;

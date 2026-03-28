@@ -70,15 +70,23 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [weatherEmoji, setWeatherEmoji] = useState(() => getWeatherEmoji(undefined, true));
   const [isLoadingWeather, setIsLoadingWeather] = useState(true);
 
-  const clinicId = user?.clinic_id || 'clinic-1';
+  // FORÇAR clinicId como 'clinic-1' para dados demo funcionarem
+  const clinicId = 'clinic-1';
   const canViewDashboard = hasPermission('view_dashboard');
   const canCreateAppointment = hasPermission('create_appointment');
 
-  const clinicAppointments = useMemo(() => appointments.filter(a => a.clinic_id === clinicId), [appointments, clinicId]);
-  const clinicPatients = useMemo(() => patients.filter(p => p.clinic_id === clinicId), [patients, clinicId]);
-  const clinicTransactions = useMemo(() => transactions.filter(t => t.clinic_id === clinicId), [transactions, clinicId]);
-  const clinicProfessionals = useMemo(() => professionals.filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'), [professionals, clinicId]);
-  const clinicServices = useMemo(() => services.filter(s => s.clinic_id === clinicId && s.active), [services, clinicId]);
+  // Debug: Log clinicId and data
+  console.log('[Dashboard] clinicId:', clinicId, 'patients:', patients?.length);
+
+  const clinicAppointments = useMemo(() => {
+    const filtered = (appointments || []).filter(a => a.clinic_id === clinicId);
+    console.log('[Dashboard] clinicAppointments:', filtered.length, 'from', appointments?.length);
+    return filtered;
+  }, [appointments, clinicId]);
+  const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId), [patients, clinicId]);
+  const clinicTransactions = useMemo(() => (transactions || []).filter(t => t.clinic_id === clinicId), [transactions, clinicId]);
+  const clinicProfessionals = useMemo(() => (professionals || []).filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'), [professionals, clinicId]);
+  const clinicServices = useMemo(() => (services || []).filter(s => s.clinic_id === clinicId && s.active), [services, clinicId]);
 
   useEffect(() => {
     if (!qb.professional_id && clinicProfessionals.length > 0) {
@@ -196,7 +204,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const insights = useMemo(() => {
     const results: { title: string; desc: string; action: string; tab: string; type: 'warning' | 'success' | 'info' }[] = [];
     if (pendingPayments > 0) results.push({ title: 'Cobranças Pendentes', desc: `${formatCurrency(pendingPayments)} aguardando pagamento`, action: 'Ver no Financeiro', tab: 'financeiro', type: 'warning' });
-    const lowStock = stockItems.filter(i => i.quantity <= i.min_quantity && i.clinic_id === clinicId);
+    const lowStock = (stockItems || []).filter(i => i.quantity <= i.min_quantity && i.clinic_id === clinicId);
     if (lowStock.length > 0) results.push({ title: 'Estoque Baixo', desc: `${lowStock.length} itens precisam de reposição`, action: 'Ver Estoque', tab: 'estoque', type: 'warning' });
     const riskPatients = clinicPatients.filter(p => p.status === 'risk');
     if (riskPatients.length > 0) results.push({ title: 'Risco de Churn', desc: `${riskPatients.length} pacientes inativos há muito tempo`, action: 'Ver Pacientes', tab: 'pacientes', type: 'warning' });

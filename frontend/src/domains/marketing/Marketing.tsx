@@ -124,7 +124,7 @@ const generateEmailTemplate = (clinicName: string, whatsapp: string) => `
 export function Marketing() {
   const { user, clinic } = useAuth();
   const { patients, appointments, transactions, leads, funnelStages, automationRules, addLead, moveLeadStage, addAutomationRule } = useClinicStore();
-  const clinicId = user?.clinic_id || 'clinic-1';
+  const clinicId = 'clinic-1';
 
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'insights' | 'crm'>('overview');
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
@@ -147,12 +147,12 @@ export function Marketing() {
   const [newLeadPhone, setNewLeadPhone] = useState('');
   const [newLeadSource, setNewLeadSource] = useState<'instagram' | 'google_ads' | 'facebook_ads' | 'referral' | 'walk_in' | 'other'>('instagram');
 
-  const clinicPatients = patients.filter(p => p.clinic_id === clinicId);
-  const clinicAppointments = appointments.filter(a => a.clinic_id === clinicId);
-  const clinicTransactions = transactions.filter(t => t.clinic_id === clinicId);
-  const clinicLeads = leads.filter(l => l.clinic_id === clinicId);
-  const clinicStages = funnelStages.filter(s => s.clinic_id === clinicId).sort((a, b) => a.order - b.order);
-  const clinicRules = automationRules.filter(rule => rule.clinic_id === clinicId);
+  const clinicPatients = (patients || []).filter(p => p.clinic_id === clinicId);
+  const clinicAppointments = (appointments || []).filter(a => a.clinic_id === clinicId);
+  const clinicTransactions = (transactions || []).filter(t => t.clinic_id === clinicId);
+  const clinicLeads = (leads || []).filter(l => l.clinic_id === clinicId);
+  const clinicStages = (funnelStages || []).filter(s => s.clinic_id === clinicId).sort((a, b) => a.order - b.order);
+  const clinicRules = (automationRules || []).filter(rule => rule.clinic_id === clinicId);
 
   const atRiskPatients = clinicPatients.filter(p => p.status === 'risk' || p.status === 'inactive');
   const totalRevenue = clinicTransactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
@@ -431,8 +431,8 @@ export function Marketing() {
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
             <Users className="w-8 h-8 text-blue-500 mb-4" />
             <p className="text-sm text-slate-500">Base Total</p>
-            <p className="text-3xl font-bold text-slate-900">{patients.length}</p>
-            <p className="text-xs text-slate-400 mt-1">{patients.filter(p => p.status === 'active').length} ativos</p>
+            <p className="text-3xl font-bold text-slate-900">{(patients || []).length}</p>
+            <p className="text-xs text-slate-400 mt-1">{(patients || []).filter(p => p.status === 'active').length} ativos</p>
           </div>
         </div>
       )}

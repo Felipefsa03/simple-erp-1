@@ -23,7 +23,7 @@ export function DREReport({ clinicId }: DREReportProps) {
       startDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const periodTransactions = transactions.filter(t => {
+    const periodTransactions = (transactions || []).filter(t => {
       const tDate = new Date(t.created_at || t.due_date || '');
       return tDate >= startDate && tDate <= now;
     });

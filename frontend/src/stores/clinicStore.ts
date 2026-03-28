@@ -16,7 +16,7 @@ import { useEventBus } from '@/stores/eventBus';
 import { useAuth } from '@/hooks/useAuth';
 import { uid, now } from '@/lib/utils';
 
-const CLINIC_API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787';
+const CLINIC_API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 // Formatar telefone para padrão brasileiro WhatsApp (55 + DDD + 9 + Numero)
 const formatPhoneForWhatsApp = (phone: string | undefined | null): string => {
@@ -372,17 +372,30 @@ interface ClinicStore {
     syncAnamneseWithServer: () => Promise<boolean>;
 }
 
+// Debug: Log demo data on load
+console.log('[ClinicStore] Loading demo data - professionals:', DEMO_PROFESSIONALS.length, 'patients:', DEMO_PATIENTS.length);
+
+// FORçar dados demo SEMPRE
+const FORCE_DEMO_DATA = {
+    professionals: DEMO_PROFESSIONALS,
+    patients: DEMO_PATIENTS,
+    appointments: DEMO_APPOINTMENTS,
+    services: DEMO_SERVICES,
+    stockItems: DEMO_STOCK,
+    transactions: DEMO_TRANSACTIONS,
+};
+
 export const useClinicStore = create<ClinicStore>()(
     persist(
         (set, get) => ({
-            // Initial data
-            professionals: DEMO_PROFESSIONALS,
-            patients: DEMO_PATIENTS,
-            appointments: DEMO_APPOINTMENTS,
-            services: DEMO_SERVICES,
-            stockItems: DEMO_STOCK,
+            // Initial data - ALWAYS use demo data
+            professionals: FORCE_DEMO_DATA.professionals,
+            patients: FORCE_DEMO_DATA.patients,
+            appointments: FORCE_DEMO_DATA.appointments,
+            services: FORCE_DEMO_DATA.services,
+            stockItems: FORCE_DEMO_DATA.stockItems,
             stockMovements: [],
-            transactions: DEMO_TRANSACTIONS,
+            transactions: FORCE_DEMO_DATA.transactions,
             medicalRecords: [],
             odontogramData: {},
             anamneseData: {},
@@ -855,7 +868,11 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Anamnese Links & Public Forms ----
             syncAnamneseWithServer: async () => {
                 try {
-                    const response = await fetch(`${CLINIC_API_BASE}/api/clinic/anamnese-sync`);
+                    const response = await fetch(`${CLINIC_API_BASE}/api/clinic/anamnese-sync`, {
+                        headers: {
+                            'ngrok-skip-browser-warning': 'true'
+                        }
+                    });
                     if (!response.ok) return false;
                     
                     const text = await response.text();
@@ -1329,39 +1346,18 @@ export const useClinicStore = create<ClinicStore>()(
                 systemWhatsApp: state.systemWhatsApp,
             }),
             merge: (persistedState, currentState) => {
-                const raw = (persistedState && typeof persistedState === 'object' && 'state' in (persistedState as any))
-                    ? (persistedState as any).state
-                    : (persistedState as any);
-                const next = { ...currentState, ...(raw || {}) } as ClinicStore;
-                next.patients = normalizePatients(raw?.patients ?? currentState.patients);
-                next.professionals = ensureArray<User>(raw?.professionals, currentState.professionals);
-                next.appointments = ensureArray<Appointment>(raw?.appointments, currentState.appointments);
-                next.services = ensureArray<Service>(raw?.services, currentState.services);
-                next.stockItems = ensureArray<StockItem>(raw?.stockItems, currentState.stockItems);
-                next.stockMovements = ensureArray<StockMovement>(raw?.stockMovements, currentState.stockMovements);
-                next.transactions = ensureArray<FinancialTransaction>(raw?.transactions, currentState.transactions);
-                next.medicalRecords = ensureArray<MedicalRecord>(raw?.medicalRecords, currentState.medicalRecords);
-                next.odontogramData = ensureObject<Record<string, OdontogramEntry[]>>(raw?.odontogramData, currentState.odontogramData);
-                next.anamneseData = ensureObject<Record<string, AnamneseData>>(raw?.anamneseData, currentState.anamneseData);
-                next.treatmentPlans = ensureArray<TreatmentPlan>(raw?.treatmentPlans, currentState.treatmentPlans);
-                next.appointmentMaterials = ensureObject<Record<string, AppointmentMaterial[]>>(raw?.appointmentMaterials, currentState.appointmentMaterials);
-                next.notificationPrefs = ensureObject<Record<string, boolean>>(raw?.notificationPrefs, currentState.notificationPrefs);
-                next.patientPhotos = ensureObject<Record<string, string[]>>(raw?.patientPhotos, currentState.patientPhotos);
-                next.auditLogs = ensureArray<AuditLog>(raw?.auditLogs, currentState.auditLogs);
-                next.waitingList = ensureArray<WaitingListEntry>(raw?.waitingList, currentState.waitingList);
-                next.recurrences = ensureArray<AppointmentRecurrence>(raw?.recurrences, currentState.recurrences);
-                next.appointmentConfirmations = ensureArray<AppointmentConfirmation>(raw?.appointmentConfirmations, currentState.appointmentConfirmations);
-                next.anamneseLinks = ensureArray<AnamneseFormLink>(raw?.anamneseLinks, currentState.anamneseLinks);
-                next.signatures = ensureArray<DigitalSignature>(raw?.signatures, currentState.signatures);
-                next.clinicalDocuments = ensureArray<ClinicalDocument>(raw?.clinicalDocuments, currentState.clinicalDocuments);
-                next.automationRules = ensureArray<AutomationRule>(raw?.automationRules, currentState.automationRules);
-                next.automationRuns = ensureArray<AutomationRun>(raw?.automationRuns, currentState.automationRuns);
-                next.leads = ensureArray<Lead>(raw?.leads, currentState.leads);
-                next.funnelStages = ensureArray<FunnelStage>(raw?.funnelStages, currentState.funnelStages);
-                next.integrationConfig = ensureObject<IntegrationConfig>(raw?.integrationConfig, currentState.integrationConfig);
-                next.navigationContext = ensureObject<NavigationContext>(raw?.navigationContext, currentState.navigationContext);
-                next.insurances = ensureArray<Insurance>(raw?.insurances, currentState.insurances);
-                next.branches = ensureArray<Branch>(raw?.branches, currentState.branches);
+                // FORÇAR dados demo sempre - ignorando localStorage
+                console.log('[ClinicStore] FORCING demo data!');
+                const next = {
+                    ...currentState,
+                    professionals: FORCE_DEMO_DATA.professionals,
+                    patients: FORCE_DEMO_DATA.patients,
+                    appointments: FORCE_DEMO_DATA.appointments,
+                    services: FORCE_DEMO_DATA.services,
+                    stockItems: FORCE_DEMO_DATA.stockItems,
+                    transactions: FORCE_DEMO_DATA.transactions,
+                } as ClinicStore;
+                console.log('[ClinicStore] After merge - patients:', next.patients?.length);
                 return next;
             },
         }

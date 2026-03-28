@@ -5,7 +5,8 @@ import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/useShared';
 
-const API_BASE = 'http://localhost:8787';
+const isDev = import.meta.env.DEV;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (isDev ? 'http://localhost:8787' : '');
 const SYSTEM_CLINIC_ID = 'system-global';
 
 type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected';
@@ -61,7 +62,10 @@ export function SystemWhatsAppConfig() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, { 
+          cache: 'no-store',
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
         if (!res.ok) return;
         const data = await res.json();
 
@@ -122,7 +126,7 @@ export function SystemWhatsAppConfig() {
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/connect`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID }),
       });
       const data = await res.json();
@@ -200,7 +204,7 @@ export function SystemWhatsAppConfig() {
     try {
       await fetch(`${API_BASE}/api/whatsapp/disconnect`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
         body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID }),
       });
       stopTimers();

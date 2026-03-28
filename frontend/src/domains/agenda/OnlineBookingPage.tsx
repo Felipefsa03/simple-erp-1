@@ -40,11 +40,11 @@ export function OnlineBookingPage({ clinicId = 'clinic-1', onBack }: OnlineBooki
   const services = isHydrated ? storeServices : [];
 
   const clinicServices = useMemo(
-    () => services.filter(item => item.clinic_id === clinicId && item.active),
+    () => (services || []).filter(item => item.clinic_id === clinicId && item.active),
     [services, clinicId]
   );
   const clinicProfessionals = useMemo(
-    () => professionals.filter(item => item.clinic_id === clinicId && item.role !== 'receptionist'),
+    () => (professionals || []).filter(item => item.clinic_id === clinicId && item.role !== 'receptionist'),
     [professionals, clinicId]
   );
 

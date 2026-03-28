@@ -104,6 +104,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
   const canView = hasPermission('view_patients');
   const canManage = hasPermission('manage_patients');
   const canImport = hasPermission('import_patients');
+  const clinicId = 'clinic-1';
 
   const normalizeHeader = (header: string) => header.toLowerCase().trim();
 
@@ -184,7 +185,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
   }
 
   const filteredPatients = useMemo(() => {
-    let result = patients.filter(p => p.clinic_id === (user?.clinic_id || 'clinic-1'));
+    let result = (patients || []).filter(p => p.clinic_id === clinicId);
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
       result = result.filter(p =>
@@ -216,7 +217,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
     const formattedPhone = formatPhoneBrazilian(newPatient.phone);
     
     addPatient({
-      clinic_id: user?.clinic_id || 'clinic-1',
+      clinic_id: clinicId,
       name: newPatient.name,
       phone: formattedPhone,
       email: newPatient.email,
@@ -288,12 +289,11 @@ export function PatientList({ onNavigate }: PatientListProps) {
       toast('Corrija os erros antes de confirmar a importação.', 'warning');
       return;
     }
-    const clinicId = user?.clinic_id || 'clinic-1';
     const existingEmails = new Set(
-      patients.filter(p => p.clinic_id === clinicId).map(p => p.email.toLowerCase())
+      (patients || []).filter(p => p.clinic_id === clinicId).map(p => p.email.toLowerCase())
     );
     const existingCpfs = new Set(
-      patients.filter(p => p.clinic_id === clinicId).map(p => p.cpf || '')
+      (patients || []).filter(p => p.clinic_id === clinicId).map(p => p.cpf || '')
     );
     let duplicates = 0;
 

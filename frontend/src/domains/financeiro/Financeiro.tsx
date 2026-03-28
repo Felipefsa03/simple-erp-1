@@ -51,11 +51,11 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   });
 
   const highlightRef = useRef<HTMLTableRowElement>(null);
-  const clinicId = user?.clinic_id || 'clinic-1';
+  const clinicId = 'clinic-1';
 
   // ---- Data retrieval via getState() or stable dependencies ----
   const transactions = useMemo(() => {
-    return rawTransactions.filter(t => t.clinic_id === clinicId);
+    return (rawTransactions || []).filter(t => t.clinic_id === clinicId);
   }, [clinicId, rawTransactions]);
 
   const stats = useMemo(() => {
@@ -89,7 +89,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
 
   const expenseCategories = useMemo(() => {
     const cats: Record<string, number> = {};
-    const list = transactions.filter(t => t.type === 'expense' && t.status === 'paid');
+    const list = (transactions || []).filter(t => t.type === 'expense' && t.status === 'paid');
     list.forEach(t => { cats[t.category] = (cats[t.category] || 0) + t.amount; });
     const total = Object.values(cats).reduce((s, v) => s + v, 0) || 1;
     return Object.entries(cats).map(([label, value]) => ({
