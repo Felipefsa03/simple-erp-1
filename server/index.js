@@ -387,6 +387,7 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   
   // Check if credentials exist in Supabase and auto-connect
   const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
+  console.log('[Status] ClinicId:', clinicId, 'Supabase creds:', supabaseCreds ? 'found' : 'not found');
   if (supabaseCreds && supabaseCreds.creds) {
     // Trigger connection in background
     ensureSocketConnected(clinicId);
