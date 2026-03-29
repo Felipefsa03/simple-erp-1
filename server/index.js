@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { useMultiFileAuthState, makeWASocket, DisconnectReason } from 'baileys';
+import { useMultiFileAuthState, makeWASocket, DisconnectReason, fetchLatestBaileysVersion } from 'baileys';
 import { Boom } from '@hapi/boom';
 import path from 'path';
 import * as fs from 'fs';
@@ -64,13 +64,14 @@ const getAuthFolder = (clinicId) => {
 };
 
 const createWhatsAppSocket = async (clinicId) => {
-  const authDir = getAuthFolder(clinicId);
-  
-  console.log('[Baileys] Loading auth state from:', authDir);
-  
   try {
+    const authDir = ensureClinicStatus(clinicId);
+    
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    addLog(`[Baileys] Usando versão WA v${version.join('.')}, isLatest: ${isLatest}`);
+
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
-    console.log('[Baileys] Auth state loaded successfully');
+    addLog('[Baileys] Auth state carregado com sucesso');
     
     // Pino is the recommended logger for Baileys, especially in cloud environments
     const logger = pino({ level: 'debug' });
@@ -79,9 +80,10 @@ const createWhatsAppSocket = async (clinicId) => {
     
     const sock = makeWASocket({
       auth: state,
+      version: version, // Manual version sync to avoid 405
       printQRInTerminal: false,
-      browser: ['Ubuntu', 'Chrome', '121.0.6167.184'], // More common signature
-      connectTimeoutMs: 120000, // 2 minutes
+      browser: ['Ubuntu', 'Chrome', '121.0.6167.184'], // Updated browser string
+      connectTimeoutMs: 120000,
       keepAliveIntervalMs: 60000,
       logger: logger,
       emitOwnEvents: true,
