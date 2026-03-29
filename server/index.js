@@ -47,22 +47,24 @@ app.get('/api/whatsapp/debug', (req, res) => {
 });
 
 // Proxy to bypass X-Frame-Options for WhatsApp (Use with caution)
-// Now handles wildcards like /api/whatsapp/proxy/data/manifest.json
 app.get('/api/whatsapp/proxy*', async (req, res) => {
   try {
-    const userAgent = req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-    // Extract the actual path after /api/whatsapp/proxy
-    const rawPath = req.params[0] || '';
-    const targetUrl = `https://web.whatsapp.com${rawPath}`;
+    // Extract the actual path
+    let rawPath = req.params[0] || '';
+    if (rawPath === '') rawPath = '/';
     
+    const targetUrl = `https://web.whatsapp.com${rawPath}`;
     addLog(`[Proxy] Buscando: ${targetUrl}`);
 
     const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': userAgent,
         'Accept': req.headers['accept'] || '*/*',
-        'Accept-Language': req.headers['accept-language'] || 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        'Accept-Language': req.headers['accept-language'] || 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       }
     });
 
@@ -72,28 +74,25 @@ app.get('/api/whatsapp/proxy*', async (req, res) => {
     }
 
     const contentType = response.headers.get('content-type');
-    
-    // Pass original content type
     if (contentType) res.setHeader('Content-Type', contentType);
     
-    // Remove security headers
     res.removeHeader('X-Frame-Options');
     res.removeHeader('Content-Security-Policy');
     res.setHeader('Access-Control-Allow-Origin', '*');
 
     if (contentType && contentType.includes('text/html')) {
       let body = await response.text();
-      // Inject <base> tag only for HTML
-      body = body.replace('<head>', '<head><base href="https://web.whatsapp.com/">');
+      // THE FIX: Point base to our proxy endpoint, NOT whatsapp.com
+      // This forces ALL relative resources to be proxied through our server
+      body = body.replace('<head>', '<head><base href="/api/whatsapp/proxy/">');
       res.send(body);
     } else {
-      // For images, manifest.json, etc., stream/buffer the response
       const buffer = await response.arrayBuffer();
       res.send(Buffer.from(buffer));
     }
   } catch (error) {
-    addLog(`[Proxy] Erro crítico no proxy: ${error.message}`);
-    res.status(500).send(`Proxy internal error: ${error.message}`);
+    addLog(`[Proxy] Erro: ${error.message}`);
+    res.status(500).send(`Error: ${error.message}`);
   }
 });
 
