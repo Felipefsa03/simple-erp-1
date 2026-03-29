@@ -253,7 +253,12 @@ export function MiniWhatsAppChat({
       if (data.messages && data.messages.length > 0) {
         setMessages(prev => {
           const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = data.messages.filter((m: Message) => !existingIds.has(m.id));
+          const newMessages = data.messages
+            .filter((m: Message) => !existingIds.has(m.id))
+            .map((m: Message) => ({
+              ...m,
+              timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp)
+            }));
           if (newMessages.length > 0) {
             return [...prev, ...newMessages];
           }
@@ -452,7 +457,11 @@ export function MiniWhatsAppChat({
                         msg.fromMe ? "text-green-100" : "text-slate-400"
                       )}>
                         <span className="text-[10px]">
-                          {msg.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {(() => {
+                            const ts = msg.timestamp;
+                            const date = ts instanceof Date ? ts : (typeof ts === 'number' || typeof ts === 'string' ? new Date(ts) : null);
+                            return date ? date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+                          })()}
                         </span>
                         {msg.fromMe && <CheckCheck className="w-3 h-3" />}
                       </div>
