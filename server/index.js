@@ -24,7 +24,14 @@ app.use(express.json());
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    supabase: {
+      url: SUPABASE_URL ? 'configured' : 'missing',
+      key: SUPABASE_ANON_KEY ? 'configured' : 'missing'
+    }
+  });
 });
 
 app.get('/', (req, res) => {
