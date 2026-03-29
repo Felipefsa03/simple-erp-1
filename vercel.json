@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://rosalinda-noneducable-nonrepresentatively.ngrok-free.dev/api/:path*"
+      "destination": "https://clinxia-whatsapp.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",

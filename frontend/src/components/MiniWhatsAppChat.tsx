@@ -215,26 +215,20 @@ export function MiniWhatsAppChat({
   // Check WhatsApp connection status
   const checkConnection = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}`, {
-        headers: {
-          'ngrok-skip-browser-warning': 'true'
-        }
+      const response = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
       });
       const data = await response.json();
       
-      console.log('[MiniChat] Connection status:', data);
-      
-      if (data.ok && data.status === 'connected') {
+      if (data.status === 'connected') {
         setConnectionStatus('connected');
       } else {
         setConnectionStatus('disconnected');
       }
     } catch (error) {
-      // API not available - use demo mode (always connected for demo)
-      console.log('[MiniChat] API not available, using demo mode');
-      setConnectionStatus('connected'); // Demo mode: always connected
+       setConnectionStatus('disconnected');
     }
-  }, []);
+  }, [clinicId]);
 
   // Send message via Baileys
   const sendMessageToWhatsApp = useCallback(async () => {

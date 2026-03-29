@@ -97,8 +97,8 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
         }
 
         // QR CODE AVAILABLE
-        if ((data.status === 'waiting_scan' || data.status === 'qr') && data.qrCode) {
-          setQrCode(data.qrCode);
+        if ((data.status === 'waiting_scan' || data.status === 'qr') && data.qrBase64) {
+          setQrCode(data.qrBase64);
           setUiStatus('qr');
           setPairingCode(null);
           if (!countdownRef.current) {
@@ -124,22 +124,21 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
         }
 
         // CONNECTING / RECONNECTING → keep showing loading
-        if (data.status === 'connecting') {
+        if (data.status === 'connecting' || data.status === 'loading') {
            setUiStatus('loading');
            return;
         }
 
       } catch (err) {
         console.error('[WhatsApp] poll error:', err);
-        // Network blip: don't change UI, just retry on next poll
       }
     };
 
-    poll(); // first poll immediately
-    pollingRef.current = setInterval(poll, 5000);
+    poll(); 
+    pollingRef.current = setInterval(poll, 3000); // Polling faster for better UX
   }, [clinicId, stopTimers, startCountdown, onConnect]);
 
-  // --- Initiate connection (fire-and-forget POST + start polling) ---
+  // --- Initiate connection ---
   const initiate = useCallback(async (phone?: string) => {
     setUiStatus('loading');
     setQrCode(null);
@@ -148,56 +147,41 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
     connectedNotifiedRef.current = false;
 
     try {
-      const res = await fetch(`${API_BASE}/api/whatsapp/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        body: JSON.stringify({ clinicId, phoneNumber: phone || phoneNumber.replace(/\D/g, '') }),
+      // In professional mode, we first check status. The backend auto-connects if needed.
+      const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
       });
       const data = await res.json();
 
-      if (data.ok === false || data.success === false) {
+      if (data.ok === false) {
         setUiStatus('error');
-        setErrorMsg(data.message || data.error || 'Falha ao iniciar conexão');
+        setErrorMsg(data.error || 'Falha ao iniciar conexão');
         return;
       }
 
-      // If pairing code is returned
-      if (data.pairingCode) {
-        setPairingCode(data.pairingCode);
-        setUiStatus('pairing');
-        return;
-      }
-
-      // If backend already has QR ready, show immediately
-      if (data.qrCode) {
-        setQrCode(data.qrCode);
-        setUiStatus('qr');
-        startCountdown();
-      }
-
-      // If already connected (aceita 'connected' ou 'conectado')
-      if (data.status === 'connected' || data.status === 'conectado' || data.status === 'Connected') {
+      // If already connected
+      if (data.status === 'connected') {
         setUiStatus('connected');
+        setDeviceInfo({
+          name: data.phoneNumber || 'WhatsApp Web',
+          id: '',
+          platform: 'API'
+        });
         onConnect();
         if (onStatusChange) onStatusChange(true);
-        toast('WhatsApp Business já conectado!', 'success');
+        toast('WhatsApp Business conectado!', 'success');
         return;
       }
 
-      // Start polling for updates regardless
+      // Start polling to get the QR code
       startPolling();
 
     } catch (err: any) {
       console.error('[WhatsApp] initiate error:', err);
       setUiStatus('error');
-      const isProd = !import.meta.env.DEV;
-      if (isProd) {
-        setErrorMsg('Servidor de conexão não está disponível. Certifique-se de que o backend está rodando e o ngrok está ativo.');
-      } else {
-        setErrorMsg('Não foi possível conectar ao servidor local (localhost:8787)');
-      }
+      setErrorMsg('Servidor fora do ar ou URL do Render incorreta.');
     }
-  }, [clinicId, startPolling, startCountdown, onConnect, phoneNumber]);
+  }, [clinicId, startPolling, onConnect]);
 
   // --- Auto-start ONCE when modal opens ---
   useEffect(() => {
@@ -205,8 +189,7 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
       didInitRef.current = true;
       initiate();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, initiate]);
 
   // --- Reset when modal closes ---
   useEffect(() => {
@@ -246,10 +229,10 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
   // --- Disconnect ---
   const handleDisconnect = useCallback(async () => {
     try {
-      await fetch(`${API_BASE}/api/whatsapp/disconnect`, {
+      // Endpoint logic handled by backend cleanup
+      await fetch(`${API_BASE}/api/whatsapp/disconnect/${clinicId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        body: JSON.stringify({ clinicId }),
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' }
       });
       stopTimers();
       setUiStatus('disconnected');
@@ -261,7 +244,7 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
     } catch (err: any) {
       toast('Erro ao desconectar: ' + err.message, 'error');
     }
-  }, [clinicId, stopTimers]);
+  }, [clinicId, stopTimers, onStatusChange]);
 
   if (!isOpen) return null;
 
@@ -277,7 +260,7 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
               </div>
               <div>
                 <h2 className="text-xl font-bold">WhatsApp Business</h2>
-                <p className="text-sm text-white/80">Conectar conta real</p>
+                <p className="text-sm text-white/80">Conexão via API Profissional</p>
               </div>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
@@ -293,8 +276,8 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Conectando ao WhatsApp...</h3>
-              <p className="text-slate-500 text-sm">Gerando QR Code de autenticação</p>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Iniciando API...</h3>
+              <p className="text-slate-500 text-sm">Aguardando resposta do servidor Render</p>
             </div>
           )}
 
@@ -304,33 +287,15 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle className="w-8 h-8 text-red-600" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Servidor Indisponível</h3>
-              <p className="text-slate-500 text-sm mb-4">{errorMsg || 'O servidor de conexão não está respondendo'}</p>
-              
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-left">
-                <p className="text-xs font-bold text-amber-800 mb-2">Como resolver:</p>
-                <ol className="text-xs text-amber-700 space-y-1">
-                  <li>1. Execute o backend: <code className="bg-amber-100 px-1 rounded">npm run server</code></li>
-                  <li>2. Execute o ngrok: <code className="bg-amber-100 px-1 rounded">ngrok http 8787</code></li>
-                  <li>3. Copie a URL do ngrok e configure no Vercel</li>
-                </ol>
-              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Falha na Conexão</h3>
+              <p className="text-slate-500 text-sm mb-6">{errorMsg || 'Não foi possível conectar à sua API no Render.'}</p>
               
               <div className="space-y-3">
-                <button onClick={handleRetry} className="w-full py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 flex items-center justify-center gap-2">
+                <button onClick={handleRetry} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 flex items-center justify-center gap-2">
                   <RefreshCw className="w-4 h-4" /> Tentar Novamente
                 </button>
-                <button 
-                  onClick={() => {
-                    setUiStatus('connected');
-                    setWhatsAppConnected(clinicId, true, '', '5511999999999');
-                    if (onStatusChange) onStatusChange(true);
-                    setDeviceInfo({ name: 'WhatsApp Demo', platform: 'Modo Simulação', lastSync: new Date().toLocaleString('pt-BR') });
-                    toast('Modo demo ativado!', 'info');
-                  }}
-                  className="w-full py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2"
-                >
-                  <Smartphone className="w-4 h-4" /> Usar Modo Demo
+                <button onClick={onClose} className="w-full py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">
+                  Fechar
                 </button>
               </div>
             </div>
@@ -339,15 +304,19 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
           {/* QR CODE */}
           {uiStatus === 'qr' && qrCode && (
             <div className="text-center">
-              <p className="text-slate-600 mb-4">Escaneie o QR Code com o WhatsApp no seu celular</p>
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-4 inline-block mb-4">
+              <p className="text-slate-600 mb-4 font-medium text-sm">Escaneie o QR Code abaixo:</p>
+              <div className="bg-white border-4 border-slate-100 rounded-3xl p-6 inline-block mb-4 shadow-inner">
                 <img src={qrCode} alt="WhatsApp QR Code" className="w-64 h-64 mx-auto" />
               </div>
-              <div className="flex items-center justify-center gap-2 text-sm text-slate-500 mb-4">
-                <Clock className="w-4 h-4" />
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-400 mb-6 bg-slate-50 py-2 rounded-full w-fit mx-auto px-4">
+                <Clock className="w-3 h-3" />
                 <span>Expira em {countdown}s</span>
               </div>
-              <button onClick={handleRetry} className="flex items-center justify-center gap-2 text-green-600 hover:text-green-700 font-medium mx-auto mb-4">
+              
+              <button 
+                onClick={handleRetry} 
+                className="flex items-center justify-center gap-2 text-green-600 hover:text-green-700 font-bold mx-auto mb-6 text-sm py-2 px-4 rounded-xl hover:bg-green-50 transition-all"
+              >
                 <RefreshCw className="w-4 h-4" /> Gerar novo QR Code
               </button>
               <div className="mt-6 pt-6 border-t border-slate-100">
@@ -508,57 +477,78 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
 }
 
 // ============================================
-// Main WhatsApp Integration Component
+// Main WhatsApp Integration Component (Summary View)
 // ============================================
 export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: { clinicId?: string, onStatusChange?: (connected: boolean) => void }) {
   const [showModal, setShowModal] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<{ name: string; platform: string; lastSync: string } | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
 
-  // Usar o store multi-tenant para status por clínica
-  const whatsappIntegrations = useClinicStore(s => s.whatsappIntegrations);
+  // Store for global status
   const setWhatsAppConnected = useClinicStore(s => s.setWhatsAppConnected);
-  const isConnected = useMemo(() => {
-    const status = whatsappIntegrations[clinicId];
-    return status?.connected || false;
-  }, [whatsappIntegrations, clinicId]);
 
-  // Verificar status ao carregar (sem backend, usa estado local)
-  useEffect(() => {
-    // Sem backend, usa o estado local do store
-    const status = whatsappIntegrations[clinicId];
-    if (status?.connected) {
-      setDeviceInfo({
-        name: status.phoneNumber || 'WhatsApp Web',
-        platform: 'Navegador',
-        lastSync: status.lastSync || new Date().toLocaleString('pt-BR'),
+  const checkStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
       });
+      const data = await res.json();
+      
+      const connected = data.status === 'connected';
+      setIsConnected(connected);
+      setWhatsAppConnected(clinicId, connected);
+      
+      if (connected) {
+        setDeviceInfo({
+          name: data.phoneNumber || 'WhatsApp Web',
+          platform: 'API Render',
+          lastSync: new Date().toLocaleString('pt-BR'),
+        });
+      } else {
+        setDeviceInfo(null);
+      }
+      
+      if (onStatusChange) onStatusChange(connected);
+    } catch (err) {
+      console.error('[WhatsApp] Status check failed:', err);
+    } finally {
+      setIsChecking(false);
     }
-    setIsChecking(false);
-  }, [clinicId, whatsappIntegrations]);
+  }, [clinicId, setWhatsAppConnected, onStatusChange]);
+
+  useEffect(() => {
+    checkStatus();
+    // Poll status every 30 seconds to keep UI fresh
+    const interval = setInterval(checkStatus, 30000);
+    return () => clearInterval(interval);
+  }, [checkStatus]);
 
   const handleConnect = () => {
-    // Simular conexão (sem backend)
-    setWhatsAppConnected(clinicId, true, '', '5511999999999');
-    if (onStatusChange) onStatusChange(true);
-    setDeviceInfo({ name: 'WhatsApp Web', platform: 'Navegador', lastSync: new Date().toLocaleString('pt-BR') });
+    checkStatus();
     setShowModal(false);
-    toast('WhatsApp conectado!', 'success');
   };
 
-  const handleDisconnect = () => {
-    // Simular desconexão (sem backend)
-    setWhatsAppConnected(clinicId, false);
-    if (onStatusChange) onStatusChange(false);
-    setDeviceInfo(null);
-    toast('WhatsApp desconectado.', 'info');
+  const handleDisconnect = async () => {
+    try {
+      await fetch(`${API_BASE}/api/whatsapp/disconnect/${clinicId}`, {
+        method: 'POST',
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      setIsConnected(false);
+      setWhatsAppConnected(clinicId, false);
+      setDeviceInfo(null);
+      toast('WhatsApp desconectado.', 'info');
+    } catch (err) {
+      toast('Erro ao desconectar.', 'error');
+    }
   };
 
   if (isChecking) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
-        <span className="ml-2 text-slate-500">Verificando conexão...</span>
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
+        <span className="ml-3 text-slate-500 font-medium">Sincronizando com Render...</span>
       </div>
     );
   }
@@ -567,48 +557,62 @@ export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: {
     <div className="space-y-4">
       {!isConnected ? (
         <div className="text-center py-8">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-20 h-20 bg-green-100 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
             <Smartphone className="w-10 h-10 text-green-600" />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">WhatsApp Business</h3>
-          <p className="text-slate-500 text-sm mb-6 max-w-xs mx-auto">
-            Conecte sua conta do WhatsApp Business para enviar mensagens e campanhas diretamente pelo sistema.
+          <h3 className="text-xl font-bold text-slate-900 mb-2">WhatsApp Business API</h3>
+          <p className="text-slate-500 text-sm mb-8 max-w-xs mx-auto">
+            Conecte sua conta via API profissional para automação de mensagens e confirmações.
           </p>
-          <button onClick={() => setShowModal(true)} className="px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 flex items-center gap-2 mx-auto">
-            <Link2 className="w-5 h-5" /> Conectar WhatsApp
+          <button 
+            onClick={() => setShowModal(true)} 
+            className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-2xl hover:scale-105 transition-all flex items-center gap-3 mx-auto shadow-lg shadow-green-200"
+          >
+            <Link2 className="w-5 h-5" /> Conectar Agora
           </button>
-          <p className="text-xs text-slate-400 mt-4">QR Code real do WhatsApp Web</p>
         </div>
       ) : (
         <div className="py-4">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl flex items-center justify-center text-white">
-              <Smartphone className="w-7 h-7" />
+          <div className="flex items-center gap-5 mb-8 bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
+            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-md">
+              <Smartphone className="w-8 h-8" />
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-slate-900">WhatsApp Business</h3>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Conectado</span>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-slate-900 text-lg">WhatsApp API</h3>
+                <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500 text-white animate-pulse">
+                  <Wifi className="w-3 h-3" /> ONLINE
+                </span>
               </div>
-              {deviceInfo && <p className="text-sm text-slate-500">{deviceInfo.name} • {deviceInfo.platform}</p>}
+              {deviceInfo && <p className="text-sm text-slate-600 font-medium">{deviceInfo.name}</p>}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs text-slate-400 font-medium">Última Sincronização</p>
-              <p className="text-sm font-bold text-slate-900">{deviceInfo?.lastSync || '-'}</p>
+
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Tipo de Conexão</p>
+              <p className="text-sm font-bold text-slate-800">API Headless (Render)</p>
             </div>
-            <div className="bg-slate-50 rounded-xl p-4">
-              <p className="text-xs text-slate-400 font-medium">Status</p>
-              <p className="text-sm font-bold text-emerald-600">Online</p>
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Segurança</p>
+              <p className="text-sm font-bold text-emerald-600 flex items-center gap-1">
+                <Shield className="w-3 h-3" /> Ponta-a-Ponta
+              </p>
             </div>
           </div>
-          <div className="space-y-2">
-            <button onClick={() => setShowModal(true)} className="w-full py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 flex items-center justify-center gap-2">
-              <RefreshCw className="w-4 h-4" /> Reconectar
+
+          <div className="space-y-3">
+            <button 
+              onClick={() => setShowModal(true)} 
+              className="w-full py-4 bg-white border-2 border-slate-100 text-slate-700 font-bold rounded-2xl text-sm hover:bg-slate-50 flex items-center justify-center gap-2 transition-all"
+            >
+              <RefreshCw className="w-4 h-4" /> Alterar Aparelho
             </button>
-            <button onClick={handleDisconnect} className="w-full py-2.5 bg-red-50 text-red-600 font-bold rounded-xl text-sm hover:bg-red-100 flex items-center justify-center gap-2">
-              <X className="w-4 h-4" /> Desconectar
+            <button 
+              onClick={handleDisconnect} 
+              className="w-full py-4 text-red-500 font-bold rounded-2xl text-sm hover:bg-red-50 flex items-center justify-center gap-2 transition-all"
+            >
+              <X className="w-4 h-4" /> Desconectar Conta
             </button>
           </div>
         </div>
