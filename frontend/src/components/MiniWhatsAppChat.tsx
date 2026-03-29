@@ -243,14 +243,40 @@ export function MiniWhatsAppChat({
     }
   };
 
+  // Fetch messages
+  const fetchMessages = useCallback(async () => {
+    try {
+      const phoneForApi = patientPhone.replace(/\D/g, '');
+      const res = await fetch(`${API_BASE}/api/whatsapp/messages/${clinicId}/${phoneForApi}`);
+      const data = await res.json();
+      
+      if (data.messages && data.messages.length > 0) {
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = data.messages.filter((m: Message) => !existingIds.has(m.id));
+          if (newMessages.length > 0) {
+            return [...prev, ...newMessages];
+          }
+          return prev;
+        });
+      }
+    } catch (error) {
+      console.error('[WhatsApp] Fetch messages error:', error);
+    }
+  }, [clinicId, patientPhone]);
+
   // Initialize
   useEffect(() => {
     if (isOpen) {
       checkConnection();
+      fetchMessages();
       inputRef.current?.focus();
       
       // Check connection every 30 seconds
-      pollingRef.current = setInterval(checkConnection, 30000);
+      pollingRef.current = setInterval(() => {
+        checkConnection();
+        fetchMessages();
+      }, 5000);
     }
     
     return () => {
@@ -258,7 +284,7 @@ export function MiniWhatsAppChat({
         clearInterval(pollingRef.current);
       }
     };
-  }, [isOpen, checkConnection]);
+  }, [isOpen, checkConnection, fetchMessages]);
 
   // Generate quick message templates
   const sendQuickMessage = async (type: 'confirm' | 'cancel' | 'reminder' | 'reschedule') => {

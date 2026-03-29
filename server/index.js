@@ -113,9 +113,36 @@ const createWhatsAppSocket = async (clinicId) => {
           whatsappConnections[clinicId] = { 
             status: 'connected', 
             connected: true,
-            phoneNumber: sock.user.id.split(':')[0]
+            phoneNumber: sock.user.id.split(':')[0],
+            messages: []
           };
           addLog(`[Baileys] Conexão ABERTA para ${clinicId} (${sock.user.id})`);
+        }
+      });
+
+      // Listen for incoming messages
+      sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify') return;
+        
+        for (const msg of messages) {
+          if (!msg.key.fromMe && msg.message?.conversation) {
+            const from = msg.key.remoteJid;
+            const text = msg.message.conversation;
+            
+            addLog(`[Baileys] Mensagem recebida de ${from}: ${text.substring(0, 30)}...`);
+            
+            // Store received message
+            if (!whatsappConnections[clinicId].messages) {
+              whatsappConnections[clinicId].messages = [];
+            }
+            whatsappConnections[clinicId].messages.push({
+              id: msg.key.id,
+              key: from,
+              text: text,
+              fromMe: false,
+              timestamp: msg.messageTimestamp * 1000
+            });
+          }
         }
       });
 
@@ -226,9 +253,43 @@ app.post('/api/whatsapp/send', async (req, res) => {
     addLog(`[API] Enviando para ${jid}...`);
     const result = await sock.sendMessage(jid, { text: message });
     
+    // Store sent message
+    if (!whatsappConnections[clinicId].messages) {
+      whatsappConnections[clinicId].messages = [];
+    }
+    whatsappConnections[clinicId].messages.push({
+      id: result.key.id,
+      key: jid,
+      text: message,
+      fromMe: true,
+      timestamp: Date.now()
+    });
+    
     res.json({ ok: true, messageId: result.key.id });
   } catch (error) {
     addLog(`[API] Erro ao enviar: ${error.message}`);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Get messages for a specific phone
+app.get('/api/whatsapp/messages/:clinicId/:phone', async (req, res) => {
+  const { clinicId, phone } = req.params;
+  
+  try {
+    const conn = whatsappConnections[clinicId];
+    if (!conn || !conn.messages) {
+      return res.json({ ok: true, messages: [] });
+    }
+    
+    // Filter messages for this phone
+    const cleanPhone = phone.replace(/\D/g, '');
+    const messages = conn.messages.filter(m => 
+      m.key.includes(cleanPhone) || m.key.includes(`${cleanPhone}@s.whatsapp.net`)
+    );
+    
+    res.json({ ok: true, messages });
+  } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
