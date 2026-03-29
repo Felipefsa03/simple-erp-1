@@ -16,8 +16,8 @@ const app = express();
 const PORT = process.env.PORT || 8787;
 
 // Supabase configuration
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_URL_PROD || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PROD || '';
 
 app.use(cors());
 app.use(express.json());
