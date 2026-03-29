@@ -276,7 +276,6 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
               )}
               title="WhatsApp Web"
               allow="microphone; camera; clipboard-write; display-capture; fullscreen; encrypted-media"
-              sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals allow-downloads allow-top-navigation"
               onLoad={handleIframeLoad}
               onError={handleIframeError}
             />

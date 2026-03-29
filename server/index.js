@@ -49,7 +49,19 @@ app.get('/api/whatsapp/debug', (req, res) => {
 // Proxy to bypass X-Frame-Options for WhatsApp (Use with caution)
 app.get('/api/whatsapp/proxy', async (req, res) => {
   try {
-    const response = await fetch('https://web.whatsapp.com');
+    // Forward the user agent from the client or use a standard modern one
+    const userAgent = req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
+    const response = await fetch('https://web.whatsapp.com', {
+      headers: {
+        'User-Agent': userAgent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+      }
+    });
+
+    if (!response.ok) throw new Error(`Status: ${response.status}`);
+
     const body = await response.text();
     
     // Remove security headers that prevent framing
@@ -61,7 +73,8 @@ app.get('/api/whatsapp/proxy', async (req, res) => {
     
     res.send(modifiedBody);
   } catch (error) {
-    res.status(500).send('Proxy error');
+    addLog(`[Proxy] Erro ao buscar WhatsApp: ${error.message}`);
+    res.status(500).send(`Proxy error: ${error.message}`);
   }
 });
 
