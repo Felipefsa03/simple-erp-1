@@ -10,6 +10,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "server": "node server/index.js",
+    "start": "node server/index.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",

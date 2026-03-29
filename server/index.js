@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 const app = express();
-const PORT = 8787;
+const PORT = process.env.PORT || 8787;
 
 app.use(cors({
   origin: '*',
