@@ -3,6 +3,7 @@ import cors from 'cors';
 import { useMultiFileAuthState, makeWASocket, DisconnectReason } from 'baileys';
 import { Boom } from '@hapi/boom';
 import path from 'path';
+import fs from 'fs';
 import pino from 'pino';
 
 const app = express();
