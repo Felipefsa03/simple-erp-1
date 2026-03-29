@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
+import { useWhatsAppSync } from '@/hooks/useWhatsAppSync';
 
 const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || '');
@@ -130,6 +131,16 @@ export function MiniWhatsAppChat({
   const inputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Auto-sync WhatsApp when chat is opened
+  const { syncStatus } = useWhatsAppSync(clinicId, (connected) => {
+    setConnectionStatus(connected ? 'connected' : 'disconnected');
+  });
+
+  // Manual sync function for button click
+  const handleManualSync = useCallback(() => {
+    syncStatus();
+  }, [syncStatus]);
+
   const sendTextToWhatsApp = useCallback(async (
     text: string,
     options?: {
@@ -216,24 +227,6 @@ export function MiniWhatsAppChat({
     }
   }, [clinicId, patientPhone, isSending]);
 
-  // Check WhatsApp connection status
-  const checkConnection = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
-      });
-      const data = await response.json();
-      
-      if (data.status === 'connected') {
-        setConnectionStatus('connected');
-      } else {
-        setConnectionStatus('disconnected');
-      }
-    } catch (error) {
-       setConnectionStatus('disconnected');
-    }
-  }, [clinicId]);
-
   // Send message via Baileys
   const sendMessageToWhatsApp = useCallback(async () => {
     await sendTextToWhatsApp(message, { clearComposer: true });
@@ -277,13 +270,11 @@ export function MiniWhatsAppChat({
   // Initialize
   useEffect(() => {
     if (isOpen) {
-      checkConnection();
       fetchMessages();
       inputRef.current?.focus();
       
-      // Check connection every 30 seconds
+      // Fetch messages periodically
       pollingRef.current = setInterval(() => {
-        checkConnection();
         fetchMessages();
       }, 5000);
     }
@@ -293,7 +284,7 @@ export function MiniWhatsAppChat({
         clearInterval(pollingRef.current);
       }
     };
-  }, [isOpen, checkConnection, fetchMessages]);
+  }, [isOpen, fetchMessages]);
 
   // Generate quick message templates
   const sendQuickMessage = async (type: 'confirm' | 'cancel' | 'reminder' | 'reschedule') => {
@@ -508,7 +499,7 @@ export function MiniWhatsAppChat({
               <div className="mt-2 text-center">
                 <p className="text-xs text-slate-500">
                   <button 
-                    onClick={checkConnection}
+                    onClick={handleManualSync}
                     className="text-green-600 hover:underline"
                   >
                     Clique aqui para verificar conexão

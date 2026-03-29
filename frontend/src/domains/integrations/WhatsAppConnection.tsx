@@ -593,9 +593,22 @@ export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: {
 
   useEffect(() => {
     checkStatus();
-    // Poll status every 30 seconds to keep UI fresh
+    // Poll status more frequently during first 10 seconds to establish connection
+    let pollCount = 0;
+    const fastPoll = setInterval(() => {
+      pollCount++;
+      if (pollCount < 10) {
+        checkStatus();
+      } else {
+        clearInterval(fastPoll);
+      }
+    }, 2000);
+    // Then poll every 30 seconds to keep UI fresh
     const interval = setInterval(checkStatus, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(fastPoll);
+      clearInterval(interval);
+    };
   }, [checkStatus]);
 
   const handleConnect = () => {
