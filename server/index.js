@@ -8,11 +8,16 @@ import QRCode from 'qrcode';
 import makeWASocket, { 
   DisconnectReason, 
   useMultiFileAuthState, 
-  fetchLatestBaileysVersion 
+  fetchLatestBaileysVersion,
+  BufferJSON 
 } from 'baileys';
 
 const app = express();
 const PORT = process.env.PORT || 8787;
+
+// Supabase configuration
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 
 app.use(cors());
 app.use(express.json());
@@ -32,13 +37,128 @@ const addLog = (msg) => {
   console.log(`[${timestamp}] ${msg}`);
 };
 
-// Ensure auth directories exist
+// Ensure auth directories exist (fallback for local dev)
 const ensureClinicStatus = (clinicId) => {
   const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
   if (!fs.existsSync(authDir)) {
     fs.mkdirSync(authDir, { recursive: true });
   }
   return authDir;
+};
+
+// Supabase helpers for WhatsApp credentials
+const saveCredentialsToSupabase = async (clinicId, credentials) => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.log('[Supabase] Credenciais não configuradas, usando arquivo local');
+    return false;
+  }
+  
+  try {
+    // First try to update, if not exists then insert
+    const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        credentials: JSON.stringify(credentials, BufferJSON.replacer),
+        updated_at: new Date().toISOString()
+      })
+    });
+    
+    if (updateRes.ok && updateRes.status !== 404) {
+      console.log('[Supabase] Credenciais atualizadas para', clinicId);
+      return true;
+    }
+    
+    // If no update happened, insert new
+    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        clinic_id: clinicId,
+        credentials: JSON.stringify(credentials, BufferJSON.replacer),
+        connected_at: new Date().toISOString()
+      })
+    });
+    
+    console.log('[Supabase] Credenciais salvas para', clinicId);
+    return insertRes.ok;
+  } catch (error) {
+    console.error('[Supabase] Erro ao salvar credenciais:', error.message);
+    return false;
+  }
+};
+
+const loadCredentialsFromSupabase = async (clinicId) => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.log('[Supabase] Credenciais não configuradas');
+    return null;
+  }
+  
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}&select=credentials`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    
+    if (!res.ok) return null;
+    
+    const data = await res.json();
+    if (data && data.length > 0 && data[0].credentials) {
+      console.log('[Supabase] Credenciais carregadas para', clinicId);
+      return JSON.parse(data[0].credentials, BufferJSON.reviver);
+    }
+    return null;
+  } catch (error) {
+    console.error('[Supabase] Erro ao carregar credenciais:', error.message);
+    return null;
+  }
+};
+
+// Custom auth state that uses Supabase
+const useSupabaseAuthState = (clinicId) => {
+  let credentials = null;
+  let saveCount = 0;
+  
+  return {
+    state: {
+      creds: credentials,
+      keys: {
+        get: async (type, ids) => {
+          const data = await loadCredentialsFromSupabase(clinicId);
+          if (data && data.keys) {
+            return data.keys[type] || {};
+          }
+          return {};
+        },
+        set: async (type, data) => {
+          const current = await loadCredentialsFromSupabase(clinicId) || {};
+          const updated = { ...current, keys: { ...(current.keys || {}), [type]: data } };
+          await saveCredentialsToSupabase(clinicId, updated);
+        }
+      }
+    },
+    saveCreds: async () => {
+      saveCount++;
+      // Save periodically (every 5 saves) to avoid too many DB calls
+      if (saveCount % 5 === 0) {
+        const credsToSave = { ...whatsappConnections[clinicId]?.creds };
+        const current = await loadCredentialsFromSupabase(clinicId) || {};
+        await saveCredentialsToSupabase(clinicId, { ...current, creds: credsToSave });
+      }
+    }
+  };
 };
 
 // Status cache for quick retrieval
@@ -57,11 +177,26 @@ const createWhatsAppSocket = async (clinicId) => {
 
   const connect = async () => {
     try {
-      const authDir = ensureClinicStatus(clinicId);
       const { version, isLatest } = await fetchLatestBaileysVersion();
       addLog(`[Baileys] Usando versão WA v${version.join('.')}, isLatest: ${isLatest}`);
 
-      const { state, saveCreds } = await useMultiFileAuthState(authDir);
+      // Try to load credentials from Supabase first
+      let state, saveCreds;
+      const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
+      
+      if (supabaseCreds) {
+        addLog(`[Baileys] Carregando credenciais do Supabase para ${clinicId}`);
+        const supabaseAuth = useSupabaseAuthState(clinicId);
+        state = supabaseAuth.state;
+        saveCreds = supabaseAuth.saveCreds;
+      } else {
+        // Fallback to local file system
+        addLog(`[Baileys] Usando arquivo local para ${clinicId}`);
+        const authDir = ensureClinicStatus(clinicId);
+        const fileAuth = await useMultiFileAuthState(authDir);
+        state = fileAuth.state;
+        saveCreds = fileAuth.saveCreds;
+      }
       
       const logger = pino({ level: 'error' }); // Less noisy for prod
       addLog(`[Baileys] Iniciando conexão para ${clinicId}...`);
@@ -117,6 +252,13 @@ const createWhatsAppSocket = async (clinicId) => {
             messages: []
           };
           addLog(`[Baileys] Conexão ABERTA para ${clinicId} (${sock.user.id})`);
+          
+          // Save credentials to Supabase when connected
+          const creds = sock.authState?.creds;
+          if (creds) {
+            await saveCredentialsToSupabase(clinicId, { creds, keys: {} });
+            addLog(`[Baileys] Credenciais salvas no Supabase para ${clinicId}`);
+          }
         }
       });
 

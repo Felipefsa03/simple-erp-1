@@ -3,6 +3,17 @@
 -- Execute DEPOIS do Bloco 1
 -- ============================================
 
+-- Credenciais do WhatsApp (armazenadas no perfil da empresa)
+CREATE TABLE IF NOT EXISTS whatsapp_credentials (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    clinic_id TEXT NOT NULL UNIQUE,
+    credentials JSONB NOT NULL,
+    connected_at TIMESTAMPTZ DEFAULT NOW(),
+    last_sync TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Clínicas
 CREATE TABLE IF NOT EXISTS clinics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
