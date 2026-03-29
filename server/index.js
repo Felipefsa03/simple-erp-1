@@ -1,12 +1,46 @@
+import express from 'express';
+import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import pino from 'pino';
+import { Boom } from '@hapi/boom';
 import QRCode from 'qrcode';
+import makeWASocket, { 
+  DisconnectReason, 
+  useMultiFileAuthState, 
+  fetchLatestBaileysVersion 
+} from 'baileys';
+
+const app = express();
+const PORT = process.env.PORT || 8787;
+
+app.use(cors());
+app.use(express.json());
+
+// Helper for logs
+const addLog = (msg) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${msg}`);
+};
+
+// Ensure auth directories exist
+const ensureClinicStatus = (clinicId) => {
+  const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
+  if (!fs.existsSync(authDir)) {
+    fs.mkdirSync(authDir, { recursive: true });
+  }
+  return authDir;
+};
 
 // Status cache for quick retrieval
 const whatsappConnections = {};
 const whatsappSockets = {};
 
-// ... logging stays the same ...
-
-// REMOVED: app.get('/api/whatsapp/proxy*', ...) - Iframe is dead.
+// Singleton socket manager
+const ensureSocketConnected = async (clinicId) => {
+  if (whatsappSockets[clinicId]) return whatsappSockets[clinicId];
+  return await createWhatsAppSocket(clinicId);
+};
 
 // Updated QR generation to support Base64
 const createWhatsAppSocket = async (clinicId) => {
