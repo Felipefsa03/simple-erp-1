@@ -79,6 +79,7 @@ export function SystemWhatsAppConfig() {
     }
   }, [setSystemWhatsApp]);
 
+  // --- Poll backend status ---
   const startPolling = useCallback(() => {
     if (pollingRef.current) clearInterval(pollingRef.current);
 
@@ -91,42 +92,37 @@ export function SystemWhatsAppConfig() {
         if (!res.ok) return;
         const data = await res.json();
 
-        if (data.status === 'connected' || data.status === 'conectado' || data.status === 'Connected') {
+        if (data.status === 'connected') {
           stopTimers();
           setUiStatus('connected');
           setQrCode(null);
-          if (data.deviceInfo) {
-            setDeviceInfo({
-              name: data.deviceInfo.name || data.deviceInfo.nome || 'WhatsApp Web',
-              id: data.deviceInfo.id || '',
-              platform: data.deviceInfo.platform || data.deviceInfo.plataforma || 'Web',
-            });
-          }
+          setDeviceInfo({
+            name: data.phoneNumber || 'WhatsApp Web',
+            id: '',
+            platform: 'API Render',
+          });
           if (!connectedNotifiedRef.current) {
             connectedNotifiedRef.current = true;
             setSystemWhatsApp(true);
-            toast('WhatsApp do Sistema conectado com sucesso!', 'success');
+            toast('WhatsApp do Sistema conectado!', 'success');
           }
           return;
         }
 
-        if (data.status === 'waiting_scan' && data.qrCode) {
-          setQrCode(data.qrCode);
-          setUiStatus('qr');
-          if (!countdownRef.current) startCountdown();
+        if ((data.status === 'qr' || data.status === 'waiting_scan')) {
+          const imgSource = data.qrBase64 || (data.qrCode?.startsWith('data:image') ? data.qrCode : null);
+          if (imgSource) {
+            setQrCode(imgSource);
+            setUiStatus('qr');
+            if (!countdownRef.current) startCountdown();
+          }
           return;
         }
 
         if (data.status === 'error') {
           stopTimers();
           setUiStatus('error');
-          setErrorMsg(data.errorMsg || 'Erro desconhecido no servidor');
-          return;
-        }
-
-        if (data.status === 'logged_out' || data.status === 'not_connected') {
-          stopTimers();
-          setUiStatus('disconnected');
+          setErrorMsg(data.error || 'Erro no servidor');
           return;
         }
       } catch (err) {
@@ -135,7 +131,7 @@ export function SystemWhatsAppConfig() {
     };
 
     poll();
-    pollingRef.current = setInterval(poll, 5000);
+    pollingRef.current = setInterval(poll, 3000);
   }, [stopTimers, startCountdown, setSystemWhatsApp]);
 
   // --- Initiate connection ---
@@ -146,29 +142,15 @@ export function SystemWhatsAppConfig() {
     connectedNotifiedRef.current = false;
 
     try {
-      const res = await fetch(`${API_BASE}/api/whatsapp/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID }),
+      // Just check status - backend triggers auto-connect
+      const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
       });
       const data = await res.json();
 
-      if (data.ok === false || data.success === false) {
-        setUiStatus('error');
-        setErrorMsg(data.message || 'Falha ao iniciar conexão');
-        return;
-      }
-
-      if (data.qrCode) {
-        setQrCode(data.qrCode);
-        setUiStatus('qr');
-        startCountdown();
-      }
-
-      if (data.status === 'connected' || data.status === 'conectado' || data.status === 'Connected') {
+      if (data.status === 'connected') {
         setUiStatus('connected');
         setSystemWhatsApp(true);
-        toast('WhatsApp do Sistema já conectado!', 'success');
         return;
       }
 
@@ -176,9 +158,9 @@ export function SystemWhatsAppConfig() {
     } catch (err: any) {
       console.error('[WhatsApp Sistema] initiate error:', err);
       setUiStatus('error');
-      setErrorMsg('Não foi possível conectar ao backend. Verifique se está rodando na porta 8787.');
+      setErrorMsg('Servidor offline ou erro de conexão.');
     }
-  }, [startPolling, startCountdown, setSystemWhatsApp]);
+  }, [startPolling, setSystemWhatsApp]);
 
   // --- Auto-start when modal opens ---
   useEffect(() => {

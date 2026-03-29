@@ -97,12 +97,15 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
         }
 
         // QR CODE AVAILABLE
-        if ((data.status === 'waiting_scan' || data.status === 'qr') && data.qrBase64) {
-          setQrCode(data.qrBase64);
-          setUiStatus('qr');
-          setPairingCode(null);
-          if (!countdownRef.current) {
-            startCountdown();
+        if ((data.status === 'qr' || data.status === 'waiting_scan')) {
+          const imgSource = data.qrBase64 || (data.qrCode?.startsWith('data:image') ? data.qrCode : null);
+          if (imgSource) {
+            setQrCode(imgSource);
+            setUiStatus('qr');
+            setPairingCode(null);
+            if (!countdownRef.current) {
+              startCountdown();
+            }
           }
           return;
         }

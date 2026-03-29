@@ -93,9 +93,20 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   
   if (whatsappConnections[clinicId]) {
     const conn = whatsappConnections[clinicId];
+    
+    // Force generation of Base64 if missing but raw QR exists
+    if (conn.qr && !conn.qrBase64) {
+      try {
+        conn.qrBase64 = await QRCode.toDataURL(conn.qr);
+      } catch (e) {
+        console.error('QR Generate Error:', e);
+      }
+    }
+
     return res.json({ 
       ok: true, 
-      ...conn 
+      ...conn,
+      qrCode: conn.qrBase64 // Retrocompatibilidade
     });
   }
   
