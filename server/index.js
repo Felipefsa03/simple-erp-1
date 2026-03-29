@@ -136,8 +136,9 @@ const loadCredentialsFromSupabase = async (clinicId) => {
 };
 
 // Custom auth state that uses Supabase
-const useSupabaseAuthState = (clinicId) => {
-  let credentials = null;
+const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
+  let credentials = initialCredentials?.creds || null;
+  let keys = initialCredentials?.keys || {};
   let saveCount = 0;
   
   return {
@@ -145,26 +146,30 @@ const useSupabaseAuthState = (clinicId) => {
       creds: credentials,
       keys: {
         get: async (type, ids) => {
+          if (keys && keys[type]) {
+            return keys[type];
+          }
           const data = await loadCredentialsFromSupabase(clinicId);
           if (data && data.keys) {
+            keys = data.keys;
             return data.keys[type] || {};
           }
           return {};
         },
         set: async (type, data) => {
+          keys = { ...keys, [type]: data };
           const current = await loadCredentialsFromSupabase(clinicId) || {};
-          const updated = { ...current, keys: { ...(current.keys || {}), [type]: data } };
-          await saveCredentialsToSupabase(clinicId, updated);
+          await saveCredentialsToSupabase(clinicId, { ...current, keys });
         }
       }
     },
     saveCreds: async () => {
       saveCount++;
-      // Save periodically (every 5 saves) to avoid too many DB calls
-      if (saveCount % 5 === 0) {
-        const credsToSave = { ...whatsappConnections[clinicId]?.creds };
+      // Save every time for now to ensure persistence
+      const credsToSave = credentials || whatsappConnections[clinicId]?.creds;
+      if (credsToSave) {
         const current = await loadCredentialsFromSupabase(clinicId) || {};
-        await saveCredentialsToSupabase(clinicId, { ...current, creds: credsToSave });
+        await saveCredentialsToSupabase(clinicId, { ...current, creds: credsToSave, keys });
       }
     }
   };
@@ -193,9 +198,9 @@ const createWhatsAppSocket = async (clinicId) => {
       let state, saveCreds;
       const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
       
-      if (supabaseCreds) {
+      if (supabaseCreds && supabaseCreds.creds) {
         addLog(`[Baileys] Carregando credenciais do Supabase para ${clinicId}`);
-        const supabaseAuth = useSupabaseAuthState(clinicId);
+        const supabaseAuth = useSupabaseAuthState(clinicId, supabaseCreds);
         state = supabaseAuth.state;
         saveCreds = supabaseAuth.saveCreds;
       } else {
