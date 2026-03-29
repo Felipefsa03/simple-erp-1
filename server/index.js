@@ -9,6 +9,15 @@ import pino from 'pino';
 const app = express();
 const PORT = process.env.PORT || 8787;
 
+// For debugging in Cloud environments
+const serverLogs = [];
+const addLog = (msg) => {
+  const log = `[${new Date().toISOString()}] ${msg}`;
+  console.log(log);
+  serverLogs.push(log);
+  if (serverLogs.length > 100) serverLogs.shift();
+};
+
 app.use(cors({
   origin: '*',
   optionsSuccessStatus: 200,
@@ -32,6 +41,20 @@ app.use(express.json());
 const whatsappSockets = {};
 const whatsappConnections = {};
 
+// Debug endpoint to see server logs
+app.get('/api/whatsapp/debug', (req, res) => {
+  res.json({ logs: serverLogs });
+});
+
+// Clinic status initialization helper
+const ensureClinicStatus = (clinicId) => {
+  const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
+  if (!fs.existsSync(authDir)) {
+    fs.mkdirSync(authDir, { recursive: true });
+  }
+  return authDir;
+};
+
 const getAuthFolder = (clinicId) => {
   const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
   if (!fs.existsSync(authDir)) {
@@ -52,17 +75,19 @@ const createWhatsAppSocket = async (clinicId) => {
     // Pino is the recommended logger for Baileys, especially in cloud environments
     const logger = pino({ level: 'debug' });
     
+    addLog(`[Baileys] Inicianizando socket para ${clinicId}...`);
+    
     const sock = makeWASocket({
       auth: state,
-      printQRInTerminal: true,
-      browser: ['LuminaFlow', 'Chrome', '121.0'], // Updated browser string
-      connectTimeoutMs: 60000,
-      keepAliveIntervalMs: 30000,
+      printQRInTerminal: false,
+      browser: ['Ubuntu', 'Chrome', '121.0.6167.184'], // More common signature
+      connectTimeoutMs: 120000, // 2 minutes
+      keepAliveIntervalMs: 60000,
       logger: logger,
       emitOwnEvents: true,
       agent: undefined,
       TLSConfig: {},
-      phoneResponseTime: 60000,
+      phoneResponseTime: 90000,
       waitForConnection: true,
       markOnlineOnConnect: true,
       options: {
@@ -75,63 +100,45 @@ const createWhatsAppSocket = async (clinicId) => {
       saveCreds();
     });
 
-    sock.ev.on('connection.update', async (update) => {
-      console.log('[Baileys] Connection update:', JSON.stringify({
-        connection: update.connection,
-        qr: !!update.qr,
-        lastDisconnect: update.lastDisconnect?.error?.message
-      }));
-      
-      const { connection, qr, lastDisconnect } = update;
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect, qr } = update;
       
       if (qr) {
-        console.log('[Baileys] QR Code received! Length:', qr.length);
-        whatsappConnections[clinicId] = {
-          status: 'qr',
-          qr: qr,
-          connected: false,
-          pairingCode: null
-        };
+        addLog(`[Baileys] QR Code gerado para ${clinicId}`);
+        whatsappSockets[clinicId].qr = qr;
+        whatsappSockets[clinicId].status = 'qr';
+        whatsappSockets[clinicId].message = 'QR Code gerado. Escaneie para conectar.';
       }
       
-      if (connection === 'open') {
-        console.log('[Baileys] Connected to WhatsApp!');
-        whatsappConnections[clinicId] = {
-          status: 'connected',
-          connected: true,
-          phoneNumber: sock.user?.id?.replace(':@s.whatsapp.net', '').replace('@s.whatsapp.net', ''),
-          qr: null,
-          pairingCode: null
-        };
-      }
-      
-      if (connection === 'close') {
-        const boomError = lastDisconnect?.error ? new Boom(lastDisconnect.error) : null;
-        const statusCode = boomError?.output?.statusCode;
-        const errorMessage = lastDisconnect?.error?.message || 'Conexão interrompida';
-        
-        console.log('[Baileys] Connection closed. Status:', statusCode, 'Error:', errorMessage);
-        
-        if (statusCode === DisconnectReason.loggedOut) {
-          console.log('[Baileys] Session logged out, resetting auth...');
-          delete whatsappConnections[clinicId];
-          const authDir = getAuthFolder(clinicId);
-          if (fs.existsSync(authDir)) {
-            fs.rmSync(authDir, { recursive: true, force: true });
-          }
-        } else {
-          whatsappConnections[clinicId] = {
-            status: 'error',
-            error: `Erro de conexão: ${errorMessage}`,
-            connected: false
-          };
-        }
+      if (connection === 'connecting') {
+        addLog(`[Baileys] Conectando ${clinicId}...`);
+        whatsappSockets[clinicId].status = 'connecting';
       }
 
-      if (!sock.authState.creds.registered) {
-        console.log('[Baileys] Device not registered yet');
-      } else {
-        console.log('[Baileys] Device already registered, waiting for connection...');
+      if (connection === 'open') {
+        addLog(`[Baileys] Conexão ABERTA para ${clinicId}`);
+        whatsappSockets[clinicId].status = 'connected';
+        whatsappSockets[clinicId].qr = null;
+        whatsappSockets[clinicId].message = 'Conectado com sucesso!';
+      }
+
+      if (connection === 'close') {
+        const statusCode = (lastDisconnect?.error)?.output?.statusCode || 0;
+        const reason = lastDisconnect?.error?.message || 'Motivo desconhecido';
+        addLog(`[Baileys] Conexão FECHADA para ${clinicId}. Razão: ${reason} (Código: ${statusCode})`);
+        
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        
+        if (shouldReconnect) {
+          whatsappSockets[clinicId].status = 'connecting';
+          whatsappSockets[clinicId].message = 'Conexão perdida. Tentando reconectar...';
+          addLog(`[Baileys] Tentando reconectar ${clinicId} em 5s...`);
+          setTimeout(() => createWhatsAppSocket(clinicId), 5000);
+        } else {
+          whatsappSockets[clinicId].status = 'disconnected';
+          whatsappSockets[clinicId].message = 'Sessão encerrada (Logout).';
+          delete whatsappSockets[clinicId];
+        }
       }
     });
 
