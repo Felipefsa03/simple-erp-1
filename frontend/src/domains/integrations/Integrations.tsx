@@ -19,6 +19,7 @@ import { AsaasConfig } from './AsaasConfig';
 import { GoogleCalendarConfig } from './GoogleCalendarConfig';
 import { GoogleAdsConfig } from './GoogleAdsConfig';
 import { EmailMarketingConfig } from './EmailMarketingConfig';
+import { useWhatsAppSync } from '@/hooks/useWhatsAppSync';
 
 interface Integration {
   id: string;
@@ -39,6 +40,9 @@ export function Integrations() {
   const [selectedClinicId, setSelectedClinicId] = useState<string>('clinic-1');
   
   const clinicId = selectedClinicId;
+
+  // Auto-sync WhatsApp on mount
+  useWhatsAppSync(clinicId);
   
   // Usar o store multi-tenant para WhatsApp por clínica
   // CORREÇÃO: Usar seletor estável para evitar loop infinito

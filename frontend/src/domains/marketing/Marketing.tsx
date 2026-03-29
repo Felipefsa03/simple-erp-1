@@ -8,6 +8,7 @@ import { toast, formatCurrency } from '@/hooks/useShared';
 import { Modal, LoadingButton } from '@/components/shared';
 import { integrationsApi } from '@/lib/integrationsApi';
 import { CampaignManager } from './CampaignManager';
+import { useWhatsAppSync } from '@/hooks/useWhatsAppSync';
 
 // The HTML Template provided by the user
 const generateEmailTemplate = (clinicName: string, whatsapp: string) => `
@@ -125,6 +126,11 @@ export function Marketing() {
   const { user, clinic } = useAuth();
   const { patients, appointments, transactions, leads, funnelStages, automationRules, addLead, moveLeadStage, addAutomationRule } = useClinicStore();
   const clinicId = 'clinic-1';
+
+  // Auto-sync WhatsApp on mount
+  const { syncStatus } = useWhatsAppSync(clinicId, (connected) => {
+    setWhatsAppSessionActive(connected);
+  });
 
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'insights' | 'crm'>('overview');
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);

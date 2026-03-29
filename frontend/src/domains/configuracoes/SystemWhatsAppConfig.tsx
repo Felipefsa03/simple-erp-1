@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/useShared';
+import { useWhatsAppSync } from '@/hooks/useWhatsAppSync';
 
 const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || '');
@@ -28,6 +29,14 @@ export function SystemWhatsAppConfig() {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const didInitRef = useRef(false);
+
+  // Auto-sync WhatsApp on mount
+  useWhatsAppSync(SYSTEM_CLINIC_ID, (connected) => {
+    if (connected && !didInitRef.current) {
+      didInitRef.current = true;
+      startPolling();
+    }
+  });
   const connectedNotifiedRef = useRef(false);
 
   // Só Super Admin pode configurar
