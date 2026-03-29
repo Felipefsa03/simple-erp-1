@@ -389,8 +389,18 @@ app.post('/api/whatsapp/send', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Dispositivo não conectado' });
     }
 
-    const cleanTo = to.replace(/\D/g, '');
+    let cleanTo = to.replace(/[^\d]/g, '');
+    
+    // Remove 55 se estiver no início (código do Brasil)
+    if (cleanTo.startsWith('55') && cleanTo.length >= 12) {
+      cleanTo = cleanTo.substring(2);
+    }
+    
+    // Adiciona 55 de volta para formato WhatsApp
+    cleanTo = '55' + cleanTo;
+    
     const jid = `${cleanTo}@s.whatsapp.net`;
+    addLog(`[API] Número original: ${to}, limpo: ${cleanTo}, jid: ${jid}`);
     
     addLog(`[API] Enviando para ${jid}...`);
     const result = await sock.sendMessage(jid, { text: message });
