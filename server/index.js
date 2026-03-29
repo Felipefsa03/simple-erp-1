@@ -51,48 +51,53 @@ app.get('/api/whatsapp/proxy*', async (req, res) => {
   try {
     const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-    // Extract the actual path
-    let rawPath = req.params[0] || '';
-    if (rawPath === '') rawPath = '/';
+    // Extract everything after /api/whatsapp/proxy
+    const fullPath = req.originalUrl.split('/api/whatsapp/proxy')[1] || '/';
+    const targetUrl = `https://web.whatsapp.com${fullPath}`;
     
-    const targetUrl = `https://web.whatsapp.com${rawPath}`;
-    addLog(`[Proxy] Buscando: ${targetUrl}`);
+    addLog(`[Proxy] Buscando recursivamente: ${targetUrl}`);
 
     const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': userAgent,
         'Accept': req.headers['accept'] || '*/*',
-        'Accept-Language': req.headers['accept-language'] || 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        'Accept-Language': req.headers['accept-language'] || 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
       }
     });
 
     if (!response.ok) {
-      addLog(`[Proxy] Erro upstream: ${response.status} para ${targetUrl}`);
-      return res.status(response.status).send(`Upstream error: ${response.status}`);
+      addLog(`[Proxy] Erro upstream ${response.status} para ${targetUrl}`);
+      return res.status(response.status).send(`Upstream Error: ${response.status}`);
     }
 
     const contentType = response.headers.get('content-type');
     if (contentType) res.setHeader('Content-Type', contentType);
     
+    // Explicitly allow framing and remove security constraints
     res.removeHeader('X-Frame-Options');
     res.removeHeader('Content-Security-Policy');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
 
     if (contentType && contentType.includes('text/html')) {
       let body = await response.text();
-      // THE FIX: Point base to our proxy endpoint, NOT whatsapp.com
-      // This forces ALL relative resources to be proxied through our server
-      body = body.replace('<head>', '<head><base href="/api/whatsapp/proxy/">');
+      // Ensure the base tag points to our proxy and handles all relative links
+      // We use the full URL including protocol to be extra sure
+      const host = req.get('host');
+      const protocol = req.protocol;
+      const proxyBase = `${protocol}://${host}/api/whatsapp/proxy/`;
+      
+      body = body.replace('<head>', `<head><base href="${proxyBase}">`);
+      
+      // Bonus: remove some common JS browser checks if we can find them
       res.send(body);
     } else {
       const buffer = await response.arrayBuffer();
       res.send(Buffer.from(buffer));
     }
   } catch (error) {
-    addLog(`[Proxy] Erro: ${error.message}`);
-    res.status(500).send(`Error: ${error.message}`);
+    addLog(`[Proxy] Erro crítico: ${error.message}`);
+    res.status(500).send(`Proxy Error: ${error.message}`);
   }
 });
 
