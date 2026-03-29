@@ -69,10 +69,14 @@ const formatPhoneForWhatsApp = (phone: string): string => {
     return digits;
   }
   
-  // Se tem 12 dígitos e começa com 55, precisa inserir o 9
+  // Se tem 12 dígitos e começa com 55
   if (digits.length === 12 && digits.startsWith('55')) {
     const ddd = digits.slice(2, 4);
     const number = digits.slice(4);
+    // Se já começa com 9, não precisa adicionar
+    if (number.startsWith('9')) {
+      return digits;
+    }
     return '55' + ddd + '9' + number;
   }
   
