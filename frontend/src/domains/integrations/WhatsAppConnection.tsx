@@ -116,23 +116,18 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
         }
 
         // ERROR from backend
-        if (data.status === 'error') {
+        if (data.status === 'error' || data.ok === false) {
           stopTimers();
           setUiStatus('error');
-          setErrorMsg(data.errorMsg || 'Erro desconhecido no servidor');
-          return;
-        }
-
-        // LOGGED OUT / NOT CONNECTED
-        if (data.status === 'logged_out' || data.status === 'not_connected') {
-          // Connection was removed server-side, we need to re-initiate
-          stopTimers();
-          setUiStatus('disconnected');
+          setErrorMsg(data.message || 'Erro desconhecido no servidor de WhatsApp');
           return;
         }
 
         // CONNECTING / RECONNECTING → keep showing loading
-        // (do nothing, let polling continue)
+        if (data.status === 'connecting') {
+           setUiStatus('loading');
+           return;
+        }
 
       } catch (err) {
         console.error('[WhatsApp] poll error:', err);

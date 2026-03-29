@@ -62,15 +62,18 @@ const createWhatsAppSocket = async (clinicId) => {
       auth: state,
       printQRInTerminal: true,
       browser: ['LuminaFlow ERP', 'Chrome', '120.0'],
-      connectTimeoutMs: 120000,
+      connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
       logger: logger,
       emitOwnEvents: true,
       agent: undefined,
       TLSConfig: {},
-      phoneResponseTime: 120000,
+      phoneResponseTime: 60000,
       waitForConnection: true,
-      markOnlineOnConnect: true
+      markOnlineOnConnect: true,
+      options: {
+        family: 4 // Forçar IPv4 para evitar problemas de DNS/IPv6 no Windows
+      }
     });
 
     sock.ev.on('creds.update', () => {
@@ -109,12 +112,25 @@ const createWhatsAppSocket = async (clinicId) => {
       }
       
       if (connection === 'close') {
-        const reason = lastDisconnect?.error ? new Boom(lastDisconnect.error).output.statusCode : 'unknown';
-        console.log('[Baileys] Connection closed. Reason:', reason);
+        const boomError = lastDisconnect?.error ? new Boom(lastDisconnect.error) : null;
+        const statusCode = boomError?.output?.statusCode;
+        const errorMessage = lastDisconnect?.error?.message || 'Conexão interrompida';
         
-        if (reason === DisconnectReason.loggedOut) {
-          console.log('[Baileys] Session logged out, need to re-authenticate');
+        console.log('[Baileys] Connection closed. Status:', statusCode, 'Error:', errorMessage);
+        
+        if (statusCode === DisconnectReason.loggedOut) {
+          console.log('[Baileys] Session logged out, resetting auth...');
           delete whatsappConnections[clinicId];
+          const authDir = getAuthFolder(clinicId);
+          if (fs.existsSync(authDir)) {
+            fs.rmSync(authDir, { recursive: true, force: true });
+          }
+        } else {
+          whatsappConnections[clinicId] = {
+            status: 'error',
+            error: `Erro de conexão: ${errorMessage}`,
+            connected: false
+          };
         }
       }
 
@@ -179,6 +195,17 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
         ok: true, 
         status: 'pairing', 
         pairingCode: conn.pairingCode 
+      });
+    } else if (conn.status === 'connecting') {
+      return res.json({
+        ok: true,
+        status: 'connecting'
+      });
+    } else if (conn.status === 'error') {
+      return res.json({
+        ok: false,
+        status: 'error',
+        message: conn.error || 'Erro interno no servidor de WhatsApp'
       });
     }
   }
