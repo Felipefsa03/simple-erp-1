@@ -61,7 +61,30 @@ const saveCredentialsToSupabase = async (clinicId, credentials) => {
   }
   
   try {
-    // First try to update, if not exists then insert
+    const credsString = JSON.stringify(credentials, BufferJSON.replacer);
+    
+    // Try insert first (will fail if exists)
+    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'resolution=ignore-duplicates'
+      },
+      body: JSON.stringify({
+        clinic_id: clinicId,
+        credentials: credsString,
+        connected_at: new Date().toISOString()
+      })
+    });
+    
+    if (insertRes.ok) {
+      console.log('[Supabase] Credenciais salvas para', clinicId);
+      return true;
+    }
+    
+    // If insert failed (duplicate), try update
     const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
       method: 'PATCH',
       headers: {
@@ -71,34 +94,13 @@ const saveCredentialsToSupabase = async (clinicId, credentials) => {
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        credentials: JSON.stringify(credentials, BufferJSON.replacer),
+        credentials: credsString,
         updated_at: new Date().toISOString()
       })
     });
     
-    if (updateRes.ok && updateRes.status !== 404) {
-      console.log('[Supabase] Credenciais atualizadas para', clinicId);
-      return true;
-    }
-    
-    // If no update happened, insert new
-    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        clinic_id: clinicId,
-        credentials: JSON.stringify(credentials, BufferJSON.replacer),
-        connected_at: new Date().toISOString()
-      })
-    });
-    
-    console.log('[Supabase] Credenciais salvas para', clinicId);
-    return insertRes.ok;
+    console.log('[Supabase] Credenciais atualizadas para', clinicId);
+    return updateRes.ok;
   } catch (error) {
     console.error('[Supabase] Erro ao salvar credenciais:', error.message);
     return false;
@@ -262,9 +264,11 @@ const createWhatsAppSocket = async (clinicId) => {
           
           // Save credentials to Supabase when connected
           const creds = sock.authState?.creds;
+          console.log('[Baileys] Credenciais para salvar:', creds ? 'sim' : 'não');
           if (creds) {
-            await saveCredentialsToSupabase(clinicId, { creds, keys: {} });
-            addLog(`[Baileys] Credenciais salvas no Supabase para ${clinicId}`);
+            const saved = await saveCredentialsToSupabase(clinicId, { creds, keys: {} });
+            console.log('[Baileys] Resultado do save:', saved);
+            addLog(`[Baileys] Credenciais salvas no Supabase: ${saved}`);
           }
         }
       });
