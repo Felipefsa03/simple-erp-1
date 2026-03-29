@@ -11,8 +11,20 @@ import {
 import { toast } from '@/hooks/useShared';
 import { useClinicStore } from '@/stores/clinicStore';
 
-// Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
-const API_BASE = '';
+const isDev = import.meta.env.DEV;
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+
+const isApiAvailable = async (): Promise<boolean> => {
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, { 
+      method: 'GET',
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+};
 
 interface WhatsAppConnectionProps {
   isOpen: boolean;
@@ -149,8 +161,40 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
     setErrorMsg(null);
     connectedNotifiedRef.current = false;
 
+    // Check if API is available first - if not, use demo mode automatically
+    if (!isDev) {
+      const apiOk = await isApiAvailable();
+      if (!apiOk) {
+        console.log('[WhatsApp] API not available, using demo mode');
+        setUiStatus('connected');
+        setWhatsAppConnected(clinicId, true, '', '5511999999999');
+        if (onStatusChange) onStatusChange(true);
+        setDeviceInfo({ name: 'WhatsApp Demo', platform: 'Modo Simulação', lastSync: new Date().toLocaleString('pt-BR') });
+        toast('Modo demo ativado - API não disponível', 'info');
+        return;
+      }
+    }
+
     try {
       // In professional mode, we first check status. The backend auto-connects if needed.
+      const res = await fetch(`${API_BASE}/api/health`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!res.ok) {
+        setUiStatus('error');
+        setErrorMsg('Servidor de conexão não está respondendo corretamente.');
+        return;
+      }
+    } catch (err) {
+      console.error('[WhatsApp] API check error:', err);
+      setUiStatus('error');
+      setErrorMsg('Não foi possível conectar ao servidor. O backend pode estar offline.');
+      return;
+    }
+
+    // Now try to get WhatsApp status
+    try {
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
         headers: { 'ngrok-skip-browser-warning': 'true' }
       });

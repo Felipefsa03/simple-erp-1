@@ -11,8 +11,8 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 
-// Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
-const API_BASE = '';
+const isDev = import.meta.env.DEV;
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || '');
 
 interface MiniWhatsAppChatProps {
   isOpen: boolean;
