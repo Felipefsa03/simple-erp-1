@@ -46,6 +46,25 @@ app.get('/api/whatsapp/debug', (req, res) => {
   res.json({ logs: serverLogs });
 });
 
+// Proxy to bypass X-Frame-Options for WhatsApp (Use with caution)
+app.get('/api/whatsapp/proxy', async (req, res) => {
+  try {
+    const response = await fetch('https://web.whatsapp.com');
+    const body = await response.text();
+    
+    // Remove security headers that prevent framing
+    res.removeHeader('X-Frame-Options');
+    res.removeHeader('Content-Security-Policy');
+    
+    // Inject a <base> tag to help internal links work via absolute paths
+    const modifiedBody = body.replace('<head>', '<head><base href="https://web.whatsapp.com/">');
+    
+    res.send(modifiedBody);
+  } catch (error) {
+    res.status(500).send('Proxy error');
+  }
+});
+
 // Clinic status initialization helper
 const ensureClinicStatus = (clinicId) => {
   const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
@@ -64,104 +83,83 @@ const getAuthFolder = (clinicId) => {
 };
 
 const createWhatsAppSocket = async (clinicId) => {
-  try {
-    const authDir = ensureClinicStatus(clinicId);
-    
-    const { version, isLatest } = await fetchLatestBaileysVersion();
-    addLog(`[Baileys] Usando versão WA v${version.join('.')}, isLatest: ${isLatest}`);
+  let retryCount = 0;
 
-    const { state, saveCreds } = await useMultiFileAuthState(authDir);
-    addLog('[Baileys] Auth state carregado com sucesso');
-    
-    // Pino is the recommended logger for Baileys, especially in cloud environments
-    const logger = pino({ level: 'debug' });
-    
-    addLog(`[Baileys] Inicianizando socket para ${clinicId}...`);
-    
-    const sock = makeWASocket({
-      auth: state,
-      version: version, // Manual version sync to avoid 405
-      printQRInTerminal: false,
-      browser: ['Ubuntu', 'Chrome', '121.0.6167.184'], // Updated browser string
-      connectTimeoutMs: 120000,
-      keepAliveIntervalMs: 60000,
-      logger: logger,
-      emitOwnEvents: true,
-      agent: undefined,
-      TLSConfig: {},
-      phoneResponseTime: 90000,
-      waitForConnection: true,
-      markOnlineOnConnect: true,
-      options: {
-        family: 4 // Force IPv4 for stability
-      }
-    });
+  const connect = async () => {
+    try {
+      const authDir = ensureClinicStatus(clinicId);
+      const { version, isLatest } = await fetchLatestBaileysVersion();
+      addLog(`[Baileys] Usando versão WA v${version.join('.')}, isLatest: ${isLatest}`);
 
-    sock.ev.on('creds.update', () => {
-      console.log('[Baileys] Credentials updated, saving...');
-      saveCreds();
-    });
-
-    sock.ev.on('connection.update', (update) => {
-      const { connection, lastDisconnect, qr } = update;
+      const { state, saveCreds } = await useMultiFileAuthState(authDir);
       
-      if (qr) {
-        addLog(`[Baileys] QR Code gerado para ${clinicId}`);
-        whatsappSockets[clinicId].qr = qr;
-        whatsappSockets[clinicId].status = 'qr';
-        whatsappSockets[clinicId].message = 'QR Code gerado. Escaneie para conectar.';
-      }
+      const logger = pino({ level: 'debug' });
+      addLog(`[Baileys] Iniciando conexão para ${clinicId} (Tentativa ${retryCount + 1})...`);
       
-      if (connection === 'connecting') {
-        addLog(`[Baileys] Conectando ${clinicId}...`);
-        whatsappSockets[clinicId].status = 'connecting';
-      }
+      const sock = makeWASocket({
+        auth: state,
+        version: version,
+        printQRInTerminal: false,
+        browser: ['Mac OS', 'Chrome', '121.0.0.0'],
+        connectTimeoutMs: 120000,
+        keepAliveIntervalMs: 60000,
+        logger: logger,
+        options: { family: 4 }
+      });
 
-      if (connection === 'open') {
-        addLog(`[Baileys] Conexão ABERTA para ${clinicId}`);
-        whatsappSockets[clinicId].status = 'connected';
-        whatsappSockets[clinicId].qr = null;
-        whatsappSockets[clinicId].message = 'Conectado com sucesso!';
-      }
+      whatsappSockets[clinicId] = sock;
 
-      if (connection === 'close') {
-        const statusCode = (lastDisconnect?.error)?.output?.statusCode || 0;
-        const reason = lastDisconnect?.error?.message || 'Motivo desconhecido';
-        addLog(`[Baileys] Conexão FECHADA para ${clinicId}. Razão: ${reason} (Código: ${statusCode})`);
+      sock.ev.on('creds.update', saveCreds);
+
+      sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr } = update;
         
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        
-        if (shouldReconnect) {
-          whatsappSockets[clinicId].status = 'connecting';
-          whatsappSockets[clinicId].message = 'Conexão perdida. Tentando reconectar...';
-          addLog(`[Baileys] Tentando reconectar ${clinicId} em 5s...`);
-          setTimeout(() => createWhatsAppSocket(clinicId), 5000);
-        } else {
-          whatsappSockets[clinicId].status = 'disconnected';
-          whatsappSockets[clinicId].message = 'Sessão encerrada (Logout).';
-          delete whatsappSockets[clinicId];
+        if (qr) {
+          whatsappConnections[clinicId] = { status: 'qr', qr };
+          addLog(`[Baileys] QR Code gerado para ${clinicId}`);
         }
-      }
-    });
 
-    sock.ev.on('messages.upsert', ({ messages }) => {
-      console.log('[Baileys] New messages received:', messages.length);
-    });
+        if (connection === 'close') {
+          const statusCode = (lastDisconnect?.error instanceof Boom) 
+            ? lastDisconnect.error.output.statusCode 
+            : lastDisconnect?.error?.code || 0;
+          
+          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          addLog(`[Baileys] Conexão FECHADA para ${clinicId}. Código: ${statusCode}`);
+          
+          if (shouldReconnect) {
+            retryCount++;
+            const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
+            addLog(`[Baileys] Reconectando ${clinicId} em ${delay/1000}s...`);
+            setTimeout(connect, delay);
+          } else {
+            addLog(`[Baileys] Sessão encerrada para ${clinicId}`);
+            delete whatsappSockets[clinicId];
+            delete whatsappConnections[clinicId];
+          }
+        } else if (connection === 'open') {
+          retryCount = 0;
+          whatsappConnections[clinicId] = { status: 'connected', connected: true };
+          addLog(`[Baileys] Conexão ABERTA para ${clinicId}`);
+        }
+      });
 
-    console.log('[Baileys] Socket created successfully');
-    return sock;
-    
-  } catch (error) {
-    console.error('[Baileys] Error creating socket:', error);
-    throw error;
-  }
+      sock.ev.on('messages.upsert', ({ messages }) => {
+        // Silently log message count
+      });
+
+    } catch (err) {
+      addLog(`[Baileys] Falha crítica em ${clinicId}: ${err.message}`);
+      setTimeout(connect, 10000);
+    }
+  };
+
+  await connect();
 };
 
 const ensureSocketConnected = async (clinicId) => {
   if (!whatsappSockets[clinicId]) {
-    console.log(`[WhatsApp] Creating new socket for ${clinicId}`);
-    whatsappSockets[clinicId] = await createWhatsAppSocket(clinicId);
-    whatsappConnections[clinicId] = { status: 'connecting' };
+    await createWhatsAppSocket(clinicId);
   }
   return whatsappSockets[clinicId];
 };

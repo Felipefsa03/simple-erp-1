@@ -269,7 +269,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
             )}
             <iframe
               ref={iframeRef}
-              src="https://web.whatsapp.com"
+              src="/api/whatsapp/proxy"
               className={cn(
                 "w-full h-full border-0 bg-white",
                 iframeLoading || iframeBlocked ? "hidden" : ""
