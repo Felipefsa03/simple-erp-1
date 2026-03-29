@@ -2,8 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { useMultiFileAuthState, makeWASocket, DisconnectReason } from 'baileys';
 import { Boom } from '@hapi/boom';
-import fs from 'fs';
 import path from 'path';
+import pino from 'pino';
 
 const app = express();
 const PORT = process.env.PORT || 8787;
@@ -48,20 +48,13 @@ const createWhatsAppSocket = async (clinicId) => {
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
     console.log('[Baileys] Auth state loaded successfully');
     
-    const logger = {
-      level: 'debug',
-      child: () => logger,
-      info: (msg) => console.log('[Baileys INFO]', msg),
-      error: (msg) => console.error('[Baileys ERROR]', msg),
-      warn: (msg) => console.warn('[Baileys WARN]', msg),
-      debug: (msg) => console.log('[Baileys DEBUG]', msg),
-      trace: (msg) => console.log('[Baileys TRACE]', msg)
-    };
+    // Pino is the recommended logger for Baileys, especially in cloud environments
+    const logger = pino({ level: 'debug' });
     
     const sock = makeWASocket({
       auth: state,
       printQRInTerminal: true,
-      browser: ['LuminaFlow ERP', 'Chrome', '120.0'],
+      browser: ['LuminaFlow', 'Chrome', '121.0'], // Updated browser string
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
       logger: logger,
@@ -72,7 +65,7 @@ const createWhatsAppSocket = async (clinicId) => {
       waitForConnection: true,
       markOnlineOnConnect: true,
       options: {
-        family: 4 // Forçar IPv4 para evitar problemas de DNS/IPv6 no Windows
+        family: 4 // Force IPv4 for stability
       }
     });
 
@@ -349,6 +342,18 @@ app.get('/api/clinic/anamnese-sync', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 WhatsApp API ready for connections`);
 });
+
+// Graceful shutdown for Cloud environments (Render/Docker)
+const shutdown = () => {
+  console.log('[Server] Shutting down...');
+  Object.values(whatsappSockets).forEach(sock => {
+    try { sock.end(undefined); } catch (e) {}
+  });
+  process.exit(0);
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
