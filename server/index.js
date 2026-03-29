@@ -47,34 +47,53 @@ app.get('/api/whatsapp/debug', (req, res) => {
 });
 
 // Proxy to bypass X-Frame-Options for WhatsApp (Use with caution)
-app.get('/api/whatsapp/proxy', async (req, res) => {
+// Now handles wildcards like /api/whatsapp/proxy/data/manifest.json
+app.get('/api/whatsapp/proxy*', async (req, res) => {
   try {
-    // Forward the user agent from the client or use a standard modern one
     const userAgent = req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-    const response = await fetch('https://web.whatsapp.com', {
+    // Extract the actual path after /api/whatsapp/proxy
+    const rawPath = req.params[0] || '';
+    const targetUrl = `https://web.whatsapp.com${rawPath}`;
+    
+    addLog(`[Proxy] Buscando: ${targetUrl}`);
+
+    const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': userAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
+        'Accept': req.headers['accept'] || '*/*',
+        'Accept-Language': req.headers['accept-language'] || 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
       }
     });
 
-    if (!response.ok) throw new Error(`Status: ${response.status}`);
+    if (!response.ok) {
+      addLog(`[Proxy] Erro upstream: ${response.status} para ${targetUrl}`);
+      return res.status(response.status).send(`Upstream error: ${response.status}`);
+    }
 
-    const body = await response.text();
+    const contentType = response.headers.get('content-type');
     
-    // Remove security headers that prevent framing
+    // Pass original content type
+    if (contentType) res.setHeader('Content-Type', contentType);
+    
+    // Remove security headers
     res.removeHeader('X-Frame-Options');
     res.removeHeader('Content-Security-Policy');
-    
-    // Inject a <base> tag to help internal links work via absolute paths
-    const modifiedBody = body.replace('<head>', '<head><base href="https://web.whatsapp.com/">');
-    
-    res.send(modifiedBody);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    if (contentType && contentType.includes('text/html')) {
+      let body = await response.text();
+      // Inject <base> tag only for HTML
+      body = body.replace('<head>', '<head><base href="https://web.whatsapp.com/">');
+      res.send(body);
+    } else {
+      // For images, manifest.json, etc., stream/buffer the response
+      const buffer = await response.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    }
   } catch (error) {
-    addLog(`[Proxy] Erro ao buscar WhatsApp: ${error.message}`);
-    res.status(500).send(`Proxy error: ${error.message}`);
+    addLog(`[Proxy] Erro crítico no proxy: ${error.message}`);
+    res.status(500).send(`Proxy internal error: ${error.message}`);
   }
 });
 
