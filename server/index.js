@@ -385,6 +385,14 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
     });
   }
   
+  // Check if credentials exist in Supabase and auto-connect
+  const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
+  if (supabaseCreds && supabaseCreds.creds) {
+    // Trigger connection in background
+    ensureSocketConnected(clinicId);
+    return res.json({ ok: true, status: 'connecting', message: 'Reconectando...' });
+  }
+  
   // Try to auto-connect if it exists in auth but no socket
   const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
   if (fs.existsSync(path.join(authDir, 'creds.json'))) {
