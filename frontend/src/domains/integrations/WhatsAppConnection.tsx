@@ -220,6 +220,33 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
         return;
       }
 
+      // If disconnected, need to connect to get QR code
+      if (data.status === 'disconnected' || data.status === 'disconnected') {
+        try {
+          const connectRes = await fetch(`${API_BASE}/api/whatsapp/connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clinicId })
+          });
+          const connectData = await connectRes.json();
+          
+          if (connectData.qrCode) {
+            setQrCode(connectData.qrCode);
+            setUiStatus('qr');
+            startCountdown();
+            return;
+          }
+          
+          if (connectData.pairingCode) {
+            setPairingCode(connectData.pairingCode);
+            setUiStatus('pairing');
+            return;
+          }
+        } catch (e) {
+          console.error('[WhatsApp] Connect error:', e);
+        }
+      }
+
       // Start polling to get the QR code
       startPolling();
 
