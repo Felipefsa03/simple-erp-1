@@ -76,7 +76,7 @@ const mapPatient = (p: any) => ({
   allergies: p.allergies ? p.allergies.split(',').map((s: string) => s.trim()) : [],
   status: p.active ? 'active' : 'inactive',
   created_at: p.created_at,
-}));
+});
 
 // Professionals - Busca nome do usuário
 const mapProfessional = async (p: any): Promise<any> => {
