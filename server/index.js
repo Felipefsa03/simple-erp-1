@@ -406,6 +406,12 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
 app.post('/api/whatsapp/send', async (req, res) => {
   const { clinicId, to, message } = req.body;
   
+  addLog(`[API] Recebido - to: "${to}", message: "${message?.substring(0, 20)}..."`);
+  
+  if (!to) {
+    return res.status(400).json({ ok: false, error: 'Número de telefone não fornecido' });
+  }
+  
   try {
     const sock = await ensureSocketConnected(clinicId);
     
@@ -413,9 +419,26 @@ app.post('/api/whatsapp/send', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Dispositivo não conectado' });
     }
 
-    const cleanTo = to.replace(/\D/g, '');
+    // Normalizar número: remover tudo que não é dígito
+    let cleanTo = to.replace(/\D/g, '');
+    
+    // Garantir que tem 13 dígitos (55 + DDD + 9 + número)
+    if (cleanTo.length === 12 && cleanTo.startsWith('55')) {
+      // Já tem 55 + 10 dígitos, adicionar 9 se necessário
+      cleanTo = cleanTo.substring(0, 4) + '9' + cleanTo.substring(4);
+    } else if (cleanTo.length === 11) {
+      // Adicionar 55
+      cleanTo = '55' + cleanTo;
+    } else if (cleanTo.length === 10) {
+      // Adicionar 55 e 9
+      cleanTo = '55' + cleanTo.substring(0, 2) + '9' + cleanTo.substring(2);
+    } else if (!cleanTo.startsWith('55') && cleanTo.length > 0) {
+      // Adicionar 55 se não tiver
+      cleanTo = '55' + cleanTo;
+    }
+    
     const jid = `${cleanTo}@s.whatsapp.net`;
-    addLog(`[API] Enviando para ${jid}...`);
+    addLog(`[API] Enviando para ${jid} (original: ${to})...`);
     const result = await sock.sendMessage(jid, { text: message });
     
     // Store sent message
