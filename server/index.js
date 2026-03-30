@@ -273,18 +273,19 @@ const createWhatsAppSocket = async (clinicId) => {
         saveCreds = fileAuth.saveCreds;
       }
       
-      const logger = pino({ level: 'error' }); // Less noisy for prod
+      const logger = pino({ level: 'silent' }); // Completely silent to avoid session errors
       addLog(`[Baileys] Iniciando conexão para ${clinicId}...`);
       
       const sock = makeWASocket({
         auth: state,
         version: version,
         printQRInTerminal: false,
-        browser: ['LuminaFlow', 'Chrome', '122.0.0.0'], // "Evolution API" style branding
+        browser: ['LuminaFlow', 'Chrome', '122.0.0.0'],
         connectTimeoutMs: 120000,
         keepAliveIntervalMs: 60000,
         logger: logger,
-        options: { family: 4 }
+        options: { family: 4 },
+        getMessage: async (key) => ({ conversation: 'placeholder' })
       });
 
       whatsappSockets[clinicId] = sock;
