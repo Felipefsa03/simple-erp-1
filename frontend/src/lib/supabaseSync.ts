@@ -16,7 +16,16 @@ const getHeaders = () => ({
 
 const getBaseUrl = () => `${SUPABASE_URL}/rest/v1`;
 
-// Generic fetch wrapper
+// UUID da clínica padrão (Lumina Odontologia)
+const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
+
+const getClinicId = (clinicId?: string) => {
+  // Se já for UUID válido, usa
+  if (clinicId && clinicId.includes('-')) return clinicId;
+  // Se for "clinic-1" ou outro alias, converte para UUID
+  return DEFAULT_CLINIC_ID;
+};
+
 async function supabaseFetch(table: string, options: {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: any;
@@ -51,251 +60,356 @@ async function supabaseFetch(table: string, options: {
   }
 }
 
-// ============================================
-// Tabelas do Supabase
-// ============================================
+// Mapper para converter dados do Supabase para formato do app
+const mapPatient = (p: any) => ({
+  id: p.id,
+  clinic_id: p.clinic_id,
+  name: p.name || '',
+  phone: p.phone || '',
+  email: p.email || '',
+  cpf: p.cpf || '',
+  birth_date: p.birth ? new Date(p.birth).toISOString().split('T')[0] : '',
+  gender: p.gender || '',
+  address: p.address || '',
+  city: p.city || '',
+  state: p.state || '',
+  cep: p.zip || '',
+  notes: p.notes || '',
+  allergies: p.allergies ? p.allergies.split(',').map((s: string) => s.trim()) : [],
+  status: p.active ? 'active' : 'inactive',
+  created_at: p.created_at,
+});
+
+const mapProfessional = (p: any) => ({
+  id: p.id,
+  clinic_id: p.clinic_id,
+  name: p.name || '',
+  email: p.email || '',
+  phone: p.phone || '',
+  role: 'dentist',
+  cro: p.cro || '',
+  specialty: p.specialty || '',
+  commission_pct: p.commission || 0,
+  active: p.active !== false,
+  created_at: p.created_at,
+});
+
+const mapAppointment = (a: any) => ({
+  id: a.id,
+  clinic_id: a.clinic_id,
+  patient_id: a.patient_id,
+  professional_id: a.professional_id,
+  service_id: a.service_id,
+  scheduled_at: a.scheduled ? new Date(a.scheduled).toISOString() : '',
+  duration_min: a.duration || 30,
+  status: a.status || 'scheduled',
+  notes: a.notes || '',
+  confirmed: a.confirmed || false,
+  created_at: a.created_at,
+});
+
+const mapService = (s: any) => ({
+  id: s.id,
+  clinic_id: s.clinic_id,
+  name: s.name || '',
+  category: s.category || '',
+  description: s.description || '',
+  avg_duration_min: s.duration || 30,
+  base_price: s.price || 0,
+  estimated_cost: s.cost || 0,
+  active: s.active !== false,
+  created_at: s.created_at,
+});
+
+const mapStockItem = (s: any) => ({
+  id: s.id,
+  clinic_id: s.clinic_id,
+  name: s.name || '',
+  category: s.category || '',
+  quantity: s.qty || 0,
+  min_quantity: s.min_qty || 0,
+  unit: s.unit || 'un',
+  unit_cost: s.cost || 0,
+  supplier: s.supplier || '',
+  active: s.active !== false,
+  created_at: s.created_at,
+});
+
+const mapTransaction = (t: any) => ({
+  id: t.id,
+  clinic_id: t.clinic_id,
+  appointment_id: t.appointment_id,
+  patient_id: t.patient_id,
+  professional_id: t.professional_id,
+  type: t.type || 'income',
+  category: t.category || '',
+  description: t.description || '',
+  amount: Number(t.amount) || 0,
+  status: t.status || 'pending',
+  payment_method: t.method || '',
+  reference: t.reference || '',
+  pix_code: t.pix || '',
+  asaas_payment_id: t.asaas_id || '',
+  due_date: t.due || '',
+  paid_at: t.paid_at || '',
+  created_at: t.created_at,
+});
 
 export const SupabaseSync = {
-  // ---------- PATIENTS ----------
   async loadPatients(clinicId: string) {
+    const uuid = getClinicId(clinicId);
     const { data, error } = await supabaseFetch('patients', {
-      filters: `?clinic_id=eq.${clinicId}&select=*&order=created_at.desc`,
+      filters: `?clinic_id=eq.${uuid}&select=*&deleted_at=is.null&order=created_at.desc`,
     });
-    if (error) return [];
-    return data || [];
+    if (error || !data) return [];
+    return data.map(mapPatient);
+  },
+
+  async loadProfessionals(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data, error } = await supabaseFetch('professionals', {
+      filters: `?clinic_id=eq.${uuid}&select=*&order=name.asc`,
+    });
+    if (error || !data) return [];
+    return data.map(mapProfessional);
+  },
+
+  async loadAppointments(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data, error } = await supabaseFetch('appointments', {
+      filters: `?clinic_id=eq.${uuid}&select=*&deleted_at=is.null&order=scheduled.desc`,
+    });
+    if (error || !data) return [];
+    return data.map(mapAppointment);
+  },
+
+  async loadServices(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data, error } = await supabaseFetch('services', {
+      filters: `?clinic_id=eq.${uuid}&select=*&deleted_at=is.null&order=name.asc`,
+    });
+    if (error || !data) return [];
+    return data.map(mapService);
+  },
+
+  async loadStock(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data, error } = await supabaseFetch('stock_items', {
+      filters: `?clinic_id=eq.${uuid}&select=*&order=name.asc`,
+    });
+    if (error || !data) return [];
+    return data.map(mapStockItem);
+  },
+
+  async loadTransactions(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data, error } = await supabaseFetch('transactions', {
+      filters: `?clinic_id=eq.${uuid}&select=*&deleted_at=is.null&order=created_at.desc`,
+    });
+    if (error || !data) return [];
+    return data.map(mapTransaction);
   },
 
   async savePatient(patient: any) {
-    const { data, error } = await supabaseFetch('patients', {
-      method: 'POST',
-      body: patient,
-    });
-    return { data, error };
+    const body = {
+      id: patient.id,
+      clinic_id: getClinicId(patient.clinic_id),
+      name: patient.name,
+      phone: patient.phone,
+      email: patient.email,
+      cpf: patient.cpf,
+      birth: patient.birth_date || null,
+      gender: patient.gender || null,
+      address: patient.address || null,
+      city: patient.city || null,
+      state: patient.state || null,
+      zip: patient.cep || null,
+      notes: patient.notes || null,
+      allergies: patient.allergies?.join(', ') || null,
+      meds: patient.meds || null,
+      history: patient.history || null,
+      active: patient.status === 'active',
+    };
+    return supabaseFetch('patients', { method: 'POST', body });
   },
 
   async updatePatient(id: string, patient: any) {
-    const { data, error } = await supabaseFetch(`patients?id=eq.${id}`, {
-      method: 'PATCH',
-      body: patient,
-    });
-    return { data, error };
-  },
-
-  async deletePatient(id: string) {
-    const { data, error } = await supabaseFetch(`patients?id=eq.${id}`, {
-      method: 'DELETE',
-    });
-    return { data, error };
-  },
-
-  // ---------- PROFESSIONALS ----------
-  async loadProfessionals(clinicId: string) {
-    const { data, error } = await supabaseFetch('professionals', {
-      filters: `?clinic_id=eq.${clinicId}&select=*&order=name.asc`,
-    });
-    if (error) return [];
-    return data || [];
+    const body: any = {
+      name: patient.name,
+      phone: patient.phone,
+      email: patient.email,
+      cpf: patient.cpf,
+      birth: patient.birth_date || null,
+      gender: patient.gender || null,
+      address: patient.address || null,
+      city: patient.city || null,
+      state: patient.state || null,
+      zip: patient.cep || null,
+      notes: patient.notes || null,
+      allergies: patient.allergies?.join(', ') || null,
+      meds: patient.meds || null,
+      active: patient.status === 'active',
+      updated_at: new Date().toISOString(),
+    };
+    return supabaseFetch(`patients?id=eq.${id}`, { method: 'PATCH', body });
   },
 
   async saveProfessional(professional: any) {
-    const { data, error } = await supabaseFetch('professionals', {
-      method: 'POST',
-      body: professional,
-    });
-    return { data, error };
+    const body = {
+      id: professional.id,
+      clinic_id: getClinicId(professional.clinic_id),
+      name: professional.name,
+      email: professional.email,
+      phone: professional.phone || null,
+      cro: professional.cro || null,
+      specialty: professional.specialty || null,
+      commission: professional.commission_pct || 0,
+      active: professional.active !== false,
+    };
+    return supabaseFetch('professionals', { method: 'POST', body });
   },
 
   async updateProfessional(id: string, professional: any) {
-    const { data, error } = await supabaseFetch(`professionals?id=eq.${id}`, {
-      method: 'PATCH',
-      body: professional,
-    });
-    return { data, error };
+    const body = {
+      name: professional.name,
+      email: professional.email,
+      phone: professional.phone || null,
+      cro: professional.cro || null,
+      specialty: professional.specialty || null,
+      commission: professional.commission_pct || 0,
+      active: professional.active,
+    };
+    return supabaseFetch(`professionals?id=eq.${id}`, { method: 'PATCH', body });
   },
 
   async deleteProfessional(id: string) {
-    const { data, error } = await supabaseFetch(`professionals?id=eq.${id}`, {
-      method: 'DELETE',
-    });
-    return { data, error };
-  },
-
-  // ---------- APPOINTMENTS ----------
-  async loadAppointments(clinicId: string) {
-    const { data, error } = await supabaseFetch('appointments', {
-      filters: `?clinic_id=eq.${clinicId}&select=*&order=scheduled_at.desc`,
-    });
-    if (error) return [];
-    return data || [];
+    return supabaseFetch(`professionals?id=eq.${id}`, { method: 'DELETE' });
   },
 
   async saveAppointment(appointment: any) {
-    const { data, error } = await supabaseFetch('appointments', {
-      method: 'POST',
-      body: appointment,
-    });
-    return { data, error };
+    const body = {
+      id: appointment.id,
+      clinic_id: getClinicId(appointment.clinic_id),
+      patient_id: appointment.patient_id || null,
+      professional_id: appointment.professional_id || null,
+      service_id: appointment.service_id || null,
+      scheduled: appointment.scheduled_at || null,
+      duration: appointment.duration_min || 30,
+      status: appointment.status || 'scheduled',
+      notes: appointment.notes || null,
+    };
+    return supabaseFetch('appointments', { method: 'POST', body });
   },
 
   async updateAppointment(id: string, appointment: any) {
-    const { data, error } = await supabaseFetch(`appointments?id=eq.${id}`, {
-      method: 'PATCH',
-      body: appointment,
-    });
-    return { data, error };
-  },
-
-  async deleteAppointment(id: string) {
-    const { data, error } = await supabaseFetch(`appointments?id=eq.${id}`, {
-      method: 'DELETE',
-    });
-    return { data, error };
-  },
-
-  // ---------- SERVICES ----------
-  async loadServices(clinicId: string) {
-    const { data, error } = await supabaseFetch('services', {
-      filters: `?clinic_id=eq.${clinicId}&select=*&order=name.asc`,
-    });
-    if (error) return [];
-    return data || [];
+    const body: any = {
+      scheduled: appointment.scheduled_at || null,
+      duration: appointment.duration_min || 30,
+      status: appointment.status || 'scheduled',
+      notes: appointment.notes || null,
+      confirmed: appointment.confirmed || false,
+      updated_at: new Date().toISOString(),
+    };
+    return supabaseFetch(`appointments?id=eq.${id}`, { method: 'PATCH', body });
   },
 
   async saveService(service: any) {
-    const { data, error } = await supabaseFetch('services', {
-      method: 'POST',
-      body: service,
-    });
-    return { data, error };
+    const body = {
+      id: service.id,
+      clinic_id: getClinicId(service.clinic_id),
+      name: service.name,
+      category: service.category || null,
+      description: service.description || null,
+      price: service.base_price || 0,
+      duration: service.avg_duration_min || 30,
+      cost: service.estimated_cost || 0,
+      active: service.active !== false,
+    };
+    return supabaseFetch('services', { method: 'POST', body });
   },
 
   async updateService(id: string, service: any) {
-    const { data, error } = await supabaseFetch(`services?id=eq.${id}`, {
-      method: 'PATCH',
-      body: service,
-    });
-    return { data, error };
+    const body = {
+      name: service.name,
+      category: service.category || null,
+      description: service.description || null,
+      price: service.base_price || 0,
+      duration: service.avg_duration_min || 30,
+      cost: service.estimated_cost || 0,
+      active: service.active,
+    };
+    return supabaseFetch(`services?id=eq.${id}`, { method: 'PATCH', body });
   },
 
   async deleteService(id: string) {
-    const { data, error } = await supabaseFetch(`services?id=eq.${id}`, {
-      method: 'DELETE',
-    });
-    return { data, error };
-  },
-
-  // ---------- STOCK ----------
-  async loadStock(clinicId: string) {
-    const { data, error } = await supabaseFetch('stock_items', {
-      filters: `?clinic_id=eq.${clinicId}&select=*&order=name.asc`,
-    });
-    if (error) return [];
-    return data || [];
+    return supabaseFetch(`services?id=eq.${id}`, { method: 'DELETE' });
   },
 
   async saveStockItem(item: any) {
-    const { data, error } = await supabaseFetch('stock_items', {
-      method: 'POST',
-      body: item,
-    });
-    return { data, error };
+    const body = {
+      id: item.id,
+      clinic_id: getClinicId(item.clinic_id),
+      name: item.name,
+      category: item.category || null,
+      unit: item.unit || 'un',
+      qty: item.quantity || 0,
+      min_qty: item.min_quantity || 0,
+      cost: item.unit_cost || 0,
+      supplier: item.supplier || null,
+      active: item.active !== false,
+    };
+    return supabaseFetch('stock_items', { method: 'POST', body });
   },
 
   async updateStockItem(id: string, item: any) {
-    const { data, error } = await supabaseFetch(`stock_items?id=eq.${id}`, {
-      method: 'PATCH',
-      body: item,
-    });
-    return { data, error };
+    const body = {
+      name: item.name,
+      category: item.category || null,
+      unit: item.unit || 'un',
+      qty: item.quantity || 0,
+      min_qty: item.min_quantity || 0,
+      cost: item.unit_cost || 0,
+      supplier: item.supplier || null,
+      active: item.active,
+      updated_at: new Date().toISOString(),
+    };
+    return supabaseFetch(`stock_items?id=eq.${id}`, { method: 'PATCH', body });
   },
 
   async deleteStockItem(id: string) {
-    const { data, error } = await supabaseFetch(`stock_items?id=eq.${id}`, {
-      method: 'DELETE',
-    });
-    return { data, error };
-  },
-
-  // ---------- TRANSACTIONS ----------
-  async loadTransactions(clinicId: string) {
-    const { data, error } = await supabaseFetch('transactions', {
-      filters: `?clinic_id=eq.${clinicId}&select=*&order=date.desc`,
-    });
-    if (error) return [];
-    return data || [];
+    return supabaseFetch(`stock_items?id=eq.${id}`, { method: 'DELETE' });
   },
 
   async saveTransaction(transaction: any) {
-    const { data, error } = await supabaseFetch('transactions', {
-      method: 'POST',
-      body: transaction,
-    });
-    return { data, error };
+    const body = {
+      id: transaction.id,
+      clinic_id: getClinicId(transaction.clinic_id),
+      appointment_id: transaction.appointment_id || null,
+      patient_id: transaction.patient_id || null,
+      professional_id: transaction.professional_id || null,
+      type: transaction.type || 'income',
+      category: transaction.category || null,
+      description: transaction.description || null,
+      amount: transaction.amount || 0,
+      status: transaction.status || 'pending',
+      method: transaction.payment_method || null,
+      reference: transaction.reference || null,
+      pix: transaction.pix_code || null,
+      due: transaction.due_date || null,
+      paid_at: transaction.paid_at || null,
+    };
+    return supabaseFetch('transactions', { method: 'POST', body });
   },
 
   async updateTransaction(id: string, transaction: any) {
-    const { data, error } = await supabaseFetch(`transactions?id=eq.${id}`, {
-      method: 'PATCH',
-      body: transaction,
-    });
-    return { data, error };
-  },
-
-  async deleteTransaction(id: string) {
-    const { data, error } = await supabaseFetch(`transactions?id=eq.${id}`, {
-      method: 'DELETE',
-    });
-    return { data, error };
-  },
-
-  // ---------- MEDICAL RECORDS ----------
-  async loadMedicalRecords(clinicId: string) {
-    const { data, error } = await supabaseFetch('medical_records', {
-      filters: `?clinic_id=eq.${clinicId}&select=*`,
-    });
-    if (error) return [];
-    return data || [];
-  },
-
-  async saveMedicalRecord(record: any) {
-    const { data, error } = await supabaseFetch('medical_records', {
-      method: 'POST',
-      body: record,
-    });
-    return { data, error };
-  },
-
-  async updateMedicalRecord(id: string, record: any) {
-    const { data, error } = await supabaseFetch(`medical_records?id=eq.${id}`, {
-      method: 'PATCH',
-      body: record,
-    });
-    return { data, error };
-  },
-
-  // ---------- ANAMNESE ----------
-  async loadAnamnese(clinicId: string) {
-    const { data, error } = await supabaseFetch('anamnese', {
-      filters: `?clinic_id=eq.${clinicId}&select=*`,
-    });
-    if (error) return [];
-    return data || [];
-  },
-
-  async saveAnamnese(anamnese: any) {
-    const { data, error } = await supabaseFetch('anamnese', {
-      method: 'POST',
-      body: anamnese,
-    });
-    return { data, error };
-  },
-
-  async updateAnamnese(id: string, anamnese: any) {
-    const { data, error } = await supabaseFetch(`anamnese?id=eq.${id}`, {
-      method: 'PATCH',
-      body: anamnese,
-    });
-    return { data, error };
+    const body: any = {
+      status: transaction.status || 'pending',
+      method: transaction.payment_method || null,
+      reference: transaction.reference || null,
+      due: transaction.due_date || null,
+      paid_at: transaction.paid_at || null,
+    };
+    return supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body });
   },
 };
 
