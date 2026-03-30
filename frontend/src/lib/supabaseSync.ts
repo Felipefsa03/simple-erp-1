@@ -182,11 +182,11 @@ export const SupabaseSync = {
   async loadProfessionals(clinicId: string) {
     const uuid = getClinicId(clinicId);
     const { data, error } = await supabaseFetch('professionals', {
-      filters: `?clinic_id=eq.${uuid}&select=*`,
+      filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.asc`,
     });
     if (error || !data) return [];
     const mapped = await Promise.all(data.map(mapProfessional));
-    return mapped.sort((a, b) => a.name.localeCompare(b.name));
+    return mapped;
   },
 
   async loadAppointments(clinicId: string) {
