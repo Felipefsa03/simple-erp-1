@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
 const isDev = import.meta.env.DEV;
-const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
 interface WhatsAppStatus {
   status: string;

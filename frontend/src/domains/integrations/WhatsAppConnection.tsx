@@ -12,7 +12,7 @@ import { toast } from '@/hooks/useShared';
 import { useClinicStore } from '@/stores/clinicStore';
 
 const isDev = import.meta.env.DEV;
-const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
 const isApiAvailable = async (): Promise<boolean> => {
   try {

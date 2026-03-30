@@ -13,7 +13,7 @@ import { toast } from '@/hooks/useShared';
 import { useWhatsAppSync } from '@/hooks/useWhatsAppSync';
 
 const isDev = import.meta.env.DEV;
-const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || '');
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
 interface MiniWhatsAppChatProps {
   isOpen: boolean;
