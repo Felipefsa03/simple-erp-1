@@ -15,6 +15,7 @@ import type {
 import { useEventBus } from '@/stores/eventBus';
 import { useAuth } from '@/hooks/useAuth';
 import { uid, now } from '@/lib/utils';
+import { SupabaseSync } from '@/lib/supabaseSync';
 
 // Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
 const CLINIC_API_BASE = '';
@@ -99,6 +100,107 @@ const normalizePatients = (value: unknown): Patient[] =>
 const ensureObject = <T extends Record<string, any>>(value: unknown, fallback: T): T => (
     value && typeof value === 'object' ? value as T : fallback
 );
+
+// ============================================
+// Supabase Sync - Funções de sincronização
+// ============================================
+
+const syncWithSupabase = async (clinicId: string) => {
+    console.log('[ClinicStore] 🔄 Iniciando sincronização com Supabase para:', clinicId);
+    
+    try {
+        // Carregar pacientes
+        const patients = await SupabaseSync.loadPatients(clinicId);
+        if (patients.length > 0) {
+            set({ patients });
+            console.log('[ClinicStore] ✅ Pacientes carregados:', patients.length);
+        }
+
+        // Carregar profissionais
+        const professionals = await SupabaseSync.loadProfessionals(clinicId);
+        if (professionals.length > 0) {
+            set({ professionals });
+            console.log('[ClinicStore] ✅ Profissionais carregados:', professionals.length);
+        }
+
+        // Carregar agendamentos
+        const appointments = await SupabaseSync.loadAppointments(clinicId);
+        if (appointments.length > 0) {
+            set({ appointments });
+            console.log('[ClinicStore] ✅ Agendamentos carregados:', appointments.length);
+        }
+
+        // Carregar serviços
+        const services = await SupabaseSync.loadServices(clinicId);
+        if (services.length > 0) {
+            set({ services });
+            console.log('[ClinicStore] ✅ Serviços carregados:', services.length);
+        }
+
+        // Carregar estoque
+        const stockItems = await SupabaseSync.loadStock(clinicId);
+        if (stockItems.length > 0) {
+            set({ stockItems });
+            console.log('[ClinicStore] ✅ Estoque carregado:', stockItems.length);
+        }
+
+        // Carregar transações
+        const transactions = await SupabaseSync.loadTransactions(clinicId);
+        if (transactions.length > 0) {
+            set({ transactions });
+            console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
+        }
+
+        console.log('[ClinicStore] ✅ Sincronização completa!');
+    } catch (error) {
+        console.error('[ClinicStore] ❌ Erro na sincronização:', error);
+    }
+};
+
+// Wrapper para salvar no Supabase e atualizar estado local
+const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction', data: any, isNew: boolean = true) => {
+    try {
+        if (type === 'patient') {
+            if (isNew) {
+                await SupabaseSync.savePatient(data);
+            } else {
+                await SupabaseSync.updatePatient(data.id, data);
+            }
+        } else if (type === 'professional') {
+            if (isNew) {
+                await SupabaseSync.saveProfessional(data);
+            } else {
+                await SupabaseSync.updateProfessional(data.id, data);
+            }
+        } else if (type === 'appointment') {
+            if (isNew) {
+                await SupabaseSync.saveAppointment(data);
+            } else {
+                await SupabaseSync.updateAppointment(data.id, data);
+            }
+        } else if (type === 'service') {
+            if (isNew) {
+                await SupabaseSync.saveService(data);
+            } else {
+                await SupabaseSync.updateService(data.id, data);
+            }
+        } else if (type === 'stock') {
+            if (isNew) {
+                await SupabaseSync.saveStockItem(data);
+            } else {
+                await SupabaseSync.updateStockItem(data.id, data);
+            }
+        } else if (type === 'transaction') {
+            if (isNew) {
+                await SupabaseSync.saveTransaction(data);
+            } else {
+                await SupabaseSync.updateTransaction(data.id, data);
+            }
+        }
+    } catch (error) {
+        console.error(`[ClinicStore] Erro ao salvar ${type} no Supabase:`, error);
+    }
+};
 
 // ---- DEMO DATA ----
 const DEMO_PROFESSIONALS: User[] = [
@@ -249,6 +351,9 @@ interface ClinicStore {
     updatePatient: (id: string, data: Partial<Patient>) => void;
     importPatients: (patients: Omit<Patient, 'id' | 'created_at'>[]) => number;
     getPatient: (id: string) => Patient | undefined;
+
+    // Sync Actions
+    syncWithSupabase: () => void;
 
     // Appointment Actions
     addAppointment: (a: Omit<Appointment, 'id' | 'created_at'>) => Appointment | null;
@@ -402,7 +507,15 @@ console.log('[ClinicStore] Modo:', useRealData ? 'REAL (Supabase)' : 'DEMO', '- 
 
 export const useClinicStore = create<ClinicStore>()(
     persist(
-        (set, get) => ({
+        (set, get) => {
+            // Auto-sync with Supabase on first load if configured
+            if (useRealData && typeof window !== 'undefined') {
+                const clinicId = 'clinic-1';
+                console.log('[ClinicStore] 🔄 Iniciando sincronização automática...');
+                setTimeout(() => syncWithSupabase(clinicId), 1500);
+            }
+            
+            return {
             // Initial data - based on Supabase configuration
             professionals: INITIAL_DATA.professionals,
             patients: INITIAL_DATA.patients,
@@ -505,19 +618,28 @@ export const useClinicStore = create<ClinicStore>()(
             },
 
             // ---- Patients ----
-            addPatient: (p) => {
+            addPatient: async (p) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
-                // Formatar telefone automaticamente para WhatsApp
                 const formattedPhone = formatPhoneForWhatsApp(p.phone);
                 const patient: Patient = { ...p, phone: formattedPhone, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ patients: [patient, ...s.patients] }));
                 emitEvent('PATIENT_CREATED', { patient_id: patient.id, clinic_id: patient.clinic_id });
+                
+                // Salvar no Supabase
+                await saveToSupabase('patient', patient, true);
+                console.log('[ClinicStore] ✅ Paciente salvo no Supabase:', patient.name);
+                
                 return patient;
             },
-            updatePatient: (id, data) => {
-                // Formatar telefone se estiver sendo atualizado
+            updatePatient: async (id, data) => {
                 const updatedData = data.phone ? { ...data, phone: formatPhoneForWhatsApp(data.phone) } : data;
                 set(s => ({ patients: s.patients.map(p => p.id === id ? { ...p, ...updatedData } : p) }));
+                
+                // Atualizar no Supabase
+                const patient = get().patients.find(p => p.id === id);
+                if (patient) {
+                    await saveToSupabase('patient', { ...patient, ...updatedData }, false);
+                }
             },
             importPatients: (patients) => {
                 const newPatients = patients.map(p => ({ ...p, id: uid(), created_at: now() }));
@@ -526,6 +648,12 @@ export const useClinicStore = create<ClinicStore>()(
                 return newPatients.length;
             },
             getPatient: (id) => get().patients.find(p => p.id === id),
+
+            // ---- Sync ----
+            syncWithSupabase: () => {
+                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                syncWithSupabase(clinic_id);
+            },
 
             // ---- Appointments ----
             addAppointment: (a) => {
@@ -1002,17 +1130,30 @@ export const useClinicStore = create<ClinicStore>()(
             getAppointmentMaterials: (appointmentId) => get().appointmentMaterials[appointmentId] || [],
 
             // ---- Stock ----
-            addStockItem: (item) => {
+            addStockItem: async (item) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const newItem: StockItem = { ...item, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ stockItems: [newItem, ...s.stockItems] }));
+                
+                // Salvar no Supabase
+                await saveToSupabase('stock', newItem, true);
+                
                 return newItem;
             },
-            updateStockItem: (id, data) => {
+            updateStockItem: async (id, data) => {
                 set(s => ({ stockItems: s.stockItems.map(i => i.id === id ? { ...i, ...data } : i) }));
+                
+                // Atualizar no Supabase
+                const item = get().stockItems.find(i => i.id === id);
+                if (item) {
+                    await saveToSupabase('stock', { ...item, ...data }, false);
+                }
             },
-            deleteStockItem: (id) => {
+            deleteStockItem: async (id) => {
                 set(s => ({ stockItems: s.stockItems.filter(i => i.id !== id) }));
+                
+                // Deletar no Supabase
+                await SupabaseSync.deleteStockItem(id);
             },
             consumeStock: (items, appointmentId, userId) => {
                 const insufficient: { stock_item_id: string; required: number; available: number }[] = [];
@@ -1045,26 +1186,35 @@ export const useClinicStore = create<ClinicStore>()(
             },
 
             // ---- Financial ----
-            addTransaction: (t) => {
+            addTransaction: async (t) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const inferredKey = t.idempotency_key || (t.appointment_id ? `apt:${t.appointment_id}:${t.type}` : uid());
                 const existing = get().transactions.find(txn => txn.idempotency_key === inferredKey);
                 if (existing) return existing;
                 const txn: FinancialTransaction = { ...t, clinic_id, id: uid(), idempotency_key: inferredKey, created_at: now() };
                 set(s => ({ transactions: [txn, ...s.transactions] }));
+                
+                // Salvar no Supabase
+                await saveToSupabase('transaction', txn, true);
+                
                 if (txn.type === 'income') {
                     emitEvent('PAYMENT_GENERATED', { transaction_id: txn.id, appointment_id: txn.appointment_id, clinic_id: txn.clinic_id });
                 }
                 return txn;
             },
-            processPayment: (id, method) => {
+            processPayment: async (id, method) => {
                 const txn = get().transactions.find(t => t.id === id);
                 if (!txn || txn.status === 'paid' || txn.status === 'cancelled') return;
+                const updatedData = { status: 'paid' as TransactionStatus, payment_method: method || 'manual', paid_at: now() };
                 set(s => ({
                     transactions: s.transactions.map(t =>
-                        t.id === id ? { ...t, status: 'paid' as TransactionStatus, payment_method: method || 'manual', paid_at: now() } : t
+                        t.id === id ? { ...t, ...updatedData } : t
                     ),
                 }));
+                
+                // Atualizar no Supabase
+                await saveToSupabase('transaction', { ...txn, ...updatedData }, false);
+                
                 emitEvent('PAYMENT_RECEIVED', { transaction_id: id, clinic_id: txn.clinic_id });
             },
             generatePayment: (id, method, installments) => {
@@ -1137,21 +1287,34 @@ export const useClinicStore = create<ClinicStore>()(
             },
 
             // ---- Services ----
-            addService: (s) => {
+            addService: async (s) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const service: Service = { ...s, clinic_id, id: uid() };
                 set(st => ({ services: [...st.services, service] }));
+                
+                // Salvar no Supabase
+                await saveToSupabase('service', service, true);
+                
                 return service;
             },
-            updateService: (id, data) => {
+            updateService: async (id, data) => {
                 set(s => ({ services: s.services.map(svc => svc.id === id ? { ...svc, ...data } : svc) }));
+                
+                // Atualizar no Supabase
+                const service = get().services.find(svc => svc.id === id);
+                if (service) {
+                    await saveToSupabase('service', { ...service, ...data }, false);
+                }
             },
-            deleteService: (id) => {
+            deleteService: async (id) => {
                 set(s => ({ services: s.services.filter(svc => svc.id !== id) }));
+                
+                // Deletar no Supabase
+                await SupabaseSync.deleteService(id);
             },
 
             // ---- Professionals ----
-            addProfessional: (p) => {
+            addProfessional: async (p) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const email = (p.email || '').toLowerCase();
                 if (email && get().professionals.some(prof => prof.email.toLowerCase() === email)) {
@@ -1159,13 +1322,27 @@ export const useClinicStore = create<ClinicStore>()(
                 }
                 const professional: User = { ...p, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ professionals: [professional, ...s.professionals] }));
+                
+                // Salvar no Supabase
+                await saveToSupabase('professional', professional, true);
+                console.log('[ClinicStore] ✅ Profissional salvo no Supabase:', professional.name);
+                
                 return professional;
             },
-            updateProfessional: (id, data) => {
+            updateProfessional: async (id, data) => {
                 set(s => ({ professionals: s.professionals.map(p => p.id === id ? { ...p, ...data } : p) }));
+                
+                // Atualizar no Supabase
+                const professional = get().professionals.find(p => p.id === id);
+                if (professional) {
+                    await saveToSupabase('professional', { ...professional, ...data }, false);
+                }
             },
-            deleteProfessional: (id) => {
+            deleteProfessional: async (id) => {
                 set(s => ({ professionals: s.professionals.filter(p => p.id !== id) }));
+                
+                // Deletar no Supabase
+                await SupabaseSync.deleteProfessional(id);
             },
             getProfessionalStats: (id, clinicId) => {
                 const state = get();
@@ -1325,7 +1502,8 @@ export const useClinicStore = create<ClinicStore>()(
                     leads: s.leads.map(lead => lead.id === leadId ? { ...lead, stage_id: stageId, updated_at: now() } : lead),
                 }));
             },
-        }),
+            };
+        },
         {
             name: 'luminaflow-clinic-store',
             partialize: (state) => ({
