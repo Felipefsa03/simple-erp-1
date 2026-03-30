@@ -438,17 +438,31 @@ app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
 app.post('/api/whatsapp/send', async (req, res) => {
   const { clinicId, to, message } = req.body;
   
+  addLog(`[API] ===== NOVA TENTATIVA DE ENVIO =====`);
+  addLog(`[API] Phone: ${to}`);
+  addLog(`[API] ClinicId: ${clinicId}`);
+  
   try {
     const sock = await ensureSocketConnected(clinicId);
     
     if (whatsappConnections[clinicId]?.status !== 'connected') {
+      addLog(`[API] ERRO: Não conectado`);
       return res.status(400).json({ ok: false, error: 'Dispositivo não conectado' });
     }
 
     const cleanTo = to.replace(/\D/g, '');
     const jid = `${cleanTo}@s.whatsapp.net`;
-    addLog(`[API] Enviando para ${jid}...`);
+    addLog(`[API] Enviando para JID: ${jid}...`);
+    
+    // Log mais detalhado
+    addLog(`[API] Mensagem: ${message.substring(0, 50)}...`);
+    
     const result = await sock.sendMessage(jid, { text: message });
+    
+    addLog(`[API] Resultado completo:`, JSON.stringify(result));
+    addLog(`[API] MessageId: ${result.key?.id}`);
+    addLog(`[API] Status: ${result.status}`);
+    addLog(`[API] ACK: ${result ACK}`);
     
     // Store sent message
     if (!whatsappConnections[clinicId].messages) {
@@ -462,9 +476,10 @@ app.post('/api/whatsapp/send', async (req, res) => {
       timestamp: Date.now()
     });
     
-    res.json({ ok: true, messageId: result.key.id });
+    res.json({ ok: true, messageId: result.key.id, result: result });
   } catch (error) {
-    addLog(`[API] Erro ao enviar: ${error.message}`);
+    addLog(`[API] ERRO DETALHADO: ${error.message}`);
+    addLog(`[API] Stack: ${error.stack}`);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
