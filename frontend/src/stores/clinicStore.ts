@@ -510,7 +510,8 @@ export const useClinicStore = create<ClinicStore>()(
         (set, get) => {
             // Auto-sync with Supabase on first load if configured
             if (useRealData && typeof window !== 'undefined') {
-                const clinicId = 'clinic-1';
+                // UUID da clínica padrão (Lumina Odontologia)
+                const clinicId = '00000000-0000-0000-0000-000000000001';
                 console.log('[ClinicStore] 🔄 Iniciando sincronização automática...');
                 setTimeout(() => syncWithSupabase(clinicId), 1500);
             }
@@ -651,7 +652,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Sync ----
             syncWithSupabase: () => {
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = useAuth.getState().user?.clinic_id || '00000000-0000-0000-0000-000000000001';
                 syncWithSupabase(clinic_id);
             },
 
