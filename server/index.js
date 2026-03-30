@@ -334,7 +334,7 @@ app.use(cors({
     'http://localhost:5173',
   ],
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
   credentials: true,
 }));
 
@@ -347,6 +347,25 @@ app.get('/health', (_, res) => {
     timestamp: new Date().toISOString(),
     sessions: sessions.size,
     uptime: Math.floor(process.uptime()),
+  });
+});
+
+app.get('/api/health', (_, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    sessions: sessions.size,
+    uptime: Math.floor(process.uptime()),
+  });
+});
+
+app.get('/api/health/extended', (_, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    sessions: sessions.size,
+    uptime: Math.floor(process.uptime()),
+    supabase: supabase ? 'connected' : 'not configured',
   });
 });
 
@@ -528,6 +547,23 @@ app.get('/api/whatsapp/notifications', (_, res) => {
 // ── 404 handler ───────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ error: `Rota não encontrada: ${req.method} ${req.path}` });
+});
+
+// ── Buscar mensagens do WhatsApp ───────────────
+app.get('/api/whatsapp/messages/:clinicId/:phone', (req, res) => {
+  const { clinicId, phone } = req.params;
+  const session = getSession(clinicId);
+  
+  if (!session || session.status !== SESSION_STATUS.CONNECTED) {
+    return res.status(503).json({ error: 'WhatsApp não conectado', messages: [] });
+  }
+  
+  res.json({ messages: [], message: 'Mensagens em tempo real via WebSocket (em desenvolvimento)' });
+});
+
+// ── Sync anamnese (placeholder) ────────────────
+app.post('/api/clinic/anamnese-sync', (req, res) => {
+  res.json({ success: true, message: 'Anamnese sync endpoint (em desenvolvimento)' });
 });
 
 // ── Error handler ─────────────────────────────
