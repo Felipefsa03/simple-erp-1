@@ -483,7 +483,7 @@ console.log('[ClinicStore] Loading demo data - professionals:', DEMO_PROFESSIONA
 
 // Verificar se Supabase está configurado para usar dados reais
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-NOExiRGRb1XcRAMEgkTzQ_9d1AGmtK';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-NOExiRGRb1XcRAMEgkTzQ_9d1AGmtK';
 const useRealData = !!(SUPABASE_URL && SUPABASE_KEY);
 
 // Dados reais ou demo baseado na configuração
