@@ -17,7 +17,8 @@ import {
   Stethoscope,
   Shield,
   Link2,
-  Server
+  Server,
+  TestTube
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -34,6 +35,7 @@ const clinicMenuItems = [
   { id: 'branches', label: 'Filiais', icon: Building2 },
   { id: 'estoque', label: 'Estoque', icon: Package },
   { id: 'marketing', label: 'Marketing & IA', icon: Sparkles },
+  { id: 'testes-whatsapp', label: 'Teste WhatsApp', icon: TestTube },
   { id: 'configuracoes', label: 'Configurações', icon: Settings },
 ];
 
@@ -67,6 +69,7 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
     branches: 'manage_settings',
     estoque: 'manage_stock',
     marketing: 'view_dashboard',
+    'testes-whatsapp': null,
     configuracoes: 'manage_settings',
   };
 

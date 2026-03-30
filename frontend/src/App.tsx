@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Menu, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { integrationsApi } from './lib/integrationsApi';
 import { PasswordResetFlow } from './components/auth/PasswordResetFlow';
+import { WhatsAppTest } from './domains/testes/WhatsAppTest';
 
 export default function App() {
   const { user, clinic, login, logout, hasPermission } = useAuth();
@@ -222,6 +223,7 @@ export default function App() {
       case 'estoque': return <Estoque />;
       case 'marketing': return <Marketing />;
       case 'configuracoes': return <Configuracoes onNavigate={handleNavigate} />;
+      case 'testes-whatsapp': return <WhatsAppTest />;
       case 'admin-dashboard': return <SuperAdminDashboard initialTab="dashboard" />;
       case 'admin-clinicas': return <SuperAdminDashboard initialTab="clinicas" />;
       case 'admin-assinaturas': return <SuperAdminDashboard initialTab="assinaturas" />;
