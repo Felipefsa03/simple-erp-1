@@ -6,7 +6,8 @@
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-const isConfigured = !!(supabaseUrl && supabaseAnonKey && supabaseAnonKey.startsWith('eyJ'));
+// Verificar se Supabase está configurado (aceita chaves que começam com eyJ ou sb_)
+const isConfigured = !!(supabaseUrl && supabaseAnonKey && (supabaseAnonKey.startsWith('eyJ') || supabaseAnonKey.startsWith('sb_')));
 
 if (!isConfigured) {
   console.warn('[Supabase] Chave não configurada corretamente. Usando modo demo.');

@@ -376,8 +376,20 @@ interface ClinicStore {
 // Debug: Log demo data on load
 console.log('[ClinicStore] Loading demo data - professionals:', DEMO_PROFESSIONALS.length, 'patients:', DEMO_PATIENTS.length);
 
-// FORçar dados demo SEMPRE
-const FORCE_DEMO_DATA = {
+// Verificar se Supabase está configurado para usar dados reais
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const useRealData = !!(SUPABASE_URL && SUPABASE_KEY && (SUPABASE_KEY.startsWith('eyJ') || SUPABASE_KEY.startsWith('sb_')));
+
+// Dados reais ou demo baseado na configuração
+const INITIAL_DATA = useRealData ? {
+    professionals: [],
+    patients: [],
+    appointments: [],
+    services: DEMO_SERVICES,
+    stockItems: DEMO_STOCK,
+    transactions: [],
+} : {
     professionals: DEMO_PROFESSIONALS,
     patients: DEMO_PATIENTS,
     appointments: DEMO_APPOINTMENTS,
@@ -386,17 +398,19 @@ const FORCE_DEMO_DATA = {
     transactions: DEMO_TRANSACTIONS,
 };
 
+console.log('[ClinicStore] Modo:', useRealData ? 'REAL (Supabase)' : 'DEMO', '- Patients:', useRealData ? 'vai carregar do banco' : DEMO_PATIENTS.length);
+
 export const useClinicStore = create<ClinicStore>()(
     persist(
         (set, get) => ({
-            // Initial data - ALWAYS use demo data
-            professionals: FORCE_DEMO_DATA.professionals,
-            patients: FORCE_DEMO_DATA.patients,
-            appointments: FORCE_DEMO_DATA.appointments,
-            services: FORCE_DEMO_DATA.services,
-            stockItems: FORCE_DEMO_DATA.stockItems,
+            // Initial data - based on Supabase configuration
+            professionals: INITIAL_DATA.professionals,
+            patients: INITIAL_DATA.patients,
+            appointments: INITIAL_DATA.appointments,
+            services: INITIAL_DATA.services,
+            stockItems: INITIAL_DATA.stockItems,
             stockMovements: [],
-            transactions: FORCE_DEMO_DATA.transactions,
+            transactions: INITIAL_DATA.transactions,
             medicalRecords: [],
             odontogramData: {},
             anamneseData: {},
@@ -1347,18 +1361,16 @@ export const useClinicStore = create<ClinicStore>()(
                 systemWhatsApp: state.systemWhatsApp,
             }),
             merge: (persistedState, currentState) => {
-                // FORÇAR dados demo sempre - ignorando localStorage
-                console.log('[ClinicStore] FORCING demo data!');
+                // Usar dados do localStorage se existirem, caso contrário usar dados iniciais
                 const next = {
                     ...currentState,
-                    professionals: FORCE_DEMO_DATA.professionals,
-                    patients: FORCE_DEMO_DATA.patients,
-                    appointments: FORCE_DEMO_DATA.appointments,
-                    services: FORCE_DEMO_DATA.services,
-                    stockItems: FORCE_DEMO_DATA.stockItems,
-                    transactions: FORCE_DEMO_DATA.transactions,
+                    ...(persistedState as Partial<ClinicStore>),
                 } as ClinicStore;
-                console.log('[ClinicStore] After merge - patients:', next.patients?.length);
+                
+                // Se não tem dados persistidos e está em modo real, vai carregar do banco
+                if (!persistedState) {
+                    console.log('[ClinicStore] Sem dados salvos, usando dados iniciais');
+                }
                 return next;
             },
         }
