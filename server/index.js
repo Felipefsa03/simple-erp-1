@@ -344,8 +344,19 @@ const createWhatsAppSocket = async (clinicId) => {
         if (type !== 'notify') return;
         
         for (const msg of messages) {
+          const from = msg.key.remoteJid;
+          
+          // Skip group messages, broadcasts, and status updates
+          if (
+            from?.endsWith('@g.us') || 
+            from?.endsWith('@broadcast') || 
+            from?.includes('@status') ||
+            from?.includes('@lid')
+          ) {
+            continue;
+          }
+          
           if (!msg.key.fromMe && msg.message?.conversation) {
-            const from = msg.key.remoteJid;
             const text = msg.message.conversation;
             
             addLog(`[Baileys] Mensagem recebida de ${from}: ${text.substring(0, 30)}...`);
