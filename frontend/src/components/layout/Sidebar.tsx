@@ -3,7 +3,6 @@ import {
   LayoutDashboard, 
   Calendar, 
   Users, 
-  FileText, 
   DollarSign, 
   Sparkles, 
   Settings, 
@@ -17,8 +16,7 @@ import {
   Stethoscope,
   Shield,
   Link2,
-  Server,
-  TestTube
+  Server
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,13 +27,11 @@ const clinicMenuItems = [
   { id: 'agenda', label: 'Agenda', icon: Calendar },
   { id: 'pacientes', label: 'Pacientes', icon: Users },
   { id: 'prontuarios', label: 'Prontuários', icon: Stethoscope },
-  { id: 'anamnese', label: 'Anamnese', icon: FileText },
   { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
   { id: 'insurance', label: 'Convênios', icon: Shield },
   { id: 'branches', label: 'Filiais', icon: Building2 },
   { id: 'estoque', label: 'Estoque', icon: Package },
   { id: 'marketing', label: 'Marketing & IA', icon: Sparkles },
-  { id: 'testes-whatsapp', label: 'Teste WhatsApp', icon: TestTube },
   { id: 'configuracoes', label: 'Configurações', icon: Settings },
 ];
 
