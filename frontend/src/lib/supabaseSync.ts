@@ -16,16 +16,6 @@ const getHeaders = () => ({
 
 const getBaseUrl = () => `${SUPABASE_URL}/rest/v1`;
 
-// UUID da clínica padrão (Lumina Odontologia)
-const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
-
-const getClinicId = (clinicId?: string) => {
-  // Se já for UUID válido, usa
-  if (clinicId && clinicId.includes('-')) return clinicId;
-  // Se for "clinic-1" ou outro alias, converte para UUID
-  return DEFAULT_CLINIC_ID;
-};
-
 async function supabaseFetch(table: string, options: {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: any;
@@ -60,6 +50,14 @@ async function supabaseFetch(table: string, options: {
   }
 }
 
+// UUID da clínica padrão (Lumina Odontologia)
+const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
+
+const getClinicId = (clinicId?: string) => {
+  if (clinicId && clinicId.includes('-')) return clinicId;
+  return DEFAULT_CLINIC_ID;
+};
+
 // Mapper para converter dados do Supabase para formato do app
 const mapPatient = (p: any) => ({
   id: p.id,
@@ -78,21 +76,33 @@ const mapPatient = (p: any) => ({
   allergies: p.allergies ? p.allergies.split(',').map((s: string) => s.trim()) : [],
   status: p.active ? 'active' : 'inactive',
   created_at: p.created_at,
-});
+}));
 
-const mapProfessional = (p: any) => ({
-  id: p.id,
-  clinic_id: p.clinic_id,
-  name: p.name || '',
-  email: p.email || '',
-  phone: p.phone || '',
-  role: 'dentist',
-  cro: p.cro || '',
-  specialty: p.specialty || '',
-  commission_pct: p.commission || 0,
-  active: p.active !== false,
-  created_at: p.created_at,
-});
+// Professionals - Busca nome do usuário
+const mapProfessional = async (p: any) => {
+  let name = '';
+  if (p.user_id) {
+    const { data: userData } = await supabaseFetch('users', {
+      filters: `?id=eq.${p.user_id}&select=name`,
+    });
+    if (userData && userData[0]) {
+      name = userData[0].name || '';
+    }
+  }
+  return {
+    id: p.id,
+    clinic_id: p.clinic_id,
+    name: name,
+    email: '',
+    phone: '',
+    role: 'dentist',
+    cro: p.cro || '',
+    specialty: p.specialty || '',
+    commission_pct: p.commission || 0,
+    active: p.active !== false,
+    created_at: p.created_at,
+  };
+};
 
 const mapAppointment = (a: any) => ({
   id: a.id,
@@ -115,8 +125,8 @@ const mapService = (s: any) => ({
   category: s.category || '',
   description: s.description || '',
   avg_duration_min: s.duration || 30,
-  base_price: s.price || 0,
-  estimated_cost: s.cost || 0,
+  base_price: Number(s.price) || 0,
+  estimated_cost: Number(s.cost) || 0,
   active: s.active !== false,
   created_at: s.created_at,
 });
@@ -126,10 +136,10 @@ const mapStockItem = (s: any) => ({
   clinic_id: s.clinic_id,
   name: s.name || '',
   category: s.category || '',
-  quantity: s.qty || 0,
-  min_quantity: s.min_qty || 0,
+  quantity: Number(s.qty) || 0,
+  min_quantity: Number(s.min_qty) || 0,
   unit: s.unit || 'un',
-  unit_cost: s.cost || 0,
+  unit_cost: Number(s.cost) || 0,
   supplier: s.supplier || '',
   active: s.active !== false,
   created_at: s.created_at,
@@ -168,10 +178,11 @@ export const SupabaseSync = {
   async loadProfessionals(clinicId: string) {
     const uuid = getClinicId(clinicId);
     const { data, error } = await supabaseFetch('professionals', {
-      filters: `?clinic_id=eq.${uuid}&select=*&order=name.asc`,
+      filters: `?clinic_id=eq.${uuid}&select=*`,
     });
     if (error || !data) return [];
-    return data.map(mapProfessional);
+    const mapped = await Promise.all(data.map(mapProfessional));
+    return mapped.sort((a, b) => a.name.localeCompare(b.name));
   },
 
   async loadAppointments(clinicId: string) {
@@ -258,9 +269,6 @@ export const SupabaseSync = {
     const body = {
       id: professional.id,
       clinic_id: getClinicId(professional.clinic_id),
-      name: professional.name,
-      email: professional.email,
-      phone: professional.phone || null,
       cro: professional.cro || null,
       specialty: professional.specialty || null,
       commission: professional.commission_pct || 0,
@@ -271,9 +279,6 @@ export const SupabaseSync = {
 
   async updateProfessional(id: string, professional: any) {
     const body = {
-      name: professional.name,
-      email: professional.email,
-      phone: professional.phone || null,
       cro: professional.cro || null,
       specialty: professional.specialty || null,
       commission: professional.commission_pct || 0,
