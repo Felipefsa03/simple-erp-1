@@ -377,9 +377,9 @@ interface ClinicStore {
 console.log('[ClinicStore] Loading demo data - professionals:', DEMO_PROFESSIONALS.length, 'patients:', DEMO_PATIENTS.length);
 
 // Verificar se Supabase está configurado para usar dados reais
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const useRealData = !!(SUPABASE_URL && SUPABASE_KEY && (SUPABASE_KEY.startsWith('eyJ') || SUPABASE_KEY.startsWith('sb_')));
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-NOExiRGRb1XcRAMEgkTzQ_9d1AGmtK';
+const useRealData = !!(SUPABASE_URL && SUPABASE_KEY);
 
 // Dados reais ou demo baseado na configuração
 const INITIAL_DATA = useRealData ? {

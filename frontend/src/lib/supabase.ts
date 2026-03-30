@@ -3,11 +3,11 @@
 // Versão que funciona SEM o pacote @supabase/supabase-js
 // ============================================
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-NOExiRGRb1XcRAMEgkTzQ_9d1AGmtK';
 
-// Verificar se Supabase está configurado (aceita chaves que começam com eyJ ou sb_)
-const isConfigured = !!(supabaseUrl && supabaseAnonKey && (supabaseAnonKey.startsWith('eyJ') || supabaseAnonKey.startsWith('sb_')));
+// Sempre configurado para este projeto
+const isConfigured = !!(supabaseUrl && supabaseAnonKey);
 
 if (!isConfigured) {
   console.warn('[Supabase] Chave não configurada corretamente. Usando modo demo.');
