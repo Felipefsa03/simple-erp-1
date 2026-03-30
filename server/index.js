@@ -387,8 +387,8 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   
   // Check if credentials exist in Supabase and auto-connect
   const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
-  if (supabaseCreds && supabaseCreds.creds) {
-    // Trigger connection in background
+  if (supabaseCreds && supabaseCreds.creds && !whatsappConnections[clinicId]) {
+    // Only trigger if no existing connection
     ensureSocketConnected(clinicId);
     return res.json({ ok: true, status: 'connecting', message: 'Reconectando...' });
   }
@@ -400,6 +400,35 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
      return res.json({ ok: true, status: 'connecting' });
   }
 
+   res.json({ ok: true, status: 'disconnected' });
+});
+
+// Disconnect endpoint
+app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
+  const { clinicId } = req.params;
+  
+  // Close socket if exists
+  if (whatsappSockets[clinicId]) {
+    try {
+      whatsappSockets[clinicId].end(undefined);
+    } catch (e) {}
+    delete whatsappSockets[clinicId];
+  }
+  
+  // Clear connection state
+  delete whatsappConnections[clinicId];
+  
+  // Delete credentials from Supabase
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+  } catch (e) {}
+  
   res.json({ ok: true, status: 'disconnected' });
 });
 
