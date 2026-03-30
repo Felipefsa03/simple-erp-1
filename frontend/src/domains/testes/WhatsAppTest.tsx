@@ -23,7 +23,7 @@ export function WhatsAppTest() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clinicId: 'clinxia',
+          clinicId: 'clinic-1',
           to: phone,
           message: `Teste de envio para ${name} - ${new Date().toLocaleTimeString('pt-BR')}`,
         }),
