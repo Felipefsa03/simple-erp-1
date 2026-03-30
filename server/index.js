@@ -459,10 +459,7 @@ app.post('/api/whatsapp/send', async (req, res) => {
     
     const result = await sock.sendMessage(jid, { text: message });
     
-    addLog(`[API] Resultado completo:`, JSON.stringify(result));
-    addLog(`[API] MessageId: ${result.key?.id}`);
-    addLog(`[API] Status: ${result.status}`);
-    addLog(`[API] ACK: ${result ACK}`);
+    addLog(`[API] Resultado:`, JSON.stringify(result));
     
     // Store sent message
     if (!whatsappConnections[clinicId].messages) {
