@@ -182,14 +182,30 @@ const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
 const whatsappConnections = {};
 const whatsappSockets = {};
 
-// Singleton socket manager
+// Contador de conexões para evitar loop
+let isConnecting = {};
+
+// Singleton socket manager - com lock para evitar múltiplas conexões
 const ensureSocketConnected = async (clinicId) => {
-  if (whatsappSockets[clinicId]) return whatsappSockets[clinicId];
+  // Se já existe socket, retorna
+  if (whatsappSockets[clinicId]) {
+    addLog(`[Baileys] Socket já existe para ${clinicId}`);
+    return whatsappSockets[clinicId];
+  }
+  
+  // Se está conectando, espera
+  if (isConnecting[clinicId]) {
+    addLog(`[Baileys] Conexão em andamento para ${clinicId}, esperando...`);
+    await new Promise(r => setTimeout(r, 5000));
+    return whatsappSockets[clinicId];
+  }
+  
   return await createWhatsAppSocket(clinicId);
 };
 
 // Updated QR generation to support Base64
 const createWhatsAppSocket = async (clinicId) => {
+  isConnecting[clinicId] = true;
   let retryCount = 0;
 
   const connect = async () => {
@@ -222,7 +238,7 @@ const createWhatsAppSocket = async (clinicId) => {
         auth: state,
         version: version,
         printQRInTerminal: false,
-        browser: ['LuminaFlow', 'Chrome', '122.0.0.0'], // "Evolution API" style branding
+        browser: ['LuminaFlow', 'Chrome', '122.0.0.0'],
         connectTimeoutMs: 120000,
         keepAliveIntervalMs: 60000,
         logger: logger,
@@ -231,7 +247,8 @@ const createWhatsAppSocket = async (clinicId) => {
 
       whatsappSockets[clinicId] = sock;
 
-      sock.ev.on('creds.update', saveCreds);
+      // NÃO salvar credenciais a cada mudança - apenas quando conectado
+      // sock.ev.on('creds.update', saveCreds); - removido para evitar escrita excessiva
 
       sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -248,20 +265,28 @@ const createWhatsAppSocket = async (clinicId) => {
             ? lastDisconnect.error.output.statusCode 
             : lastDisconnect?.error?.code || 0;
           
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode}`);
           
-          if (shouldReconnect) {
+          // Apenas reconectar se não for erro de sessão inválida E se não atingiu limite
+          const shouldReconnect = statusCode !== DisconnectReason.loggedOut && 
+                                   statusCode !== 401 && 
+                                   statusCode !== 428 &&
+                                   statusCode !== 440;
+          
+          if (shouldReconnect && retryCount < 3) {
             retryCount++;
-            const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
+            const delay = Math.min(10000 * retryCount, 60000); // Min 10s entre tentativas
+            addLog(`[Baileys] Tentando reconectar em ${delay/1000}s (tentativa ${retryCount})`);
             setTimeout(connect, delay);
           } else {
-            addLog(`[Baileys] Sessão limpa para ${clinicId}`);
+            addLog(`[Baileys] Sessão finalizada para ${clinicId}, não reconectando automaticamente`);
             delete whatsappSockets[clinicId];
             delete whatsappConnections[clinicId];
+            isConnecting[clinicId] = false;
           }
         } else if (connection === 'open') {
           retryCount = 0;
+          isConnecting[clinicId] = false;
           whatsappConnections[clinicId] = { 
             status: 'connected', 
             connected: true,
@@ -270,13 +295,17 @@ const createWhatsAppSocket = async (clinicId) => {
           };
           addLog(`[Baileys] Conexão ABERTA para ${clinicId} (${sock.user.id})`);
           
-          // Save credentials to Supabase when connected
+          // Save credentials to Supabase when connected - apenas uma vez
           const creds = sock.authState?.creds;
-          console.log('[Baileys] Credenciais para salvar:', creds ? 'sim' : 'não');
           if (creds) {
-            const saved = await saveCredentialsToSupabase(clinicId, { creds, keys: {} });
-            console.log('[Baileys] Resultado do save:', saved);
-            addLog(`[Baileys] Credenciais salvas no Supabase: ${saved}`);
+            setTimeout(async () => {
+              try {
+                const saved = await saveCredentialsToSupabase(clinicId, { creds, keys: {} });
+                addLog(`[Baileys] Credenciais salvas no Supabase: ${saved}`);
+              } catch(e) {
+                addLog(`[Baileys] Erro ao salvar credenciais: ${e.message}`);
+              }
+            }, 2000); // Salvar após 2 segundos para evitar conflicts
           }
         }
       });
@@ -320,6 +349,16 @@ const createWhatsAppSocket = async (clinicId) => {
 // Connect endpoint - generates QR code or pairing code
 app.post('/api/whatsapp/connect', async (req, res) => {
   const { clinicId, phoneNumber } = req.body;
+  
+  // Se já está conectado, retorna sucesso
+  if (whatsappConnections[clinicId]?.status === 'connected') {
+    return res.json({ success: true, status: 'connected', message: 'Já conectado!' });
+  }
+  
+  // Se está conectando, não cria outra conexão
+  if (isConnecting[clinicId]) {
+    return res.json({ success: true, status: 'connecting', message: 'Conexão em andamento...' });
+  }
   
   try {
     const sock = await ensureSocketConnected(clinicId);
