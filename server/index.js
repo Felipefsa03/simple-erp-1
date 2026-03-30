@@ -369,9 +369,22 @@ app.post('/api/whatsapp/connect', async (req, res) => {
 app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   const { clinicId } = req.params;
   
-  if (whatsappConnections[clinicId]) {
-    const conn = whatsappConnections[clinicId];
+  const sock = whatsappSockets[clinicId];
+  const conn = whatsappConnections[clinicId];
+  
+  // Verifica se socket existe mas não está mais conectado
+  if (sock && conn?.status === 'connected') {
+    const reallyConnected = isSocketConnected(sock);
+    addLog(`[Status] Verificando conexão: ${reallyConnected}`);
     
+    if (!reallyConnected) {
+      addLog(`[Status] Conexão perdida! Atualizando status para disconnected`);
+      whatsappConnections[clinicId] = { status: 'disconnected' };
+      return res.json({ ok: true, status: 'disconnected', message: 'Conexão perdida. Escaneie o QR code novamente.' });
+    }
+  }
+  
+  if (conn) {
     // Force generation of Base64 if missing but raw QR exists
     if (conn.qr && !conn.qrBase64) {
       try {
@@ -435,6 +448,35 @@ app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
   res.json({ ok: true, status: 'disconnected' });
 });
 
+// Função para verificar se o socket ainda está ativo
+const isSocketConnected = (sock) => {
+  if (!sock) return false;
+  try {
+    return sock?.ws?.socket?.readyState === 1; // WebSocket.OPEN
+  } catch (e) {
+    return false;
+  }
+};
+
+// Função para forçar reconexão
+const forceReconnect = async (clinicId) => {
+  addLog(`[API] Forçando reconexão para ${clinicId}...`);
+  
+  // Fecha socket existente se houver
+  if (whatsappSockets[clinicId]) {
+    try {
+      whatsappSockets[clinicId].end(undefined);
+    } catch (e) {}
+    delete whatsappSockets[clinicId];
+  }
+  
+  // Limpa conexão
+  delete whatsappConnections[clinicId];
+  
+  // Cria nova conexão
+  return await createWhatsAppSocket(clinicId);
+};
+
 app.post('/api/whatsapp/send', async (req, res) => {
   const { clinicId, to, message } = req.body;
   
@@ -444,16 +486,39 @@ app.post('/api/whatsapp/send', async (req, res) => {
   addLog(`[API] Message: ${message.substring(0, 30)}...`);
   
   try {
-    const sock = await ensureSocketConnected(clinicId);
+    let sock = whatsappSockets[clinicId];
+    let conn = whatsappConnections[clinicId];
     
-    const conn = whatsappConnections[clinicId];
-    addLog(`[API] Status da conexão: ${conn?.status}`);
+    addLog(`[API] Status atual: ${conn?.status}`);
     addLog(`[API] Socket existe: ${!!sock}`);
-    addLog(`[API] Socket user: ${sock?.user?.id}`);
+    addLog(`[API] Socket conectado: ${isSocketConnected(sock)}`);
     
-    if (conn?.status !== 'connected') {
-      addLog(`[API] ERRO: Dispositivo não conectado`);
-      return res.status(400).json({ ok: false, error: 'Dispositivo não conectado' });
+    // Verifica se socket existe mas não está mais conectado
+    if (sock && !isSocketConnected(sock)) {
+      addLog(`[API] Socket existe mas conexão perdida! Forçando reconexão...`);
+      sock = await forceReconnect(clinicId);
+      conn = whatsappConnections[clinicId];
+    }
+    
+    // Se não há socket, cria um novo
+    if (!sock) {
+      addLog(`[API] Criando nova conexão...`);
+      sock = await ensureSocketConnected(clinicId);
+      conn = whatsappConnections[clinicId];
+    }
+    
+    // Espera um pouco para a conexão estabilizar
+    await new Promise(r => setTimeout(r, 2000));
+    
+    conn = whatsappConnections[clinicId];
+    sock = whatsappSockets[clinicId];
+    
+    addLog(`[API] Status após verificação: ${conn?.status}`);
+    addLog(`[API] Socket conectado: ${isSocketConnected(sock)}`);
+    
+    if (conn?.status !== 'connected' || !isSocketConnected(sock)) {
+      addLog(`[API] ERRO: Dispositivo não conectado ou conexão perdida`);
+      return res.status(400).json({ ok: false, error: 'WhatsApp desconectado. Por favor, escaneie o QR code novamente.' });
     }
 
     const cleanTo = to.replace(/\D/g, '');
@@ -482,6 +547,13 @@ app.post('/api/whatsapp/send', async (req, res) => {
   } catch (error) {
     addLog(`[API] ERRO DETALHADO: ${error.message}`);
     addLog(`[API] Stack: ${error.stack}`);
+    
+    // Se der erro de conexão, marca como desconectado
+    if (error.message.includes('Connection Closed') || error.message.includes('not connected')) {
+      addLog(`[API] Conexão perdida! Marcando como desconectado`);
+      whatsappConnections[clinicId] = { status: 'disconnected' };
+    }
+    
     res.status(500).json({ ok: false, error: error.message });
   }
 });
