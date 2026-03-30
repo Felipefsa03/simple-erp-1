@@ -500,6 +500,12 @@ app.listen(PORT, () => {
   console.log(`📱 WhatsApp API ready for connections`);
 });
 
+// Notifications endpoint (placeholder for future implementation)
+app.post('/api/notifications/send', async (req, res) => {
+  // This endpoint is not yet implemented - just return success
+  res.json({ ok: true, message: 'Notification sent (placeholder)' });
+});
+
 // Graceful shutdown for Cloud environments (Render/Docker)
 const shutdown = () => {
   console.log('[Server] Shutting down...');
