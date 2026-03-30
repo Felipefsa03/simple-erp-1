@@ -18,6 +18,9 @@ export function WhatsAppTest() {
     setSending(phone);
     setResults(prev => ({ ...prev, [phone]: { success: false, message: 'Enviando...' } }));
 
+    // Delay para evitar rate limiting
+    await new Promise(r => setTimeout(r, 2000));
+
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/send`, {
         method: 'POST',
