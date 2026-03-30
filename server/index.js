@@ -1,613 +1,576 @@
 import express from 'express';
 import cors from 'cors';
-import { createClient } from '@supabase/supabase-js';
-import {
-  makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore,
-  isJidBroadcast,
-} from 'baileys';
-import { Boom } from '@hapi/boom';
-import pino from 'pino';
-import { promises as fs } from 'fs';
+import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import qrcode from 'qrcode';
-import dotenv from 'dotenv';
+import pino from 'pino';
+import { Boom } from '@hapi/boom';
+import QRCode from 'qrcode';
+import makeWASocket, { 
+  DisconnectReason, 
+  useMultiFileAuthState, 
+  fetchLatestBaileysVersion,
+  BufferJSON 
+} from 'baileys';
 
-dotenv.config();
+const app = express();
+const PORT = process.env.PORT || 8787;
 
-// ─────────────────────────────────────────────
-// CONFIG
-// ─────────────────────────────────────────────
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = process.env.PORT || 3001;
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const AUTH_DIR = path.join(__dirname, '.wa_auth');
+// Supabase configuration
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_URL_PROD || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PROD || '';
 
-// Logger silencioso para Baileys (evita spam no console)
-const baileysLogger = pino({ level: 'silent' });
+app.use(cors({
+  origin: ['https://clinxia.vercel.app', 'https://clinxia-*.vercel.app', 'http://localhost:5173'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
+}));
+app.use(express.json());
 
-// App logger
-const log = {
-  info: (...a) => console.log('[INFO]', new Date().toISOString(), ...a),
-  warn: (...a) => console.warn('[WARN]', new Date().toISOString(), ...a),
-  error: (...a) => console.error('[ERROR]', new Date().toISOString(), ...a),
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    supabase: {
+      url: SUPABASE_URL ? 'configured' : 'missing',
+      key: SUPABASE_ANON_KEY ? 'configured' : 'missing'
+    }
+  });
+});
+
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Clinxia Backend Running' });
+});
+
+// Helper for logs
+const addLog = (msg) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${msg}`);
 };
 
-// ─────────────────────────────────────────────
-// SUPABASE
-// ─────────────────────────────────────────────
-const supabase = (SUPABASE_URL && SUPABASE_SERVICE_KEY)
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-  : null;
-
-async function saveCredentials(clinicId, creds) {
-  if (!supabase) return;
-  try {
-    const { error } = await supabase
-      .from('whatsapp_credentials')
-      .upsert(
-        { clinic_id: clinicId, credentials: creds, last_sync: new Date().toISOString() },
-        { onConflict: 'clinic_id' }
-      );
-    if (error) log.warn('saveCredentials error', error.message);
-  } catch (e) {
-    log.error('saveCredentials exception', e.message);
-  }
-}
-
-async function loadCredentials(clinicId) {
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase
-      .from('whatsapp_credentials')
-      .select('credentials')
-      .eq('clinic_id', clinicId)
-      .single();
-    if (error || !data) return null;
-    return data.credentials;
-  } catch (e) {
-    log.error('loadCredentials exception', e.message);
-    return null;
-  }
-}
-
-async function deleteCredentials(clinicId) {
-  if (!supabase) return;
-  try {
-    await supabase
-      .from('whatsapp_credentials')
-      .delete()
-      .eq('clinic_id', clinicId);
-  } catch (e) {
-    log.error('deleteCredentials exception', e.message);
-  }
-}
-
-// ─────────────────────────────────────────────
-// PHONE NUMBER — LÓGICA ROBUSTA BRASIL
-// ─────────────────────────────────────────────
-
-/**
- * Normaliza um número brasileiro para o formato E.164 sem '+'
- * Retorna um array de candidatos (do mais provável ao menos provável)
- * para que possamos tentar com onWhatsApp().
- *
- * Regras:
- *  - Remove tudo que não for dígito
- *  - Adiciona 55 se não tiver código do país
- *  - Para número local de 8 dígitos → gera versão com 9 na frente
- *  - Para número local de 9 dígitos começando com 9 → também gera versão sem o 9 inicial
- *  - Isso cobre TODOS os DDDs do Brasil, inclusive Bahia (DDD 71-77)
- */
+// Brazilian phone number validation - generates candidates with/without 9th digit
 function brazilianPhoneCandidates(rawPhone) {
   let digits = String(rawPhone).replace(/\D/g, '');
-
-  // Garante código do país
-  if (digits.startsWith('0')) digits = digits.slice(1); // remove 0 de discagem
+  
+  if (digits.startsWith('0')) digits = digits.slice(1);
   if (!digits.startsWith('55')) digits = '55' + digits;
-
-  // Remove +55 duplicado
   if (digits.startsWith('5555')) digits = digits.slice(2);
-
+  
   const country = '55';
-  const rest = digits.slice(2); // DDD + número local
-
+  const rest = digits.slice(2);
+  
   if (rest.length < 10) {
-    log.warn(`Número muito curto após normalização: ${digits}`);
-    return [digits]; // retorna como está
+    return [digits];
   }
-
+  
   const ddd = rest.slice(0, 2);
   const local = rest.slice(2);
-
+  
   const candidates = [];
-
+  
   if (local.length === 9) {
-    // 9 dígitos: provavelmente já tem o 9º dígito
     candidates.push(`${country}${ddd}${local}`);
-    // Também tenta sem o 9 inicial (para casos onde foi adicionado incorretamente)
     if (local.startsWith('9')) {
       candidates.push(`${country}${ddd}${local.slice(1)}`);
     }
   } else if (local.length === 8) {
-    // 8 dígitos: precisa adicionar o 9
     candidates.push(`${country}${ddd}9${local}`);
-    candidates.push(`${country}${ddd}${local}`); // fallback sem o 9
+    candidates.push(`${country}${ddd}${local}`);
   } else {
-    // Comprimento inesperado — retorna como está
     candidates.push(digits);
   }
-
-  return [...new Set(candidates)]; // deduplicar
+  
+  return [...new Set(candidates)];
 }
 
-/**
- * Encontra o JID correto do WhatsApp para um número brasileiro.
- * Tenta todos os candidatos com onWhatsApp() e retorna o primeiro que existe.
- * Se nenhum for confirmado, usa o candidato mais provável como fallback.
- */
+// Resolve WhatsApp JID by checking which candidate actually exists
 async function resolveWhatsAppJID(sock, rawPhone) {
   const candidates = brazilianPhoneCandidates(rawPhone);
-  log.info(`Resolvendo JID para "${rawPhone}" → candidatos: ${candidates.join(', ')}`);
-
+  addLog(`[Phone] Resolving JID for "${rawPhone}" → candidates: ${candidates.join(', ')}`);
+  
   for (const candidate of candidates) {
-    const jid = `${candidate}@s.whatsapp.net`;
     try {
       const [result] = await sock.onWhatsApp(candidate);
       if (result?.exists) {
-        log.info(`JID confirmado: ${result.jid}`);
+        addLog(`[Phone] JID confirmed: ${result.jid}`);
         return result.jid;
       }
     } catch (e) {
-      log.warn(`onWhatsApp falhou para ${candidate}: ${e.message}`);
+      addLog(`[Phone] onWhatsApp failed for ${candidate}: ${e.message}`);
     }
   }
-
-  // Nenhum confirmado — usa o mais provável e loga aviso
+  
   const fallback = `${candidates[0]}@s.whatsapp.net`;
-  log.warn(`Nenhum JID confirmado para "${rawPhone}". Usando fallback: ${fallback}`);
+  addLog(`[Phone] No JID confirmed for "${rawPhone}". Using fallback: ${fallback}`);
   return fallback;
 }
 
-// ─────────────────────────────────────────────
-// SESSÕES WHATSAPP (in-memory, por clinicId)
-// ─────────────────────────────────────────────
-const sessions = new Map();
-// session = { sock, state, qr, status, connectingAt, clinicId }
-
-const SESSION_STATUS = {
-  DISCONNECTED: 'disconnected',
-  CONNECTING: 'connecting',
-  QR_READY: 'qr_ready',
-  CONNECTED: 'connected',
-  ERROR: 'error',
+// Ensure auth directories exist (fallback for local dev)
+const ensureClinicStatus = (clinicId) => {
+  const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
+  if (!fs.existsSync(authDir)) {
+    fs.mkdirSync(authDir, { recursive: true });
+  }
+  return authDir;
 };
 
-function getSession(clinicId) {
-  return sessions.get(clinicId);
-}
-
-function setSession(clinicId, data) {
-  const existing = sessions.get(clinicId) || {};
-  sessions.set(clinicId, { ...existing, ...data, clinicId });
-}
-
-async function getAuthPath(clinicId) {
-  const dir = path.join(AUTH_DIR, clinicId);
-  await fs.mkdir(dir, { recursive: true });
-  return dir;
-}
-
-// ─────────────────────────────────────────────
-// CRIAR / RECONECTAR SESSÃO BAILEYS
-// ─────────────────────────────────────────────
-async function createSession(clinicId) {
-  const existing = getSession(clinicId);
-
-  // Evita criar sessão duplicada
-  if (existing?.status === SESSION_STATUS.CONNECTING || existing?.status === SESSION_STATUS.QR_READY) {
-    log.info(`[${clinicId}] Sessão já está conectando/aguardando QR`);
-    return;
+// Supabase helpers for WhatsApp credentials
+const saveCredentialsToSupabase = async (clinicId, credentials) => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.log('[Supabase] Credenciais não configuradas, usando arquivo local');
+    return false;
   }
-  if (existing?.status === SESSION_STATUS.CONNECTED && existing.sock) {
-    log.info(`[${clinicId}] Sessão já está conectada`);
-    return;
-  }
-
-  log.info(`[${clinicId}] Iniciando sessão Baileys...`);
-  setSession(clinicId, { status: SESSION_STATUS.CONNECTING, qr: null, connectingAt: Date.now() });
-
-  const authPath = await getAuthPath(clinicId);
-
-  // Carrega credenciais do Supabase se disponível
-  const savedCreds = await loadCredentials(clinicId);
-  if (savedCreds) {
-    try {
-      await fs.writeFile(path.join(authPath, 'creds.json'), JSON.stringify(savedCreds));
-      log.info(`[${clinicId}] Credenciais restauradas do Supabase`);
-    } catch (e) {
-      log.warn(`[${clinicId}] Falha ao restaurar credenciais: ${e.message}`);
+  
+  try {
+    const credsString = JSON.stringify(credentials, BufferJSON.replacer);
+    
+    // Try insert first (will fail if exists)
+    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'resolution=ignore-duplicates'
+      },
+      body: JSON.stringify({
+        clinic_id: clinicId,
+        credentials: credsString,
+        connected_at: new Date().toISOString()
+      })
+    });
+    
+    if (insertRes.ok) {
+      console.log('[Supabase] Credenciais salvas para', clinicId);
+      return true;
     }
+    
+    // If insert failed (duplicate), try update
+    const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        credentials: credsString,
+        updated_at: new Date().toISOString()
+      })
+    });
+    
+    console.log('[Supabase] Credenciais atualizadas para', clinicId);
+    return updateRes.ok;
+  } catch (error) {
+    console.error('[Supabase] Erro ao salvar credenciais:', error.message);
+    return false;
   }
+};
 
-  const { state, saveCreds } = await useMultiFileAuthState(authPath);
-  const { version } = await fetchLatestBaileysVersion();
+const loadCredentialsFromSupabase = async (clinicId) => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.log('[Supabase] Credenciais não configuradas');
+    return null;
+  }
+  
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}&select=credentials`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    
+    if (!res.ok) return null;
+    
+    const data = await res.json();
+    if (data && data.length > 0 && data[0].credentials) {
+      console.log('[Supabase] Credenciais carregadas para', clinicId);
+      return JSON.parse(data[0].credentials, BufferJSON.reviver);
+    }
+    return null;
+  } catch (error) {
+    console.error('[Supabase] Erro ao carregar credenciais:', error.message);
+    return null;
+  }
+};
 
-  log.info(`[${clinicId}] Baileys versão WA: ${version.join('.')}`);
-
-  const sock = makeWASocket({
-    version,
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
+// Custom auth state that uses Supabase
+const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
+  let credentials = initialCredentials?.creds || null;
+  let keys = initialCredentials?.keys || {};
+  let saveCount = 0;
+  
+  return {
+    state: {
+      creds: credentials,
+      keys: {
+        get: async (type, ids) => {
+          if (keys && keys[type]) {
+            return keys[type];
+          }
+          const data = await loadCredentialsFromSupabase(clinicId);
+          if (data && data.keys) {
+            keys = data.keys;
+            return data.keys[type] || {};
+          }
+          return {};
+        },
+        set: async (type, data) => {
+          keys = { ...keys, [type]: data };
+          const current = await loadCredentialsFromSupabase(clinicId) || {};
+          await saveCredentialsToSupabase(clinicId, { ...current, keys });
+        }
+      }
     },
-    logger: baileysLogger,
-    printQRInTerminal: false,
-    browser: ['Clinxia ERP', 'Chrome', '120.0.0'],
-    connectTimeoutMs: 60_000,
-    keepAliveIntervalMs: 30_000,
-    retryRequestDelayMs: 2_000,
-    maxMsgRetryCount: 3,
-    getMessage: async () => ({ conversation: '' }),
-  });
-
-  setSession(clinicId, { sock, state });
-
-  // ── Eventos ──────────────────────────────────
-
-  sock.ev.on('creds.update', async () => {
-    await saveCreds();
-    // Persiste no Supabase
-    try {
-      const credsData = JSON.parse(await fs.readFile(path.join(authPath, 'creds.json'), 'utf8'));
-      await saveCredentials(clinicId, credsData);
-    } catch (e) {
-      log.warn(`[${clinicId}] Erro ao persistir creds: ${e.message}`);
-    }
-  });
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update;
-
-    if (qr) {
-      log.info(`[${clinicId}] QR Code gerado`);
-      try {
-        const qrDataUrl = await qrcode.toDataURL(qr);
-        setSession(clinicId, { status: SESSION_STATUS.QR_READY, qr: qrDataUrl });
-      } catch (e) {
-        log.error(`[${clinicId}] Erro ao gerar QR: ${e.message}`);
+    saveCreds: async () => {
+      saveCount++;
+      // Save every time for now to ensure persistence
+      const credsToSave = credentials || whatsappConnections[clinicId]?.creds;
+      if (credsToSave) {
+        const current = await loadCredentialsFromSupabase(clinicId) || {};
+        await saveCredentialsToSupabase(clinicId, { ...current, creds: credsToSave, keys });
       }
     }
+  };
+};
 
-    if (connection === 'open') {
-      log.info(`[${clinicId}] ✅ Conectado ao WhatsApp`);
-      setSession(clinicId, { status: SESSION_STATUS.CONNECTED, qr: null });
-    }
+// Status cache for quick retrieval
+const whatsappConnections = {};
+const whatsappSockets = {};
 
-    if (connection === 'close') {
-      const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-      const reasonName = DisconnectReason[reason] || String(reason);
-      log.warn(`[${clinicId}] Desconectado. Motivo: ${reasonName} (${reason})`);
+// Singleton socket manager
+const ensureSocketConnected = async (clinicId) => {
+  if (whatsappSockets[clinicId]) return whatsappSockets[clinicId];
+  return await createWhatsAppSocket(clinicId);
+};
 
-      const shouldReconnect = reason !== DisconnectReason.loggedOut
-        && reason !== DisconnectReason.forbidden;
+// Updated QR generation to support Base64
+const createWhatsAppSocket = async (clinicId) => {
+  let retryCount = 0;
 
-      if (reason === DisconnectReason.loggedOut || reason === DisconnectReason.forbidden) {
-        log.warn(`[${clinicId}] Logout detectado — removendo credenciais`);
-        setSession(clinicId, { status: SESSION_STATUS.DISCONNECTED, sock: null, qr: null });
-        await deleteCredentials(clinicId);
-        try { await fs.rm(authPath, { recursive: true, force: true }); } catch {}
-      } else if (shouldReconnect) {
-        log.info(`[${clinicId}] Reagendando reconexão em 5s...`);
-        setSession(clinicId, { status: SESSION_STATUS.DISCONNECTED, sock: null });
-        setTimeout(() => createSession(clinicId), 5_000);
+  const connect = async () => {
+    try {
+      const { version, isLatest } = await fetchLatestBaileysVersion();
+      addLog(`[Baileys] Usando versão WA v${version.join('.')}, isLatest: ${isLatest}`);
+
+      // Try to load credentials from Supabase first
+      let state, saveCreds;
+      const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
+      
+      if (supabaseCreds && supabaseCreds.creds) {
+        addLog(`[Baileys] Carregando credenciais do Supabase para ${clinicId}`);
+        const supabaseAuth = useSupabaseAuthState(clinicId, supabaseCreds);
+        state = supabaseAuth.state;
+        saveCreds = supabaseAuth.saveCreds;
       } else {
-        setSession(clinicId, { status: SESSION_STATUS.ERROR, sock: null });
+        // Fallback to local file system
+        addLog(`[Baileys] Usando arquivo local para ${clinicId}`);
+        const authDir = ensureClinicStatus(clinicId);
+        const fileAuth = await useMultiFileAuthState(authDir);
+        state = fileAuth.state;
+        saveCreds = fileAuth.saveCreds;
       }
+      
+      const logger = pino({ level: 'error' }); // Less noisy for prod
+      addLog(`[Baileys] Iniciando conexão para ${clinicId}...`);
+      
+      const sock = makeWASocket({
+        auth: state,
+        version: version,
+        printQRInTerminal: false,
+        browser: ['LuminaFlow', 'Chrome', '122.0.0.0'], // "Evolution API" style branding
+        connectTimeoutMs: 120000,
+        keepAliveIntervalMs: 60000,
+        logger: logger,
+        options: { family: 4 }
+      });
+
+      whatsappSockets[clinicId] = sock;
+
+      sock.ev.on('creds.update', saveCreds);
+
+      sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+        
+        if (qr) {
+          // GENERATE BASE64 QR CODE FOR FRONTEND
+          const qrBase64 = await QRCode.toDataURL(qr);
+          whatsappConnections[clinicId] = { status: 'qr', qr: qr, qrBase64 };
+          addLog(`[Baileys] QR Code pronto para ${clinicId}`);
+        }
+
+        if (connection === 'close') {
+          const statusCode = (lastDisconnect?.error instanceof Boom) 
+            ? lastDisconnect.error.output.statusCode 
+            : lastDisconnect?.error?.code || 0;
+          
+          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          addLog(`[Baileys] Conexão FECHADA: ${statusCode}`);
+          
+          if (shouldReconnect) {
+            retryCount++;
+            const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
+            setTimeout(connect, delay);
+          } else {
+            addLog(`[Baileys] Sessão limpa para ${clinicId}`);
+            delete whatsappSockets[clinicId];
+            delete whatsappConnections[clinicId];
+          }
+        } else if (connection === 'open') {
+          retryCount = 0;
+          whatsappConnections[clinicId] = { 
+            status: 'connected', 
+            connected: true,
+            phoneNumber: sock.user.id.split(':')[0],
+            messages: []
+          };
+          addLog(`[Baileys] Conexão ABERTA para ${clinicId} (${sock.user.id})`);
+          
+          // Save credentials to Supabase when connected
+          const creds = sock.authState?.creds;
+          console.log('[Baileys] Credenciais para salvar:', creds ? 'sim' : 'não');
+          if (creds) {
+            const saved = await saveCredentialsToSupabase(clinicId, { creds, keys: {} });
+            console.log('[Baileys] Resultado do save:', saved);
+            addLog(`[Baileys] Credenciais salvas no Supabase: ${saved}`);
+          }
+        }
+      });
+
+      // Listen for incoming messages
+      sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        if (type !== 'notify') return;
+        
+        for (const msg of messages) {
+          if (!msg.key.fromMe && msg.message?.conversation) {
+            const from = msg.key.remoteJid;
+            const text = msg.message.conversation;
+            
+            addLog(`[Baileys] Mensagem recebida de ${from}: ${text.substring(0, 30)}...`);
+            
+            // Store received message
+            if (!whatsappConnections[clinicId].messages) {
+              whatsappConnections[clinicId].messages = [];
+            }
+            whatsappConnections[clinicId].messages.push({
+              id: msg.key.id,
+              key: from,
+              text: text,
+              fromMe: false,
+              timestamp: msg.messageTimestamp * 1000
+            });
+          }
+        }
+      });
+
+      return sock;
+    } catch (err) {
+      addLog(`[Baileys] Erro: ${err.message}`);
+      setTimeout(connect, 10000);
     }
-  });
+  };
 
-  sock.ev.on('messages.upsert', ({ messages }) => {
-    for (const msg of messages) {
-      if (!msg.key.fromMe && !isJidBroadcast(msg.key.remoteJid)) {
-        log.info(`[${clinicId}] 📨 Mensagem recebida de ${msg.key.remoteJid}`);
-      }
-    }
-  });
-}
+  return await connect();
+};
 
-// ─────────────────────────────────────────────
-// EXPRESS
-// ─────────────────────────────────────────────
-const app = express();
-
-app.use(cors({
-  origin: [
-    'https://clinxia.vercel.app',
-    'https://simple-erp-three.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5173',
-  ],
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
-  credentials: true,
-}));
-
-app.use(express.json({ limit: '5mb' }));
-
-// ── Health ────────────────────────────────────
-app.get('/health', (_, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    sessions: sessions.size,
-    uptime: Math.floor(process.uptime()),
-  });
-});
-
-app.get('/api/health', (_, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    sessions: sessions.size,
-    uptime: Math.floor(process.uptime()),
-  });
-});
-
-app.get('/api/health/extended', (_, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    sessions: sessions.size,
-    uptime: Math.floor(process.uptime()),
-    supabase: supabase ? 'connected' : 'not configured',
-  });
-});
-
-// ── Status da sessão ──────────────────────────
-app.get('/api/whatsapp/status/:clinicId', (req, res) => {
-  const { clinicId } = req.params;
-  const session = getSession(clinicId);
-  res.json({
-    status: session?.status || SESSION_STATUS.DISCONNECTED,
-    hasQR: !!session?.qr,
-    connected: session?.status === SESSION_STATUS.CONNECTED,
-  });
-});
-
-// ── QR Code ───────────────────────────────────
-app.get('/api/whatsapp/qr/:clinicId', (req, res) => {
-  const { clinicId } = req.params;
-  const session = getSession(clinicId);
-
-  if (!session || session.status === SESSION_STATUS.DISCONNECTED) {
-    return res.status(404).json({ error: 'Sem sessão ativa. Chame /connect primeiro.' });
-  }
-  if (!session.qr) {
-    return res.status(202).json({
-      message: 'QR ainda não disponível',
-      status: session.status,
-    });
-  }
-  res.json({ qr: session.qr, status: session.status });
-});
-
-// ── Conectar ──────────────────────────────────
-app.post('/api/whatsapp/connect/:clinicId', async (req, res) => {
-  const { clinicId } = req.params;
+// Connect endpoint - generates QR code or pairing code
+app.post('/api/whatsapp/connect', async (req, res) => {
+  const { clinicId, phoneNumber } = req.body;
+  
   try {
-    await createSession(clinicId);
-    res.json({ message: 'Conexão iniciada', clinicId });
-  } catch (e) {
-    log.error(`[${clinicId}] Erro ao criar sessão: ${e.message}`);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ── Desconectar ───────────────────────────────
-app.delete('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
-  const { clinicId } = req.params;
-  const session = getSession(clinicId);
-
-  try {
-    if (session?.sock) {
-      await session.sock.logout().catch(() => {});
-    }
-    setSession(clinicId, { status: SESSION_STATUS.DISCONNECTED, sock: null, qr: null });
-    await deleteCredentials(clinicId);
-    const authPath = await getAuthPath(clinicId);
-    await fs.rm(authPath, { recursive: true, force: true }).catch(() => {});
-    sessions.delete(clinicId);
-    res.json({ message: 'Desconectado com sucesso' });
-  } catch (e) {
-    log.error(`[${clinicId}] Erro ao desconectar: ${e.message}`);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ── Enviar mensagem ───────────────────────────
-app.post('/api/whatsapp/send', async (req, res) => {
-  const { clinicId, phone, message } = req.body;
-
-  // Validação
-  if (!clinicId || !phone || !message) {
-    return res.status(400).json({
-      error: 'Campos obrigatórios: clinicId, phone, message',
-    });
-  }
-
-  const session = getSession(clinicId);
-  if (!session || session.status !== SESSION_STATUS.CONNECTED || !session.sock) {
-    return res.status(503).json({
-      error: 'WhatsApp não conectado para esta clínica',
-      status: session?.status || SESSION_STATUS.DISCONNECTED,
-    });
-  }
-
-  try {
-    log.info(`[${clinicId}] Enviando para "${phone}": "${message.slice(0, 50)}..."`);
-
-    // ── CORREÇÃO PRINCIPAL: resolve o JID correto ──
-    const jid = await resolveWhatsAppJID(session.sock, phone);
-    log.info(`[${clinicId}] JID resolvido: ${jid}`);
-
-    const result = await session.sock.sendMessage(jid, { text: message });
-
-    log.info(`[${clinicId}] ✅ Mensagem enviada. ID: ${result?.key?.id}`);
-    res.json({
-      success: true,
-      messageId: result?.key?.id,
-      to: jid,
-      phone,
-    });
-  } catch (e) {
-    log.error(`[${clinicId}] Erro ao enviar para "${phone}": ${e.message}`);
-    res.status(500).json({
-      error: 'Erro ao enviar mensagem',
-      details: e.message,
-      phone,
-    });
-  }
-});
-
-// ── Enviar para múltiplos números ─────────────
-app.post('/api/whatsapp/send-bulk', async (req, res) => {
-  const { clinicId, recipients, message } = req.body;
-  // recipients = [{ phone, name }]
-
-  if (!clinicId || !recipients?.length || !message) {
-    return res.status(400).json({ error: 'Campos obrigatórios: clinicId, recipients, message' });
-  }
-
-  const session = getSession(clinicId);
-  if (!session || session.status !== SESSION_STATUS.CONNECTED || !session.sock) {
-    return res.status(503).json({ error: 'WhatsApp não conectado', status: session?.status });
-  }
-
-  const results = [];
-  for (const recipient of recipients) {
-    try {
-      const jid = await resolveWhatsAppJID(session.sock, recipient.phone);
-      const personalizedMsg = message.replace('{nome}', recipient.name || '');
-      const result = await session.sock.sendMessage(jid, { text: personalizedMsg });
-
-      results.push({ phone: recipient.phone, jid, success: true, messageId: result?.key?.id });
-      log.info(`[${clinicId}] ✅ Bulk enviado para ${jid}`);
-
-      // Delay entre envios para evitar rate limiting
-      await new Promise(r => setTimeout(r, 1500));
-    } catch (e) {
-      results.push({ phone: recipient.phone, success: false, error: e.message });
-      log.error(`[${clinicId}] ❌ Bulk falhou para ${recipient.phone}: ${e.message}`);
-    }
-  }
-
-  const successful = results.filter(r => r.success).length;
-  res.json({ total: recipients.length, successful, failed: recipients.length - successful, results });
-});
-
-// ── Verificar número no WhatsApp ──────────────
-app.get('/api/whatsapp/check/:clinicId/:phone', async (req, res) => {
-  const { clinicId, phone } = req.params;
-  const session = getSession(clinicId);
-
-  if (!session || session.status !== SESSION_STATUS.CONNECTED || !session.sock) {
-    return res.status(503).json({ error: 'WhatsApp não conectado' });
-  }
-
-  try {
-    const candidates = brazilianPhoneCandidates(phone);
-    const checks = [];
-
-    for (const candidate of candidates) {
+    const sock = await ensureSocketConnected(clinicId);
+    
+    // Generate pairing code if phone provided
+    if (phoneNumber) {
+      const cleanPhone = phoneNumber.replace(/\D/g, '');
       try {
-        const [result] = await session.sock.onWhatsApp(candidate);
-        checks.push({ number: candidate, exists: !!result?.exists, jid: result?.jid });
-      } catch {
-        checks.push({ number: candidate, exists: false });
+        const pairingCode = await sock.requestPairingCode(cleanPhone);
+        whatsappConnections[clinicId] = {
+          status: 'pairing',
+          pairingCode: pairingCode,
+          connected: false,
+          qr: null
+        };
+        return res.json({ 
+          success: true, 
+          status: 'pairing', 
+          pairingCode: pairingCode,
+          message: 'Código de pareamento gerado!' 
+        });
+      } catch (pairError) {
+        console.error('Pairing code error:', pairError);
+      }
+    }
+    
+    // If already has session, try to reconnect
+    if (sock.authState?.creds?.registered) {
+      whatsappConnections[clinicId] = {
+        status: 'connected',
+        connected: true,
+        phoneNumber: sock.user?.id?.replace(':@s.whatsapp.net', '')
+      };
+      return res.json({ success: true, status: 'connected' });
+    }
+    
+    // Return connecting status - QR will be generated by polling status
+    whatsappConnections[clinicId] = { status: 'connecting' };
+    res.json({ success: true, status: 'connecting', message: 'Aguardando QR Code...' });
+    
+  } catch (error) {
+    console.error('Connect error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
+  const { clinicId } = req.params;
+  
+  if (whatsappConnections[clinicId]) {
+    const conn = whatsappConnections[clinicId];
+    
+    // Force generation of Base64 if missing but raw QR exists
+    if (conn.qr && !conn.qrBase64) {
+      try {
+        conn.qrBase64 = await QRCode.toDataURL(conn.qr);
+      } catch (e) {
+        console.error('QR Generate Error:', e);
       }
     }
 
-    res.json({ phone, candidates, checks, found: checks.some(c => c.exists) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ── Placeholder para notificações (não quebra rota) ──
-app.get('/api/whatsapp/notifications', (_, res) => {
-  res.json({ notifications: [], message: 'Endpoint de notificações (em desenvolvimento)' });
-});
-
-// ── 404 handler ───────────────────────────────
-app.use((req, res) => {
-  res.status(404).json({ error: `Rota não encontrada: ${req.method} ${req.path}` });
-});
-
-// ── Buscar mensagens do WhatsApp ───────────────
-app.get('/api/whatsapp/messages/:clinicId/:phone', (req, res) => {
-  const { clinicId, phone } = req.params;
-  const session = getSession(clinicId);
-  
-  if (!session || session.status !== SESSION_STATUS.CONNECTED) {
-    return res.status(503).json({ error: 'WhatsApp não conectado', messages: [] });
+    return res.json({ 
+      ok: true, 
+      ...conn,
+      qrCode: conn.qrBase64 // Retrocompatibilidade
+    });
   }
   
-  res.json({ messages: [], message: 'Mensagens em tempo real via WebSocket (em desenvolvimento)' });
+  // Check if credentials exist in Supabase and auto-connect
+  const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
+  if (supabaseCreds && supabaseCreds.creds && !whatsappConnections[clinicId]) {
+    // Only trigger if no existing connection
+    ensureSocketConnected(clinicId);
+    return res.json({ ok: true, status: 'connecting', message: 'Reconectando...' });
+  }
+  
+  // Try to auto-connect if it exists in auth but no socket
+  const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
+  if (fs.existsSync(path.join(authDir, 'creds.json'))) {
+     ensureSocketConnected(clinicId);
+     return res.json({ ok: true, status: 'connecting' });
+  }
+
+   res.json({ ok: true, status: 'disconnected' });
 });
 
-// ── Sync anamnese (placeholder) ────────────────
-app.post('/api/clinic/anamnese-sync', (req, res) => {
-  res.json({ success: true, message: 'Anamnese sync endpoint (em desenvolvimento)' });
+// Disconnect endpoint
+app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
+  const { clinicId } = req.params;
+  
+  // Close socket if exists
+  if (whatsappSockets[clinicId]) {
+    try {
+      whatsappSockets[clinicId].end(undefined);
+    } catch (e) {}
+    delete whatsappSockets[clinicId];
+  }
+  
+  // Clear connection state
+  delete whatsappConnections[clinicId];
+  
+  // Delete credentials from Supabase
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+  } catch (e) {}
+  
+  res.json({ ok: true, status: 'disconnected' });
 });
 
-// ── Error handler ─────────────────────────────
-app.use((err, req, res, next) => {
-  log.error('Erro não tratado:', err.message);
-  res.status(500).json({ error: 'Erro interno do servidor', details: err.message });
-});
-
-// ─────────────────────────────────────────────
-// INICIALIZAÇÃO
-// ─────────────────────────────────────────────
-async function start() {
-  // Cria diretório de autenticação
-  await fs.mkdir(AUTH_DIR, { recursive: true });
-
-  app.listen(PORT, '0.0.0.0', () => {
-    log.info(`🚀 Servidor rodando na porta ${PORT}`);
-    log.info(`   Supabase: ${supabase ? '✅ conectado' : '❌ não configurado'}`);
-    log.info(`   Auth dir: ${AUTH_DIR}`);
-  });
-}
-
-// Tratamento de erros fatais
-process.on('uncaughtException', (err) => {
-  log.error('UncaughtException:', err.message, err.stack);
-  // Não encerra o processo — tenta continuar
-});
-
-process.on('unhandledRejection', (reason) => {
-  log.error('UnhandledRejection:', reason);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  log.info('SIGTERM recebido — encerrando sessões...');
-  for (const [clinicId, session] of sessions) {
-    if (session?.sock) {
-      try { await session.sock.ws?.close(); } catch {}
+app.post('/api/whatsapp/send', async (req, res) => {
+  const { clinicId, to, message } = req.body;
+  
+  try {
+    const sock = await ensureSocketConnected(clinicId);
+    
+    if (whatsappConnections[clinicId]?.status !== 'connected') {
+      return res.status(400).json({ ok: false, error: 'Dispositivo não conectado' });
     }
+
+    const jid = await resolveWhatsAppJID(sock, to);
+    addLog(`[API] Enviando para ${jid}...`);
+    const result = await sock.sendMessage(jid, { text: message });
+    
+    // Store sent message
+    if (!whatsappConnections[clinicId].messages) {
+      whatsappConnections[clinicId].messages = [];
+    }
+    whatsappConnections[clinicId].messages.push({
+      id: result.key.id,
+      key: jid,
+      text: message,
+      fromMe: true,
+      timestamp: Date.now()
+    });
+    
+    res.json({ ok: true, messageId: result.key.id });
+  } catch (error) {
+    addLog(`[API] Erro ao enviar: ${error.message}`);
+    res.status(500).json({ ok: false, error: error.message });
   }
-  process.exit(0);
 });
 
-start().catch((e) => {
-  log.error('Falha ao iniciar servidor:', e.message);
-  process.exit(1);
+// Get messages for a specific phone
+app.get('/api/whatsapp/messages/:clinicId/:phone', async (req, res) => {
+  const { clinicId, phone } = req.params;
+  
+  try {
+    const conn = whatsappConnections[clinicId];
+    if (!conn || !conn.messages) {
+      return res.json({ ok: true, messages: [] });
+    }
+    
+    // Filter messages for this phone
+    const cleanPhone = phone.replace(/\D/g, '');
+    const messages = conn.messages.filter(m => 
+      m.key.includes(cleanPhone) || m.key.includes(`${cleanPhone}@s.whatsapp.net`)
+    );
+    
+    res.json({ ok: true, messages });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
 });
+
+app.get('/api/clinic/anamnese-sync', (req, res) => {
+  res.json({ ok: true, items: [] });
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 WhatsApp API ready for connections`);
+});
+
+// Notifications endpoint (placeholder for future implementation)
+app.post('/api/notifications/send', async (req, res) => {
+  // This endpoint is not yet implemented - just return success
+  res.json({ ok: true, message: 'Notification sent (placeholder)' });
+});
+
+// Graceful shutdown for Cloud environments (Render/Docker)
+const shutdown = () => {
+  console.log('[Server] Shutting down...');
+  Object.values(whatsappSockets).forEach(sock => {
+    try { sock.end(undefined); } catch (e) {}
+  });
+  process.exit(0);
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
