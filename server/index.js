@@ -251,7 +251,24 @@ const createWhatsAppSocket = async (clinicId) => {
           const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode}`);
           
-          if (shouldReconnect) {
+          // Se é erro 401 (sessão expirada/inválida), deleta credenciais do Supabase
+          if (statusCode === 401 || statusCode === DisconnectReason.loggedOut) {
+            addLog(`[Baileys] Sessão inválida (401). Deletando credenciais...`);
+            try {
+              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
+                method: 'DELETE',
+                headers: {
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                }
+              });
+              addLog(`[Baileys] Credenciais deletadas do Supabase para ${clinicId}`);
+            } catch (e) {
+              addLog(`[Baileys] Erro ao deletar credenciais: ${e.message}`);
+            }
+          }
+          
+          if (shouldReconnect && statusCode !== 401) {
             retryCount++;
             const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
             setTimeout(connect, delay);
@@ -366,6 +383,9 @@ app.post('/api/whatsapp/connect', async (req, res) => {
   }
 });
 
+// Contador de tentativas de reconexão para evitar loop
+const reconnectAttempts = {};
+
 app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   const { clinicId } = req.params;
   
@@ -401,10 +421,23 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
     });
   }
   
+  // Limita tentativas de reconexão para evitar loop
+  const now = Date.now();
+  if (reconnectAttempts[clinicId]) {
+    const lastAttempt = reconnectAttempts[clinicId];
+    // Se tentou há menos de 30 segundos, não tenta novamente
+    if (now - lastAttempt < 30000) {
+      addLog(`[Status] Ignorando reconexão - tentativas frequentes (${clinicId})`);
+      return res.json({ ok: true, status: 'disconnected', message: 'Aguarde para tentar novamente...' });
+    }
+  }
+  
   // Check if credentials exist in Supabase and auto-connect
   const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
   if (supabaseCreds && supabaseCreds.creds && !whatsappConnections[clinicId]) {
     // Only trigger if no existing connection
+    reconnectAttempts[clinicId] = now;
+    addLog(`[Status] Tentando reconectar (${clinicId})...`);
     ensureSocketConnected(clinicId);
     return res.json({ ok: true, status: 'connecting', message: 'Reconectando...' });
   }
@@ -412,6 +445,7 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   // Try to auto-connect if it exists in auth but no socket
   const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
   if (fs.existsSync(path.join(authDir, 'creds.json'))) {
+     reconnectAttempts[clinicId] = now;
      ensureSocketConnected(clinicId);
      return res.json({ ok: true, status: 'connecting' });
   }
