@@ -251,24 +251,7 @@ const createWhatsAppSocket = async (clinicId) => {
           const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode}`);
           
-          // Se é erro 401 (sessão expirada/inválida), deleta credenciais do Supabase
-          if (statusCode === 401 || statusCode === DisconnectReason.loggedOut) {
-            addLog(`[Baileys] Sessão inválida (401). Deletando credenciais...`);
-            try {
-              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
-                method: 'DELETE',
-                headers: {
-                  'apikey': SUPABASE_ANON_KEY,
-                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-                }
-              });
-              addLog(`[Baileys] Credenciais deletadas do Supabase para ${clinicId}`);
-            } catch (e) {
-              addLog(`[Baileys] Erro ao deletar credenciais: ${e.message}`);
-            }
-          }
-          
-          if (shouldReconnect && statusCode !== 401) {
+          if (shouldReconnect) {
             retryCount++;
             const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
             setTimeout(connect, delay);
@@ -383,28 +366,12 @@ app.post('/api/whatsapp/connect', async (req, res) => {
   }
 });
 
-// Contador de tentativas de reconexão para evitar loop
-const reconnectAttempts = {};
-
 app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   const { clinicId } = req.params;
   
-  const sock = whatsappSockets[clinicId];
-  const conn = whatsappConnections[clinicId];
-  
-  // Verifica se socket existe mas não está mais conectado
-  if (sock && conn?.status === 'connected') {
-    const reallyConnected = isSocketConnected(sock);
-    addLog(`[Status] Verificando conexão: ${reallyConnected}`);
+  if (whatsappConnections[clinicId]) {
+    const conn = whatsappConnections[clinicId];
     
-    if (!reallyConnected) {
-      addLog(`[Status] Conexão perdida! Atualizando status para disconnected`);
-      whatsappConnections[clinicId] = { status: 'disconnected' };
-      return res.json({ ok: true, status: 'disconnected', message: 'Conexão perdida. Escaneie o QR code novamente.' });
-    }
-  }
-  
-  if (conn) {
     // Force generation of Base64 if missing but raw QR exists
     if (conn.qr && !conn.qrBase64) {
       try {
@@ -421,23 +388,10 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
     });
   }
   
-  // Limita tentativas de reconexão para evitar loop
-  const now = Date.now();
-  if (reconnectAttempts[clinicId]) {
-    const lastAttempt = reconnectAttempts[clinicId];
-    // Se tentou há menos de 30 segundos, não tenta novamente
-    if (now - lastAttempt < 30000) {
-      addLog(`[Status] Ignorando reconexão - tentativas frequentes (${clinicId})`);
-      return res.json({ ok: true, status: 'disconnected', message: 'Aguarde para tentar novamente...' });
-    }
-  }
-  
   // Check if credentials exist in Supabase and auto-connect
   const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
   if (supabaseCreds && supabaseCreds.creds && !whatsappConnections[clinicId]) {
     // Only trigger if no existing connection
-    reconnectAttempts[clinicId] = now;
-    addLog(`[Status] Tentando reconectar (${clinicId})...`);
     ensureSocketConnected(clinicId);
     return res.json({ ok: true, status: 'connecting', message: 'Reconectando...' });
   }
@@ -445,7 +399,6 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   // Try to auto-connect if it exists in auth but no socket
   const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
   if (fs.existsSync(path.join(authDir, 'creds.json'))) {
-     reconnectAttempts[clinicId] = now;
      ensureSocketConnected(clinicId);
      return res.json({ ok: true, status: 'connecting' });
   }
@@ -482,88 +435,20 @@ app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
   res.json({ ok: true, status: 'disconnected' });
 });
 
-// Função para verificar se o socket ainda está ativo
-const isSocketConnected = (sock) => {
-  if (!sock) return false;
-  try {
-    return sock?.ws?.socket?.readyState === 1; // WebSocket.OPEN
-  } catch (e) {
-    return false;
-  }
-};
-
-// Função para forçar reconexão
-const forceReconnect = async (clinicId) => {
-  addLog(`[API] Forçando reconexão para ${clinicId}...`);
-  
-  // Fecha socket existente se houver
-  if (whatsappSockets[clinicId]) {
-    try {
-      whatsappSockets[clinicId].end(undefined);
-    } catch (e) {}
-    delete whatsappSockets[clinicId];
-  }
-  
-  // Limpa conexão
-  delete whatsappConnections[clinicId];
-  
-  // Cria nova conexão
-  return await createWhatsAppSocket(clinicId);
-};
-
 app.post('/api/whatsapp/send', async (req, res) => {
   const { clinicId, to, message } = req.body;
   
-  addLog(`[API] ===== NOVA TENTATIVA DE ENVIO =====`);
-  addLog(`[API] Phone original: ${to}`);
-  addLog(`[API] ClinicId: ${clinicId}`);
-  addLog(`[API] Message: ${message.substring(0, 30)}...`);
-  
   try {
-    let sock = whatsappSockets[clinicId];
-    let conn = whatsappConnections[clinicId];
+    const sock = await ensureSocketConnected(clinicId);
     
-    addLog(`[API] Status atual: ${conn?.status}`);
-    addLog(`[API] Socket existe: ${!!sock}`);
-    addLog(`[API] Socket conectado: ${isSocketConnected(sock)}`);
-    
-    // Verifica se socket existe mas não está mais conectado
-    if (sock && !isSocketConnected(sock)) {
-      addLog(`[API] Socket existe mas conexão perdida! Forçando reconexão...`);
-      sock = await forceReconnect(clinicId);
-      conn = whatsappConnections[clinicId];
-    }
-    
-    // Se não há socket, cria um novo
-    if (!sock) {
-      addLog(`[API] Criando nova conexão...`);
-      sock = await ensureSocketConnected(clinicId);
-      conn = whatsappConnections[clinicId];
-    }
-    
-    // Espera um pouco para a conexão estabilizar
-    await new Promise(r => setTimeout(r, 2000));
-    
-    conn = whatsappConnections[clinicId];
-    sock = whatsappSockets[clinicId];
-    
-    addLog(`[API] Status após verificação: ${conn?.status}`);
-    addLog(`[API] Socket conectado: ${isSocketConnected(sock)}`);
-    
-    if (conn?.status !== 'connected' || !isSocketConnected(sock)) {
-      addLog(`[API] ERRO: Dispositivo não conectado ou conexão perdida`);
-      return res.status(400).json({ ok: false, error: 'WhatsApp desconectado. Por favor, escaneie o QR code novamente.' });
+    if (whatsappConnections[clinicId]?.status !== 'connected') {
+      return res.status(400).json({ ok: false, error: 'Dispositivo não conectado' });
     }
 
     const cleanTo = to.replace(/\D/g, '');
-    addLog(`[API] Telefone limpo: ${cleanTo} (${cleanTo.length} dígitos)`);
-    
     const jid = `${cleanTo}@s.whatsapp.net`;
-    addLog(`[API] JID gerado: ${jid}`);
-    
-    addLog(`[API] Enviando mensagem...`);
+    addLog(`[API] Enviando para ${jid}...`);
     const result = await sock.sendMessage(jid, { text: message });
-    addLog(`[API] SUCESSO! MessageId: ${result.key.id}`);
     
     // Store sent message
     if (!whatsappConnections[clinicId].messages) {
@@ -579,15 +464,7 @@ app.post('/api/whatsapp/send', async (req, res) => {
     
     res.json({ ok: true, messageId: result.key.id });
   } catch (error) {
-    addLog(`[API] ERRO DETALHADO: ${error.message}`);
-    addLog(`[API] Stack: ${error.stack}`);
-    
-    // Se der erro de conexão, marca como desconectado
-    if (error.message.includes('Connection Closed') || error.message.includes('not connected')) {
-      addLog(`[API] Conexão perdida! Marcando como desconectado`);
-      whatsappConnections[clinicId] = { status: 'disconnected' };
-    }
-    
+    addLog(`[API] Erro ao enviar: ${error.message}`);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
