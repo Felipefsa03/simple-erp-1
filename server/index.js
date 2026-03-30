@@ -182,78 +182,56 @@ const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
 const whatsappConnections = {};
 const whatsappSockets = {};
 
-// Lock global para evitar múltiplas conexões
-let globalConnectionLock = false;
-
-// Contador de conexões para evitar loop
-let isConnecting = {};
-
-// Singleton socket manager - com lock para evitar múltiplas conexões
+// Singleton socket manager
 const ensureSocketConnected = async (clinicId) => {
-  // Se já existe socket conectado, retorna
-  if (whatsappSockets[clinicId] && whatsappConnections[clinicId]?.status === 'connected') {
-    addLog(`[Baileys] Socket conectado existe para ${clinicId}`);
-    return whatsappSockets[clinicId];
-  }
-  
-  // Se está conectando ou lock global ativo, espera
-  if (isConnecting[clinicId] || globalConnectionLock) {
-    addLog(`[Baileys] Conexão em andamento ou lock ativo para ${clinicId}, esperando...`);
-    await new Promise(r => setTimeout(r, 8000));
-    return whatsappSockets[clinicId];
-  }
-  
-  globalConnectionLock = true;
-  isConnecting[clinicId] = true;
-  
-  try {
-    return await createWhatsAppSocket(clinicId);
-  } finally {
-    globalConnectionLock = false;
-  }
+  if (whatsappSockets[clinicId]) return whatsappSockets[clinicId];
+  return await createWhatsAppSocket(clinicId);
 };
 
 // Updated QR generation to support Base64
 const createWhatsAppSocket = async (clinicId) => {
-  try {
-    const { version, isLatest } = await fetchLatestBaileysVersion();
-    addLog(`[Baileys] Versão WA v${version.join('.')}`);
+  let retryCount = 0;
 
-    // Try to load credentials from Supabase first
-    let state, saveCreds;
-    const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
-    
-    if (supabaseCreds && supabaseCreds.creds) {
-      addLog(`[Baileys] Carregando credenciais do Supabase para ${clinicId}`);
-      const supabaseAuth = useSupabaseAuthState(clinicId, supabaseCreds);
-      state = supabaseAuth.state;
-      saveCreds = supabaseAuth.saveCreds;
-    } else {
-      addLog(`[Baileys] Usando arquivo local para ${clinicId}`);
-      const authDir = ensureClinicStatus(clinicId);
-      const fileAuth = await useMultiFileAuthState(authDir);
-      state = fileAuth.state;
-      saveCreds = fileAuth.saveCreds;
-    }
-    
-    const logger = pino({ level: 'error' });
-    addLog(`[Baileys] Iniciando conexão para ${clinicId}...`);
-    
-    const sock = makeWASocket({
-      auth: state,
-      version: version,
-      printQRInTerminal: false,
-      browser: ['LuminaFlow', 'Chrome', '122.0.0.0'],
-      connectTimeoutMs: 120000,
-      keepAliveIntervalMs: 60000,
-      logger: logger,
+  const connect = async () => {
+    try {
+      const { version, isLatest } = await fetchLatestBaileysVersion();
+      addLog(`[Baileys] Usando versão WA v${version.join('.')}, isLatest: ${isLatest}`);
+
+      // Try to load credentials from Supabase first
+      let state, saveCreds;
+      const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
+      
+      if (supabaseCreds && supabaseCreds.creds) {
+        addLog(`[Baileys] Carregando credenciais do Supabase para ${clinicId}`);
+        const supabaseAuth = useSupabaseAuthState(clinicId, supabaseCreds);
+        state = supabaseAuth.state;
+        saveCreds = supabaseAuth.saveCreds;
+      } else {
+        // Fallback to local file system
+        addLog(`[Baileys] Usando arquivo local para ${clinicId}`);
+        const authDir = ensureClinicStatus(clinicId);
+        const fileAuth = await useMultiFileAuthState(authDir);
+        state = fileAuth.state;
+        saveCreds = fileAuth.saveCreds;
+      }
+      
+      const logger = pino({ level: 'error' }); // Less noisy for prod
+      addLog(`[Baileys] Iniciando conexão para ${clinicId}...`);
+      
+      const sock = makeWASocket({
+        auth: state,
+        version: version,
+        printQRInTerminal: false,
+        browser: ['LuminaFlow', 'Chrome', '122.0.0.0'], // "Evolution API" style branding
+        connectTimeoutMs: 120000,
+        keepAliveIntervalMs: 60000,
+        logger: logger,
         options: { family: 4 }
       });
 
       whatsappSockets[clinicId] = sock;
 
-      // NÃO salvar credenciais a cada mudança - apenas quando conectado
-      // sock.ev.on('creds.update', saveCreds); - removido para evitar escrita excessiva
+      sock.ev.on('creds.update', saveCreds);
 
       sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -270,18 +248,20 @@ const createWhatsAppSocket = async (clinicId) => {
             ? lastDisconnect.error.output.statusCode 
             : lastDisconnect?.error?.code || 0;
           
+          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode}`);
           
-          // Remove socket e conexão imediatamente
-          delete whatsappSockets[clinicId];
-          delete whatsappConnections[clinicId];
-          isConnecting[clinicId] = false;
-          globalConnectionLock = false;
-          
-          addLog(`[Baileys] Socket removido para ${clinicId}. Não reconectando automaticamente.`);
+          if (shouldReconnect) {
+            retryCount++;
+            const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
+            setTimeout(connect, delay);
+          } else {
+            addLog(`[Baileys] Sessão limpa para ${clinicId}`);
+            delete whatsappSockets[clinicId];
+            delete whatsappConnections[clinicId];
+          }
         } else if (connection === 'open') {
-          isConnecting[clinicId] = false;
-          globalConnectionLock = false;
+          retryCount = 0;
           whatsappConnections[clinicId] = { 
             status: 'connected', 
             connected: true,
@@ -290,17 +270,13 @@ const createWhatsAppSocket = async (clinicId) => {
           };
           addLog(`[Baileys] Conexão ABERTA para ${clinicId} (${sock.user.id})`);
           
-          // Save credentials to Supabase when connected - apenas uma vez
+          // Save credentials to Supabase when connected
           const creds = sock.authState?.creds;
+          console.log('[Baileys] Credenciais para salvar:', creds ? 'sim' : 'não');
           if (creds) {
-            setTimeout(async () => {
-              try {
-                const saved = await saveCredentialsToSupabase(clinicId, { creds, keys: {} });
-                addLog(`[Baileys] Credenciais salvas no Supabase: ${saved}`);
-              } catch(e) {
-                addLog(`[Baileys] Erro ao salvar credenciais: ${e.message}`);
-              }
-            }, 2000); // Salvar após 2 segundos para evitar conflicts
+            const saved = await saveCredentialsToSupabase(clinicId, { creds, keys: {} });
+            console.log('[Baileys] Resultado do save:', saved);
+            addLog(`[Baileys] Credenciais salvas no Supabase: ${saved}`);
           }
         }
       });
@@ -334,25 +310,16 @@ const createWhatsAppSocket = async (clinicId) => {
       return sock;
     } catch (err) {
       addLog(`[Baileys] Erro: ${err.message}`);
-      isConnecting[clinicId] = false;
-      globalConnectionLock = false;
-      return null;
+      setTimeout(connect, 10000);
     }
+  };
+
+  return await connect();
 };
 
 // Connect endpoint - generates QR code or pairing code
 app.post('/api/whatsapp/connect', async (req, res) => {
   const { clinicId, phoneNumber } = req.body;
-  
-  // Se já está conectado, retorna sucesso
-  if (whatsappConnections[clinicId]?.status === 'connected') {
-    return res.json({ success: true, status: 'connected', message: 'Já conectado!' });
-  }
-  
-  // Se está conectando, não cria outra conexão
-  if (isConnecting[clinicId]) {
-    return res.json({ success: true, status: 'connecting', message: 'Conexão em andamento...' });
-  }
   
   try {
     const sock = await ensureSocketConnected(clinicId);
@@ -471,28 +438,17 @@ app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
 app.post('/api/whatsapp/send', async (req, res) => {
   const { clinicId, to, message } = req.body;
   
-  addLog(`[API] ===== NOVA TENTATIVA DE ENVIO =====`);
-  addLog(`[API] Phone: ${to}`);
-  addLog(`[API] ClinicId: ${clinicId}`);
-  
   try {
     const sock = await ensureSocketConnected(clinicId);
     
     if (whatsappConnections[clinicId]?.status !== 'connected') {
-      addLog(`[API] ERRO: Não conectado`);
       return res.status(400).json({ ok: false, error: 'Dispositivo não conectado' });
     }
 
     const cleanTo = to.replace(/\D/g, '');
     const jid = `${cleanTo}@s.whatsapp.net`;
-    addLog(`[API] Enviando para JID: ${jid}...`);
-    
-    // Log mais detalhado
-    addLog(`[API] Mensagem: ${message.substring(0, 50)}...`);
-    
+    addLog(`[API] Enviando para ${jid}...`);
     const result = await sock.sendMessage(jid, { text: message });
-    
-    addLog(`[API] Resultado:`, JSON.stringify(result));
     
     // Store sent message
     if (!whatsappConnections[clinicId].messages) {
@@ -506,10 +462,9 @@ app.post('/api/whatsapp/send', async (req, res) => {
       timestamp: Date.now()
     });
     
-    res.json({ ok: true, messageId: result.key.id, result: result });
+    res.json({ ok: true, messageId: result.key.id });
   } catch (error) {
-    addLog(`[API] ERRO DETALHADO: ${error.message}`);
-    addLog(`[API] Stack: ${error.stack}`);
+    addLog(`[API] Erro ao enviar: ${error.message}`);
     res.status(500).json({ ok: false, error: error.message });
   }
 });
