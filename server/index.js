@@ -19,7 +19,10 @@ const PORT = process.env.PORT || 8787;
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_URL_PROD || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PROD || '';
 
-app.use(cors());
+app.use(cors({
+  origin: ['https://clinxia.vercel.app', 'https://clinxia-*.vercel.app', 'http://localhost:5173'],
+  credentials: true
+}));
 app.use(express.json());
 
 // Health check endpoint
