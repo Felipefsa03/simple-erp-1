@@ -58,27 +58,26 @@ const formatPhoneForWhatsApp = (phone: string): string => {
   // Remove zeros à esquerda
   digits = digits.replace(/^0+/, '');
   
-  // Se já tem 13 dígitos e começa com 55
+  // Se já tem 13 dígitos e começa com 55 - verificar se 9 já existe
   if (digits.length === 13 && digits.startsWith('55')) {
-    // Verifica se o 9 está na posição correta (após o DDD)
-    const ddd = digits.slice(2, 4);
     const afterDdd = digits.slice(4);
-    // Se o primeiro dígito após DDD não é 9, insere o 9
-    if (!afterDdd.startsWith('9')) {
-      return '55' + ddd + '9' + afterDdd.slice(1);
+    // Se já começa com 9, está correto
+    if (afterDdd.startsWith('9')) {
+      return digits;
     }
-    return digits;
+    // Se não tem 9, inserir
+    return '55' + digits.slice(2, 4) + '9' + afterDdd;
   }
   
   // Se tem 12 dígitos e começa com 55
   if (digits.length === 12 && digits.startsWith('55')) {
-    const ddd = digits.slice(2, 4);
     const number = digits.slice(4);
     // Se já começa com 9, não precisa adicionar
     if (number.startsWith('9')) {
       return digits;
     }
-    return '55' + ddd + '9' + number;
+    // Se não tem 9, inserir
+    return '55' + digits.slice(2, 4) + '9' + number;
   }
   
   // Se tem 11 dígitos (DDD + 9 + 8 números), adiciona 55
