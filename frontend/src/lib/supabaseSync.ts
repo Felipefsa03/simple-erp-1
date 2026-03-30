@@ -79,15 +79,19 @@ const mapPatient = (p: any) => ({
 }));
 
 // Professionals - Busca nome do usuário
-const mapProfessional = async (p: any) => {
-  let name = '';
-  if (p.user_id) {
-    const { data: userData } = await supabaseFetch('users', {
-      filters: `?id=eq.${p.user_id}&select=name`,
-    });
-    if (userData && userData[0]) {
-      name = userData[0].name || '';
+const mapProfessional = async (p: any): Promise<any> => {
+  let name = 'Profissional';
+  try {
+    if (p.user_id) {
+      const { data: userData } = await supabaseFetch('users', {
+        filters: `?id=eq.${p.user_id}&select=name`,
+      });
+      if (userData && userData[0]?.name) {
+        name = userData[0].name;
+      }
     }
+  } catch (e) {
+    console.warn('[SupabaseSync] Could not fetch user name:', e);
   }
   return {
     id: p.id,
@@ -98,7 +102,7 @@ const mapProfessional = async (p: any) => {
     role: 'dentist',
     cro: p.cro || '',
     specialty: p.specialty || '',
-    commission_pct: p.commission || 0,
+    commission_pct: Number(p.commission) || 0,
     active: p.active !== false,
     created_at: p.created_at,
   };
