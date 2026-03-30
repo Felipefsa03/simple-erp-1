@@ -154,7 +154,7 @@ export function MiniWhatsAppChat({
     const phoneDigits = formatPhoneForWhatsApp(patientPhone);
 
     console.log('[MiniChat] Original phone:', patientPhone);
-    console.log('[MiniChat] Formatted digits:', '+' + phoneDigits);
+    console.log('[MiniChat] Formatted digits:', phoneDigits);
     console.log('[MiniChat] Length:', phoneDigits.length);
 
     try {

@@ -12,6 +12,8 @@ interface WhatsAppStatus {
 // Global sync state to avoid multiple syncs
 let globalSyncStatus: 'synced' | 'not_synced' | 'syncing' = 'not_synced';
 let lastSyncTime = 0;
+let globalLastStatus: WhatsAppStatus | null = null;
+let hasInitialized = false;
 
 export function useWhatsAppSync(
   clinicId: string, 
@@ -19,15 +21,22 @@ export function useWhatsAppSync(
 ) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastStatus, setLastStatus] = useState<WhatsAppStatus | null>(null);
+  const hasSynced = useRef(false);
   
   const syncStatus = useCallback(async (force = false) => {
-    // If already synced and not forced, skip
-    if (!force && globalSyncStatus === 'synced' && Date.now() - lastSyncTime < 30000) {
-      return lastStatus;
+    // If already synced recently and not forced, skip
+    if (!force && globalSyncStatus === 'synced' && globalLastStatus && Date.now() - lastSyncTime < 30000) {
+      if (onStatusChange) {
+        onStatusChange(globalLastStatus.status === 'connected', globalLastStatus);
+      }
+      return globalLastStatus;
     }
     
     if (globalSyncStatus === 'syncing') {
-      return lastStatus;
+      if (onStatusChange && globalLastStatus) {
+        onStatusChange(globalLastStatus.status === 'connected', globalLastStatus);
+      }
+      return globalLastStatus;
     }
     
     globalSyncStatus = 'syncing';
@@ -42,6 +51,7 @@ export function useWhatsAppSync(
       const connected = data.status === 'connected';
       globalSyncStatus = connected ? 'synced' : 'not_synced';
       lastSyncTime = Date.now();
+      globalLastStatus = data;
       setLastStatus(data);
       
       if (onStatusChange) {
@@ -56,17 +66,18 @@ export function useWhatsAppSync(
     } finally {
       setIsSyncing(false);
     }
-  }, [clinicId, onStatusChange, lastStatus]);
+  }, [clinicId, onStatusChange]);
 
   useEffect(() => {
-    // Initial sync if not synced yet
-    if (globalSyncStatus === 'not_synced') {
+    // Only sync once globally
+    if (!hasSynced.current) {
+      hasSynced.current = true;
       syncStatus();
-    } else if (lastStatus && onStatusChange) {
-      // Notify with last known status
-      onStatusChange(lastStatus.status === 'connected', lastStatus);
+    } else if (globalLastStatus && onStatusChange) {
+      // Just notify with last known status
+      onStatusChange(globalLastStatus.status === 'connected', globalLastStatus);
     }
-  }, [syncStatus, lastStatus, onStatusChange]);
+  }, [syncStatus, onStatusChange]);
 
   return { syncStatus, isSyncing, lastStatus };
 }
