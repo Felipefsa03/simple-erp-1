@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Sparkles, Send, Target, TrendingUp, Users, MessageSquare, Zap, ArrowRight, Facebook, Mail, MonitorSmartphone, X, CheckCircle2, BarChart3, KanbanSquare, UserPlus2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
