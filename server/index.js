@@ -20,10 +20,16 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_URL_PROD |
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PROD || '';
 
 app.use(cors({
-  origin: ['https://clinxia.vercel.app', 'https://clinxia-*.vercel.app', 'http://localhost:5173'],
+  origin: true,
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'x-requested-with', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Handle preflight explicitly
+app.options('*', cors());
+
 app.use(express.json());
 
 // Health check endpoint
@@ -307,7 +313,8 @@ const createWhatsAppSocket = async (clinicId) => {
             ? lastDisconnect.error.output.statusCode 
             : lastDisconnect?.error?.code || 0;
           
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+          const shouldReconnect = !isLoggedOut;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode}`);
           
           if (shouldReconnect) {
@@ -315,9 +322,22 @@ const createWhatsAppSocket = async (clinicId) => {
             const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
             setTimeout(connect, delay);
           } else {
-            addLog(`[Baileys] Sessão limpa para ${clinicId}`);
+            addLog(`[Baileys] Sessão expirada/inválida para ${clinicId}. Limpando...`);
             delete whatsappSockets[clinicId];
             delete whatsappConnections[clinicId];
+            // Limpar credenciais do Supabase
+            try {
+              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?id=eq.${clinicId}`, {
+                method: 'DELETE',
+                headers: {
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                }
+              });
+              addLog(`[Baileys] Credenciais removidas do Supabase para ${clinicId}`);
+            } catch (e) {
+              addLog(`[Baileys] Erro ao limpar Supabase: ${e.message}`);
+            }
           }
         } else if (connection === 'open') {
           retryCount = 0;
