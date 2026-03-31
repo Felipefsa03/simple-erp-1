@@ -255,15 +255,16 @@ const ensureSocketConnected = async (clinicId) => {
 // Updated QR generation to support Base64
 const createWhatsAppSocket = async (clinicId) => {
   let retryCount = 0;
+  let hasFailed401 = false;
 
   const connect = async () => {
     try {
       const { version, isLatest } = await fetchLatestBaileysVersion();
       addLog(`[Baileys] Usando versão WA v${version.join('.')}, isLatest: ${isLatest}`);
 
-      // Try to load credentials from Supabase first
+      // Try to load credentials from Supabase first (only if not previously failed with 401)
       let state, saveCreds;
-      const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
+      const supabaseCreds = hasFailed401 ? null : await loadCredentialsFromSupabase(clinicId);
       
       if (supabaseCreds && supabaseCreds.creds) {
         addLog(`[Baileys] Carregando credenciais do Supabase para ${clinicId}`);
@@ -271,8 +272,8 @@ const createWhatsAppSocket = async (clinicId) => {
         state = supabaseAuth.state;
         saveCreds = supabaseAuth.saveCreds;
       } else {
-        // Fallback to local file system
-        addLog(`[Baileys] Usando arquivo local para ${clinicId}`);
+        // Fallback to local file system or fresh auth
+        addLog(`[Baileys] Usando auth limpo para ${clinicId}`);
         const authDir = ensureClinicStatus(clinicId);
         const fileAuth = await useMultiFileAuthState(authDir);
         state = fileAuth.state;
@@ -323,11 +324,12 @@ const createWhatsAppSocket = async (clinicId) => {
             setTimeout(connect, delay);
           } else {
             addLog(`[Baileys] Sessão expirada/inválida para ${clinicId}. Limpando...`);
+            hasFailed401 = true;
             delete whatsappSockets[clinicId];
             whatsappConnections[clinicId] = { status: 'disconnected', qr: null, qrBase64: null };
             // Limpar credenciais do Supabase
             try {
-              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?id=eq.${clinicId}`, {
+              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
                 method: 'DELETE',
                 headers: {
                   'apikey': SUPABASE_ANON_KEY,
@@ -412,6 +414,34 @@ app.post('/api/whatsapp/connect', async (req, res) => {
   const { clinicId, phoneNumber } = req.body;
   
   try {
+    // Limpar qualquer sessão existente antes de conectar
+    if (whatsappSockets[clinicId]) {
+      try { whatsappSockets[clinicId].end(undefined); } catch (e) {}
+      delete whatsappSockets[clinicId];
+    }
+    
+    // Limpar credenciais do Supabase para forçar QR limpo
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        }
+      });
+    } catch (e) {}
+    
+    // Limpar auth local
+    try {
+      const authDir = ensureClinicStatus(clinicId);
+      if (fs.existsSync(authDir)) {
+        fs.rmSync(authDir, { recursive: true, force: true });
+        fs.mkdirSync(authDir, { recursive: true });
+      }
+    } catch (e) {}
+    
+    whatsappConnections[clinicId] = { status: 'connecting' };
+    
     const sock = await ensureSocketConnected(clinicId);
     
     // Generate pairing code if phone provided
