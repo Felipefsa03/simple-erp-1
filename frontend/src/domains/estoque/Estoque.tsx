@@ -19,7 +19,7 @@ export function Estoque() {
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   const [form, setForm] = useState({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' });
-  const clinicId = 'clinic-1';
+  const clinicId = useAuth(s => s.getClinicId());
   const canManageStock = hasPermission('manage_stock');
 
   const clinicStockItems = useMemo(

@@ -22,7 +22,16 @@ interface AuthState {
   updateClinic: (data: Partial<Clinic>) => void;
   updateUser: (data: Partial<User>) => void;
   checkSession: () => Promise<void>;
+  getClinicId: () => string;
 }
+
+const getNormalizedClinicId = (clinicId: string | undefined): string => {
+  if (!clinicId) return '00000000-0000-0000-0000-000000000001';
+  if (clinicId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+    return clinicId;
+  }
+  return '00000000-0000-0000-0000-000000000001';
+};
 
 const DEFAULT_PERMISSIONS: Record<string, UserRole[]> = {
   'create_appointment': ['super_admin', 'admin', 'dentist', 'receptionist', 'aesthetician'],
@@ -387,6 +396,11 @@ export const useAuth = create<AuthState>()(
           }
         }
         set({ loading: false });
+      },
+
+      getClinicId: () => {
+        const userClinicId = get().user?.clinic_id;
+        return getNormalizedClinicId(userClinicId);
       },
     }),
     {

@@ -58,7 +58,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
     notes: '',
   });
   const swipeStartX = useRef<number | null>(null);
-  const clinicId = 'clinic-1';
+  const clinicId = useAuth(s => s.getClinicId());
   const canCreate = hasPermission('create_appointment');
   const canFinalize = hasPermission('finalize_appointment');
 

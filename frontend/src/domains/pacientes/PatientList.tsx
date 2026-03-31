@@ -104,7 +104,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
   const canView = hasPermission('view_patients');
   const canManage = hasPermission('manage_patients');
   const canImport = hasPermission('import_patients');
-  const clinicId = 'clinic-1';
+  const clinicId = useAuth(s => s.getClinicId());
 
   const normalizeHeader = (header: string) => header.toLowerCase().trim();
 

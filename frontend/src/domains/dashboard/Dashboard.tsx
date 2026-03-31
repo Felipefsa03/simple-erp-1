@@ -70,8 +70,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [weatherEmoji, setWeatherEmoji] = useState(() => getWeatherEmoji(undefined, true));
   const [isLoadingWeather, setIsLoadingWeather] = useState(true);
 
-  // FORÇAR clinicId como 'clinic-1' para dados demo funcionarem
-  const clinicId = 'clinic-1';
+  // Obter clinic_id do usuário logado
+  const clinicId = useAuth(s => s.getClinicId());
   const canViewDashboard = hasPermission('view_dashboard');
   const canCreateAppointment = hasPermission('create_appointment');
 
