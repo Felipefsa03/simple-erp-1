@@ -1238,6 +1238,7 @@ function TreatmentPlanSection({
   userId: string;
 }) {
   const { services, addTreatmentPlan } = useClinicStore();
+  const clinicServices = useMemo(() => services.filter(s => s.clinic_id === clinicId), [services, clinicId]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedService, setSelectedService] = useState<string>('');
   const [selectedTooth, setSelectedTooth] = useState<string>('');
@@ -1255,7 +1256,7 @@ function TreatmentPlanSection({
       return;
     }
     
-    const service = services.find(s => s.id === selectedService);
+    const service = clinicServices.find(s => s.id === selectedService);
     if (!service) return;
     
     // Create or update treatment plan
@@ -1354,7 +1355,7 @@ function TreatmentPlanSection({
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">Selecione um serviço...</option>
-                  {services.map(service => (
+                  {clinicServices.map(service => (
                     <option key={service.id} value={service.id}>
                       {service.name} - R$ {service.base_price?.toFixed(2) || '0.00'}
                     </option>
