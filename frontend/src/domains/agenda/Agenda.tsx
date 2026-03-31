@@ -599,7 +599,10 @@ export function Agenda({ onNavigate }: AgendaProps) {
               Enviar para Google Calendar
             </button>
             <button
-              onClick={() => handleOpenWhatsApp(selectedApt)}
+              onClick={() => {
+                setSelectedApt(null);
+                setTimeout(() => handleOpenWhatsApp(selectedApt), 100);
+              }}
               className="w-full py-2.5 bg-green-50 text-green-700 font-bold rounded-xl text-sm hover:bg-green-100 transition-all flex items-center justify-center gap-2"
             >
               <MessageSquare className="w-4 h-4" />
@@ -860,7 +863,8 @@ export function Agenda({ onNavigate }: AgendaProps) {
         <button
           onClick={() => {
             if (selectedApt) {
-              handleOpenWhatsApp(selectedApt);
+              setSelectedApt(null);
+              setTimeout(() => handleOpenWhatsApp(selectedApt), 100);
             } else {
               setIsWhatsAppOpen(true);
               setWhatsappAppointment(null);
