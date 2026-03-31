@@ -1060,7 +1060,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 <p className="text-sm text-white/70 mt-1">Próxima cobrança: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR')}</p>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-black">R${clinic?.plan === 'profissional' ? '197' : clinic?.plan === 'premium' ? '397' : '97'}</p>
+                <p className="text-3xl font-black">R${clinic?.plan === 'profissional' ? (integrationConfig?.plan_price_profissional || 197) : clinic?.plan === 'premium' ? (integrationConfig?.plan_price_premium || 397) : (integrationConfig?.plan_price_basico || 97)}</p>
                 <p className="text-sm text-white/70">/mês</p>
               </div>
             </div>
@@ -1069,9 +1069,9 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           {/* Plans Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { id: 'basico', name: 'Básico', price: 97, desc: 'Ideal para clínicas iniciantes', features: ['1 profissional', '500 pacientes', '200 consultas/mês', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'], color: 'cyan' },
-              { id: 'profissional', name: 'Profissional', price: 197, desc: 'Para clínicas em crescimento', features: ['5 profissionais', '2.000 pacientes', '1.000 consultas/mês', 'Financeiro completo', 'Estoque', 'Marketing', 'Relatórios avançados', 'Suporte prioritário'], color: 'blue', popular: true },
-              { id: 'premium', name: 'Premium', price: 397, desc: 'Máximo desempenho', features: ['Profissionais ilimitados', 'Pacientes ilimitados', 'Consultas ilimitadas', 'Tudo do Profissional', 'Multi-unidades', 'API integrada', 'Personalização total', 'SLA 99.9%'], color: 'purple' },
+              { id: 'basico', name: 'Básico', price: integrationConfig?.plan_price_basico || 97, desc: 'Ideal para clínicas iniciantes', features: ['1 profissional', '500 pacientes', '200 consultas/mês', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'], color: 'cyan' },
+              { id: 'profissional', name: 'Profissional', price: integrationConfig?.plan_price_profissional || 197, desc: 'Para clínicas em crescimento', features: ['5 profissionais', '2.000 pacientes', '1.000 consultas/mês', 'Financeiro completo', 'Estoque', 'Marketing', 'Relatórios avançados', 'Suporte prioritário'], color: 'blue', popular: true },
+              { id: 'premium', name: 'Premium', price: integrationConfig?.plan_price_premium || 397, desc: 'Máximo desempenho', features: ['Profissionais ilimitados', 'Pacientes ilimitados', 'Consultas ilimitadas', 'Tudo do Profissional', 'Multi-unidades', 'API integrada', 'Personalização total', 'SLA 99.9%'], color: 'purple' },
             ].map(plan => {
               const isCurrent = clinic?.plan === plan.id;
               return (
@@ -1103,13 +1103,15 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             {upgradeModal && (() => {
               const planMap: Record<string, string> = { 'Básico': 'basico', 'Profissional': 'profissional', 'Premium': 'premium' };
               const planId = planMap[upgradeModal.plan] || 'profissional';
-              const currentPrice = clinic?.plan === 'profissional' ? 197 : clinic?.plan === 'premium' ? 397 : 97;
+              const priceMap: Record<string, number> = { basico: integrationConfig?.plan_price_basico || 97, profissional: integrationConfig?.plan_price_profissional || 197, premium: integrationConfig?.plan_price_premium || 397 };
+              const currentPrice = priceMap[clinic?.plan || 'basico'] || 97;
+              const newPrice = priceMap[planId] || 197;
               const today = new Date();
               const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
               const daysRemaining = daysInMonth - today.getDate();
-              const diff = upgradeModal.price - currentPrice;
+              const diff = newPrice - currentPrice;
               const proportionalAmount = diff > 0 ? Math.max(0, (diff / daysInMonth) * daysRemaining) : 0;
-              const totalCharge = proportionalAmount > 0 ? proportionalAmount : upgradeModal.price;
+              const totalCharge = proportionalAmount > 0 ? proportionalAmount : newPrice;
               
               return (
                 <div className="space-y-4">
