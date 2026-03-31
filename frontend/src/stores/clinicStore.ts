@@ -149,6 +149,13 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         set({ transactions });
         console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
 
+        // Carregar integração config
+        const integrationConfig = await SupabaseSync.loadIntegrationConfig(clinicId);
+        if (integrationConfig) {
+            set({ integrationConfig });
+            console.log('[ClinicStore] ✅ Configuração de integração carregada');
+        }
+
         console.log('[ClinicStore] ✅ Sincronização completa!');
     } catch (error) {
         console.error('[ClinicStore] ❌ Erro na sincronização:', error);

@@ -279,6 +279,25 @@ export const SupabaseSync = {
     return data.map(mapStockItem);
   },
 
+  async loadIntegrationConfig(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data, error } = await supabaseFetch('integration_config', {
+      filters: `?clinic_id=eq.${uuid}&select=*`,
+    });
+    if (error || !data || data.length === 0) return null;
+    return data[0];
+  },
+
+  async saveIntegrationConfig(config: any) {
+    const { data: existing } = await supabaseFetch('integration_config', {
+      filters: `?clinic_id=eq.${getClinicId(config.clinic_id)}&select=clinic_id`,
+    });
+    if (existing && existing.length > 0) {
+      return supabaseFetch(`integration_config?clinic_id=eq.${getClinicId(config.clinic_id)}`, { method: 'PATCH', body: config });
+    }
+    return supabaseFetch('integration_config', { method: 'POST', body: config });
+  },
+
   async loadTransactions(clinicId: string) {
     const uuid = getClinicId(clinicId);
     const { data, error } = await supabaseFetch('transactions', {

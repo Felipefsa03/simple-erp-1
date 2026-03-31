@@ -1508,37 +1508,69 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   <strong>Como obter:</strong> Acesse <a href="https://www.mercadopago.com.br/developers/panel/app" target="_blank" rel="noopener noreferrer" className="underline">Mercado Pago Developers</a> → Crie uma aplicação → Copie o Access Token e Public Key.
                 </p>
               </div>
-              <button
-                onClick={async () => {
-                  try {
-                    const { supabase } = await import('@/lib/supabase');
-                    const { data: existing } = await supabase
-                      .from('integration_config')
-                      .select('clinic_id')
-                      .eq('clinic_id', '00000000-0000-0000-0000-000000000001')
-                      .single();
-                    
-                    let error;
-                    if (existing) {
-                      ({ error } = await supabase
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      const { supabase } = await import('@/lib/supabase');
+                      const { data: existing } = await supabase
                         .from('integration_config')
-                        .update({ mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key })
-                        .eq('clinic_id', '00000000-0000-0000-0000-000000000001'));
-                    } else {
-                      ({ error } = await supabase
-                        .from('integration_config')
-                        .insert({ clinic_id: '00000000-0000-0000-0000-000000000001', mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key }));
+                        .select('clinic_id')
+                        .eq('clinic_id', '00000000-0000-0000-0000-000000000001')
+                        .single();
+                      
+                      let error;
+                      if (existing) {
+                        ({ error } = await supabase
+                          .from('integration_config')
+                          .update({ mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key })
+                          .eq('clinic_id', '00000000-0000-0000-0000-000000000001'));
+                      } else {
+                        ({ error } = await supabase
+                          .from('integration_config')
+                          .insert({ clinic_id: '00000000-0000-0000-0000-000000000001', mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key }));
+                      }
+                      if (error) throw error;
+                      toast('Credenciais do Mercado Pago salvas!');
+                    } catch (e: any) {
+                      toast('Erro ao salvar: ' + e.message, 'error');
                     }
-                    if (error) throw error;
-                    toast('Credenciais do Mercado Pago salvas!');
-                  } catch (e: any) {
-                    toast('Erro ao salvar: ' + e.message, 'error');
-                  }
-                }}
-                className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all"
-              >
-                Salvar Credenciais
-              </button>
+                  }}
+                  className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all"
+                >
+                  Salvar Credenciais
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const isDev = import.meta.env.DEV;
+                      const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+                      const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          clinicName: 'Teste LuminaFlow',
+                          email: 'teste@teste.com',
+                          name: 'Usuario Teste',
+                          phone: '11999999999',
+                          plan: 'basico',
+                          amount: 97,
+                          clinicId: '00000000-0000-0000-0000-000000000001',
+                        }),
+                      });
+                      const data = await res.json();
+                      if (!data.ok) throw new Error(data.error || 'Erro ao gerar preferência');
+                      toast(`QR Code gerado com sucesso! Link: ${data.init_point}`, 'success');
+                      if (data.init_point) window.open(data.init_point, '_blank');
+                    } catch (e: any) {
+                      toast('Erro no teste: ' + e.message, 'error');
+                    }
+                  }}
+                  className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all"
+                >
+                  Testar Geração QR Code
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>
