@@ -164,9 +164,6 @@ export function Marketing() {
   const totalRevenue = clinicTransactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
   const avgTicket = clinicAppointments.filter(a => a.status === 'done').length > 0
     ? totalRevenue / clinicAppointments.filter(a => a.status === 'done').length : 0;
-    { id: 2, name: 'Promoção Limpeza', type: 'email', status: 'draft', sent: 0, opened: 0, converted: 0 },
-    { id: 3, name: 'Captação Implante FB', type: 'facebook', status: 'active', sent: 1200, opened: 450, converted: 15 },
-  ];
 
   const handleOpenPreview = () => {
     const html = generateEmailTemplate(clinic?.name || 'Sua Clínica', clinic?.phone || '(11) 99999-9999');
