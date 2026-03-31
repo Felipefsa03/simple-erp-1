@@ -684,7 +684,6 @@ export const useClinicStore = create<ClinicStore>()(
                 return appointment;
             },
             updateAppointmentStatus: (id, status) => {
-                if (status === 'done') return;
                 set(s => ({ appointments: s.appointments.map(a => a.id === id ? { ...a, status } : a) }));
             },
             startAppointment: (id) => {

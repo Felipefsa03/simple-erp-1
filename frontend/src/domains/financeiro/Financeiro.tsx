@@ -54,6 +54,8 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
 
   // ---- Data retrieval via getState() or stable dependencies ----
+  const patients = useClinicStore(s => s.patients);
+  const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId || p.clinic_id === 'clinic-1'), [patients, clinicId]);
   const transactions = useMemo(() => {
     return (rawTransactions || []).filter(t => t.clinic_id === clinicId);
   }, [clinicId, rawTransactions]);

@@ -685,6 +685,11 @@ app.get('/api/whatsapp/messages/:clinicId/:phone', async (req, res) => {
   }
 });
 
+// Notifications endpoint (placeholder for future implementation)
+app.post('/api/notifications/send', async (req, res) => {
+  res.json({ ok: true, message: 'Notification sent (placeholder)' });
+});
+
 app.get('/api/clinic/anamnese-sync', (req, res) => {
   res.json({ ok: true, items: [] });
 });
@@ -692,12 +697,6 @@ app.get('/api/clinic/anamnese-sync', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 WhatsApp API ready for connections`);
-});
-
-// Notifications endpoint (placeholder for future implementation)
-app.post('/api/notifications/send', async (req, res) => {
-  // This endpoint is not yet implemented - just return success
-  res.json({ ok: true, message: 'Notification sent (placeholder)' });
 });
 
 // Graceful shutdown for Cloud environments (Render/Docker)
