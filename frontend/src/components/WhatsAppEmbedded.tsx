@@ -131,7 +131,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
             <MiniWhatsAppChat
               isOpen={true}
               onClose={onClose}
-              clinicId={clinicId}
+              clinicId={'clinic-1'}
               patientPhone={selectedPatient.phone}
               patientName={selectedPatient.name}
               appointmentId={appointmentId}
