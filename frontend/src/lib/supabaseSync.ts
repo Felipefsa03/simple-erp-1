@@ -111,19 +111,25 @@ const mapProfessional = async (p: any): Promise<any> => {
   };
 };
 
-const mapAppointment = (a: any) => ({
-  id: a.id,
-  clinic_id: a.clinic_id,
-  patient_id: a.patient_id,
-  professional_id: a.professional_id,
-  service_id: a.service_id,
-  scheduled_at: a.scheduled ? new Date(a.scheduled).toISOString() : '',
-  duration_min: a.duration || 30,
-  status: a.status || 'scheduled',
-  notes: a.notes || '',
-  confirmed: a.confirmed || false,
-  created_at: a.created_at,
-});
+const mapAppointment = (a: any, patients: any[] = [], professionals: any[] = []) => {
+  const patient = patients.find(p => p.id === a.patient_id);
+  const professional = professionals.find(p => p.id === a.professional_id);
+  return {
+    id: a.id,
+    clinic_id: a.clinic_id,
+    patient_id: a.patient_id,
+    patient_name: patient?.name || 'Paciente',
+    professional_id: a.professional_id,
+    professional_name: professional?.name || 'Profissional',
+    service_id: a.service_id,
+    scheduled_at: a.scheduled ? new Date(a.scheduled).toISOString() : '',
+    duration_min: a.duration || 30,
+    status: a.status || 'scheduled',
+    notes: a.notes || '',
+    confirmed: a.confirmed || false,
+    created_at: a.created_at,
+  };
+};
 
 const mapService = (s: any) => ({
   id: s.id,
@@ -198,7 +204,32 @@ export const SupabaseSync = {
       filters: `?clinic_id=eq.${uuid}&select=*&deleted_at=is.null&order=scheduled.desc`,
     });
     if (error || !data) return [];
-    return data.map(mapAppointment);
+    
+    // Buscar pacientes e profissionais para popular nomes
+    const { data: patients } = await supabaseFetch('patients', {
+      filters: `?clinic_id=eq.${uuid}&select=id,name`,
+    });
+    const { data: professionals } = await supabaseFetch('professionals', {
+      filters: `?clinic_id=eq.${uuid}&select=id,user_id`,
+    });
+    
+    // Buscar nomes dos profissionais via users
+    if (professionals && professionals.length > 0) {
+      const userIds = professionals.map((p: any) => p.user_id).filter(Boolean);
+      if (userIds.length > 0) {
+        const { data: users } = await supabaseFetch('users', {
+          filters: `?id=in.(${userIds.join(',')})&select=id,name`,
+        });
+        if (users) {
+          professionals.forEach((p: any) => {
+            const user = users.find((u: any) => u.id === p.user_id);
+            if (user) p.name = user.name;
+          });
+        }
+      }
+    }
+    
+    return data.map((a: any) => mapAppointment(a, patients || [], professionals || []));
   },
 
   async loadServices(clinicId: string) {
