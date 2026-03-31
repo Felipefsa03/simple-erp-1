@@ -310,7 +310,31 @@ export default function App() {
 
   if (!user) {
     if (authView === 'signup') {
-      const plans = [
+      const [dynamicPlans, setDynamicPlans] = useState<{ id: string; name: string; price: number; features: string[]; popular?: boolean }[]>([]);
+      
+      useEffect(() => {
+        (async () => {
+          try {
+            const { supabase, isConfigured } = await import('@/lib/supabase');
+            if (isConfigured) {
+              const { data } = await supabase
+                .from('integration_config')
+                .select('plan_price_basico, plan_price_profissional, plan_price_premium')
+                .eq('clinic_id', '00000000-0000-0000-0000-000000000001')
+                .single();
+              if (data) {
+                setDynamicPlans([
+                  { id: 'basico', name: 'Básico', price: data.plan_price_basico || 97, features: ['1 profissional', 'Agenda completa', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'] },
+                  { id: 'profissional', name: 'Profissional', price: data.plan_price_profissional || 197, features: ['Até 5 profissionais', 'Tudo do Básico', 'Financeiro completo', 'Estoque', 'Marketing', 'Relatórios avançados'], popular: true },
+                  { id: 'premium', name: 'Premium', price: data.plan_price_premium || 397, features: ['Profissionais ilimitados', 'Tudo do Profissional', 'Multi-unidades', 'API integrada', 'Suporte prioritário', 'Personalização total'] },
+                ]);
+              }
+            }
+          } catch (e) { /* use defaults */ }
+        })();
+      }, []);
+      
+      const plans = dynamicPlans.length > 0 ? dynamicPlans : [
         { id: 'basico', name: 'Básico', price: 97, features: ['1 profissional', 'Agenda completa', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'] },
         { id: 'profissional', name: 'Profissional', price: 197, features: ['Até 5 profissionais', 'Tudo do Básico', 'Financeiro completo', 'Estoque', 'Marketing', 'Relatórios avançados'], popular: true },
         { id: 'premium', name: 'Premium', price: 397, features: ['Profissionais ilimitados', 'Tudo do Profissional', 'Multi-unidades', 'API integrada', 'Suporte prioritário', 'Personalização total'] },

@@ -81,6 +81,9 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     google_calendar_email: integrationConfig?.google_calendar_email || '',
     mp_access_token: integrationConfig?.mp_access_token || '',
     mp_public_key: integrationConfig?.mp_public_key || '',
+    plan_price_basico: integrationConfig?.plan_price_basico || '97',
+    plan_price_profissional: integrationConfig?.plan_price_profissional || '197',
+    plan_price_premium: integrationConfig?.plan_price_premium || '397',
   });
 
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
@@ -1402,6 +1405,61 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           </div>
           <SystemWhatsAppConfig />
           
+          {/* Planos e Preços */}
+          <div className="bg-white rounded-3xl border border-slate-100 p-6">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
+              <DollarSign className="w-5 h-5 text-emerald-600" />
+              Planos e Preços
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">Defina os preços dos planos. Alterações refletem imediatamente no cadastro de novas clínicas.</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                { id: 'basico', name: 'Básico', color: 'cyan' },
+                { id: 'profissional', name: 'Profissional', color: 'blue' },
+                { id: 'premium', name: 'Premium', color: 'purple' },
+              ].map(plan => (
+                <div key={plan.id} className="bg-slate-50 rounded-xl p-4">
+                  <p className="font-bold text-slate-800 mb-2">{plan.name}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-500">R$</span>
+                    <input
+                      type="number"
+                      value={integrationForm[`plan_price_${plan.id}`] || (plan.id === 'basico' ? '97' : plan.id === 'profissional' ? '197' : '397')}
+                      onChange={(e) => setIntegrationForm({...integrationForm, [`plan_price_${plan.id}`]: e.target.value})}
+                      className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-lg text-lg font-bold text-center outline-none focus:border-emerald-400"
+                    />
+                    <span className="text-sm text-slate-500">/mês</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  const { supabase } = await import('@/lib/supabase');
+                  const planData = {
+                    clinic_id: '00000000-0000-0000-0000-000000000001',
+                    plan_price_basico: parseFloat(integrationForm.plan_price_basico) || 97,
+                    plan_price_profissional: parseFloat(integrationForm.plan_price_profissional) || 197,
+                    plan_price_premium: parseFloat(integrationForm.plan_price_premium) || 397,
+                    mp_access_token: integrationForm.mp_access_token,
+                    mp_public_key: integrationForm.mp_public_key,
+                  };
+                  const { error } = await supabase
+                    .from('integration_config')
+                    .upsert(planData, { onConflict: 'clinic_id' });
+                  if (error) throw error;
+                  toast('Preços e credenciais salvos com sucesso!');
+                } catch (e: any) {
+                  toast('Erro ao salvar: ' + e.message, 'error');
+                }
+              }}
+              className="mt-4 px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all"
+            >
+              Salvar Preços
+            </button>
+          </div>
+
           {/* Mercado Pago Config */}
           <div className="bg-white rounded-3xl border border-slate-100 p-6">
             <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
