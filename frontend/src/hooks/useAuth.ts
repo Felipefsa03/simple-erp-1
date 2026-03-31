@@ -239,6 +239,18 @@ export const useAuth = create<AuthState>()(
                 };
 
                 set({ user, clinic, loading: false });
+                
+                // Sincronizar dados após login bem-sucedido
+                if (user?.clinic_id) {
+                  let clinicId = user.clinic_id;
+                  if (!user.clinic_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+                    clinicId = '00000000-0000-0000-0000-000000000001';
+                  }
+                  import('../stores/clinicStore').then(({ useClinicStore }) => {
+                    useClinicStore.getState().syncWithSupabase();
+                  });
+                }
+                
                 return true;
               }
             }
@@ -262,6 +274,19 @@ export const useAuth = create<AuthState>()(
 
         if (found) {
           set({ user: found.user, clinic: found.clinic, loading: false });
+          
+          // Sincronizar dados após login bem-sucedido
+          if (useRealData && found.user?.clinic_id) {
+            const userClinicId = found.user.clinic_id;
+            let clinicId = userClinicId;
+            if (!userClinicId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+              clinicId = '00000000-0000-0000-0000-000000000001';
+            }
+            import('../stores/clinicStore').then(({ useClinicStore }) => {
+              useClinicStore.getState().syncWithSupabase();
+            });
+          }
+          
           return true;
         }
 

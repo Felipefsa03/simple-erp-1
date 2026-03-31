@@ -505,18 +505,7 @@ console.log('[ClinicStore] Modo:', useRealData ? 'REAL (Supabase)' : 'DEMO', '- 
 export const useClinicStore = create<ClinicStore>()(
     persist(
         (set, get) => {
-            // Auto-sync with Supabase on first load if configured
-            if (useRealData && typeof window !== 'undefined') {
-                // Converter clinic_id do usuário para UUID válido
-                const userClinicId = useAuth.getState().user?.clinic_id || 'clinic-1';
-                let clinicId = userClinicId;
-                // Se não for UUID válido, usar o UUID padrão
-                if (!userClinicId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-                    clinicId = '00000000-0000-0000-0000-000000000001';
-                }
-                console.log('[ClinicStore] 🔄 Iniciando sincronização automática para:', clinicId, '(userClinicId:', userClinicId, ')');
-                setTimeout(() => syncWithSupabaseInternal(clinicId, set, get), 1500);
-            }
+            // A sincronização é chamada via syncWithSupabase() após login bem-sucedido
             
             return {
             // Initial data - based on Supabase configuration
@@ -654,8 +643,14 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Sync ----
             syncWithSupabase: () => {
-                const clinic_id = useAuth.getState().user?.clinic_id || '00000000-0000-0000-0000-000000000001';
-                syncWithSupabaseInternal(clinic_id, set, get);
+                const userClinicId = useAuth.getState().user?.clinic_id || 'clinic-1';
+                let clinicId = userClinicId;
+                // Converter para UUID se necessário
+                if (!userClinicId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+                    clinicId = '00000000-0000-0000-0000-000000000001';
+                }
+                console.log('[ClinicStore] 🔄 Sincronização chamada manualmente para:', clinicId);
+                syncWithSupabaseInternal(clinicId, set, get);
             },
 
             // ---- Appointments ----
