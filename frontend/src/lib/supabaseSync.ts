@@ -54,7 +54,10 @@ async function supabaseFetch(table: string, options: {
 const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 
 const getClinicId = (clinicId?: string) => {
-  if (clinicId && clinicId.includes('-')) return clinicId;
+  if (!clinicId) return DEFAULT_CLINIC_ID;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(clinicId)) return clinicId;
+  if (clinicId === 'clinic-1') return DEFAULT_CLINIC_ID;
   return DEFAULT_CLINIC_ID;
 };
 
