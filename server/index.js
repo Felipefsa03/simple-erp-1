@@ -324,7 +324,7 @@ const createWhatsAppSocket = async (clinicId) => {
           } else {
             addLog(`[Baileys] Sessão expirada/inválida para ${clinicId}. Limpando...`);
             delete whatsappSockets[clinicId];
-            delete whatsappConnections[clinicId];
+            whatsappConnections[clinicId] = { status: 'disconnected', qr: null, qrBase64: null };
             // Limpar credenciais do Supabase
             try {
               await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?id=eq.${clinicId}`, {
@@ -474,26 +474,12 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
     return res.json({ 
       ok: true, 
       ...conn,
-      qrCode: conn.qrBase64 // Retrocompatibilidade
+      qrCode: conn.qrBase64
     });
   }
   
-  // Check if credentials exist in Supabase and auto-connect
-  const supabaseCreds = await loadCredentialsFromSupabase(clinicId);
-  if (supabaseCreds && supabaseCreds.creds && !whatsappConnections[clinicId]) {
-    // Only trigger if no existing connection
-    ensureSocketConnected(clinicId);
-    return res.json({ ok: true, status: 'connecting', message: 'Reconectando...' });
-  }
-  
-  // Try to auto-connect if it exists in auth but no socket
-  const authDir = path.join(process.cwd(), 'server', 'auth', clinicId);
-  if (fs.existsSync(path.join(authDir, 'creds.json'))) {
-     ensureSocketConnected(clinicId);
-     return res.json({ ok: true, status: 'connecting' });
-  }
-
-   res.json({ ok: true, status: 'disconnected' });
+  // Não auto-conectar - apenas retornar estado atual
+  res.json({ ok: true, status: 'disconnected' });
 });
 
 // Disconnect endpoint
