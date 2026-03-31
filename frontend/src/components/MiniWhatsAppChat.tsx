@@ -242,7 +242,7 @@ export function MiniWhatsAppChat({
   // Fetch messages
   const fetchMessages = useCallback(async () => {
     try {
-      const phoneForApi = patientPhone.replace(/\D/g, '');
+      const phoneForApi = formatPhoneForWhatsApp(patientPhone);
       const res = await fetch(`${API_BASE}/api/whatsapp/messages/${clinicId}/${phoneForApi}`);
       const data = await res.json();
       

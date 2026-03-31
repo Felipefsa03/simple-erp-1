@@ -412,7 +412,7 @@ const createWhatsAppSocket = async (clinicId) => {
                   'Prefer': 'resolution=merge-duplicates'
                 },
                 body: JSON.stringify({
-                  clinic_id: '00000000-0000-0000-0000-000000000001',
+                  clinic_id: clinicId,
                   phone: cleanPhone,
                   message_id: msg.key.id,
                   text: text,
@@ -610,7 +610,7 @@ app.post('/api/whatsapp/send', async (req, res) => {
           'Prefer': 'resolution=merge-duplicates'
         },
         body: JSON.stringify({
-          clinic_id: '00000000-0000-0000-0000-000000000001',
+          clinic_id: clinicId,
           phone: cleanPhone,
           message_id: result.key.id,
           text: message,
