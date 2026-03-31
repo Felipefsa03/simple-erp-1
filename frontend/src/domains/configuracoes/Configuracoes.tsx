@@ -1512,13 +1512,23 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 onClick={async () => {
                   try {
                     const { supabase } = await import('@/lib/supabase');
-                    const { error } = await supabase
+                    const { data: existing } = await supabase
                       .from('integration_config')
-                      .upsert({
-                        clinic_id: '00000000-0000-0000-0000-000000000001',
-                        mp_access_token: integrationForm.mp_access_token,
-                        mp_public_key: integrationForm.mp_public_key,
-                      }, { onConflict: 'clinic_id' });
+                      .select('clinic_id')
+                      .eq('clinic_id', '00000000-0000-0000-0000-000000000001')
+                      .single();
+                    
+                    let error;
+                    if (existing) {
+                      ({ error } = await supabase
+                        .from('integration_config')
+                        .update({ mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key })
+                        .eq('clinic_id', '00000000-0000-0000-0000-000000000001'));
+                    } else {
+                      ({ error } = await supabase
+                        .from('integration_config')
+                        .insert({ clinic_id: '00000000-0000-0000-0000-000000000001', mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key }));
+                    }
                     if (error) throw error;
                     toast('Credenciais do Mercado Pago salvas!');
                   } catch (e: any) {
