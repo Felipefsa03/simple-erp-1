@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Search, Plus, Filter, MoreHorizontal, Phone, Mail, Calendar as CalendarIcon, X, Upload, Eye, FileText, Trash2, AlertCircle, Pencil } from 'lucide-react';
+import { Search, Plus, Filter, MoreHorizontal, Phone, Mail, Calendar as CalendarIcon, X, Upload, Eye, FileText, Trash2, AlertCircle, Pencil, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
@@ -105,6 +105,29 @@ export function PatientList({ onNavigate }: PatientListProps) {
   const canManage = hasPermission('manage_patients');
   const canImport = hasPermission('import_patients');
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
+
+  const handleExportCSV = () => {
+    const headers = ['NOME', 'TELEFONE', 'EMAIL', 'CPF', 'NASCIMENTO', 'ALERGIAS', 'STATUS', 'ULTIMA_VISITA'];
+    const rows = filteredPatients.map(p => [
+      `"${p.name.replace(/"/g, '""')}"`,
+      p.phone || '',
+      p.email || '',
+      p.cpf || '',
+      p.birth_date || '',
+      `"${(p.allergies || '').replace(/"/g, '""')}"`,
+      p.status === 'active' ? 'Ativo' : 'Inativo',
+      p.last_visit || '',
+    ].join(';'));
+    const csv = [headers.join(';'), ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pacientes_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`${filteredPatients.length} pacientes exportados!`);
+  };
 
   const normalizeHeader = (header: string) => header.toLowerCase().trim();
 
@@ -337,6 +360,13 @@ export function PatientList({ onNavigate }: PatientListProps) {
         >
           <Plus className="w-4 h-4" />
           Novo Paciente
+        </button>
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-200 transition-all"
+        >
+          <Download className="w-4 h-4" />
+          Exportar CSV
         </button>
       </header>
 

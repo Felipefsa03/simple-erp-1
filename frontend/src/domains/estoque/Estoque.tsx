@@ -21,6 +21,8 @@ export function Estoque() {
   const [form, setForm] = useState({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' });
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
   const canManageStock = hasPermission('manage_stock');
+  const [stockPage, setStockPage] = useState(1);
+  const STOCK_PER_PAGE = 15;
 
   const clinicStockItems = useMemo(
     () => (stockItems || []).filter(item => item.clinic_id === clinicId),

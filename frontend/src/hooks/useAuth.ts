@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, UserRole, Clinic } from '@/types';
+import type { User, UserRole, Clinic, PlanType, PLAN_LIMITS } from '@/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
@@ -23,6 +23,9 @@ interface AuthState {
   updateUser: (data: Partial<User>) => void;
   checkSession: () => Promise<void>;
   getClinicId: () => string;
+  getPlan: () => PlanType;
+  hasFeature: (feature: keyof typeof PLAN_LIMITS.basico) => boolean;
+  checkLimit: (type: 'maxProfessionals' | 'maxPatients' | 'maxAppointmentsPerMonth', current: number) => boolean;
 }
 
 const getNormalizedClinicId = (clinicId: string | undefined): string => {
@@ -412,6 +415,18 @@ export const useAuth = create<AuthState>()(
       getClinicId: () => {
         const userClinicId = get().user?.clinic_id;
         return getNormalizedClinicId(userClinicId);
+      },
+      getPlan: () => {
+        return (get().clinic?.plan as PlanType) || 'basico';
+      },
+      hasFeature: (feature) => {
+        const plan = (get().clinic?.plan as PlanType) || 'basico';
+        return PLAN_LIMITS[plan]?.[feature] ?? false;
+      },
+      checkLimit: (type, current) => {
+        const plan = (get().clinic?.plan as PlanType) || 'basico';
+        const limit = PLAN_LIMITS[plan]?.[type] ?? 0;
+        return current < limit;
       },
     }),
     {

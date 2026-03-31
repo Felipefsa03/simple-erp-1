@@ -53,7 +53,16 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }: SidebarProps) {
-  const { user, clinic, logout, hasPermission } = useAuth();
+  const { user, clinic, logout, hasPermission, hasFeature } = useAuth();
+  
+  // Filter menu items based on plan features
+  const filteredMenuItems = clinicMenuItems.filter(item => {
+    if (item.id === 'financeiro') return hasFeature('hasFinancial');
+    if (item.id === 'estoque') return hasFeature('hasStock');
+    if (item.id === 'marketing') return hasFeature('hasMarketing');
+    if (item.id === 'branches') return hasFeature('hasMultiClinic');
+    return true;
+  });
   
   const permissionByTab: Record<string, string | null> = {
     dashboard: 'view_dashboard',
@@ -69,7 +78,7 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
     configuracoes: 'manage_settings',
   };
 
-  const baseItems = user?.role === 'super_admin' ? adminMenuItems : clinicMenuItems;
+  const baseItems = user?.role === 'super_admin' ? adminMenuItems : filteredMenuItems;
   const menuItems = baseItems.filter(item => {
     const perm = permissionByTab[item.id];
     if (!perm) return true;
