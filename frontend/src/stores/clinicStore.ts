@@ -105,51 +105,48 @@ const ensureObject = <T extends Record<string, any>>(value: unknown, fallback: T
 // Supabase Sync - Funções de sincronização
 // ============================================
 
+let hasSynced = false;
+
 const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) => {
+    if (hasSynced) {
+        console.log('[ClinicStore] ⏭️ Sincronização já realizada, pulando...');
+        return;
+    }
+    hasSynced = true;
+    
     console.log('[ClinicStore] 🔄 Iniciando sincronização com Supabase para:', clinicId);
     
     try {
-        // Carregar pacientes
+        // Carregar pacientes - SEMPRE sobrescrever dados locais
         const patients = await SupabaseSync.loadPatients(clinicId);
-        if (patients.length > 0) {
-            set({ patients });
-            console.log('[ClinicStore] ✅ Pacientes carregados:', patients.length);
-        }
+        set({ patients });
+        console.log('[ClinicStore] ✅ Pacientes carregados:', patients.length);
 
-        // Carregar profissionais
+        // Carregar profissionais - SEMPRE sobrescrever
         const professionals = await SupabaseSync.loadProfessionals(clinicId);
-        if (professionals.length > 0) {
-            set({ professionals });
-            console.log('[ClinicStore] ✅ Profissionais carregados:', professionals.length);
-        }
+        set({ professionals });
+        console.log('[ClinicStore] ✅ Profissionais carregados:', professionals.length);
 
-        // Carregar agendamentos
+        // Carregar agendamentos - SEMPRE sobrescrever
         const appointments = await SupabaseSync.loadAppointments(clinicId);
-        if (appointments.length > 0) {
-            set({ appointments });
-            console.log('[ClinicStore] ✅ Agendamentos carregados:', appointments.length);
-        }
+        set({ appointments });
+        console.log('[ClinicStore] ✅ Agendamentos carregados:', appointments.length);
 
-        // Carregar serviços
+        // Carregar serviços - SEMPRE sobrescrever
         const services = await SupabaseSync.loadServices(clinicId);
-        if (services.length > 0) {
-            set({ services });
-            console.log('[ClinicStore] ✅ Serviços carregados:', services.length);
-        }
+        set({ services });
+        console.log('[ClinicStore] ✅ Serviços carregados:', services.length);
 
-        // Carregar estoque
+        // Carregar estoque - SEMPRE sobrescrever
         const stockItems = await SupabaseSync.loadStock(clinicId);
-        if (stockItems.length > 0) {
-            set({ stockItems });
-            console.log('[ClinicStore] ✅ Estoque carregado:', stockItems.length);
-        }
+        set({ stockItems });
+        console.log('[ClinicStore] ✅ Estoque carregado:', stockItems.length);
 
-        // Carregar transações
+        // Carregar transações - SEMPRE sobrescrever
         const transactions = await SupabaseSync.loadTransactions(clinicId);
         if (transactions.length > 0) {
-            set({ transactions });
-            console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
-        }
+        set({ transactions });
+        console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
 
         console.log('[ClinicStore] ✅ Sincronização completa!');
     } catch (error) {
