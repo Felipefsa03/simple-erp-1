@@ -71,14 +71,14 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const [asaasTesting, setAsaasTesting] = useState(false);
   const [asaasConnected, setAsaasConnected] = useState(false);
   const [integrationForm, setIntegrationForm] = useState({
-    memed_api_url: integrationConfig.memed_api_url || '',
-    memed_api_token: integrationConfig.memed_api_token || '',
-    tiss_provider_name: integrationConfig.tiss_provider_name || '',
-    tiss_ans_code: integrationConfig.tiss_ans_code || '',
-    rd_station_token: integrationConfig.rd_station_token || '',
-    meta_pixel_id: integrationConfig.meta_pixel_id || '',
-    google_ads_customer_id: integrationConfig.google_ads_customer_id || '',
-    google_calendar_email: integrationConfig.google_calendar_email || '',
+    memed_api_url: integrationConfig?.memed_api_url || '',
+    memed_api_token: integrationConfig?.memed_api_token || '',
+    tiss_provider_name: integrationConfig?.tiss_provider_name || '',
+    tiss_ans_code: integrationConfig?.tiss_ans_code || '',
+    rd_station_token: integrationConfig?.rd_station_token || '',
+    meta_pixel_id: integrationConfig?.meta_pixel_id || '',
+    google_ads_customer_id: integrationConfig?.google_ads_customer_id || '',
+    google_calendar_email: integrationConfig?.google_calendar_email || '',
   });
 
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });

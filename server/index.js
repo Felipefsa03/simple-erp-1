@@ -54,39 +54,38 @@ const addLog = (msg) => {
   console.log(`[${timestamp}] ${msg}`);
 };
 
-// Brazilian phone number validation - generates candidates with/without 9th digit
+// Brazilian phone number validation - robust normalization
 function brazilianPhoneCandidates(rawPhone) {
   let digits = String(rawPhone).replace(/\D/g, '');
   
-  if (digits.startsWith('0')) digits = digits.slice(1);
+  // Remove leading zeros
+  while (digits.startsWith('0')) digits = digits.slice(1);
+  
+  // Ensure country code
   if (!digits.startsWith('55')) digits = '55' + digits;
+  
+  // Fix double country code (e.g. 5555...)
   if (digits.startsWith('5555')) digits = digits.slice(2);
   
-  const country = '55';
-  const rest = digits.slice(2);
-  
-  if (rest.length < 10) {
+  // Validate minimum length (55 + DDD(2) + number(8-9) = 12-13)
+  if (digits.length < 12) {
     return [digits];
   }
   
-  const ddd = rest.slice(0, 2);
-  const local = rest.slice(2);
+  const country = '55';
+  const ddd = digits.slice(2, 4);
+  let local = digits.slice(4);
   
-  const candidates = [];
+  // Ensure local number is 8-9 digits
+  if (local.length > 9) local = local.slice(-9);
+  if (local.length < 8) return [digits];
   
-  if (local.length === 9) {
-    candidates.push(`${country}${ddd}${local}`);
-    if (local.startsWith('9')) {
-      candidates.push(`${country}${ddd}${local.slice(1)}`);
-    }
-  } else if (local.length === 8) {
-    candidates.push(`${country}${ddd}9${local}`);
-    candidates.push(`${country}${ddd}${local}`);
-  } else {
-    candidates.push(digits);
+  // Ensure 9th digit for mobile
+  if (local.length === 8 && ['6', '7', '8', '9'].includes(local[0])) {
+    local = '9' + local;
   }
   
-  return [...new Set(candidates)];
+  return [`${country}${ddd}${local}`];
 }
 
 // Resolve WhatsApp JID by checking which candidate actually exists
@@ -569,8 +568,26 @@ app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
   res.json({ ok: true, status: 'disconnected' });
 });
 
+// Rate limiting for WhatsApp
+const whatsappRateLimit = new Map();
+const RATE_LIMIT_WINDOW = 10000; // 10 seconds
+const RATE_LIMIT_MAX = 5; // 5 messages per window
+
 app.post('/api/whatsapp/send', async (req, res) => {
   const { clinicId, to, message } = req.body;
+  
+  // Rate limiting
+  const rateKey = `${clinicId}-${to}`;
+  const now = Date.now();
+  const timestamps = whatsappRateLimit.get(rateKey) || [];
+  const windowTimestamps = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
+  
+  if (windowTimestamps.length >= RATE_LIMIT_MAX) {
+    return res.status(429).json({ ok: false, error: 'Muitas mensagens. Aguarde alguns segundos.' });
+  }
+  
+  windowTimestamps.push(now);
+  whatsappRateLimit.set(rateKey, windowTimestamps);
   
   try {
     const sock = await ensureSocketConnected(clinicId);

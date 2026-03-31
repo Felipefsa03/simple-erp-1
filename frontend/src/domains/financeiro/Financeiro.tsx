@@ -197,12 +197,13 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
       const dateStr = `${day}/${month}/${year}`;
       const typeStr = t.type === 'income' ? 'RECEITA' : 'DESPESA';
       const statusStr = t.status === 'paid' ? 'PAGO' : t.status === 'pending' ? 'PENDENTE' : 'AGUARDANDO';
-      const amountStr = String(t.amount).replace('.', ',');
+      const amountNum = parseFloat(String(t.amount).replace(/\./g, '').replace(',', '.'));
+      const amountStr = isNaN(amountNum) ? '0,00' : amountNum.toFixed(2).replace('.', ',');
       return [
         dateStr,
         typeStr,
-        t.category.toUpperCase(),
-        `"${t.description.replace(/"/g, '""')}"`,
+        (t.category || '').toUpperCase(),
+        `"${(t.description || '').replace(/"/g, '""')}"`,
         amountStr,
         statusStr,
         `"${t.patient_name || '-'}"`,

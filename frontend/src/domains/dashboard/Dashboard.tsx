@@ -148,6 +148,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, []);
 
   const monthlyIncome = useMemo(() => getMonthlyIncome(clinicId), [clinicId]);
+  const lastMonthIncome = useMemo(() => {
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const lastMonthStr = lastMonth.toISOString().slice(0, 7);
+    return clinicTransactions
+      .filter(t => t.type === 'income' && t.status === 'paid' && t.created_at.startsWith(lastMonthStr))
+      .reduce((sum, t) => sum + t.amount, 0);
+  }, [clinicTransactions]);
+  const incomeGrowth = lastMonthIncome > 0 
+    ? (((monthlyIncome - lastMonthIncome) / lastMonthIncome) * 100).toFixed(1)
+    : '0';
   const today = new Date().toISOString().split('T')[0];
   const newPatientsThisMonth = useMemo(() => {
     const thisMonth = new Date().toISOString().slice(0, 7);
@@ -275,7 +286,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <p className="text-2xl font-bold text-slate-900">{formatCurrency(monthlyIncome)}</p>
                 <p className="text-xs text-accent-600 mt-1 flex items-center gap-1">
                   <TrendingUp className="w-3 h-3" />
-                  +12% vs último mês
+                  {Number(incomeGrowth) >= 0 ? '+' : ''}{incomeGrowth}% vs último mês
                 </p>
               </div>
               <div className="p-3 rounded-xl bg-gradient-to-br from-accent-500 to-accent-600 text-white shadow-lg shadow-accent-500/25">

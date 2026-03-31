@@ -69,7 +69,12 @@ const mapPatient = (p: any) => ({
   phone: p.phone || '',
   email: p.email || '',
   cpf: p.cpf || '',
-  birth_date: p.birth ? new Date(p.birth).toISOString().split('T')[0] : '',
+  birth_date: (() => {
+    if (!p.birth) return '';
+    const d = new Date(p.birth);
+    if (isNaN(d.getTime()) || d.getFullYear() < 1900 || d.getFullYear() > new Date().getFullYear()) return '';
+    return d.toISOString().split('T')[0];
+  })(),
   gender: p.gender || '',
   address: p.address || '',
   city: p.city || '',

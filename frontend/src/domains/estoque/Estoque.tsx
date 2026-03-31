@@ -84,9 +84,9 @@ export function Estoque() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteConfirm) return;
-    deleteStockItem(deleteConfirm);
+    await deleteStockItem(deleteConfirm);
     setDeleteConfirm(null);
     toast('Item excluído com sucesso!');
   };

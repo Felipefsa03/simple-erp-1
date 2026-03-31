@@ -503,6 +503,18 @@ const INITIAL_DATA = useRealData ? {
 
 console.log('[ClinicStore] Modo:', useRealData ? 'REAL (Supabase)' : 'DEMO', '- Patients:', useRealData ? 'vai carregar do banco' : DEMO_PATIENTS.length);
 
+// Monitor localStorage usage and warn if approaching limit
+if (typeof window !== 'undefined') {
+  try {
+    const totalSize = new Blob(Object.values(window.localStorage)).size;
+    if (totalSize > 4 * 1024 * 1024) {
+      console.warn('[ClinicStore] ⚠️ localStorage acima de 4MB. Considere limpar dados antigos.');
+    }
+  } catch (e) {
+    // localStorage not available
+  }
+}
+
 export const useClinicStore = create<ClinicStore>()(
     persist(
         (set, get) => {
@@ -548,11 +560,7 @@ export const useClinicStore = create<ClinicStore>()(
             navigationContext: {},
             insurances: [],
             branches: [],
-            whatsappIntegrations: {
-                'clinic-1': { connected: false, token: '', phoneNumber: '', lastSync: null },
-                'clinic-2': { connected: false, token: '', phoneNumber: '', lastSync: null },
-                'clinic-3': { connected: false, token: '', phoneNumber: '', lastSync: null },
-            },
+            whatsappIntegrations: {},
             systemWhatsApp: { connected: false, token: '', phoneNumber: '', lastSync: null },
 
             // ---- Insurance (Convênios) ----
@@ -1179,8 +1187,7 @@ export const useClinicStore = create<ClinicStore>()(
                 emitEvent('STOCK_CONSUMED', { appointment_id: appointmentId, clinic_id: appointment?.clinic_id, items, insufficient });
             },
             addStockMovement: (movement) => {
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
-                set(s => ({ stockMovements: [{ ...movement, clinic_id, id: uid(), created_at: now() }, ...s.stockMovements] }));
+                set(s => ({ stockMovements: [{ ...movement, id: uid(), created_at: now() }, ...s.stockMovements] }));
             },
 
             // ---- Financial ----
@@ -1353,7 +1360,8 @@ export const useClinicStore = create<ClinicStore>()(
                     .filter(t => !clinicId || t.clinic_id === clinicId)
                     .reduce((s, t) => s + t.amount, 0);
                 const noShows = apts.filter(a => a.status === 'no_show').length;
-                const total = apts.length || 1;
+                const completedTotal = doneApts.length + noShows;
+                const total = completedTotal || 1;
 
                 const procedureCounts: Record<string, number> = {};
                 doneApts.forEach(a => {
@@ -1370,7 +1378,7 @@ export const useClinicStore = create<ClinicStore>()(
                     revenue,
                     ticketMedio: doneApts.length > 0 ? revenue / doneApts.length : 0,
                     noShows,
-                    attendanceRate: ((total - noShows) / total) * 100,
+                    attendanceRate: (doneApts.length / total) * 100,
                     topProcedures,
                 };
             },

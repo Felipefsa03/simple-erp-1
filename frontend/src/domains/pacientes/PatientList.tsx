@@ -167,7 +167,6 @@ export function PatientList({ onNavigate }: PatientListProps) {
       const rowErrors: string[] = [];
       if (!row.name) rowErrors.push('Nome');
       if (!row.phone) rowErrors.push('Telefone');
-      if (!row.email) rowErrors.push('Email');
       if (rowErrors.length > 0) {
         errors.push({ row: index + 2, errors: rowErrors });
       }
