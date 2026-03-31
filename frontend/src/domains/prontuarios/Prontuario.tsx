@@ -559,27 +559,6 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
     setDocModalOpen(false);
     toast('Documento gerado com sucesso!');
   };
-          clinicName,
-          clinicCnpj: '',
-          clinicAddress: '',
-          clinicPhone: '',
-          professionalName: professional?.name || '',
-          professionalCro: professional?.cro || '',
-          procedure: appointment.service_name || 'Procedimento',
-          date: new Date().toISOString(),
-        });
-        break;
-    }
-
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${type}-${patient.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('Documento gerado com sucesso!');
-  };
 
   // Check if appointment needs to be started
   const needsStart = appointment && appointment.status === 'scheduled';
