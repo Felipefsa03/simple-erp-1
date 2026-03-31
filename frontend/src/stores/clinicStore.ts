@@ -105,7 +105,7 @@ const ensureObject = <T extends Record<string, any>>(value: unknown, fallback: T
 // Supabase Sync - Funções de sincronização
 // ============================================
 
-const syncWithSupabase = async (clinicId: string) => {
+const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) => {
     console.log('[ClinicStore] 🔄 Iniciando sincronização com Supabase para:', clinicId);
     
     try {
@@ -510,10 +510,9 @@ export const useClinicStore = create<ClinicStore>()(
         (set, get) => {
             // Auto-sync with Supabase on first load if configured
             if (useRealData && typeof window !== 'undefined') {
-                // UUID da clínica padrão (Lumina Odontologia)
                 const clinicId = '00000000-0000-0000-0000-000000000001';
                 console.log('[ClinicStore] 🔄 Iniciando sincronização automática...');
-                setTimeout(() => syncWithSupabase(clinicId), 1500);
+                setTimeout(() => syncWithSupabaseInternal(clinicId, set, get), 1500);
             }
             
             return {
@@ -653,7 +652,7 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Sync ----
             syncWithSupabase: () => {
                 const clinic_id = useAuth.getState().user?.clinic_id || '00000000-0000-0000-0000-000000000001';
-                syncWithSupabase(clinic_id);
+                syncWithSupabaseInternal(clinic_id, set, get);
             },
 
             // ---- Appointments ----
