@@ -319,10 +319,47 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     setNewUserForm({ name: '', email: '', phone: '', role: 'receptionist', commission_pct: '0', password: '' });
   };
 
-  const handleUpgrade = (planName: string) => {
-    const lc = planName.toLowerCase() as 'basic' | 'pro' | 'ultra';
-    updateClinic({ plan: lc });
-    toast(`Plano atualizado para ${planName}!`);
+  const handleUpgrade = async (plan: string) => {
+    try {
+      const planPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
+      const currentPlan = clinic?.plan || 'basico';
+      const currentPrice = planPrices[currentPlan] || 97;
+      const newPrice = planPrices[plan] || 197;
+      
+      // Calculate proportional cost
+      const today = new Date();
+      const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      const daysRemaining = daysInMonth - today.getDate();
+      const dailyRate = (newPrice - currentPrice) / daysInMonth;
+      const proportionalAmount = Math.max(0, dailyRate * daysRemaining);
+      
+      const isDev = import.meta.env.DEV;
+      const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+      
+      const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clinicName: clinic?.name || 'Minha Clínica',
+          email: user?.email || '',
+          name: user?.name || '',
+          phone: user?.phone || '',
+          plan,
+          amount: proportionalAmount > 0 ? proportionalAmount : newPrice,
+          clinicId: user?.clinic_id || '00000000-0000-0000-0000-000000000001',
+        }),
+      });
+      
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Erro ao gerar pagamento');
+      
+      if (data.init_point) {
+        window.open(data.init_point, '_blank');
+        toast(`Upgrade para ${plan}! Valor proporcional: R$${proportionalAmount.toFixed(2)}. Após pagamento, o plano será ativado.`);
+      }
+    } catch (e: any) {
+      toast('Erro no upgrade: ' + e.message, 'error');
+    }
     setUpgradeModal(null);
   };
 
@@ -1006,16 +1043,41 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       {/* Subscription with Upgrade */}
       {activeSubTab === 'assinatura' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-cyan-600" />
+              Plano e Assinatura
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">Gerencie seu plano atual e faça upgrade quando precisar de mais recursos.</p>
+          </div>
+
+          {/* Current Plan Card */}
+          <div className="bg-gradient-to-r from-cyan-500 to-blue-600 rounded-3xl p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-white/80">Plano Atual</p>
+                <p className="text-2xl font-black capitalize">{clinic?.plan || 'basico'}</p>
+                <p className="text-sm text-white/70 mt-1">Próxima cobrança: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-black">R${clinic?.plan === 'profissional' ? '197' : clinic?.plan === 'premium' ? '397' : '97'}</p>
+                <p className="text-sm text-white/70">/mês</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Plans Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { name: 'Basic', price: 197, desc: 'Ideal para clínicas iniciantes', features: ['5 profissionais', '500 pacientes', 'Suporte email'], key: 'basic' },
-              { name: 'Pro', price: 397, desc: 'Para clínicas em crescimento', features: ['15 profissionais', 'Pacientes ilimitados', 'Suporte prioritário', 'Integração Asaas', 'Relatórios avançados'], key: 'pro' },
-              { name: 'Ultra', price: 697, desc: 'Máximo desempenho e IA', features: ['Profissionais ilimitados', 'Pacientes ilimitados', 'IA Copilot', 'API completa', 'Multi-clínica', 'SLA 99.9%'], key: 'ultra' },
+              { id: 'basico', name: 'Básico', price: 97, desc: 'Ideal para clínicas iniciantes', features: ['1 profissional', '500 pacientes', '200 consultas/mês', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'], color: 'cyan' },
+              { id: 'profissional', name: 'Profissional', price: 197, desc: 'Para clínicas em crescimento', features: ['5 profissionais', '2.000 pacientes', '1.000 consultas/mês', 'Financeiro completo', 'Estoque', 'Marketing', 'Relatórios avançados', 'Suporte prioritário'], color: 'blue', popular: true },
+              { id: 'premium', name: 'Premium', price: 397, desc: 'Máximo desempenho', features: ['Profissionais ilimitados', 'Pacientes ilimitados', 'Consultas ilimitadas', 'Tudo do Profissional', 'Multi-unidades', 'API integrada', 'Personalização total', 'SLA 99.9%'], color: 'purple' },
             ].map(plan => {
-              const isCurrent = clinic?.plan === plan.key;
+              const isCurrent = clinic?.plan === plan.id;
               return (
-                <div key={plan.name} className={cn("p-6 rounded-3xl border-2 transition-all", isCurrent ? "bg-white border-cyan-500 shadow-lg shadow-cyan-100" : "bg-white border-slate-100 hover:border-slate-300")}>
-                  {isCurrent && <span className="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-1 rounded-full mb-4 inline-block">PLANO ATUAL</span>}
+                <div key={plan.id} className={cn("p-6 rounded-3xl border-2 transition-all relative", isCurrent ? "bg-white border-cyan-500 shadow-lg shadow-cyan-100" : "bg-white border-slate-100 hover:border-slate-300")}>
+                  {plan.popular && !isCurrent && <span className="absolute -top-2.5 right-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">Popular</span>}
+                  {isCurrent && <span className="absolute -top-2.5 right-4 bg-cyan-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">PLANO ATUAL</span>}
                   <h3 className="text-lg font-bold text-slate-900">{plan.name}</h3>
                   <p className="text-3xl font-black text-slate-900 mt-2">R$ {plan.price}<span className="text-sm font-normal text-slate-400">/mês</span></p>
                   <p className="text-xs text-slate-500 mt-1 mb-6">{plan.desc}</p>
@@ -1028,7 +1090,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       className="w-full mt-6 py-2.5 bg-gradient-to-r from-slate-800 to-slate-900 text-white font-bold rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2"
                     >
                       <ArrowUpRight className="w-4 h-4" />
-                      {clinic?.plan && ['basic', 'pro', 'ultra'].indexOf(plan.key) > ['basic', 'pro', 'ultra'].indexOf(clinic.plan) ? 'Fazer Upgrade' : 'Mudar Plano'}
+                      {['basico', 'profissional', 'premium'].indexOf(plan.id) > ['basico', 'profissional', 'premium'].indexOf(clinic?.plan || 'basico') ? 'Fazer Upgrade' : 'Mudar Plano'}
                     </button>
                   )}
                 </div>
@@ -1038,23 +1100,44 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
           {/* Upgrade Confirmation Modal */}
           <Modal isOpen={!!upgradeModal} onClose={() => setUpgradeModal(null)} title="Confirmar Mudança de Plano">
-            {upgradeModal && (
-              <div className="space-y-4">
-                <div className="bg-cyan-50 p-4 rounded-2xl">
-                  <p className="text-sm text-slate-700">Você está mudando para o plano <strong className="text-cyan-600">{upgradeModal.plan}</strong>.</p>
-                  <p className="text-2xl font-black text-slate-900 mt-2">R$ {upgradeModal.price}<span className="text-sm font-normal text-slate-400">/mês</span></p>
+            {upgradeModal && (() => {
+              const planMap: Record<string, string> = { 'Básico': 'basico', 'Profissional': 'profissional', 'Premium': 'premium' };
+              const planId = planMap[upgradeModal.plan] || 'profissional';
+              const currentPrice = clinic?.plan === 'profissional' ? 197 : clinic?.plan === 'premium' ? 397 : 97;
+              const today = new Date();
+              const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+              const daysRemaining = daysInMonth - today.getDate();
+              const diff = upgradeModal.price - currentPrice;
+              const proportionalAmount = diff > 0 ? Math.max(0, (diff / daysInMonth) * daysRemaining) : 0;
+              const totalCharge = proportionalAmount > 0 ? proportionalAmount : upgradeModal.price;
+              
+              return (
+                <div className="space-y-4">
+                  <div className="bg-cyan-50 p-4 rounded-2xl">
+                    <p className="text-sm text-slate-700">Upgrade para <strong className="text-cyan-600">{upgradeModal.plan}</strong></p>
+                    <p className="text-2xl font-black text-slate-900 mt-2">R$ {upgradeModal.price}<span className="text-sm font-normal text-slate-400">/mês</span></p>
+                  </div>
+                  {proportionalAmount > 0 && (
+                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                      <p className="text-sm font-bold text-amber-800">Cobrança proporcional</p>
+                      <p className="text-xs text-amber-700 mt-1">
+                        Diferença: R${diff.toFixed(2)} × {daysRemaining} dias restantes = <strong>R${proportionalAmount.toFixed(2)}</strong>
+                      </p>
+                      <p className="text-xs text-amber-600 mt-1">A partir do próximo mês, será cobrado R${upgradeModal.price}/mês.</p>
+                    </div>
+                  )}
+                  <div className="bg-slate-50 p-4 rounded-xl">
+                    <div className="flex justify-between text-sm"><span className="text-slate-500">Valor agora:</span><span className="font-bold text-slate-800">R${totalCharge.toFixed(2)}</span></div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setUpgradeModal(null)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200">Cancelar</button>
+                    <button onClick={() => handleUpgrade(planId)} className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" /> Confirmar e Pagar
+                    </button>
+                  </div>
                 </div>
-                <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
-                  <p className="text-xs text-amber-700"><strong>Nota:</strong> A cobrança será proporcional ao período restante do mês. A mudança é efetiva imediatamente.</p>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setUpgradeModal(null)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200">Cancelar</button>
-                  <button onClick={() => handleUpgrade(upgradeModal.plan)} className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 flex items-center justify-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" />Confirmar
-                  </button>
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </Modal>
         </motion.div>
       )}

@@ -2,6 +2,82 @@
 // LuminaFlow ERP — Core Type Definitions
 // ============================================
 
+// --- Plans & Subscription ---
+export type PlanType = 'basico' | 'profissional' | 'premium';
+
+export interface PlanLimits {
+  maxProfessionals: number;
+  maxPatients: number;
+  maxAppointmentsPerMonth: number;
+  hasFinancial: boolean;
+  hasStock: boolean;
+  hasMarketing: boolean;
+  hasProntuarios: boolean;
+  hasMultiClinic: boolean;
+  hasReports: boolean;
+  hasAPI: boolean;
+  hasPrioritySupport: boolean;
+  hasCustomBranding: boolean;
+}
+
+export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
+  basico: {
+    maxProfessionals: 1,
+    maxPatients: 500,
+    maxAppointmentsPerMonth: 200,
+    hasFinancial: false,
+    hasStock: false,
+    hasMarketing: false,
+    hasProntuarios: true,
+    hasMultiClinic: false,
+    hasReports: false,
+    hasAPI: false,
+    hasPrioritySupport: false,
+    hasCustomBranding: false,
+  },
+  profissional: {
+    maxProfessionals: 5,
+    maxPatients: 2000,
+    maxAppointmentsPerMonth: 1000,
+    hasFinancial: true,
+    hasStock: true,
+    hasMarketing: true,
+    hasProntuarios: true,
+    hasMultiClinic: false,
+    hasReports: true,
+    hasAPI: false,
+    hasPrioritySupport: false,
+    hasCustomBranding: false,
+  },
+  premium: {
+    maxProfessionals: 999,
+    maxPatients: 999999,
+    maxAppointmentsPerMonth: 999999,
+    hasFinancial: true,
+    hasStock: true,
+    hasMarketing: true,
+    hasProntuarios: true,
+    hasMultiClinic: true,
+    hasReports: true,
+    hasAPI: true,
+    hasPrioritySupport: true,
+    hasCustomBranding: true,
+  },
+};
+
+export interface Subscription {
+  id: string;
+  clinic_id: string;
+  plan: PlanType;
+  status: 'active' | 'past_due' | 'cancelled' | 'trial';
+  current_period_start: string;
+  current_period_end: string;
+  amount: number;
+  next_billing_date: string;
+  mp_payment_id?: string;
+  created_at: string;
+}
+
 // --- Auth & Users ---
 export type UserRole = 'super_admin' | 'admin' | 'dentist' | 'receptionist' | 'aesthetician' | 'financial';
 
