@@ -37,6 +37,8 @@ export default function App() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{ plan: string; amount: number; dueDate: string; qrCode: string; pixLink: string } | null>(null);
   const [authView, setAuthView] = useState<'landing' | 'login' | 'signup' | 'forgot-password'>('landing');
   const [signupStep, setSignupStep] = useState(1);
   const [signupForm, setSignupForm] = useState({
@@ -144,6 +146,38 @@ export default function App() {
       setActiveTab(prev => prev === 'admin-dashboard' || prev.startsWith('admin-') ? 'dashboard' : (prev || 'dashboard'));
     }
   }, [user?.id]);
+
+  // Check subscription status on login
+  useEffect(() => {
+    if (!user || user?.role === 'super_admin') return;
+    (async () => {
+      try {
+        const { supabase, isConfigured } = await import('@/lib/supabase');
+        if (!isConfigured) return;
+        const clinicId = user?.clinic_id;
+        if (!clinicId) return;
+        const { data: payments } = await supabase.from('payments').select('*').eq('clinic_id', clinicId).eq('status', 'approved').order('created_at', { ascending: false }).limit(1);
+        if (!payments || payments.length === 0) {
+          const { data: clinics } = await supabase.from('clinics').select('plan').eq('id', clinicId).single();
+          const plan = clinics?.plan || 'basico';
+          const planPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
+          const { data: config } = await supabase.from('integration_config').select('*').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+          const amount = config?.[`plan_price_${plan}`] || planPrices[plan] || 97;
+          const isDev = import.meta.env.DEV;
+          const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+          const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clinicName: clinic?.name || 'Minha Clínica', email: user.email, name: user.name, phone: user.phone || '', plan, amount, clinicId }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            setSubscriptionBlocked(true);
+            setSubscriptionInfo({ plan, amount, dueDate: new Date().toLocaleDateString('pt-BR'), qrCode: data.qr_code || '', pixLink: data.init_point || '' });
+          }
+        }
+      } catch (e) { console.error('[Subscription] Error:', e); }
+    })();
+  }, [user?.id, clinic?.name, user?.email, user?.name, user?.phone]);
 
   useEffect(() => {
     if (!user) return;
@@ -807,6 +841,73 @@ export default function App() {
   return (
     <ToastProvider>
       <ErrorBoundary key={`auth-${user?.id || 'anon'}`}>
+        {/* Subscription Block Screen */}
+        {subscriptionBlocked && subscriptionInfo ? (
+          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+            <div className="w-full max-w-md text-center">
+              <div className="bg-white rounded-3xl shadow-2xl p-8">
+                <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">🔒</span>
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 mb-2">Assinatura Pendente</h1>
+                <p className="text-slate-500 mb-6">Para continuar usando o LuminaFlow, realize o pagamento do seu plano.</p>
+                
+                <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left">
+                  <div className="flex justify-between text-sm mb-2"><span className="text-slate-500">Plano:</span><span className="font-bold capitalize">{subscriptionInfo.plan}</span></div>
+                  <div className="flex justify-between text-sm mb-2"><span className="text-slate-500">Valor:</span><span className="font-bold text-emerald-600">R${subscriptionInfo.amount}/mês</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-slate-500">Vencimento:</span><span className="font-bold">{subscriptionInfo.dueDate}</span></div>
+                </div>
+
+                {subscriptionInfo.qrCode ? (
+                  <div className="bg-white border-2 border-slate-200 rounded-xl p-4 mb-4 inline-block">
+                    <div dangerouslySetInnerHTML={{ __html: subscriptionInfo.qrCode.replace(/<svg/, '<svg style="width:180px;height:180px"') }} />
+                  </div>
+                ) : (
+                  <div className="w-44 h-44 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <span className="text-4xl">📱</span>
+                  </div>
+                )}
+
+                {subscriptionInfo.pixLink && (
+                  <a href={subscriptionInfo.pixLink} target="_blank" rel="noopener noreferrer" className="block mb-4 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all">
+                    Pagar pelo Mercado Pago →
+                  </a>
+                )}
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                  <p className="text-xs text-amber-700">⚠️ Após o pagamento, o sistema será liberado automaticamente.</p>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      const { supabase } = await import('@/lib/supabase');
+                      const { data: payments } = await supabase
+                        .from('payments')
+                        .select('*')
+                        .eq('clinic_id', user?.clinic_id)
+                        .eq('status', 'approved')
+                        .limit(1);
+                      if (payments && payments.length > 0) {
+                        setSubscriptionBlocked(false);
+                        setSubscriptionInfo(null);
+                      } else {
+                        window.location.reload();
+                      }
+                    } catch (e) { window.location.reload(); }
+                  }}
+                  className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all"
+                >
+                  Já realizei o pagamento
+                </button>
+
+                <button onClick={logout} className="mt-3 text-sm text-slate-500 hover:text-slate-700">
+                  Sair da conta
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="flex h-screen bg-slate-50 overflow-hidden relative">
           <Sidebar
             activeTab={activeTab}
@@ -857,6 +958,7 @@ export default function App() {
             </main>
           </div>
         </div>
+        )}
       </ErrorBoundary>
     </ToastProvider>
   );
