@@ -1,0 +1,23 @@
+# ============================================
+# LuminaFlow Backend - Development Dockerfile
+# ============================================
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY simple-erp/package.json simple-erp/package-lock.json* ./
+RUN npm ci
+
+# Copy source code
+COPY simple-erp/backend ./simple-erp/backend
+COPY simple-erp/server ./simple-erp/server
+COPY simple-erp/package.json ./
+COPY simple-erp/.env.example .env.local
+COPY simple-erp/ecosystem.config.cjs ./
+
+# Expose ports
+EXPOSE 8787 9229
+
+# Start with nodemon for hot-reload
+CMD ["npm", "run", "start:robust"]

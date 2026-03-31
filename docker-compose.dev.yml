@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # LuminaFlow ERP - Development Compose
+  # Hot-reload enabled for live development
+  # ============================================
+  
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: luminaflow-backend-dev
+    ports:
+      - "8787:8787"
+      - "9229:9229"  # Node debugger
+    environment:
+      - NODE_ENV=development
+      - API_PORT=8787
+      - VITE_API_BASE_URL=http://localhost:3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - ASAAS_API_KEY=${ASAAS_API_KEY:-}
+      - ASAAS_API_KEY_SANDBOX=${ASAAS_API_KEY_SANDBOX:-}
+      - ASAAS_BASE_URL=${ASAAS_BASE_URL:-https://www.asaas.com}
+      - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN:-}
+      - VITE_MP_ACCESS_TOKEN=${VITE_MP_ACCESS_TOKEN:-}
+      - VITE_MP_IS_SANDBOX=${VITE_MP_IS_SANDBOX:-true}
+    volumes:
+      - ./simple-erp/backend:/app/simple-erp/backend
+      - ./simple-erp/server/data:/app/simple-erp/server/data
+      - ./simple-erp/logs:/app/simple-erp/logs
+    restart: unless-stopped
+    networks:
+      - luminaflow-network
+
+  # Frontend React/Vite
+  frontend:
+    build:
+      context: ./simple-erp/frontend
+      dockerfile: Dockerfile.dev
+    container_name: luminaflow-frontend-dev
+    ports:
+      - "3000:3000"
+      - "5173:5173"  # Vite HMR
+    environment:
+      - NODE_ENV=development
+      - VITE_API_BASE_URL=http://localhost:8787
+    volumes:
+      - ./simple-erp/frontend/src:/app/src
+      - ./simple-erp/frontend/index.html:/app/index.html
+      - ./simple-erp/frontend/vite.config.ts:/app/vite.config.ts
+      - ./simple-erp/frontend/package.json:/app/package.json
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - luminaflow-network
+    depends_on:
+      - backend
+
+networks:
+  luminaflow-network:
+    driver: bridge

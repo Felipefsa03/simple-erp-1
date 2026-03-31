@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # LuminaFlow ERP - Docker Compose
+  # ============================================
+  
+  # Backend API (Express + WhatsApp)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: luminaflow-backend
+    ports:
+      - "8787:8787"
+    environment:
+      - NODE_ENV=production
+      - API_PORT=8787
+      - VITE_API_BASE_URL=http://localhost:8787
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - ASAAS_API_KEY=${ASAAS_API_KEY:-}
+      - ASAAS_API_KEY_SANDBOX=${ASAAS_API_KEY_SANDBOX:-}
+      - ASAAS_BASE_URL=${ASAAS_BASE_URL:-https://www.asaas.com}
+      - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN:-}
+      - VITE_MP_ACCESS_TOKEN=${VITE_MP_ACCESS_TOKEN:-}
+      - VITE_MP_IS_SANDBOX=${VITE_MP_IS_SANDBOX:-true}
+    volumes:
+      - ./simple-erp/backend/auth_info_clinic-1:/app/simple-erp/backend/auth_info_clinic-1
+      - ./simple-erp/server/data:/app/simple-erp/server/data
+      - ./simple-erp/logs:/app/simple-erp/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8787/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - luminaflow-network
+
+  # Frontend (Vite/React) - Optional, serve static files
+  # Uncomment if you want to serve frontend from container
+  # frontend:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #     target: production
+  #   container_name: luminaflow-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=production
+  #     - VITE_API_BASE_URL=http://backend:8787
+  #   volumes:
+  #     - ./simple-erp/frontend/dist:/usr/share/nginx/html:ro
+  #   restart: unless-stopped
+  #   networks:
+  #     - luminaflow-network
+  #   depends_on:
+  #     - backend
+
+networks:
+  luminaflow-network:
+    driver: bridge
+
+# ============================================
+# Development override
+# ============================================
+# For development, use:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ============================================

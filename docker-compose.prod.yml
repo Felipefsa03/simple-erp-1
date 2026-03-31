@@ -1,0 +1,186 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # LuminaFlow ERP - Produção Multi-Tenant
+  # PostgreSQL + Redis + Backend + Frontend
+  # ============================================
+  
+  # PostgreSQL Database (Multi-Tenant)
+  postgres:
+    image: postgres:16-alpine
+    container_name: luminaflow-postgres
+    environment:
+      - POSTGRES_DB=luminaflow
+      - POSTGRES_USER=${DB_USER:-luminaflow}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-luminaflow_secure_pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./simple-erp/backend/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luminaflow -d luminaflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - luminaflow-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Redis Cache (Multi-Tenant)
+  redis:
+    image: redis:7-alpine
+    container_name: luminaflow-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - luminaflow-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Backend API (Express + WhatsApp)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: luminaflow-backend
+    ports:
+      - "8787:8787"
+    environment:
+      - NODE_ENV=production
+      - API_PORT=8787
+      - VITE_API_BASE_URL=http://localhost:8787
+      
+      # Database
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=luminaflow
+      - DB_USER=luminaflow
+      - DB_PASSWORD=luminaflow_secure_pass
+      - DB_POOL_MIN=2
+      - DB_POOL_MAX=10
+      
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      
+      # WhatsApp (per clinic)
+      - WA_SESSION_DIR=/app/simple-erp/backend/auth_info
+      - WA_MAX_INSTANCES=10
+      
+      # External APIs
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - ASAAS_API_KEY=${ASAAS_API_KEY:-}
+      - ASAAS_API_KEY_SANDBOX=${ASAAS_API_KEY_SANDBOX:-}
+      - ASAAS_BASE_URL=${ASAAS_BASE_URL:-https://www.asaas.com}
+      - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN:-}
+      - VITE_MP_ACCESS_TOKEN=${VITE_MP_ACCESS_TOKEN:-}
+      - VITE_MP_IS_SANDBOX=${VITE_MP_IS_SANDBOX:-true}
+      
+      # Rate Limiting
+      - RATE_LIMIT_DEFAULT=100
+      - RATE_LIMIT_AUTH=10
+      - RATE_LIMIT_WHATSAPP=60
+      - RATE_LIMIT_CAMPAIGN=30
+      
+      # Monitoring
+      - LOG_LEVEL=info
+      - ENABLE_METRICS=true
+    volumes:
+      - ./simple-erp/backend/auth_info:/app/simple-erp/backend/auth_info
+      - ./simple-erp/server/data:/app/simple-erp/server/data
+      - ./simple-erp/logs:/app/simple-erp/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8787/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - luminaflow-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Nginx Reverse Proxy + Frontend (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: luminaflow-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./simple-erp/frontend/dist:/usr/share/nginx/html:ro
+    restart: unless-stopped
+    networks:
+      - luminaflow-network
+    depends_on:
+      - backend
+    profiles:
+      - with-nginx
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  luminaflow-network:
+    driver: bridge
+
+# ============================================
+# Como usar:
+# ============================================
+# 
+# 1. Subir tudo (Backend + PostgreSQL + Redis):
+#    docker-compose -f docker-compose.prod.yml up -d
+#
+# 2. Ver logs:
+#    docker-compose -f docker-compose.prod.yml logs -f backend
+#
+# 3. Verificar saúde:
+#    curl http://localhost:8787/api/health/extended
+#
+# 4. Parar:
+#    docker-compose -f docker-compose.prod.yml down
+#
+# 5. Limpar dados:
+#    docker-compose -f docker-compose.prod.yml down -v
+#
+# ============================================

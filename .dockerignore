@@ -1,0 +1,72 @@
+# ============================================
+# LuminaFlow ERP - Docker Ignore
+# ============================================
+
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+build
+**/dist
+**/build
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Test coverage
+coverage
+.nyc_output
+
+# Documentation
+*.md
+!README.md
+!PLANO_DE_MELHORIAS.md
+
+# Backup files
+*~
+*.bak
+*.backup
+
+# Temporary files
+tmp
+temp
+*.tmp
+
+# Pipeline/CI
+.github
+pipelines
+execution
+directives
+mcp
+metadata.json
+
+# Legacy/backup files
+nul
+backend.log
+build_output.txt

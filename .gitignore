@@ -1,0 +1,40 @@
+node_modules/
+dist/
+build/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# WhatsApp session data (contains private keys)
+auth_info_clinic-*/
+
+# Build artifacts
+build_output.txt
+
+# OS artifacts
+nul
+
+# Python cache
+__pycache__/
+.ruff_cache/
+
+# Server runtime data
+server/data/
+
+# Editor files
+.vscode/
+.idea/
+
+# Docker
+.docker/
+
+# Documentos de auditoria (manter apenas na branch docs)
+# AUDITORIA_*.md
+# PLANO_*.md
+# RELATORIO_*.md
+# RESUMO_*.md
+# DOCUMENTO_*.md
+# MELHORIAS_*.md
+# OTIMIZACAO_*.md
