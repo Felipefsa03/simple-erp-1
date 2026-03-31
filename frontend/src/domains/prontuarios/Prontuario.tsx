@@ -132,6 +132,12 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
 
   // Document state
   const [signatureNameDoc, setSignatureNameDoc] = useState('');
+  const [docModalOpen, setDocModalOpen] = useState(false);
+  const [docType, setDocType] = useState<'certificate' | 'prescription' | 'consent' | null>(null);
+  const [certDays, setCertDays] = useState('');
+  const [certObs, setCertObs] = useState('');
+  const [prescriptionText, setPrescriptionText] = useState('');
+  const [consentText, setConsentText] = useState('');
 
   // Finalization logs
   const [finalizationLogs, setFinalizationLogs] = useState<string[]>([]);
@@ -474,12 +480,22 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
       toast('Selecione um paciente e agendamento.', 'error');
       return;
     }
+    setDocType(type);
+    setCertDays('');
+    setCertObs('');
+    setPrescriptionText('');
+    setConsentText('');
+    setDocModalOpen(true);
+  };
+
+  const handleGenerateDocument = () => {
+    if (!patient || !appointment || !docType) return;
 
     let htmlContent = '';
     const clinicName = 'LuminaFlow Clínica';
     const professional = useClinicStore.getState().professionals.find(p => p.id === appointment.professional_id);
 
-    switch (type) {
+    switch (docType) {
       case 'certificate':
         htmlContent = generateCertificateHTML({
           patientName: patient.name,
@@ -490,6 +506,8 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
           clinicPhone: '',
           professionalName: professional?.name || '',
           professionalCro: professional?.cro || '',
+          daysRest: certDays ? parseInt(certDays, 10) : 1,
+          observations: certObs || '',
           startDate: new Date().toISOString(),
           city: 'São Paulo',
           state: 'SP',
@@ -497,6 +515,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
         });
         break;
       case 'prescription':
+        const prescriptionLines = prescriptionText.split('\n').filter(l => l.trim());
         htmlContent = generatePrescriptionHTML({
           patientName: patient.name,
           patientCpf: patient.cpf || '',
@@ -506,12 +525,9 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
           clinicPhone: '',
           professionalName: professional?.name || '',
           professionalCro: professional?.cro || '',
-          prescriptions: [{
-            medication: appointment.service_name || 'Medicamento',
-            dosage: 'Conforme orientação',
-            frequency: 'Conforme orientação',
-            duration: 'Conforme orientação',
-          }],
+          prescriptions: prescriptionLines.length > 0 
+            ? prescriptionLines.map(line => ({ medication: line.trim(), dosage: 'Conforme orientação', frequency: 'Conforme orientação', duration: 'Conforme orientação' }))
+            : [{ medication: appointment.service_name || 'Medicamento', dosage: 'Conforme orientação', frequency: 'Conforme orientação', duration: 'Conforme orientação' }],
           date: new Date().toISOString(),
         });
         break;
@@ -519,6 +535,30 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
         htmlContent = generateConsentHTML({
           patientName: patient.name,
           patientCpf: patient.cpf || '',
+          clinicName,
+          clinicCnpj: '',
+          clinicAddress: '',
+          clinicPhone: '',
+          professionalName: professional?.name || '',
+          professionalCro: professional?.cro || '',
+          procedureDescription: consentText || appointment.service_name || 'Procedimento odontológico',
+          date: new Date().toISOString(),
+          city: 'São Paulo',
+          state: 'SP',
+        });
+        break;
+    }
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${docType}_${patient.name.replace(/\s+/g, '_')}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDocModalOpen(false);
+    toast('Documento gerado com sucesso!');
+  };
           clinicName,
           clinicCnpj: '',
           clinicAddress: '',
@@ -1065,6 +1105,81 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
               </div>
             </div>
           )}
+
+          {/* Document Modal */}
+          <Modal isOpen={docModalOpen} onClose={() => setDocModalOpen(false)} title={`Gerar ${docType === 'certificate' ? 'Atestado' : docType === 'prescription' ? 'Receituário' : 'Consentimento'}`}>
+            <div className="space-y-4">
+              {docType === 'certificate' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Dias de afastamento</label>
+                    <input
+                      type="number"
+                      value={certDays}
+                      onChange={(e) => setCertDays(e.target.value)}
+                      placeholder="Ex: 3"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Observações (opcional)</label>
+                    <textarea
+                      value={certObs}
+                      onChange={(e) => setCertObs(e.target.value)}
+                      placeholder="Ex: Atendimento odontológico"
+                      rows={3}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-cyan-400 resize-none"
+                    />
+                  </div>
+                </>
+              )}
+              {docType === 'prescription' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Medicamentos / Receituário</label>
+                  <p className="text-xs text-slate-500 mb-2">Digite um medicamento por linha</p>
+                  <textarea
+                    value={prescriptionText}
+                    onChange={(e) => setPrescriptionText(e.target.value)}
+                    placeholder={"Ex:\nAmoxicilina 500mg - 1 capsula de 8/8h por 7 dias\nIbuprofeno 400mg - 1 comprimido de 6/6h se houver dor"}
+                    rows={6}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-emerald-400 resize-none font-mono"
+                  />
+                </div>
+              )}
+              {docType === 'consent' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Descrição do procedimento</label>
+                  <p className="text-xs text-slate-500 mb-2">Descreva o que o paciente está consentindo</p>
+                  <textarea
+                    value={consentText}
+                    onChange={(e) => setConsentText(e.target.value)}
+                    placeholder="Ex: Extração do dente 48 (siso inferior direito), incluindo sutura e cuidados pós-operatórios"
+                    rows={4}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-purple-400 resize-none"
+                  />
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setDocModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleGenerateDocument}
+                  className={cn(
+                    "flex-1 py-2.5 text-white font-bold rounded-xl text-sm transition-all",
+                    docType === 'certificate' ? "bg-cyan-600 hover:bg-cyan-700" :
+                    docType === 'prescription' ? "bg-emerald-600 hover:bg-emerald-700" :
+                    "bg-purple-600 hover:bg-purple-700"
+                  )}
+                >
+                  Gerar Documento
+                </button>
+              </div>
+            </div>
+          </Modal>
 
           {/* Resumo Tab */}
           {activeSubTab === 'resumo' && (
