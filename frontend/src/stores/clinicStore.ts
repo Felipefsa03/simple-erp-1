@@ -626,27 +626,26 @@ export const useClinicStore = create<ClinicStore>()(
             },
 
             // ---- Patients ----
-            addPatient: async (p) => {
+            addPatient: (p) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const formattedPhone = formatPhoneForWhatsApp(p.phone);
                 const patient: Patient = { ...p, phone: formattedPhone, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ patients: [patient, ...s.patients] }));
                 emitEvent('PATIENT_CREATED', { patient_id: patient.id, clinic_id: patient.clinic_id });
                 
-                // Salvar no Supabase
-                await saveToSupabase('patient', patient, true);
-                console.log('[ClinicStore] ✅ Paciente salvo no Supabase:', patient.name);
+                // Fire-and-forget Supabase save
+                saveToSupabase('patient', patient, true).catch(e => console.error('[ClinicStore] Erro ao salvar paciente:', e));
                 
                 return patient;
             },
-            updatePatient: async (id, data) => {
+            updatePatient: (id, data) => {
                 const updatedData = data.phone ? { ...data, phone: formatPhoneForWhatsApp(data.phone) } : data;
                 set(s => ({ patients: s.patients.map(p => p.id === id ? { ...p, ...updatedData } : p) }));
                 
-                // Atualizar no Supabase
+                // Fire-and-forget Supabase update
                 const patient = get().patients.find(p => p.id === id);
                 if (patient) {
-                    await saveToSupabase('patient', { ...patient, ...updatedData }, false);
+                    saveToSupabase('patient', { ...patient, ...updatedData }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar paciente:', e));
                 }
             },
             importPatients: (patients) => {
@@ -1143,30 +1142,23 @@ export const useClinicStore = create<ClinicStore>()(
             getAppointmentMaterials: (appointmentId) => get().appointmentMaterials[appointmentId] || [],
 
             // ---- Stock ----
-            addStockItem: async (item) => {
+            addStockItem: (item) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const newItem: StockItem = { ...item, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ stockItems: [newItem, ...s.stockItems] }));
-                
-                // Salvar no Supabase
-                await saveToSupabase('stock', newItem, true);
-                
+                saveToSupabase('stock', newItem, true).catch(e => console.error('[ClinicStore] Erro ao salvar estoque:', e));
                 return newItem;
             },
-            updateStockItem: async (id, data) => {
+            updateStockItem: (id, data) => {
                 set(s => ({ stockItems: s.stockItems.map(i => i.id === id ? { ...i, ...data } : i) }));
-                
-                // Atualizar no Supabase
                 const item = get().stockItems.find(i => i.id === id);
                 if (item) {
-                    await saveToSupabase('stock', { ...item, ...data }, false);
+                    saveToSupabase('stock', { ...item, ...data }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar estoque:', e));
                 }
             },
-            deleteStockItem: async (id) => {
+            deleteStockItem: (id) => {
                 set(s => ({ stockItems: s.stockItems.filter(i => i.id !== id) }));
-                
-                // Deletar no Supabase
-                await SupabaseSync.deleteStockItem(id);
+                SupabaseSync.deleteStockItem(id).catch(e => console.error('[ClinicStore] Erro ao deletar estoque:', e));
             },
             consumeStock: (items, appointmentId, userId) => {
                 const insufficient: { stock_item_id: string; required: number; available: number }[] = [];
@@ -1178,7 +1170,7 @@ export const useClinicStore = create<ClinicStore>()(
                         insufficient.push({ stock_item_id, required: qty, available: item.quantity });
                     }
                     const newQty = Math.max(0, item.quantity - qty);
-                    get().updateStockItem(stock_item_id, { quantity: newQty });
+                    set(s => ({ stockItems: s.stockItems.map(i => i.id === stock_item_id ? { ...i, quantity: newQty } : i) }));
                     get().addStockMovement({
                         clinic_id: item.clinic_id,
                         stock_item_id,
@@ -1198,16 +1190,14 @@ export const useClinicStore = create<ClinicStore>()(
             },
 
             // ---- Financial ----
-            addTransaction: async (t) => {
+            addTransaction: (t) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const inferredKey = t.idempotency_key || (t.appointment_id ? `apt:${t.appointment_id}:${t.type}` : uid());
                 const existing = get().transactions.find(txn => txn.idempotency_key === inferredKey);
                 if (existing) return existing;
                 const txn: FinancialTransaction = { ...t, clinic_id, id: uid(), idempotency_key: inferredKey, created_at: now() };
                 set(s => ({ transactions: [txn, ...s.transactions] }));
-                
-                // Salvar no Supabase
-                await saveToSupabase('transaction', txn, true);
+                saveToSupabase('transaction', txn, true).catch(e => console.error('[ClinicStore] Erro ao salvar transação:', e));
                 
                 if (txn.type === 'income') {
                     emitEvent('PAYMENT_GENERATED', { transaction_id: txn.id, appointment_id: txn.appointment_id, clinic_id: txn.clinic_id });
@@ -1223,10 +1213,7 @@ export const useClinicStore = create<ClinicStore>()(
                         t.id === id ? { ...t, ...updatedData } : t
                     ),
                 }));
-                
-                // Atualizar no Supabase
-                await saveToSupabase('transaction', { ...txn, ...updatedData }, false);
-                
+                saveToSupabase('transaction', { ...txn, ...updatedData }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar transação:', e));
                 emitEvent('PAYMENT_RECEIVED', { transaction_id: id, clinic_id: txn.clinic_id });
             },
             generatePayment: (id, method, installments) => {
@@ -1305,28 +1292,23 @@ export const useClinicStore = create<ClinicStore>()(
                 set(st => ({ services: [...st.services, service] }));
                 
                 // Salvar no Supabase
-                await saveToSupabase('service', service, true);
-                
+                saveToSupabase('service', service, true).catch(e => console.error('[ClinicStore] Erro ao salvar serviço:', e));
                 return service;
             },
-            updateService: async (id, data) => {
+            updateService: (id, data) => {
                 set(s => ({ services: s.services.map(svc => svc.id === id ? { ...svc, ...data } : svc) }));
-                
-                // Atualizar no Supabase
                 const service = get().services.find(svc => svc.id === id);
                 if (service) {
-                    await saveToSupabase('service', { ...service, ...data }, false);
+                    saveToSupabase('service', { ...service, ...data }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar serviço:', e));
                 }
             },
-            deleteService: async (id) => {
+            deleteService: (id) => {
                 set(s => ({ services: s.services.filter(svc => svc.id !== id) }));
-                
-                // Deletar no Supabase
-                await SupabaseSync.deleteService(id);
+                SupabaseSync.deleteService(id).catch(e => console.error('[ClinicStore] Erro ao deletar serviço:', e));
             },
 
             // ---- Professionals ----
-            addProfessional: async (p) => {
+            addProfessional: (p) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const email = (p.email || '').toLowerCase();
                 if (email && get().professionals.some(prof => prof.email.toLowerCase() === email)) {
@@ -1334,27 +1316,19 @@ export const useClinicStore = create<ClinicStore>()(
                 }
                 const professional: User = { ...p, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ professionals: [professional, ...s.professionals] }));
-                
-                // Salvar no Supabase
-                await saveToSupabase('professional', professional, true);
-                console.log('[ClinicStore] ✅ Profissional salvo no Supabase:', professional.name);
-                
+                saveToSupabase('professional', professional, true).catch(e => console.error('[ClinicStore] Erro ao salvar profissional:', e));
                 return professional;
             },
-            updateProfessional: async (id, data) => {
+            updateProfessional: (id, data) => {
                 set(s => ({ professionals: s.professionals.map(p => p.id === id ? { ...p, ...data } : p) }));
-                
-                // Atualizar no Supabase
                 const professional = get().professionals.find(p => p.id === id);
                 if (professional) {
-                    await saveToSupabase('professional', { ...professional, ...data }, false);
+                    saveToSupabase('professional', { ...professional, ...data }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar profissional:', e));
                 }
             },
-            deleteProfessional: async (id) => {
+            deleteProfessional: (id) => {
                 set(s => ({ professionals: s.professionals.filter(p => p.id !== id) }));
-                
-                // Deletar no Supabase
-                await SupabaseSync.deleteProfessional(id);
+                SupabaseSync.deleteProfessional(id).catch(e => console.error('[ClinicStore] Erro ao deletar profissional:', e));
             },
             getProfessionalStats: (id, clinicId) => {
                 const state = get();
