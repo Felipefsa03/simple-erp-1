@@ -38,6 +38,9 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [authView, setAuthView] = useState<'landing' | 'login' | 'signup' | 'forgot-password'>('landing');
+  const [signupForm, setSignupForm] = useState({ name: '', email: '', phone: '', password: '', confirmPassword: '' });
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError, setSignupError] = useState('');
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoverySent, setRecoverySent] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
@@ -296,8 +299,120 @@ export default function App() {
 
   if (!user) {
     if (authView === 'signup') {
-      setAuthView('login');
-      return null;
+      return (
+        <ToastProvider>
+          <ErrorBoundary key="signup-page">
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 flex items-center justify-center p-4">
+              <div className="w-full max-w-md">
+                <div className="text-center mb-8">
+                  <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-cyan-200/50">
+                    <span className="text-2xl font-black">L</span>
+                  </div>
+                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">Criar Conta</h1>
+                  <p className="text-slate-500 mt-1">Cadastre-se para gerenciar sua clínica.</p>
+                </div>
+
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    setSignupError('');
+                    if (signupForm.password !== signupForm.confirmPassword) {
+                      setSignupError('As senhas não coincidem.');
+                      return;
+                    }
+                    if (signupForm.password.length < 6) {
+                      setSignupError('A senha deve ter pelo menos 6 caracteres.');
+                      return;
+                    }
+                    setSignupLoading(true);
+                    try {
+                      await login(signupForm.email, signupForm.password);
+                    } catch (err: any) {
+                      setSignupError(err?.message || 'Erro ao criar conta. Tente novamente.');
+                    } finally {
+                      setSignupLoading(false);
+                    }
+                  }} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Nome completo</label>
+                      <input
+                        type="text"
+                        value={signupForm.name}
+                        onChange={(e) => setSignupForm({...signupForm, name: e.target.value})}
+                        placeholder="Seu nome"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={signupForm.email}
+                        onChange={(e) => setSignupForm({...signupForm, email: e.target.value})}
+                        placeholder="seu@email.com"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label>
+                      <input
+                        type="tel"
+                        value={signupForm.phone}
+                        onChange={(e) => setSignupForm({...signupForm, phone: e.target.value})}
+                        placeholder="(11) 99999-9999"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Senha</label>
+                      <input
+                        type="password"
+                        value={signupForm.password}
+                        onChange={(e) => setSignupForm({...signupForm, password: e.target.value})}
+                        placeholder="Mínimo 6 caracteres"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Confirmar senha</label>
+                      <input
+                        type="password"
+                        value={signupForm.confirmPassword}
+                        onChange={(e) => setSignupForm({...signupForm, confirmPassword: e.target.value})}
+                        placeholder="Repita a senha"
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none"
+                        required
+                      />
+                    </div>
+                    {signupError && (
+                      <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-3">{signupError}</div>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={signupLoading}
+                      className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                    >
+                      {signupLoading ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : null}
+                      {signupLoading ? 'Criando conta...' : 'Criar Conta'}
+                    </button>
+                  </form>
+
+                  <div className="mt-6 text-center">
+                    <button onClick={() => setAuthView('login')} className="text-sm text-cyan-600 font-medium hover:underline">
+                      Já tem uma conta? Faça login
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ErrorBoundary>
+        </ToastProvider>
+      );
     }
 
     if (authView === 'forgot-password') {
