@@ -105,14 +105,14 @@ const ensureObject = <T extends Record<string, any>>(value: unknown, fallback: T
 // Supabase Sync - Funções de sincronização
 // ============================================
 
-let hasSynced = false;
+let lastSyncedClinicId = '';
 
 const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) => {
-    if (hasSynced) {
-        console.log('[ClinicStore] ⏭️ Sincronização já realizada, pulando...');
+    // Só pular se já sincronizou esta clínica específica
+    if (lastSyncedClinicId === clinicId) {
+        console.log('[ClinicStore] ⏭️ Já sincronizado para esta clínica, pulando...');
         return;
     }
-    hasSynced = true;
     
     console.log('[ClinicStore] 🔄 Iniciando sincronização com Supabase para:', clinicId);
     
@@ -148,6 +148,7 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
 
         console.log('[ClinicStore] ✅ Sincronização completa!');
+        lastSyncedClinicId = clinicId;
     } catch (error) {
         console.error('[ClinicStore] ❌ Erro na sincronização:', error);
     }
@@ -506,12 +507,14 @@ export const useClinicStore = create<ClinicStore>()(
         (set, get) => {
             // Auto-sync with Supabase on first load if configured
             if (useRealData && typeof window !== 'undefined') {
-                // Usar clinic_id do usuário logado ou fallback para UUID padrão
-                const userClinicId = useAuth.getState().user?.clinic_id;
-                const clinicId = (userClinicId && userClinicId.includes('-') && userClinicId.length > 20) 
-                    ? userClinicId 
-                    : '00000000-0000-0000-0000-000000000001';
-                console.log('[ClinicStore] 🔄 Iniciando sincronização automática para:', clinicId);
+                // Converter clinic_id do usuário para UUID válido
+                const userClinicId = useAuth.getState().user?.clinic_id || 'clinic-1';
+                let clinicId = userClinicId;
+                // Se não for UUID válido, usar o UUID padrão
+                if (!userClinicId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+                    clinicId = '00000000-0000-0000-0000-000000000001';
+                }
+                console.log('[ClinicStore] 🔄 Iniciando sincronização automática para:', clinicId, '(userClinicId:', userClinicId, ')');
                 setTimeout(() => syncWithSupabaseInternal(clinicId, set, get), 1500);
             }
             
