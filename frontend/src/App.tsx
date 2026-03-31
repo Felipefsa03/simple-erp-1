@@ -486,8 +486,70 @@ export default function App() {
                           </div>
                           <button onClick={async () => {
                             setSignupLoading(true);
-                            try { await login(signupForm.email, signupForm.password); } catch (err: any) { setSignupError(err?.message || 'Erro ao criar conta.'); }
-                            finally { setSignupLoading(false); }
+                            setSignupError('');
+                            try {
+                              // Import Supabase client
+                              const { supabase, isConfigured } = await import('@/lib/supabase');
+                              
+                              if (isConfigured) {
+                                // Generate clinic UUID
+                                const clinicId = crypto.randomUUID();
+                                
+                                // Create clinic in Supabase
+                                const { error: clinicError } = await supabase
+                                  .from('clinics')
+                                  .insert({
+                                    id: clinicId,
+                                    name: signupForm.clinicName,
+                                    document_type: signupForm.docType,
+                                    document_number: signupForm.clinicDoc.replace(/\D/g, ''),
+                                    modality: signupForm.modality,
+                                    plan: signupForm.plan,
+                                    phone: signupForm.phone,
+                                    email: signupForm.email,
+                                    active: true,
+                                    created_at: new Date().toISOString(),
+                                  });
+                                
+                                if (clinicError) {
+                                  console.error('Clinic creation error:', clinicError);
+                                }
+                                
+                                // Create user in Supabase
+                                const { error: userError } = await supabase
+                                  .from('users')
+                                  .insert({
+                                    id: crypto.randomUUID(),
+                                    clinic_id: clinicId,
+                                    name: signupForm.name,
+                                    email: signupForm.email,
+                                    phone: signupForm.phone,
+                                    role: 'admin',
+                                    active: true,
+                                    created_at: new Date().toISOString(),
+                                  });
+                                
+                                if (userError) {
+                                  console.error('User creation error:', userError);
+                                }
+                              }
+                              
+                              // Create user in local auth store
+                              const { useAuth } = await import('@/hooks/useAuth');
+                              useAuth.getState().createClinicUser(
+                                { name: signupForm.name, email: signupForm.email, phone: signupForm.phone, role: 'admin', active: true },
+                                signupForm.password,
+                                { id: crypto.randomUUID(), name: signupForm.clinicName, document_type: signupForm.docType, document_number: signupForm.clinicDoc, modality: signupForm.modality, plan: signupForm.plan, active: true }
+                              );
+                              
+                              // Login
+                              await login(signupForm.email, signupForm.password);
+                            } catch (err: any) {
+                              console.error('Signup error:', err);
+                              setSignupError(err?.message || 'Erro ao criar conta.');
+                            } finally {
+                              setSignupLoading(false);
+                            }
                           }} disabled={signupLoading} className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-70 flex items-center justify-center gap-2">
                             {signupLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
                             {signupLoading ? 'Verificando pagamento...' : 'Já realizei o pagamento'}
