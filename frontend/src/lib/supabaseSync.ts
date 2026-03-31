@@ -194,8 +194,32 @@ export const SupabaseSync = {
       filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.asc`,
     });
     if (error || !data) return [];
-    const mapped = await Promise.all(data.map(mapProfessional));
-    return mapped;
+    
+    // Batch-fetch all users at once to avoid N+1 queries
+    const userIds = data.map((p: any) => p.user_id).filter(Boolean);
+    let usersMap: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: users } = await supabaseFetch('users', {
+        filters: `?id=in.(${userIds.join(',')})&select=id,name`,
+      });
+      if (users) {
+        users.forEach((u: any) => { usersMap[u.id] = u.name; });
+      }
+    }
+    
+    return data.map((p: any) => ({
+      id: p.id,
+      clinic_id: p.clinic_id,
+      name: p.user_id ? (usersMap[p.user_id] || 'Profissional') : 'Profissional',
+      email: '',
+      phone: '',
+      role: 'dentist',
+      cro: p.cro || '',
+      specialty: p.specialty || '',
+      commission_pct: Number(p.commission) || 0,
+      active: p.active !== false,
+      created_at: p.created_at,
+    }));
   },
 
   async loadAppointments(clinicId: string) {

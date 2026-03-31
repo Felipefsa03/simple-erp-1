@@ -153,20 +153,17 @@ export function Marketing() {
   const [newLeadPhone, setNewLeadPhone] = useState('');
   const [newLeadSource, setNewLeadSource] = useState<'instagram' | 'google_ads' | 'facebook_ads' | 'referral' | 'walk_in' | 'other'>('instagram');
 
-  const clinicPatients = (patients || []).filter(p => p.clinic_id === clinicId);
-  const clinicAppointments = (appointments || []).filter(a => a.clinic_id === clinicId);
-  const clinicTransactions = (transactions || []).filter(t => t.clinic_id === clinicId);
-  const clinicLeads = (leads || []).filter(l => l.clinic_id === clinicId);
-  const clinicStages = (funnelStages || []).filter(s => s.clinic_id === clinicId).sort((a, b) => a.order - b.order);
-  const clinicRules = (automationRules || []).filter(rule => rule.clinic_id === clinicId);
+  const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId), [patients, clinicId]);
+  const clinicAppointments = useMemo(() => (appointments || []).filter(a => a.clinic_id === clinicId), [appointments, clinicId]);
+  const clinicTransactions = useMemo(() => (transactions || []).filter(t => t.clinic_id === clinicId), [transactions, clinicId]);
+  const clinicLeads = useMemo(() => (leads || []).filter(l => l.clinic_id === clinicId), [leads, clinicId]);
+  const clinicStages = useMemo(() => (funnelStages || []).filter(s => s.clinic_id === clinicId).sort((a, b) => a.order - b.order), [funnelStages, clinicId]);
+  const clinicRules = useMemo(() => (automationRules || []).filter(rule => rule.clinic_id === clinicId), [automationRules, clinicId]);
 
   const atRiskPatients = clinicPatients.filter(p => p.status === 'risk' || p.status === 'inactive');
   const totalRevenue = clinicTransactions.filter(t => t.type === 'income' && t.status === 'paid').reduce((s, t) => s + t.amount, 0);
   const avgTicket = clinicAppointments.filter(a => a.status === 'done').length > 0
     ? totalRevenue / clinicAppointments.filter(a => a.status === 'done').length : 0;
-
-  const campaigns = [
-    { id: 1, name: 'Lembrete de Retorno (Out)', type: 'whatsapp', status: 'active', sent: 45, opened: 38, converted: 12 },
     { id: 2, name: 'Promoção Limpeza', type: 'email', status: 'draft', sent: 0, opened: 0, converted: 0 },
     { id: 3, name: 'Captação Implante FB', type: 'facebook', status: 'active', sent: 1200, opened: 450, converted: 15 },
   ];

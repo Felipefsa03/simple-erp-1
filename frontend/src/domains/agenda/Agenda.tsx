@@ -226,14 +226,11 @@ export function Agenda({ onNavigate }: AgendaProps) {
   };
 
   const handleOpenWhatsApp = (apt: Appointment) => {
-    // Se o WhatsApp já está aberto, apenas atualiza o paciente
-    if (isWhatsAppOpen) {
-      setWhatsappAppointment(apt);
-    } else {
-      // Se não está aberto, abre normalmente
-      setWhatsappAppointment(apt);
-      setIsWhatsAppOpen(true);
-    }
+    setWhatsappAppointment(apt);
+    setIsWhatsAppOpen(prev => {
+      if (!prev) return true;
+      return prev;
+    });
   };
 
   const handleAddToWaitingList = () => {
@@ -812,7 +809,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
         appointmentDate={whatsappAppointment ? format(parseISO(whatsappAppointment.scheduled_at), 'dd/MM/yyyy') : ''}
         appointmentTime={whatsappAppointment ? format(parseISO(whatsappAppointment.scheduled_at), 'HH:mm') : ''}
         professionalName={whatsappAppointment?.professional_name || ''}
-        clinicId={'clinic-1'}
+        clinicId={clinicId}
         autoOpenChat={true}
         onScheduleNew={() => {
           // Minimiza WhatsApp em vez de fechar

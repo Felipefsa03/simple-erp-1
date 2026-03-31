@@ -329,7 +329,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
       toast('Você não tem permissão para editar o prontuário.', 'error'); 
       return; 
     }
-    saveEvolution(appointmentId || undefined, patientId, user.clinic_id || 'clinic-1', user.id, evolutionText);
+    saveEvolution(appointmentId || undefined, patientId, clinicId, user.id, evolutionText);
     toast('Evolução salva com sucesso!');
     setEvolutionText('');
   };

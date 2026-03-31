@@ -113,6 +113,8 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         console.log('[ClinicStore] ⏭️ Já sincronizado para esta clínica, pulando...');
         return;
     }
+    // Marcar como sincronizado no início para evitar race conditions
+    lastSyncedClinicId = clinicId;
     
     console.log('[ClinicStore] 🔄 Iniciando sincronização com Supabase para:', clinicId);
     
@@ -148,7 +150,6 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
 
         console.log('[ClinicStore] ✅ Sincronização completa!');
-        lastSyncedClinicId = clinicId;
     } catch (error) {
         console.error('[ClinicStore] ❌ Erro na sincronização:', error);
     }
@@ -634,7 +635,7 @@ export const useClinicStore = create<ClinicStore>()(
                 }
             },
             importPatients: (patients) => {
-                const newPatients = patients.map(p => ({ ...p, id: uid(), created_at: now() }));
+                const newPatients = patients.map(p => ({ ...p, id: uid(), created_at: now(), phone: formatPhoneForWhatsApp(p.phone) }));
                 set(s => ({ patients: [...newPatients, ...s.patients] }));
                 emitEvent('PATIENTS_IMPORTED', { clinic_id: patients[0]?.clinic_id, count: newPatients.length });
                 return newPatients.length;

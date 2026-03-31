@@ -147,7 +147,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     return () => { cancelled = true; };
   }, []);
 
-  const monthlyIncome = getMonthlyIncome(clinicId);
+  const monthlyIncome = useMemo(() => getMonthlyIncome(clinicId), [clinicId]);
   const today = new Date().toISOString().split('T')[0];
   const newPatientsThisMonth = useMemo(() => {
     const thisMonth = new Date().toISOString().slice(0, 7);
