@@ -187,9 +187,10 @@ export function Marketing() {
         });
       }
       if (campaignType === 'whatsapp') {
+        const targets = campaignTarget === 'all' ? clinicPatients : campaignTarget === 'inactive' ? clinicPatients.filter(p => p.status === 'inactive') : campaignTarget === 'risk' ? clinicPatients.filter(p => p.status === 'risk') : clinicPatients;
         await integrationsApi.sendNotification({
           channel: 'whatsapp',
-          recipients: clinicPatients.slice(0, 3).map(p => p.phone || p.id),
+          recipients: targets.slice(0, 50).map(p => p.phone || p.id),
           message: whatsAppDefaultMessage || 'Campanha enviada via CRM LuminaFlow.',
           metadata: { campaign_name: campaignName, target: campaignTarget },
         });

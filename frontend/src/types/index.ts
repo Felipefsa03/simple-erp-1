@@ -108,8 +108,8 @@ export interface Clinic {
     phone?: string;
     email?: string;
     logo_url?: string;
-    plan: 'basic' | 'pro' | 'ultra';
-    status: 'active' | 'inactive' | 'trial';
+    plan: PlanType;
+    status: 'active' | 'past_due' | 'cancelled' | 'trial';
     owner_email: string;
     segment: 'odontologia' | 'estetica' | 'clinica_integrada' | 'geral';
     address?: ClinicAddress;

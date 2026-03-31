@@ -388,6 +388,17 @@ export const useAuth = create<AuthState>()(
                   clinic,
                   loading: false,
                 });
+                
+                // Sync ClinicStore after session restore
+                if (useRealData && userData.clinic_id) {
+                  let clinicId = userData.clinic_id;
+                  if (!userData.clinic_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+                    clinicId = '00000000-0000-0000-0000-000000000001';
+                  }
+                  import('../stores/clinicStore').then(({ useClinicStore }) => {
+                    useClinicStore.getState().syncWithSupabase();
+                  });
+                }
                 return;
               }
             }

@@ -3,6 +3,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
+import crypto from 'crypto';
 import { Boom } from '@hapi/boom';
 import QRCode from 'qrcode';
 import makeWASocket, { 
@@ -592,6 +593,15 @@ app.post('/api/whatsapp/send', async (req, res) => {
   
   windowTimestamps.push(now);
   whatsappRateLimit.set(rateKey, windowTimestamps);
+  
+  // Clean old entries periodically
+  if (whatsappRateLimit.size > 1000) {
+    for (const [key, timestamps] of whatsappRateLimit.entries()) {
+      if (timestamps.every(t => now - t > RATE_LIMIT_WINDOW)) {
+        whatsappRateLimit.delete(key);
+      }
+    }
+  }
   
   try {
     const sock = await ensureSocketConnected(clinicId);

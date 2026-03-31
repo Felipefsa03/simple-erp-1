@@ -227,10 +227,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
 
   const handleOpenWhatsApp = (apt: Appointment) => {
     setWhatsappAppointment(apt);
-    setIsWhatsAppOpen(prev => {
-      if (!prev) return true;
-      return prev;
-    });
+    setIsWhatsAppOpen(true);
   };
 
   const handleAddToWaitingList = () => {

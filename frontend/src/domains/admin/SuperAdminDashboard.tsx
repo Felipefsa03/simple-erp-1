@@ -235,7 +235,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
               <h1 className="text-xl font-black text-slate-900">{clinic.name}</h1>
               <p className="text-xs text-slate-500">Modo Inspetor — visualizando como a clínica</p>
             </div>
-            <span className={cn("text-xs font-bold px-2 py-1 rounded-full uppercase", clinic.plan === 'ultra' ? 'bg-cyan-50 text-cyan-700' : clinic.plan === 'pro' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600')}>
+            <span className={cn("text-xs font-bold px-2 py-1 rounded-full uppercase", clinic.plan === 'premium' ? 'bg-cyan-50 text-cyan-700' : clinic.plan === 'profissional' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600')}>
               {clinic.plan}
             </span>
           </div>
