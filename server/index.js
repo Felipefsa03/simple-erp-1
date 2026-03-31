@@ -720,21 +720,46 @@ app.post('/api/mercadopago/create-preference', async (req, res) => {
   const { clinicName, email, name, phone, plan, amount, clinicId } = req.body;
   
   try {
+    addLog(`[MP] Creating preference for ${email}, plan=${plan}, amount=${amount}`);
+    addLog(`[MP] SUPABASE_URL configured: ${!!SUPABASE_URL}`);
+    addLog(`[MP] SUPABASE_ANON_KEY configured: ${!!SUPABASE_ANON_KEY}`);
+    addLog(`[MP] MP_ACCESS_TOKEN env: ${!!process.env.MP_ACCESS_TOKEN}`);
+    
     // Get MP credentials from Supabase or env
-    let token = mpAccessToken;
+    let token = mpAccessToken || process.env.MP_ACCESS_TOKEN;
+    addLog(`[MP] Initial token: ${token ? 'YES (length: ' + token.length + ')' : 'NO'}`);
+    
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
       try {
-        const { data: configData } = await fetch(`${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.00000000-0000-0000-0000-000000000001&select=mp_access_token,mp_public_key`, {
-          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-        }).then(r => r.json());
-        if (configData && configData[0]?.mp_access_token) {
+        const url = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.00000000-0000-0000-0000-000000000001&select=mp_access_token,mp_public_key`;
+        addLog(`[MP] Fetching from Supabase: ${url}`);
+        
+        const supaRes = await fetch(url, {
+          headers: { 
+            'apikey': SUPABASE_ANON_KEY, 
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        addLog(`[MP] Supabase response status: ${supaRes.status}`);
+        const configData = await supaRes.json();
+        addLog(`[MP] Supabase response: ${JSON.stringify(configData).substring(0, 200)}`);
+        
+        if (configData && configData.length > 0 && configData[0]?.mp_access_token) {
           token = configData[0].mp_access_token;
+          addLog(`[MP] Token found in Supabase! Length: ${token.length}`);
+        } else {
+          addLog(`[MP] No token found in Supabase. Data length: ${configData?.length || 0}`);
         }
-      } catch (e) { /* use env token */ }
+      } catch (e) { 
+        addLog(`[MP] Error fetching from Supabase: ${e.message}`);
+      }
     }
     
     if (!token) {
-      return res.status(500).json({ ok: false, error: 'Mercado Pago não configurado' });
+      addLog(`[MP] ERROR: No Mercado Pago token configured!`);
+      return res.status(500).json({ ok: false, error: 'Mercado Pago não configurado. Configure o Access Token no Super Admin → Sistema (Global) ou na variável de ambiente MP_ACCESS_TOKEN.' });
     }
     
     const preference = {
