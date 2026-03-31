@@ -382,20 +382,47 @@ const createWhatsAppSocket = async (clinicId) => {
           
           if (!msg.key.fromMe && msg.message?.conversation) {
             const text = msg.message.conversation;
+            const cleanPhone = from.replace('@s.whatsapp.net', '').replace('@c.us', '');
             
             addLog(`[Baileys] Mensagem recebida de ${from}: ${text.substring(0, 30)}...`);
             
-            // Store received message
-            if (!whatsappConnections[clinicId].messages) {
-              whatsappConnections[clinicId].messages = [];
-            }
-            whatsappConnections[clinicId].messages.push({
+            const msgData = {
               id: msg.key.id,
               key: from,
+              phone: cleanPhone,
               text: text,
               fromMe: false,
               timestamp: msg.messageTimestamp * 1000
-            });
+            };
+            
+            // Store in memory
+            if (!whatsappConnections[clinicId].messages) {
+              whatsappConnections[clinicId].messages = [];
+            }
+            whatsappConnections[clinicId].messages.push(msgData);
+            
+            // Persist to Supabase
+            try {
+              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                  'Prefer': 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify({
+                  clinic_id: '00000000-0000-0000-0000-000000000001',
+                  phone: cleanPhone,
+                  message_id: msg.key.id,
+                  text: text,
+                  from_me: false,
+                  timestamp: new Date(msg.messageTimestamp * 1000).toISOString()
+                })
+              });
+            } catch (e) {
+              addLog(`[Baileys] Erro ao salvar mensagem no Supabase: ${e.message}`);
+            }
           }
         }
       });
@@ -556,17 +583,44 @@ app.post('/api/whatsapp/send', async (req, res) => {
     addLog(`[API] Enviando para ${jid}...`);
     const result = await sock.sendMessage(jid, { text: message });
     
-    // Store sent message
-    if (!whatsappConnections[clinicId].messages) {
-      whatsappConnections[clinicId].messages = [];
-    }
-    whatsappConnections[clinicId].messages.push({
+    const cleanPhone = to.replace(/\D/g, '');
+    const msgData = {
       id: result.key.id,
       key: jid,
+      phone: cleanPhone,
       text: message,
       fromMe: true,
       timestamp: Date.now()
-    });
+    };
+    
+    // Store in memory
+    if (!whatsappConnections[clinicId].messages) {
+      whatsappConnections[clinicId].messages = [];
+    }
+    whatsappConnections[clinicId].messages.push(msgData);
+    
+    // Persist to Supabase
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({
+          clinic_id: '00000000-0000-0000-0000-000000000001',
+          phone: cleanPhone,
+          message_id: result.key.id,
+          text: message,
+          from_me: true,
+          timestamp: new Date().toISOString()
+        })
+      });
+    } catch (e) {
+      addLog(`[API] Erro ao salvar mensagem no Supabase: ${e.message}`);
+    }
     
     res.json({ ok: true, messageId: result.key.id });
   } catch (error) {
@@ -580,20 +634,50 @@ app.get('/api/whatsapp/messages/:clinicId/:phone', async (req, res) => {
   const { clinicId, phone } = req.params;
   
   try {
-    const conn = whatsappConnections[clinicId];
-    if (!conn || !conn.messages) {
-      return res.json({ ok: true, messages: [] });
+    const cleanPhone = phone.replace(/\D/g, '');
+    let messages = [];
+    
+    // Load from Supabase first
+    try {
+      const supaRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/whatsapp_messages?phone=eq.${cleanPhone}&order=timestamp.asc`,
+        {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          }
+        }
+      );
+      if (supaRes.ok) {
+        const supaData = await supaRes.json();
+        messages = supaData.map(m => ({
+          id: m.message_id,
+          key: `${cleanPhone}@s.whatsapp.net`,
+          phone: m.phone,
+          text: m.text,
+          fromMe: m.from_me,
+          timestamp: new Date(m.timestamp).getTime()
+        }));
+      }
+    } catch (e) {
+      addLog(`[API] Erro ao carregar mensagens do Supabase: ${e.message}`);
     }
     
-    // Normalize phone for matching
-    const cleanPhone = phone.replace(/\D/g, '');
-    const messages = conn.messages.filter(m => {
-      const msgKey = m.key || '';
-      const normalizedKey = msgKey.replace('@s.whatsapp.net', '').replace('@c.us', '');
-      return normalizedKey === cleanPhone || 
-             normalizedKey.includes(cleanPhone) || 
-             cleanPhone.includes(normalizedKey);
-    });
+    // Merge with in-memory messages (avoid duplicates)
+    const conn = whatsappConnections[clinicId];
+    if (conn && conn.messages) {
+      const existingIds = new Set(messages.map(m => m.id));
+      const memMessages = conn.messages.filter(m => {
+        const msgKey = m.key || '';
+        const normalizedKey = msgKey.replace('@s.whatsapp.net', '').replace('@c.us', '');
+        return (normalizedKey === cleanPhone || normalizedKey.includes(cleanPhone) || cleanPhone.includes(normalizedKey))
+          && !existingIds.has(m.id);
+      });
+      messages = [...messages, ...memMessages];
+    }
+    
+    // Sort by timestamp
+    messages.sort((a, b) => a.timestamp - b.timestamp);
     
     res.json({ ok: true, messages });
   } catch (error) {
