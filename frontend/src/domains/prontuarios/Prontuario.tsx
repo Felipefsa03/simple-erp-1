@@ -91,7 +91,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
 
   const addStockMovement = useClinicStore.getState().addStockMovement;
 
-  const clinicId = useAuth(s => s.getClinicId());
+  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
   const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId), [patients, clinicId]);
   const clinicAppointments = useMemo(() => (appointments || []).filter(a => a.clinic_id === clinicId), [appointments, clinicId]);
   const clinicProfessionals = useMemo(() => (professionals || []).filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'), [professionals, clinicId]);

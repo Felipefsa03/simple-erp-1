@@ -58,7 +58,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
     notes: '',
   });
   const swipeStartX = useRef<number | null>(null);
-  const clinicId = useAuth(s => s.getClinicId());
+  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
   const canCreate = hasPermission('create_appointment');
   const canFinalize = hasPermission('finalize_appointment');
 
@@ -322,8 +322,8 @@ export function Agenda({ onNavigate }: AgendaProps) {
           colors.bg, colors.border
         )}
       >
-        <p className={cn("text-[10px] font-bold truncate", colors.text)}>{apt.patient_name.toUpperCase()}</p>
-        <p className={cn("text-[9px] truncate", colors.text.replace('700', '600'))}>{apt.service_name}</p>
+        <p className={cn("text-[10px] font-bold truncate", colors.text)}>{(apt.patient_name || 'Paciente').toUpperCase()}</p>
+        <p className={cn("text-[9px] truncate", colors.text.replace('700', '600'))}>{apt.service_name || 'Consulta'}</p>
         {!compact && (
           <div className="flex items-center gap-1 mt-1">
             <Clock className="w-2 h-2 text-slate-400" />

@@ -71,7 +71,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [isLoadingWeather, setIsLoadingWeather] = useState(true);
 
   // Obter clinic_id do usuário logado
-  const clinicId = useAuth(s => s.getClinicId());
+  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
   const canViewDashboard = hasPermission('view_dashboard');
   const canCreateAppointment = hasPermission('create_appointment');
 

@@ -51,7 +51,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   });
 
   const highlightRef = useRef<HTMLTableRowElement>(null);
-  const clinicId = useAuth(s => s.getClinicId());
+  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
 
   // ---- Data retrieval via getState() or stable dependencies ----
   const transactions = useMemo(() => {

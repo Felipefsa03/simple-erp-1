@@ -125,7 +125,7 @@ const generateEmailTemplate = (clinicName: string, whatsapp: string) => `
 export function Marketing() {
   const { user, clinic } = useAuth();
   const { patients, appointments, transactions, leads, funnelStages, automationRules, addLead, moveLeadStage, addAutomationRule } = useClinicStore();
-  const clinicId = useAuth(s => s.getClinicId());
+  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
 
   // Auto-sync WhatsApp on mount
   const { syncStatus } = useWhatsAppSync(clinicId, (connected) => {

@@ -94,7 +94,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const canManageSettings = hasPermission('manage_settings');
   const canManageCommissions = hasPermission('manage_commissions');
   const canManageTeam = hasPermission('manage_team');
-  const clinicId = useAuth(s => s.getClinicId());
+  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
   const permissionRoles: { key: UserRole; label: string }[] = [
     { key: 'receptionist', label: 'Recepção' },
     { key: 'dentist', label: 'Dentista' },
