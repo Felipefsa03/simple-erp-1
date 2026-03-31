@@ -506,8 +506,12 @@ export const useClinicStore = create<ClinicStore>()(
         (set, get) => {
             // Auto-sync with Supabase on first load if configured
             if (useRealData && typeof window !== 'undefined') {
-                const clinicId = '00000000-0000-0000-0000-000000000001';
-                console.log('[ClinicStore] 🔄 Iniciando sincronização automática...');
+                // Usar clinic_id do usuário logado ou fallback para UUID padrão
+                const userClinicId = useAuth.getState().user?.clinic_id;
+                const clinicId = (userClinicId && userClinicId.includes('-') && userClinicId.length > 20) 
+                    ? userClinicId 
+                    : '00000000-0000-0000-0000-000000000001';
+                console.log('[ClinicStore] 🔄 Iniciando sincronização automática para:', clinicId);
                 setTimeout(() => syncWithSupabaseInternal(clinicId, set, get), 1500);
             }
             
