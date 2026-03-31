@@ -79,6 +79,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     meta_pixel_id: integrationConfig?.meta_pixel_id || '',
     google_ads_customer_id: integrationConfig?.google_ads_customer_id || '',
     google_calendar_email: integrationConfig?.google_calendar_email || '',
+    mp_access_token: integrationConfig?.mp_access_token || '',
+    mp_public_key: integrationConfig?.mp_public_key || '',
   });
 
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
@@ -1399,6 +1401,63 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             <p className="text-sm text-slate-500 mt-1">Integrações usadas pelo sistema para funcionalidades globais</p>
           </div>
           <SystemWhatsAppConfig />
+          
+          {/* Mercado Pago Config */}
+          <div className="bg-white rounded-3xl border border-slate-100 p-6">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
+              <CreditCard className="w-5 h-5 text-blue-600" />
+              Mercado Pago - Pagamentos
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">Credenciais para gerar cobranças Pix e cartão via Mercado Pago</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Access Token</label>
+                <input
+                  type="password"
+                  value={integrationForm.mp_access_token || ''}
+                  onChange={(e) => setIntegrationForm({...integrationForm, mp_access_token: e.target.value})}
+                  placeholder="APP_USR-xxxxxxxxxxxxxxxxxxxxxxxxx"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Public Key</label>
+                <input
+                  type="text"
+                  value={integrationForm.mp_public_key || ''}
+                  onChange={(e) => setIntegrationForm({...integrationForm, mp_public_key: e.target.value})}
+                  placeholder="APP_USR-xxxxxxxxxxxxxxxxxxxxxxxxx"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm"
+                />
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <p className="text-xs text-blue-700">
+                  <strong>Como obter:</strong> Acesse <a href="https://www.mercadopago.com.br/developers/panel/app" target="_blank" rel="noopener noreferrer" className="underline">Mercado Pago Developers</a> → Crie uma aplicação → Copie o Access Token e Public Key.
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const { supabase } = await import('@/lib/supabase');
+                    const { error } = await supabase
+                      .from('integration_config')
+                      .upsert({
+                        clinic_id: '00000000-0000-0000-0000-000000000001',
+                        mp_access_token: integrationForm.mp_access_token,
+                        mp_public_key: integrationForm.mp_public_key,
+                      }, { onConflict: 'clinic_id' });
+                    if (error) throw error;
+                    toast('Credenciais do Mercado Pago salvas!');
+                  } catch (e: any) {
+                    toast('Erro ao salvar: ' + e.message, 'error');
+                  }
+                }}
+                className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all"
+              >
+                Salvar Credenciais
+              </button>
+            </div>
+          </div>
         </motion.div>
       )}
     </div>

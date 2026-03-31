@@ -19,6 +19,10 @@ const PORT = process.env.PORT || 8787;
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_URL_PROD || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PROD || '';
 
+// Mercado Pago configuration (can be overridden per clinic via Supabase)
+let mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
+let mpPublicKey = process.env.MP_PUBLIC_KEY || '';
+
 app.use(cors({
   origin: true,
   credentials: true,
@@ -705,6 +709,211 @@ app.get('/api/whatsapp/messages/:clinicId/:phone', async (req, res) => {
 // Notifications endpoint (placeholder for future implementation)
 app.post('/api/notifications/send', async (req, res) => {
   res.json({ ok: true, message: 'Notification sent (placeholder)' });
+});
+
+// ============================================
+// Mercado Pago Integration
+// ============================================
+
+// Create payment preference
+app.post('/api/mercadopago/create-preference', async (req, res) => {
+  const { clinicName, email, name, phone, plan, amount, clinicId } = req.body;
+  
+  try {
+    // Get MP credentials from Supabase or env
+    let token = mpAccessToken;
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      try {
+        const { data: configData } = await fetch(`${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.00000000-0000-0000-0000-000000000001&select=mp_access_token,mp_public_key`, {
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+        }).then(r => r.json());
+        if (configData && configData[0]?.mp_access_token) {
+          token = configData[0].mp_access_token;
+        }
+      } catch (e) { /* use env token */ }
+    }
+    
+    if (!token) {
+      return res.status(500).json({ ok: false, error: 'Mercado Pago não configurado' });
+    }
+    
+    const preference = {
+      items: [{
+        id: plan || 'plano-clinica',
+        title: `LuminaFlow - ${clinicName}`,
+        quantity: 1,
+        unit_price: parseFloat(amount) || 97,
+        currency_id: 'BRL',
+      }],
+      payer: {
+        name: name,
+        email: email,
+        phone: { number: phone?.replace(/\D/g, '') || '' },
+      },
+      metadata: {
+        clinic_id: clinicId,
+        clinic_name: clinicName,
+        plan: plan || 'basico',
+        user_email: email,
+        user_name: name,
+        user_phone: phone,
+      },
+      payment_methods: {
+        excluded_payment_types: [{ id: 'ticket' }],
+        installments: 1,
+      },
+      back_urls: {
+        success: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=success`,
+        failure: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=failure`,
+        pending: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=pending`,
+      },
+      notification_url: `${process.env.SERVER_URL || 'https://clinxia-backend.onrender.com'}/api/webhooks/mercadopago`,
+      auto_return: 'approved',
+    };
+    
+    const mpRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(preference),
+    });
+    
+    const mpData = await mpRes.json();
+    
+    if (!mpRes.ok) {
+      console.error('[MP] Error creating preference:', mpData);
+      return res.status(500).json({ ok: false, error: mpData.message || 'Erro ao criar preferência' });
+    }
+    
+    res.json({
+      ok: true,
+      preference_id: mpData.id,
+      init_point: mpData.init_point,
+      qr_code: mpData.qr_code || '',
+      qr_code_base64: mpData.qr_code_base64 || '',
+    });
+  } catch (error) {
+    console.error('[MP] Error:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Mercado Pago Webhook
+app.post('/api/webhooks/mercadopago', async (req, res) => {
+  try {
+    const { type, data } = req.body;
+    
+    if (type === 'payment') {
+      const paymentId = data.id;
+      
+      // Get MP credentials
+      let token = mpAccessToken;
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        try {
+          const { data: configData } = await fetch(`${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.00000000-0000-0000-0000-000000000001&select=mp_access_token`, {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
+          }).then(r => r.json());
+          if (configData && configData[0]?.mp_access_token) {
+            token = configData[0].mp_access_token;
+          }
+        } catch (e) { /* use env token */ }
+      }
+      
+      if (!token) {
+        addLog('[MP Webhook] Token não configurado');
+        return res.status(200).json({ ok: true });
+      }
+      
+      // Fetch payment details
+      const payRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const payment = await payRes.json();
+      
+      addLog(`[MP Webhook] Payment ${paymentId}: status=${payment.status}, metadata=${JSON.stringify(payment.metadata)}`);
+      
+      if (payment.status === 'approved') {
+        const metadata = payment.metadata || {};
+        const clinicId = metadata.clinic_id;
+        
+        if (clinicId && SUPABASE_URL && SUPABASE_ANON_KEY) {
+          // Create clinic in Supabase
+          const { error: clinicError } = await fetch(`${SUPABASE_URL}/rest/v1/clinics`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              id: clinicId,
+              name: metadata.clinic_name || 'Nova Clínica',
+              document_type: metadata.doc_type || 'cpf',
+              document_number: metadata.doc_number || '',
+              modality: metadata.modality || 'odonto',
+              plan: metadata.plan || 'basico',
+              phone: metadata.user_phone || '',
+              email: metadata.user_email || '',
+              active: true,
+              created_at: new Date().toISOString(),
+            }),
+          }).then(r => r.json());
+          
+          // Create admin user
+          const userId = crypto.randomUUID();
+          await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({
+              id: userId,
+              clinic_id: clinicId,
+              name: metadata.user_name || 'Admin',
+              email: metadata.user_email || '',
+              phone: metadata.user_phone || '',
+              role: 'admin',
+              active: true,
+              created_at: new Date().toISOString(),
+            }),
+          });
+          
+          // Record payment
+          await fetch(`${SUPABASE_URL}/rest/v1/payments`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({
+              id: `mp-${paymentId}`,
+              clinic_id: clinicId,
+              mp_payment_id: paymentId,
+              amount: payment.transaction_amount || 0,
+              status: payment.status,
+              plan: metadata.plan || 'basico',
+              payer_email: metadata.user_email || '',
+              payer_name: metadata.user_name || '',
+              created_at: new Date().toISOString(),
+            }),
+          });
+          
+          addLog(`[MP Webhook] Clínica ativada: ${metadata.clinic_name} (${clinicId})`);
+        }
+      }
+    }
+    
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    addLog(`[MP Webhook] Error: ${error.message}`);
+    res.status(200).json({ ok: true }); // Always return 200 to MP
+  }
 });
 
 app.get('/api/clinic/anamnese-sync', (req, res) => {

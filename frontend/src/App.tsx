@@ -49,6 +49,9 @@ export default function App() {
   const [signupError, setSignupError] = useState('');
   const [pixCode, setPixCode] = useState('');
   const [pixGenerated, setPixGenerated] = useState(false);
+  const [mpPreference, setMpPreference] = useState<{ init_point: string; qr_code: string } | null>(null);
+  const [pendingClinicId, setPendingClinicId] = useState('');
+  const [pollingPayment, setPollingPayment] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoverySent, setRecoverySent] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
@@ -460,7 +463,68 @@ export default function App() {
                           </div>
                           <div className="flex gap-3">
                             <button onClick={() => setSignupStep(3)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all">Voltar</button>
-                            <button onClick={() => { setSignupLoading(true); setPixGenerated(true); setTimeout(() => setSignupLoading(false), 1500); }} disabled={signupLoading} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2">
+                            <button onClick={async () => {
+                              setSignupLoading(true);
+                              setSignupError('');
+                              try {
+                                const clinicId = crypto.randomUUID();
+                                setPendingClinicId(clinicId);
+                                
+                                const isDev = import.meta.env.DEV;
+                                const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+                                
+                                const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    clinicName: signupForm.clinicName,
+                                    email: signupForm.email,
+                                    name: signupForm.name,
+                                    phone: signupForm.phone,
+                                    plan: signupForm.plan,
+                                    amount: selectedPlan?.price || 97,
+                                    clinicId,
+                                  }),
+                                });
+                                
+                                const data = await res.json();
+                                
+                                if (!data.ok) {
+                                  throw new Error(data.error || 'Erro ao gerar pagamento');
+                                }
+                                
+                                setMpPreference({ init_point: data.init_point, qr_code: data.qr_code });
+                                setPixGenerated(true);
+                                
+                                // Start polling for payment confirmation
+                                setPollingPayment(true);
+                                const pollInterval = setInterval(async () => {
+                                  try {
+                                    const { supabase, isConfigured } = await import('@/lib/supabase');
+                                    if (isConfigured) {
+                                      const { data: clinics } = await supabase
+                                        .from('clinics')
+                                        .select('id')
+                                        .eq('id', clinicId)
+                                        .eq('active', true);
+                                      if (clinics && clinics.length > 0) {
+                                        clearInterval(pollInterval);
+                                        setPollingPayment(false);
+                                        // Auto-login after activation
+                                        try { await login(signupForm.email, signupForm.password); } catch (e) { /* user will click button */ }
+                                      }
+                                    }
+                                  } catch (e) { /* continue polling */ }
+                                }, 10000);
+                                
+                                // Stop polling after 30 minutes
+                                setTimeout(() => { clearInterval(pollInterval); setPollingPayment(false); }, 30 * 60 * 1000);
+                              } catch (err: any) {
+                                setSignupError(err.message || 'Erro ao gerar QR Code');
+                              } finally {
+                                setSignupLoading(false);
+                              }
+                            }} disabled={signupLoading} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2">
                               {signupLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
                               {signupLoading ? 'Gerando...' : 'Gerar QR Code Pix'}
                             </button>
@@ -468,21 +532,37 @@ export default function App() {
                         </>
                       ) : (
                         <div className="text-center space-y-4">
-                          <div className="bg-white border-2 border-slate-200 rounded-xl p-6 inline-block">
-                            <div className="w-48 h-48 bg-slate-100 rounded-lg flex items-center justify-center">
-                              <div className="text-center">
-                                <div className="text-4xl mb-2">📱</div>
-                                <p className="text-xs text-slate-500">QR Code Pix</p>
-                                <p className="text-xs text-slate-400 mt-1">Integração Mercado Pago</p>
+                          {mpPreference?.qr_code ? (
+                            <div className="bg-white border-2 border-slate-200 rounded-xl p-4">
+                              <div dangerouslySetInnerHTML={{ __html: mpPreference.qr_code.replace(/<svg/, '<svg style="width:200px;height:200px"') }} />
+                            </div>
+                          ) : (
+                            <div className="bg-white border-2 border-slate-200 rounded-xl p-6 inline-block">
+                              <div className="w-48 h-48 bg-slate-100 rounded-lg flex items-center justify-center">
+                                <div className="text-center">
+                                  <div className="text-4xl mb-2">📱</div>
+                                  <p className="text-xs text-slate-500">QR Code Pix</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          )}
+                          {mpPreference?.init_point && (
+                            <a href={mpPreference.init_point} target="_blank" rel="noopener noreferrer" className="inline-block px-6 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm">
+                              Pagar pelo Mercado Pago →
+                            </a>
+                          )}
                           <div>
                             <p className="font-bold text-slate-800">Valor: <span className="text-cyan-600">R${selectedPlan?.price},00</span></p>
-                            <p className="text-xs text-slate-500 mt-1">Escaneie o QR Code com seu app bancário</p>
+                            <p className="text-xs text-slate-500 mt-1">Escaneie o QR Code ou clique no link acima</p>
                           </div>
+                          {pollingPayment && (
+                            <div className="flex items-center justify-center gap-2 text-sm text-cyan-600">
+                              <div className="w-4 h-4 border-2 border-cyan-200 border-t-cyan-600 rounded-full animate-spin" />
+                              Aguardando confirmação do pagamento...
+                            </div>
+                          )}
                           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                            <p className="text-xs text-amber-700">⚠️ Após o pagamento, você receberá um email de confirmação com seus dados de acesso.</p>
+                            <p className="text-xs text-amber-700">⚠️ Após a confirmação do pagamento, sua conta será ativada automaticamente.</p>
                           </div>
                           <button onClick={async () => {
                             setSignupLoading(true);
