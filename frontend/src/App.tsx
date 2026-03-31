@@ -417,7 +417,6 @@ export default function App() {
           </ErrorBoundary>
         </ToastProvider>
       );
-      );
     }
 
     return (
