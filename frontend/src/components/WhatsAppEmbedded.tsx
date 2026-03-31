@@ -36,7 +36,11 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
   const [searchQuery, setSearchQuery] = useState('');
 
   const patients = useClinicStore(s => s.patients);
-  const clinicPatients = patients.filter(p => p.clinic_id === clinicId || p.clinic_id === 'clinic-1');
+  const clinicPatients = patients.filter(p => 
+    p.clinic_id === clinicId || 
+    p.clinic_id === 'clinic-1' || 
+    p.clinic_id === '00000000-0000-0000-0000-000000000001'
+  );
   const filteredPatients = clinicPatients.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.phone?.includes(searchQuery)
