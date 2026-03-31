@@ -1,0 +1,8 @@
+{
+  "name": "LuminaFlow",
+  "description": "Gestão inteligente para clínicas odontológicas e de estética com IA nativa.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

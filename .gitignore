@@ -38,3 +38,11 @@ server/data/
 # DOCUMENTO_*.md
 # MELHORIAS_*.md
 # OTIMIZACAO_*.md
+
+# Playwright
+test-results/
+playwright-report/
+
+# Vitest
+.vitest/
+.vercel

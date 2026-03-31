@@ -1,0 +1,26 @@
+# ============================================
+# LuminaFlow Frontend - Development Dockerfile
+# ============================================
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY simple-erp/frontend/package.json simple-erp/frontend/package-lock.json* ./frontend/
+WORKDIR /app/frontend
+RUN npm ci
+
+# Copy source code (will be volume-mounted)
+COPY simple-erp/frontend/src ./src
+COPY simple-erp/frontend/index.html ./
+COPY simple-erp/frontend/vite.config.ts ./
+COPY simple-erp/frontend/tsconfig.json ./
+COPY simple-erp/frontend/tailwind.config.js ./
+COPY simple-erp/frontend/postcss.config.js ./
+COPY simple-erp/frontend/public ./public
+
+# Expose ports
+EXPOSE 3000 5173
+
+# Start Vite with hot-reload
+CMD ["npm", "run", "dev"]

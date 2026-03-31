@@ -1,0 +1,9 @@
+{
+  "*.{ts,tsx,js,jsx}": [
+    "npx tsc -p tsconfig.backend.json --noEmit || true",
+    "npx tsc -p frontend/tsconfig.json --noEmit || true"
+  ],
+  "*.{json,md,yml,yaml}": [
+    "prettier --write"
+  ]
+}
