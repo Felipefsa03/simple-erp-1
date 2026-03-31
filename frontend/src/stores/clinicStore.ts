@@ -144,7 +144,6 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 
         // Carregar transações - SEMPRE sobrescrever
         const transactions = await SupabaseSync.loadTransactions(clinicId);
-        if (transactions.length > 0) {
         set({ transactions });
         console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
 
