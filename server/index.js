@@ -343,11 +343,12 @@ const createWhatsAppSocket = async (clinicId) => {
           }
         } else if (connection === 'open') {
           retryCount = 0;
+          const existingMessages = whatsappConnections[clinicId]?.messages || [];
           whatsappConnections[clinicId] = { 
             status: 'connected', 
             connected: true,
             phoneNumber: sock.user.id.split(':')[0],
-            messages: []
+            messages: existingMessages
           };
           addLog(`[Baileys] Conexão ABERTA para ${clinicId} (${sock.user.id})`);
           
@@ -584,11 +585,15 @@ app.get('/api/whatsapp/messages/:clinicId/:phone', async (req, res) => {
       return res.json({ ok: true, messages: [] });
     }
     
-    // Filter messages for this phone
+    // Normalize phone for matching
     const cleanPhone = phone.replace(/\D/g, '');
-    const messages = conn.messages.filter(m => 
-      m.key.includes(cleanPhone) || m.key.includes(`${cleanPhone}@s.whatsapp.net`)
-    );
+    const messages = conn.messages.filter(m => {
+      const msgKey = m.key || '';
+      const normalizedKey = msgKey.replace('@s.whatsapp.net', '').replace('@c.us', '');
+      return normalizedKey === cleanPhone || 
+             normalizedKey.includes(cleanPhone) || 
+             cleanPhone.includes(normalizedKey);
+    });
     
     res.json({ ok: true, messages });
   } catch (error) {
