@@ -812,7 +812,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
         appointmentDate={whatsappAppointment ? format(parseISO(whatsappAppointment.scheduled_at), 'dd/MM/yyyy') : ''}
         appointmentTime={whatsappAppointment ? format(parseISO(whatsappAppointment.scheduled_at), 'HH:mm') : ''}
         professionalName={whatsappAppointment?.professional_name || ''}
-        clinicId={clinicId}
+        clinicId={'clinic-1'}
         autoOpenChat={true}
         onScheduleNew={() => {
           // Minimiza WhatsApp em vez de fechar
