@@ -955,6 +955,185 @@ app.get('/api/clinic/anamnese-sync', (req, res) => {
   res.json({ ok: true, items: [] });
 });
 
+// ============================================
+// 2FA Endpoints
+// ============================================
+
+app.post('/api/2fa/setup', async (req, res) => {
+  try {
+    const userId = req.body.userId || req.query.userId;
+    const userEmail = req.body.userEmail || req.query.userEmail || 'user@clinxia.com';
+    const userRole = req.body.userRole || req.query.userRole || 'admin';
+    const isSuperAdmin = userRole === 'super_admin';
+    
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'userId é obrigatório' });
+    }
+    
+    // Generate cryptographically secure secret (32 chars base32)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let secret = '';
+    const randomBytes = crypto.randomBytes(32);
+    for (let i = 0; i < 32; i++) {
+      secret += chars[randomBytes[i] % chars.length];
+    }
+    
+    // Encrypt secret with server key
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-gcm', crypto.scryptSync(SUPABASE_SERVICE_ROLE_KEY || 'fallback-key-for-dev', '2fa-salt', 32), iv);
+    let encrypted = cipher.update(secret, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag();
+    
+    // Delete existing 2FA record for this user first
+    await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
+      method: 'DELETE',
+      headers: getServerHeaders(),
+    });
+    
+    // Save to Supabase
+    await fetch(`${SUPABASE_URL}/rest/v1/user_2fa`, {
+      method: 'POST',
+      headers: getServerHeaders(),
+      body: JSON.stringify({
+        user_id: userId,
+        secret_encrypted: JSON.stringify({ encrypted, iv: iv.toString('hex'), authTag: authTag.toString('hex') }),
+        enabled: false,
+        created_at: new Date().toISOString(),
+      }),
+    });
+    
+    // Generate QR code URI for authenticator app
+    const appName = 'Clinxia';
+    const otpauthUri = `otpauth://totp/${encodeURIComponent(appName)}:${encodeURIComponent(userEmail)}?secret=${secret}&issuer=${encodeURIComponent(appName)}&algorithm=SHA1&digits=6&period=30`;
+    
+    res.json({ ok: true, secret, otpauthUri, mandatory: isSuperAdmin });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Erro ao configurar 2FA' });
+  }
+});
+
+app.post('/api/2fa/verify', async (req, res) => {
+  try {
+    const { code, userId } = req.body;
+    
+    if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
+      return res.status(400).json({ ok: false, error: 'Código deve ter 6 dígitos' });
+    }
+    
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'userId é obrigatório' });
+    }
+    
+    // Fetch encrypted secret from Supabase
+    const supaRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}&select=*`, {
+      headers: getServerHeaders()
+    });
+    
+    if (!supaRes.ok) {
+      return res.status(500).json({ ok: false, error: 'Erro ao verificar 2FA' });
+    }
+    
+    const data = await supaRes.json();
+    if (!data || data.length === 0) {
+      return res.status(400).json({ ok: false, error: '2FA não configurado' });
+    }
+    
+    // Decrypt secret
+    const parsed = JSON.parse(data[0].secret_encrypted);
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      crypto.scryptSync(SUPABASE_SERVICE_ROLE_KEY || 'fallback-key-for-dev', '2fa-salt', 32),
+      Buffer.from(parsed.iv, 'hex')
+    );
+    decipher.setAuthTag(Buffer.from(parsed.authTag, 'hex'));
+    let decrypted = decipher.update(parsed.encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    // TOTP verification (manual implementation - no external lib needed)
+    function base32Decode(base32) {
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+      let bits = '';
+      for (const char of base32.toUpperCase()) {
+        const val = alphabet.indexOf(char);
+        if (val === -1) continue;
+        bits += val.toString(2).padStart(5, '0');
+      }
+      const bytes = [];
+      for (let i = 0; i + 8 <= bits.length; i += 8) {
+        bytes.push(parseInt(bits.substring(i, i + 8), 2));
+      }
+      return Buffer.from(bytes);
+    }
+    
+    function generateTOTP(secret, time) {
+      const key = base32Decode(secret);
+      const timeBuffer = Buffer.alloc(8);
+      timeBuffer.writeBigInt64BE(BigInt(time));
+      const hmac = crypto.createHmac('sha1', key).update(timeBuffer).digest();
+      const offset = hmac[hmac.length - 1] & 0x0f;
+      const code = ((hmac[offset] & 0x7f) << 24 | (hmac[offset + 1] & 0xff) << 16 | (hmac[offset + 2] & 0xff) << 8 | (hmac[offset + 3] & 0xff)) % 1000000;
+      return String(code).padStart(6, '0');
+    }
+    
+    const now = Math.floor(Date.now() / 1000 / 30);
+    let isValid = false;
+    for (let offset = -1; offset <= 1; offset++) {
+      const expected = generateTOTP(decrypted, now + offset);
+      if (expected === code) { isValid = true; break; }
+    }
+    
+    if (isValid) {
+      await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: getServerHeaders(),
+        body: JSON.stringify({ enabled: true, verified_at: new Date().toISOString() }),
+      });
+      res.json({ ok: true });
+    } else {
+      res.status(400).json({ ok: false, error: 'Código inválido' });
+    }
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Erro ao verificar 2FA' });
+  }
+});
+
+app.post('/api/2fa/disable', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'userId é obrigatório' });
+    }
+    await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
+      method: 'DELETE',
+      headers: getServerHeaders(),
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Erro ao desativar 2FA' });
+  }
+});
+
+app.get('/api/2fa/status', async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: 'userId é obrigatório' });
+    }
+    const supaRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}&select=*`, {
+      headers: getServerHeaders()
+    });
+    let enabled = false;
+    if (supaRes.ok) {
+      const data = await supaRes.json();
+      enabled = data?.[0]?.enabled || false;
+    }
+    res.json({ ok: true, enabled });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: 'Erro ao verificar status 2FA' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 WhatsApp API ready for connections`);
