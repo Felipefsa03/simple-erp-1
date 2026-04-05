@@ -99,7 +99,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
     if (!watchApt('professional_id') && clinicProfessionals.length > 0) {
       setAptValue('professional_id', clinicProfessionals[0].id);
     }
-  }, [clinicProfessionals, newApt.professional_id]);
+  }, [clinicProfessionals, watchApt('professional_id')]);
 
   useEffect(() => {
     if (!navigationContext.patientId && !navigationContext.appointmentId) return;
@@ -808,9 +808,6 @@ export function Agenda({ onNavigate }: AgendaProps) {
         patientPhone={whatsappAppointment ? clinicPatients.find(p => p.id === whatsappAppointment.patient_id)?.phone || '' : ''}
         patientName={whatsappAppointment?.patient_name || ''}
         appointmentId={whatsappAppointment?.id}
-        appointmentDate={whatsappAppointment ? format(parseISO(whatsappAppointment.scheduled_at), 'dd/MM/yyyy') : ''}
-        appointmentTime={whatsappAppointment ? format(parseISO(whatsappAppointment.scheduled_at), 'HH:mm') : ''}
-        professionalName={whatsappAppointment?.professional_name || ''}
         clinicId={clinicId}
         autoOpenChat={true}
         onScheduleNew={() => {

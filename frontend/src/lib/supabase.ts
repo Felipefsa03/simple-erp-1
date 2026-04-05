@@ -31,6 +31,35 @@ let currentSession: { access_token: string; user: Record<string, unknown> } | nu
 
 export const supabase = isConfigured ? {
   auth: {
+    // Registro (Sign Up)
+    signUp: async ({ email, password, options }: { email: string; password: string; options?: any }) => {
+      try {
+        const response = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ email, password, data: options?.data }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          return { data: null, error: { message: data.error_description || data.msg || 'Signup failed' } };
+        }
+
+        if (data.access_token) {
+          currentSession = {
+            access_token: data.access_token,
+            user: data.user,
+          };
+          return { data: { user: data.user, session: data }, error: null };
+        }
+        
+        return { data: { user: data.user || data, session: null }, error: null };
+      } catch (err: unknown) {
+        return { data: null, error: { message: err instanceof Error ? err.message : 'Unknown error' } };
+      }
+    },
+
     // Login
     signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
       try {

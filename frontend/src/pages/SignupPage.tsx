@@ -98,18 +98,32 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
     try {
       const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
       if (isSupabaseConfigured()) {
+        const { data: authData, error: authError } = await supabase!.auth.signUp({
+          email: signupForm.email,
+          password: signupForm.password,
+        });
+
+        if (authError) throw new Error(`Erro na criação da autenticação: ${authError.message}`);
+        
+        const userId = authData.user?.id || crypto.randomUUID();
         const clinicId = crypto.randomUUID();
-        await supabase!.from('clinics').insert({
+        
+        const { error: clinicError } = await supabase!.from('clinics').insert({
           id: clinicId, name: signupForm.clinicName, document_type: signupForm.docType,
           document_number: signupForm.clinicDoc.replace(/\D/g, ''), modality: signupForm.modality,
           plan: signupForm.plan, phone: signupForm.phone, email: signupForm.email,
           active: true, created_at: new Date().toISOString(),
         });
-        await supabase!.from('users').insert({
-          id: crypto.randomUUID(), clinic_id: clinicId, name: signupForm.name,
+        
+        if (clinicError) throw new Error(`Erro ao criar clínica no BD: ${clinicError.message}`);
+
+        const { error: userError } = await supabase!.from('users').insert({
+          id: userId, clinic_id: clinicId, name: signupForm.name,
           email: signupForm.email, phone: signupForm.phone, role: 'admin',
           active: true, created_at: new Date().toISOString(),
         });
+        
+        if (userError) throw new Error(`Erro ao salvar usuário no BD: ${userError.message}`);
       }
       createClinicUser(
         { name: signupForm.name, email: signupForm.email, phone: signupForm.phone, role: 'admin', active: true, commission_pct: 0 } as any,

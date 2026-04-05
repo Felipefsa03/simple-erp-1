@@ -1,5 +1,5 @@
 import React from 'react'
-import Link from 'next/link'
+import { Link } from 'react-router-dom'
 import { Card, Button, Badge } from '@/components/design-system'
 import { 
   LayoutDashboard, 
@@ -85,7 +85,7 @@ export default function HomePage() {
             </p>
             
             <div className="flex items-center justify-center gap-4">
-              <Link href="/dashboard">
+              <Link to="/dashboard">
                 <Button variant="primary" size="lg" icon={<ArrowRight className="w-5 h-5" />}>
                   Começar Agora
                 </Button>
@@ -112,7 +112,7 @@ export default function HomePage() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature) => (
-            <Link key={feature.title} href={feature.href}>
+            <Link key={feature.title} to={feature.href}>
               <Card variant="gradient" hover padding="lg" className="h-full">
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center text-white shadow-lg mb-4`}>
                   <feature.icon className="w-6 h-6" />
@@ -157,7 +157,7 @@ export default function HomePage() {
               a gestão de suas clínicas com o LuminaFlow.
             </p>
             <div className="flex items-center justify-center gap-4">
-              <Link href="/dashboard">
+              <Link to="/dashboard">
                 <Button variant="primary" size="lg">
                   Começar Gratuitamente
                 </Button>
