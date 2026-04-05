@@ -1,0 +1,207 @@
+# Auditoria Técnica Completa, Arquitetura e Plano de Ação - Sistema ERP Clínico
+
+Este documento visa endereçar todas as requisições de auditoria, reestruturação, melhorias e hardening técnico para o sistema ERP (Odontologia e Estética), transformando-o de um estado com "dados demo" e módulos soltos para uma plataforma robusta, escalável e 100% transacional.
+
+---
+
+## 📌 1. Avaliação do Cenário Atual
+
+Com base na análise prévia da estrutura de pastas (`backend-api-erp` Laravel e `simple-erp` Vite/React/Vue):
+- **Frontend (`simple-erp`)**: SPA moderna configurada via Vite, mas atualmente operando com dados mockados em grande parte dos fluxos. Existem bugs de concorrência e falhas na atualização de estado (ex: calendário, importação de CSV inerte).
+- **Backend (`backend-api-erp`)**: Estrutura Laravel base estabelecida. As _Migrations_ e _Models_ cobrem o básico (`clinics`, `patients`, `appointments`, `medical_records`, `financial_transactions`, `stock_items`, `odontogram_entries`), porém carecem do amálgama transacional que vincula as regras de negócio de integração (ex: Atendimento dita a Baixa de Estoque que dita a Geração do Financeiro).
+
+### 🔍 1.1 Revisão Global do Sistema (Auditoria)
+A auditoria revelou a necessidade das seguintes correções e implementações imediatas:
+- **Bugs funcionais**: Ações inertes como importação de pacientes e falhas na navegação/virtualização do calendário.
+- **Falha de Estados de UI**: Falta de _optimistic UI_ em interações rápidas, ausência de loaders ou bloqueadores em cliques críticos (ex: *anti double click* em geração de faturamento).
+- **Módulos Desconectados**: Estoque, Agenda e Prontuário funcionam isolados. O consumo de material não reflete automaticamente na baixa de estoque ou custo do atendimento.
+- **Transacionalidade e Idempotência**: Ausência de locks transacionais na finalização do atendimento, permitindo concorrência e pagamentos duplicados.
+- **Segurança e RLS**: Falta estruturação rígida de _Row Level Security_ (via escopos globais no Laravel ou RLS nativo do DB) limitando acessos por `clinic_id` + permissões (Roles).
+- **Performance**: Queries não indexadas adequadamente (falta de índices compostos em colunas pesadas como datas no financeiro e agenda).
+
+---
+
+## 🏛️ 2. Arquitetura de Software e Diagramas
+
+O sistema adotará uma arquitetura reativa cliente-servidor (**SPA + API RESTful**), orientada a eventos, garantindo desacoplamento lógico através da camada de serviços.
+
+### 2.1 Diagrama da Estrutura Físcia e Lógica
+```mermaid
+graph TD
+    Client[Frontend: React/Vue SPA - Vite]
+    API[Backend: Laravel 11 API]
+    DB[(PostgreSQL)]
+    Queue[Worker Queue - Redis]
+    Storage[Object Storage - S3/R2]
+
+    Client -->|REST / JSON| API
+    API -->|Eloquent ORM| DB
+    API -->|Dispara Eventos| Queue
+    API -->|Gerencia Arquivos| Storage
+    Queue -->|Processa Assíncrono| DB
+```
+
+### 2.2 Fluxo de Dados (Data Flow) das Operações Críticas
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant A as API / Controller
+    participant S as Transactional Service
+    participant E as Event Bus (Queue)
+    participant DB as Banco de Dados
+
+    F->>A: POST /appointments/{id}/finish
+    A->>S: db.transaction(finishAppointment)
+    S->>DB: Lock For Update (Appointment)
+    S->>DB: Update (Appointment = completed)
+    S->>DB: Update (Stock = decrease materials)
+    S->>DB: Insert (FinancialTransaction = revenue/costs)
+    S-->>A: Transaction Commit
+    A->>E: Dispara AppointmentFinishedEvent
+    E->>E: (Assíncrono) Calcula comissão, envia email/notificação
+    A-->>F: HTTP 200 OK (Atendimento Finalizado)
+```
+
+---
+
+## 🔎 3. Review de Models e Migrations Atuais
+
+**Situação Atual:**
+As migrations como `create_appointments_table`, `create_medical_records_table` e `create_financial_transactions_table` estão bem padronizadas usando UUIDs e chaves estrangeiras (`clinic_id`, `patient_id`, `user_id`).
+
+**Melhorias e Ajustes Necessários (Gaps para o Cenario Real):**
+1. **AppointmentMaterial:** A tabela existe, mas precisa de relacionamento polimórfico ou trigger para baixa no estoque `stock_movements`.
+2. **FinancialTransaction:** Precisa de tipagem forte de origem (`source_type`, `source_id` polimórfico apontando para `Appointment` ou `Package`) para garantir idempotência.
+3. **Services e Profissionais:** A tabela `appointments` atualmente liga diretamente ao `user_id`. Faltam metadados rigorosos guardando o `valor_base` e a *comissão* na exata hora do agendamento, para evitar que mudanças futuras de preço afetem faturamentos passados (imutabilidade de dados de cobrança).
+4. **Índices de Banco (Performance):** A inserção de `$table->index(['clinic_id', 'start_time'])` na agenda e financeiro é mandatória nas migrations para evitar _table scans_.
+
+---
+
+## 📅 4. Fluxo Completo de Atendimento (Obrigatório)
+
+O ciclo de vida será rigidamente mapeado por uma Máquina de Estados (_State Machine_) no Backend:
+1. **Agendamento:** Front envia POST na agenda → Cria `Appointment` (Status `scheduled`) salvando _snapshot_ do valor e comissão, conectando paciente e profissional.
+2. **Recepção / Em Atendimento:** Front muda status → Backend valida e atualiza status para `in_progress`. Inicia contagem de tempo (metadata ou log de horas).
+3. **Execução Clínica:** Criação de `MedicalRecord` (Prontuário/Resumo) associado ao `appointment_id`. Adição de Materiais Consumidos.
+4. **Finalização (Lock Transacional):**
+   - Frontend pede finalização. Backend abre um `DB::transaction`.
+   - Muda status do `Appointment` para `completed`. Bloqueia edição de dados (`MedicalRecord` agora está _read-only_ sem permissão especial).
+   - Backend lê os `AppointmentMaterial`, executa a baixa gerando `StockMovement` de saída, salvando `cost`.
+   - Backend gera `FinancialTransaction` a receber do paciente (Subtotal Serviços - Descontos).
+   - Evento `Atendimento_Finalizado` é disparado internamente.
+5. **Acesso Financeiro:** Front navega automático via rota para Tela Financeira. Fluxo de caixa permite gerar Cobrança (Pix, Cartão, Dinheiro), disparando Evento `Pagamento_Gerado`.
+
+---
+
+## 👨‍⚕️ 5. Profissionais e Repasse Financeiro (Comissionamento)
+
+**Backend Architecture:**
+- Na model `ClinicUser` (Pivot de Profissionais) adicionaremos a coluna JSON ou campo de `commission_rate`.
+- Quando um evento `Pagamento_Gerado` ou `Atendimento_Finalizado` ocorre, um serviço assíncrono (`CommissionCalculatorService`) calcula e registra no financeiro a Despesa/Repasse a pagar.
+
+**Frontend UI:**
+- Tabela virtualizada exibindo o total de repasse.
+- Card/Drawer com: Procedimentos, Ticket Médio, Comparecimento (Appointments completed vs cancelled).
+
+---
+
+## ⚙️ 6. Integrações de Estoque e Configurações de Loja
+
+**Segmentação Odonto/Estética:**
+- Serviços (`services` table) contarão com `cost_estimate` e `duration` em minutos.
+- Novo pivot `service_materials` vinculando 1 Serviço -> N Materiais e Quantidade Padrão.
+- Ao selecionar um Serviço no Prontuário, o Backend (via endpoint REST) retorna os Materiais padrão, que são expostos na UI para o médico dar aceite/ajuste e efetivar a baixa.
+
+---
+
+## 🐛 7. Bugs Mencionados e Sugestões de Correção Técnica
+
+### 4.1 Cadastro em Massa de Pacientes
+- **Refatoração Front:** Implementar `react-dropzone`. Usar biblioteca de parse (PapaParse para CSV ou SheetJS para XLSX) diretamente no Browser ou enviar o "Blob" com FormData.
+- **Refatoração Back:** Endpoint `POST /patients/import`. Validação pesada do Layout via `Validator` do Laravel em um `Job` _queued_ para não travar a UI, retornando um Tracker ID. A UI usa `Polling` ou `WebSockets` para mostrar o progresso. Disparo de `Pacientes_Importados`.
+
+### 4.2 Agenda (Dia / Semana / Mês)
+- **Refatoração Front:** O calendário precisa de biblioteca madura (ex: FullCalendar UI, ou TanStack Virtual para renders infinitos no modo semana/mês). Trocar renderização excessiva por _data-fetching_ inteligente via react-query/vue-query, mantendo em cache o intervalo vísivel (start/end boundaries).
+- **UX:** Habilitar drag & drop, disparando endpoint `PATCH /appointments/{id}/reschedule` na conclusão, atualizando a UI de forma *optimistic*.
+
+### 4.3 Odontograma Digital
+- **Refatoração Front:** Remoção de grid CSS cru para marcação com base em SVG interativo da arcada.
+- **UX:** O UUID de cada dente (11 a 48, etc.) deve ser mapeado num _Map_ visual. Cores atômicas por path no SVG (Estado: pendente = amarelo, feito = verde).
+
+---
+
+## 🔒 8. Validações, Segurança, Hardening e UX
+
+### Regras Obrigatórias e Hardening
+1. **Zod/FormRequests:** Validação impenetrável de schemas tanto no Front (Zod) quanto no Back (Laravel FormRequests customizados).
+2. **Idempotência Financeira:** Adicionar UUID enviado pelo Client como `client_reference_id` + Unique constraint no banco, evitando duplicidade caso a rede falhe.
+3. **Database Performance:** Particionamento sugerido apenas se > 1M registros mensais, do contrário criar Table Indexes [(clinic_id, date)](file:///var/www/html/erp/backend-api-erp/database/migrations/2026_03_08_003009_create_appointments_table.php#9-27) ou [(clinic_id, patient_id)](file:///var/www/html/erp/backend-api-erp/database/migrations/2026_03_08_003009_create_appointments_table.php#9-27).
+4. **Queue/Retry:** Jobs rodando no Horizon/Redis com policy limite (ex: `tries = 3`, `backoff = [10, 30, 60]`).
+5. **Concorrência (Lock Pts):** Envolver funções críticas em `Cache::lock('process_payment_' . $appointment_id, 10)->get(...)` para prevenir cliques duplos.
+
+### UX Core
+- Adotar o padrão `Button` state => `isLoading, disabled`.
+- React-hot-toast / Sonner para Toast feedbacks em sucessos/erros.
+- React-Query `onMutate` para preencher Optimistic UI.
+- *Zero reload*: Garantir `react-router` hidratado.
+
+### Segurança Global (Infra e RLS)
+- O Laravel precisa de "_Global Scopes_" (ex: `AddClinicScope`) em todas as entidades _tenant-aware_ que não possuam bypass sistêmico (SaaS architecture). 
+- `AuditLog`: Qualquer UPDATE/DELETE em relatórios médicos salva Payload Anterior e Payload Novo. Deleção física de Prontuário bloqueada, usar apenas *SoftDeletes* + anexo de errata.
+- Roles gerenciados via Laravel Permission (ex: Entidade Spatie/laravel-permission), checado em Middlewares.
+
+---
+
+## 🗓️ 9. Passo a Passo de Implementação Detalhado
+
+O projeto será divido em 4 Fases incrementais para evitar o "efeito cascata" de bugs.
+
+**Fase 1: Estabilização de Base e UI (Semanas 1-2)**
+- [ ] Front: Substituir requisições falsas e refatorar `react-query` hooks reais conectados à API.
+- [ ] Back: Consolidar UUIDs e Scopes (Substituir traits não isolantes de Tenant).
+- [ ] Back/Front: Mapear API de Endpoints de Pacientes. Implementar e testar `Importação em Massa` (Bug 4.1).
+- [ ] Front: Implementar Zod em todos os forms e tratar loading global nos botões.
+
+**Fase 2: Motor Core da Agenda e Prontuário (Semanas 3-4)**
+- [ ] Front: Refatorar componente da Agenda para navegação fluída, arrastar e estados visuais completos (Bug 4.2).
+- [ ] Back: Criar a State Machine do Agendamento (Fluxo Status).
+- [ ] Front/Back: Refatorar Odontograma de CSS grid para SVG interativo e mapear Dentes (Bug 4.3).
+- [ ] Back: Implementar trava de edição e *Audit Log* para o Prontuário.
+
+**Fase 3: Transacionalidade, Materiais e Financeiro (Semanas 5-6)**
+- [ ] Back: Modelar Cadastros de Serviços e Materiais/Base de Custo.
+- [ ] Back: Implementar endpoint único de "Finalização de Atendimento", aplicando o `DB::Transaction` e `Cache::lock`.
+- [ ] Back: Baixa automática de produtos (integração `AppointmentMaterial` -> `StockMovement`).
+- [ ] Back: Criação autônoma do título em aberto em `FinancialTransaction`.
+
+**Fase 4: Repasses, Hardening e Refinamentos Finais (Semanas 7-8)**
+- [ ] Front: Criar visualização de telas financeiras para equipe e comissionamento.
+- [ ] Back: Event Bus / Jobs para cálculo de Comissão em plano de fundo (`Pagamento_Gerado` trigger).
+- [ ] QA: Testes de Rate Limit, Anti-double Click e performance nos Queries maiores que 1s.
+- [ ] QA: Penetration tests básicos para Isolamento RLS de Clinics e checagem de exclusão lógica vs física (Soft Deletes).
+
+---
+
+## 🚀 10. Prazo, Escopo de Entrega e Faturamento Projetado
+
+- **Prazo Estimado de Entrega de Sistema 100% Funcional e Escalável:**
+  - **4 Dedications Sprints (8 Semanas / ~40 a 50 dias úteis)** se operado por um dev Full-Stack Senior, ou **4 Semanas** com uma equipe enxuta (1 Dev Front, 1 Dev Back).
+  - Pode variar caso as lógicas de Odontograma necessitem de muito polimento de UI manual.
+
+- **Estimativa de Faturamento (SaaS Model) - Hipotética:**
+  - Baseado num SaaS para Clínicas Médicas, um sistema tão completo (com Finanças interconectadas e Auditoria) pode tranquilamente ser comercializado como ERP Especializado.
+  - **Ticket Médio de Venda:** R$ 250 a R$ 450 / mês por clínica.
+  - Com uma base pequena/média de **200 Clínicas (após o ramp up)**, gera-se um faturamento recorrente (_MRR_) de aproximadamente **R$ 50.000,00 a R$ 90.000,00 mensais**. Comissionamento, integrações NF-e e módulos extras de IA poderiam dobrar esse MRR como add-on.
+
+---
+
+### ✅ Checklist Final Submetido
+- [x] O sistema deixará a fase "demo" e as regras de negócio foram desenhadas na arquitetura.
+- [x] Resolução exata e técnica documentada para bugs (Agenda, Pacientes, Odontograma).
+- [x] Ciclo transacional (Agenda → Prontuário → Estoque → Financeiro) detalhado num único ato imutável.
+- [x] Plano de hardening, performance, UX, idenpotência e permissões estipulados.
+- [x] Arquitetura e Fluxo de Data modelados.
+- [x] Análise pregressa das Migrations com recomendações de reestruturação.
+
+---
+*Este documento é a fundação para a equipe de desenvolvimento atuar com escala técnica sem gargalos sistêmicos previsíveis.*

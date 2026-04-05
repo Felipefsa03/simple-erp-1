@@ -3,8 +3,8 @@
 // Versão que funciona SEM o pacote @supabase/supabase-js
 // ============================================
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-NOExiRGRb1XcRAMEgkTzQ_9d1AGmtK';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Sempre configurado para este projeto
 const isConfigured = !!(supabaseUrl && supabaseAnonKey);
@@ -27,7 +27,7 @@ const getHeaders = (token?: string) => ({
 // Cliente Supabase Simplificado (sem pacote)
 // ============================================
 
-let currentSession: { access_token: string; user: any } | null = null;
+let currentSession: { access_token: string; user: Record<string, unknown> } | null = null;
 
 export const supabase = isConfigured ? {
   auth: {
@@ -52,8 +52,8 @@ export const supabase = isConfigured ? {
         };
 
         return { data: { user: data.user, session: data }, error: null };
-      } catch (err: any) {
-        return { data: null, error: { message: err.message } };
+      } catch (err: unknown) {
+        return { data: null, error: { message: err instanceof Error ? err.message : 'Unknown error' } };
       }
     },
 
@@ -106,8 +106,8 @@ export const supabase = isConfigured ? {
           }),
         });
         return { error: response.ok ? null : { message: 'Failed to send reset email' } };
-      } catch (err: any) {
-        return { error: { message: err.message } };
+      } catch (err: unknown) {
+        return { error: { message: err instanceof Error ? err.message : 'Unknown error' } };
       }
     },
 
@@ -122,8 +122,8 @@ export const supabase = isConfigured ? {
           body: JSON.stringify({ password }),
         });
         return { error: response.ok ? null : { message: 'Failed to update password' } };
-      } catch (err: any) {
-        return { error: { message: err.message } };
+      } catch (err: unknown) {
+        return { error: { message: err instanceof Error ? err.message : 'Unknown error' } };
       }
     },
 
@@ -138,7 +138,7 @@ export const supabase = isConfigured ? {
   from: (table: string) => {
     let query = `${supabaseUrl}/rest/v1/${table}`;
     let method = 'GET';
-    let body: any = null;
+    let body: Record<string, unknown> | Record<string, unknown>[] | null = null;
     let filters: string[] = [];
     let selectFields = '*';
     let orderByField: string | null = null;
@@ -222,8 +222,8 @@ export const supabase = isConfigured ? {
           }
 
           return resolve({ data, error: null });
-        } catch (err: any) {
-          return resolve({ data: null, error: { message: err.message } });
+        } catch (err: unknown) {
+          return resolve({ data: null, error: { message: err instanceof Error ? err.message : 'Unknown error' } });
         }
       },
     };
@@ -255,8 +255,8 @@ export const supabase = isConfigured ? {
 
           const data = await response.json();
           return { data, error: null };
-        } catch (err: any) {
-          return { data: null, error: { message: err.message } };
+        } catch (err: unknown) {
+          return { data: null, error: { message: err instanceof Error ? err.message : 'Upload failed' } };
         }
       },
       getPublicUrl: (path: string) => ({

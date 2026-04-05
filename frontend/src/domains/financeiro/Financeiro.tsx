@@ -5,12 +5,17 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast, formatCurrency } from '@/hooks/useShared';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { Modal, LoadingButton, EmptyState, ConfirmDialog } from '@/components/shared';
 import type { FinancialTransaction } from '@/types';
 import { integrationsApi } from '@/lib/integrationsApi';
 import { NFePanel } from './NFePanel';
 import { DREReport } from './DREReport';
 import { AccountsPayableReceivable } from './AccountsPayableReceivable';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { TransacaoSchema, type TransacaoFormData } from './transacao.schema';
+import { calcularParcelas, type Parcela } from './parcelamento.schema';
 
 interface FinanceiroProps {
   onNavigate?: (tab: string, ctx?: any) => void;
@@ -30,7 +35,6 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   const [txnType, setTxnType] = useState<'income' | 'expense'>('income');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('');
-  const [newTxn, setNewTxn] = useState({ description: '', amount: '', category: 'Procedimento', patient_name: '' });
   const [chargeModalOpen, setChargeModalOpen] = useState(false);
   const [chargeTarget, setChargeTarget] = useState<FinancialTransaction | null>(null);
   const [chargeMethod, setChargeMethod] = useState<'pix' | 'card' | 'manual'>('pix');
@@ -52,6 +56,16 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
 
   const highlightRef = useRef<HTMLTableRowElement>(null);
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
+
+  // Parcelamento state
+  const [parcelamentoPreview, setParcelamentoPreview] = useState<Parcela[] | null>(null);
+  const [parcelamentoDate, setParcelamentoDate] = useState(new Date().toISOString().slice(0, 10));
+
+  // Zod-validated transaction form
+  const { register: regTxn, handleSubmit: handleTxnSubmit, formState: { errors: txnErrors }, reset: resetTxnForm, watch: watchTxn } = useForm<TransacaoFormData>({
+    resolver: zodResolver(TransacaoSchema),
+    defaultValues: { description: '', amount: '', category: 'Procedimento', patient_name: '' },
+  });
 
   // ---- Data retrieval via getState() or stable dependencies ----
   const patients = useClinicStore(s => s.patients);
@@ -100,23 +114,31 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   }, [transactions]);
 
   // ---- Handlers ----
-  const handleAddTransaction = useCallback(() => {
-    const amount = parseFloat(newTxn.amount.replace(',', '.'));
-    if (!newTxn.description || isNaN(amount)) { toast('Verifique os dados', 'warning'); return; }
+  const handleAddTransactionInner = useCallback((data: TransacaoFormData) => {
+    const amount = parseFloat(data.amount.replace(',', '.'));
     useClinicStore.getState().addTransaction({
       clinic_id: clinicId,
       type: txnType,
-      category: newTxn.category,
-      description: newTxn.description,
+      category: data.category,
+      description: data.description,
       amount,
       status: txnType === 'expense' ? 'paid' : 'pending',
-      patient_name: newTxn.patient_name || undefined,
+      patient_name: data.patient_name || undefined,
       idempotency_key: `manual:${Date.now()}`
     });
     setIsModalOpen(false);
-    setNewTxn({ description: '', amount: '', category: 'Procedimento', patient_name: '' });
+    resetTxnForm({ description: '', amount: '', category: 'Procedimento', patient_name: '' });
     toast('Transação registrada!');
-  }, [clinicId, newTxn, txnType]);
+  }, [clinicId, txnType, resetTxnForm]);
+
+  const handleAddTransaction = handleTxnSubmit(handleAddTransactionInner);
+
+  const { execute: handleProcessPaymentWrapped, isLoading: paymentProcessing } = useAsyncAction(
+    async () => {
+      // This needs to be called with an id, so we use a ref
+    },
+    { successMessage: 'Pago!' }
+  );
 
   const handleProcessPayment = useCallback(async (id: string) => {
     const txn = useClinicStore.getState().transactions.find(t => t.id === id);
@@ -141,30 +163,51 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
     toast('Pago!');
   }, []);
 
-  const handleConfirmCharge = useCallback(async () => {
-    if (!chargeTarget) return;
-    const installments = parseInt(chargeInstallments, 10) || 1;
-    useClinicStore.getState().generatePayment(chargeTarget.id, chargeMethod, chargeMethod === 'card' ? installments : 1);
-    try {
-      const result = await integrationsApi.createAsaasCharge({
-        patient: { 
-          id: chargeTarget.patient_id || 'manual', 
-          name: chargeTarget.patient_name || 'Paciente', 
-          phone: clinicPatients.find(p => p.id === chargeTarget.patient_id)?.phone || '', 
-          email: clinicPatients.find(p => p.id === chargeTarget.patient_id)?.email || '' 
-        },
-        transaction: { ...chargeTarget, method: chargeMethod, installments: chargeMethod === 'card' ? installments : 1 },
-        config: { environment: 'sandbox' }
-      });
-      useClinicStore.getState().setTransactionAsaasData(chargeTarget.id, {
-        asaas_payment_id: result.payment?.id,
-        asaas_status: result.payment?.status,
-        pix_code: result.payment?.pixCopyPaste
-      });
-      toast('Cobrança Asaas gerada!');
-    } catch (e) { toast('Erro Asaas. Usando manual.', 'info'); }
-    setChargeModalOpen(false);
-  }, [chargeTarget, chargeInstallments, chargeMethod]);
+  const { execute: handleConfirmCharge, isLoading: chargeLoading } = useAsyncAction(
+    async () => {
+      if (!chargeTarget) return;
+      const installments = parseInt(chargeInstallments, 10) || 1;
+
+      // If parcelamento preview exists, register each installment
+      if (parcelamentoPreview && parcelamentoPreview.length > 1) {
+        for (const parcela of parcelamentoPreview) {
+          useClinicStore.getState().addTransaction({
+            clinic_id: clinicId,
+            type: 'income',
+            category: chargeTarget.category,
+            description: `${chargeTarget.description} - Parcela ${parcela.numero}/${parcelamentoPreview.length}`,
+            amount: parcela.valor,
+            status: 'pending',
+            patient_name: chargeTarget.patient_name || undefined,
+            idempotency_key: `installment:${chargeTarget.id}:${parcela.numero}:${Date.now()}`,
+          });
+        }
+        toast(`${parcelamentoPreview.length} parcelas registradas com sucesso!`);
+      } else {
+        useClinicStore.getState().generatePayment(chargeTarget.id, chargeMethod, chargeMethod === 'card' ? installments : 1);
+        try {
+          const result = await integrationsApi.createAsaasCharge({
+            patient: { 
+              id: chargeTarget.patient_id || 'manual', 
+              name: chargeTarget.patient_name || 'Paciente', 
+              phone: clinicPatients.find(p => p.id === chargeTarget.patient_id)?.phone || '', 
+              email: clinicPatients.find(p => p.id === chargeTarget.patient_id)?.email || '' 
+            },
+            transaction: { ...chargeTarget, method: chargeMethod, installments: chargeMethod === 'card' ? installments : 1 },
+            config: { environment: 'sandbox' }
+          });
+          useClinicStore.getState().setTransactionAsaasData(chargeTarget.id, {
+            asaas_payment_id: result.payment?.id,
+            asaas_status: result.payment?.status,
+            pix_code: result.payment?.pixCopyPaste
+          });
+          toast('Cobrança Asaas gerada!');
+        } catch (e) { toast('Erro Asaas. Usando manual.', 'info'); }
+      }
+      setChargeModalOpen(false);
+      setParcelamentoPreview(null);
+    }
+  );
 
   const handleOpenNfeModal = useCallback((txn: FinancialTransaction) => {
     setSelectedTxnForNfe(txn);
@@ -177,15 +220,16 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
     setNfeModalOpen(true);
   }, []);
 
-  const handleGenerateNfe = useCallback(() => {
-    if (!nfeData.customerName || !nfeData.value) {
-      toast('Preencha os dados obrigatórios', 'warning');
-      return;
+  const { execute: handleGenerateNfe, isLoading: nfeLoading } = useAsyncAction(
+    async () => {
+      if (!nfeData.customerName || !nfeData.value) {
+        throw new Error('Preencha os dados obrigatórios');
+      }
+      toast(`NFe gerada para ${nfeData.customerName} - ${formatCurrency(nfeData.value)}`);
+      setNfeModalOpen(false);
+      setSelectedTxnForNfe(null);
     }
-    toast(`NFe gerada para ${nfeData.customerName} - ${formatCurrency(nfeData.value)}`);
-    setNfeModalOpen(false);
-    setSelectedTxnForNfe(null);
-  }, [nfeData]);
+  );
 
   const handleExportCSV = useCallback(() => {
     const headers = ['DATA', 'TIPO', 'CATEGORIA', 'DESCRIÇÃO', 'VALOR', 'STATUS', 'PACIENTE', 'FORMA_PAGAMENTO', 'ID_TRANSAÇÃO'];
@@ -486,19 +530,21 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
 
       {/* Modals for Add / Charge */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Lançar ${txnType === 'income' ? 'Receita' : 'Despesa'}`}>
-        <div className="space-y-4">
+        <form onSubmit={handleAddTransaction} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-400 uppercase">Descrição</label>
-            <input type="text" value={newTxn.description} onChange={e => setNewTxn({ ...newTxn, description: e.target.value })} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none" />
+            <label className="text-xs font-bold text-slate-400 uppercase">Descrição *</label>
+            <input {...regTxn('description')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl outline-none", txnErrors.description ? 'border-red-300' : 'border-transparent')} />
+            {txnErrors.description && <span className="text-xs text-red-500 font-medium">{txnErrors.description.message}</span>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase">Valor</label>
-              <input type="text" value={newTxn.amount} onChange={e => setNewTxn({ ...newTxn, amount: e.target.value })} placeholder="0,00" className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none" />
+              <label className="text-xs font-bold text-slate-400 uppercase">Valor *</label>
+              <input {...regTxn('amount')} placeholder="0,00" className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl outline-none", txnErrors.amount ? 'border-red-300' : 'border-transparent')} />
+              {txnErrors.amount && <span className="text-xs text-red-500 font-medium">{txnErrors.amount.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase">Categoria</label>
-              <select value={newTxn.category} onChange={e => setNewTxn({ ...newTxn, category: e.target.value })} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none">
+              <select {...regTxn('category')} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none">
                 {txnType === 'income' ? (
                   ['Procedimento', 'Venda Produto', 'Outros'].map(c => <option key={c} value={c}>{c}</option>)
                 ) : (
@@ -510,14 +556,14 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
           {txnType === 'income' && (
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase">Paciente (Opcional)</label>
-              <input type="text" value={newTxn.patient_name} onChange={e => setNewTxn({ ...newTxn, patient_name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none" />
+              <input {...regTxn('patient_name')} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none" />
             </div>
           )}
-          <button onClick={handleAddTransaction} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg mt-2">Confirmar Lançamento</button>
-        </div>
+          <LoadingButton type="submit" className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg mt-2">Confirmar Lançamento</LoadingButton>
+        </form>
       </Modal>
 
-      <Modal isOpen={chargeModalOpen} onClose={() => setChargeModalOpen(false)} title="Gerar Cobrança Asaas">
+      <Modal isOpen={chargeModalOpen} onClose={() => { setChargeModalOpen(false); setParcelamentoPreview(null); }} title="Gerar Cobrança">
         <div className="space-y-4">
           <div className="bg-slate-50 p-4 rounded-2xl mb-4">
             <p className="text-xs text-slate-400 uppercase font-bold mb-1">Destino</p>
@@ -545,17 +591,78 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
               ))}
             </div>
           </div>
-          {chargeMethod === 'card' && (
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase">Parcelas</label>
-              <select value={chargeInstallments} onChange={e => setChargeInstallments(e.target.value)} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none font-bold">
-                {[1, 2, 3, 4, 5, 6, 10, 12].map(i => <option key={i} value={i}>{i}x sem juros</option>)}
-              </select>
+
+          {/* Parcelamento Section */}
+          <div className="space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <label className="text-xs font-bold text-slate-400 uppercase">Parcelamento</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500">Nº de parcelas</label>
+                <select
+                  value={chargeInstallments}
+                  onChange={e => {
+                    setChargeInstallments(e.target.value);
+                    const num = parseInt(e.target.value, 10);
+                    if (num > 1 && chargeTarget) {
+                      setParcelamentoPreview(calcularParcelas(chargeTarget.amount, num, parcelamentoDate));
+                    } else {
+                      setParcelamentoPreview(null);
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none font-bold"
+                >
+                  {[1, 2, 3, 4, 5, 6, 8, 10, 12, 18, 24].map(i => <option key={i} value={i}>{i}x {i === 1 ? 'à vista' : 'sem juros'}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500">1ª parcela em</label>
+                <input
+                  type="date"
+                  value={parcelamentoDate}
+                  onChange={e => {
+                    setParcelamentoDate(e.target.value);
+                    const num = parseInt(chargeInstallments, 10);
+                    if (num > 1 && chargeTarget && e.target.value) {
+                      setParcelamentoPreview(calcularParcelas(chargeTarget.amount, num, e.target.value));
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none"
+                />
+              </div>
             </div>
-          )}
-          <button onClick={handleConfirmCharge} className="w-full py-4 bg-cyan-600 text-white font-bold rounded-2xl shadow-xl shadow-cyan-100 hover:bg-cyan-700 transition-all flex items-center justify-center gap-2">
-            <CreditCard className="w-5 h-5" /> Confirmar e Enviar Cobrança
-          </button>
+
+            {/* Parcelas Preview Table */}
+            {parcelamentoPreview && parcelamentoPreview.length > 1 && (
+              <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-1.5 text-left text-[10px] font-bold text-slate-400 uppercase">Parcela</th>
+                      <th className="px-3 py-1.5 text-right text-[10px] font-bold text-slate-400 uppercase">Valor</th>
+                      <th className="px-3 py-1.5 text-right text-[10px] font-bold text-slate-400 uppercase">Vencimento</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {parcelamentoPreview.map(p => (
+                      <tr key={p.numero}>
+                        <td className="px-3 py-1.5 text-xs text-slate-600 font-medium">{p.numero}/{parcelamentoPreview.length}</td>
+                        <td className="px-3 py-1.5 text-xs text-slate-900 font-bold text-right">{formatCurrency(p.valor)}</td>
+                        <td className="px-3 py-1.5 text-xs text-slate-500 text-right">{new Date(p.vencimento + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <LoadingButton
+            onClick={handleConfirmCharge}
+            loading={chargeLoading}
+            className="w-full py-4 bg-cyan-600 text-white font-bold rounded-2xl shadow-xl shadow-cyan-100 hover:bg-cyan-700 transition-all flex items-center justify-center gap-2"
+          >
+            <CreditCard className="w-5 h-5" /> {parcelamentoPreview && parcelamentoPreview.length > 1 ? `Confirmar ${parcelamentoPreview.length} Parcelas` : 'Confirmar e Enviar Cobrança'}
+          </LoadingButton>
         </div>
       </Modal>
 
@@ -585,9 +692,13 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
             <label className="text-xs font-bold text-slate-400 uppercase">Valor *</label>
             <input type="number" value={nfeData.value} onChange={e => setNfeData({ ...nfeData, value: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none font-bold" />
           </div>
-          <button onClick={handleGenerateNfe} className="w-full py-4 bg-purple-600 text-white font-bold rounded-2xl shadow-xl shadow-purple-100 hover:bg-purple-700 transition-all flex items-center justify-center gap-2">
+          <LoadingButton
+            onClick={handleGenerateNfe}
+            loading={nfeLoading}
+            className="w-full py-4 bg-purple-600 text-white font-bold rounded-2xl shadow-xl shadow-purple-100 hover:bg-purple-700 transition-all flex items-center justify-center gap-2"
+          >
             <Receipt className="w-5 h-5" /> Gerar NFe
-          </button>
+          </LoadingButton>
         </div>
       </Modal>
 

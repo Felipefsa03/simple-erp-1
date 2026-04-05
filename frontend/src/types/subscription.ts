@@ -208,9 +208,5 @@ export function getDaysRemaining(subscription: ClinicSubscription): number {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
-export function formatCurrencyBRL(amount: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(amount);
-}
+// Re-export formatCurrency as formatCurrencyBRL for backward compatibility
+export { formatCurrency as formatCurrencyBRL } from '@/lib/utils';

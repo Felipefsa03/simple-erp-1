@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, UserRole, Clinic, PlanType, PLAN_LIMITS } from '@/types';
+import type { User, UserRole, Clinic, PlanType } from '@/types';
+import { PLAN_LIMITS } from '@/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-NOExiRGRb1XcRAMEgkTzQ_9d1AGmtK';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const useRealData = !!(SUPABASE_URL && SUPABASE_KEY);
 
 interface AuthState {
@@ -270,8 +271,8 @@ export const useAuth = create<AuthState>()(
                 return true;
               }
             }
-          } catch (err) {
-            console.log('[Auth] Supabase login failed, trying demo mode');
+          } catch (err: unknown) {
+            console.log('[Auth] Supabase login failed, trying demo mode', err instanceof Error ? err.message : '');
           }
         }
 
@@ -280,8 +281,8 @@ export const useAuth = create<AuthState>()(
         const updatedPasswords = localStorage.getItem('luminaflow-reset-passwords');
         let passwords: Record<string, string> = {};
         try {
-          passwords = updatedPasswords ? JSON.parse(updatedPasswords) : {};
-        } catch {}
+          passwords = updatedPasswords ? (JSON.parse(updatedPasswords) as Record<string, string>) : {};
+        } catch (_e: unknown) { /* corrupted localStorage data — ignore */ }
 
         const passwordToCheck = passwords[email.toLowerCase()] || password;
         const found = allUsers.find(
@@ -405,8 +406,8 @@ export const useAuth = create<AuthState>()(
                 return;
               }
             }
-          } catch (err) {
-            console.log('[Auth] Session check failed');
+          } catch (err: unknown) {
+            console.log('[Auth] Session check failed', err instanceof Error ? err.message : '');
           }
         }
         set({ loading: false });

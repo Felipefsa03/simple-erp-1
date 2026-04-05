@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
@@ -16,26 +18,169 @@ import makeWASocket, {
 const app = express();
 const PORT = process.env.PORT || 8787;
 
+// ============================================
+// Startup: validate required environment variables
+// ============================================
+const REQUIRED_ENVS = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+const missingEnvs = REQUIRED_ENVS.filter(key => !process.env[key]);
+if (missingEnvs.length > 0 && process.env.NODE_ENV !== 'development') {
+  for (const key of missingEnvs) {
+    console.error(`[FATAL] Variável de ambiente ausente: ${key}`);
+  }
+  console.error('[FATAL] Configure as variáveis acima ou defina NODE_ENV=development para modo demo.');
+  process.exit(1);
+}
+if (missingEnvs.length > 0) {
+  console.warn(`[WARN] Variáveis ausentes: ${missingEnvs.join(', ')}. Rodando em modo DESENVOLVIMENTO.`);
+}
+
 // Supabase configuration
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_URL_PROD || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PROD || '';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+// 2FA encryption key — dedicated env var preferred, falls back to service role key
+const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || SUPABASE_SERVICE_ROLE_KEY;
+if (!TOTP_ENCRYPTION_KEY && process.env.NODE_ENV !== 'development') {
+  console.error('[WARN] TOTP_ENCRYPTION_KEY não definida. Endpoints 2FA desativados em produção.');
+}
+
+// Server headers for Supabase REST API (with service role when available)
+const getServerHeaders = (token) => ({
+  'Content-Type': 'application/json',
+  'apikey': SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+  'Authorization': `Bearer ${token || SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
+  'Prefer': 'return=representation',
+});
 
 // Mercado Pago configuration (can be overridden per clinic via Supabase)
 let mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
 let mpPublicKey = process.env.MP_PUBLIC_KEY || '';
 
+// ============================================
+// Security Middleware
+// ============================================
+
+// Helmet: secure HTTP headers with CSP
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: [
+        "'self'",
+        process.env.SUPABASE_URL || '',
+        "https://api.mercadopago.com",
+        "wss:",
+      ].filter(Boolean),
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+}));
+
+// CORS: whitelist allowed origins (configurable via env)
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://clinxia.vercel.app',
+      process.env.FRONTEND_URL,
+    ].filter(Boolean);
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`[CORS] Blocked request from: ${origin}`);
+    callback(new Error(`Origem não permitida: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning', 'x-requested-with', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'Accept', 'Origin'],
 }));
 
 // Handle preflight explicitly
 app.options('*', cors());
 
-app.use(express.json());
+// Rate limiting: 100 requests per 15 minutes per IP
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Muitas requisições. Tente novamente em alguns minutos.' },
+});
+app.use('/api/', limiter);
+
+app.use(express.json({ limit: '10mb' }));
+
+// ============================================
+// Auth Middleware (validates Supabase JWT)
+// ============================================
+const requireAuth = async (req, res, next) => {
+  // Skip auth for public endpoints
+  const publicPaths = ['/api/health', '/api/webhooks/', '/api/clinic/anamnese-sync'];
+  if (publicPaths.some(p => req.path.startsWith(p))) return next();
+
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).json({ ok: false, error: 'Token de autenticação ausente' });
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    // Dev mode: skip auth if Supabase not configured
+    req.user = { id: 'dev-user', role: 'admin', clinic_id: 'dev-clinic' };
+    return next();
+  }
+
+  try {
+    const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!userRes.ok) {
+      return res.status(401).json({ ok: false, error: 'Token inválido ou expirado' });
+    }
+
+    const userData = await userRes.json();
+    
+    // Fetch user profile with clinic_id
+    const profileRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${userData.id}&select=*`,
+      {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${token}`,
+        },
+      }
+    );
+    
+    if (profileRes.ok) {
+      const profiles = await profileRes.json();
+      req.user = profiles[0] || { id: userData.id, role: 'receptionist' };
+    } else {
+      req.user = { id: userData.id, role: 'receptionist' };
+    }
+    
+    req.clinicId = req.user.clinic_id;
+    next();
+  } catch (error) {
+    console.error('[Auth] Error validating token:', error.message);
+    return res.status(401).json({ ok: false, error: 'Erro na autenticação' });
+  }
+};
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -979,8 +1124,11 @@ app.post('/api/2fa/setup', async (req, res) => {
     }
     
     // Encrypt secret with server key
+    if (!TOTP_ENCRYPTION_KEY) {
+      return res.status(503).json({ ok: false, error: '2FA indisponível: chave de criptografia não configurada.' });
+    }
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', crypto.scryptSync(SUPABASE_SERVICE_ROLE_KEY || 'fallback-key-for-dev', '2fa-salt', 32), iv);
+    const cipher = crypto.createCipheriv('aes-256-gcm', crypto.scryptSync(TOTP_ENCRYPTION_KEY, '2fa-salt', 32), iv);
     let encrypted = cipher.update(secret, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     const authTag = cipher.getAuthTag();
@@ -1041,9 +1189,12 @@ app.post('/api/2fa/verify', async (req, res) => {
     
     // Decrypt secret
     const parsed = JSON.parse(data[0].secret_encrypted);
+    if (!TOTP_ENCRYPTION_KEY) {
+      return res.status(503).json({ ok: false, error: '2FA indisponível: chave de criptografia não configurada.' });
+    }
     const decipher = crypto.createDecipheriv(
       'aes-256-gcm',
-      crypto.scryptSync(SUPABASE_SERVICE_ROLE_KEY || 'fallback-key-for-dev', '2fa-salt', 32),
+      crypto.scryptSync(TOTP_ENCRYPTION_KEY, '2fa-salt', 32),
       Buffer.from(parsed.iv, 'hex')
     );
     decipher.setAuthTag(Buffer.from(parsed.authTag, 'hex'));

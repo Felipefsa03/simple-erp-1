@@ -5,9 +5,13 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
-import { useDebounce, toast, formatDateBR } from '@/hooks/useShared';
+import { useDebounce, toast, formatDateBR, useSubmitOnce } from '@/hooks/useShared';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { Modal, EmptyState, ConfirmDialog, LoadingButton } from '@/components/shared';
 import type { Patient } from '@/types';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { PacienteSchema, type PacienteFormData } from './paciente.schema';
 
 // Formatar telefone para padrão brasileiro com +55
 // Formatos aceitos: 11999999999, 5511999999999, +5511999999999
@@ -94,17 +98,27 @@ export function PatientList({ onNavigate }: PatientListProps) {
   const [importErrors, setImportErrors] = useState<{ row: number; errors: string[] }[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<Patient | null>(null);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', cpf: '', birth_date: '', tags: '', allergies: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debouncedSearch = useDebounce(searchQuery, 300);
   const ITEMS_PER_PAGE = 20;
 
-  const [newPatient, setNewPatient] = useState({ name: '', phone: '', email: '', cpf: '', birth_date: '', tags: '', allergies: '' });
   const canView = hasPermission('view_patients');
   const canManage = hasPermission('manage_patients');
   const canImport = hasPermission('import_patients');
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
+
+  // Zod-validated create patient form
+  const { register: regCreate, handleSubmit: handleCreateSubmit, formState: { errors: createErrors }, reset: resetCreateForm } = useForm<PacienteFormData>({
+    resolver: zodResolver(PacienteSchema),
+    defaultValues: { name: '', phone: '', email: '', cpf: '', birth_date: '', tags: '', allergies: '' },
+  });
+
+  // Zod-validated edit patient form
+  const { register: regEdit, handleSubmit: handleEditSubmit, formState: { errors: editErrors }, reset: resetEditForm } = useForm<PacienteFormData>({
+    resolver: zodResolver(PacienteSchema),
+    defaultValues: { name: '', phone: '', email: '', cpf: '', birth_date: '', tags: '', allergies: '' },
+  });
 
   const handleExportCSV = () => {
     const headers = ['NOME', 'TELEFONE', 'EMAIL', 'CPF', 'NASCIMENTO', 'ALERGIAS', 'STATUS', 'ULTIMA_VISITA'];
@@ -114,7 +128,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
       p.email || '',
       p.cpf || '',
       p.birth_date || '',
-      `"${(p.allergies || '').replace(/"/g, '""')}"`,
+      `"${(p.allergies || []).join(', ').replace(/"/g, '""')}"`,
       p.status === 'active' ? 'Ativo' : 'Inativo',
       p.last_visit || '',
     ].join(';'));
@@ -231,28 +245,29 @@ export function PatientList({ onNavigate }: PatientListProps) {
   const totalPages = Math.ceil(filteredPatients.length / ITEMS_PER_PAGE);
   const errorRowSet = useMemo(() => new Set(importErrors.map(e => e.row)), [importErrors]);
 
-  const handleAddPatient = (e: React.FormEvent) => {
-    e.preventDefault();
+  const { submit: handleAddPatientInner, loading: addPatientLoading } = useSubmitOnce(async (data: PacienteFormData) => {
     if (!canManage) { toast('Você não tem permissão para cadastrar pacientes.', 'error'); return; }
     
     // Formatar telefone automaticamente com +55
-    const formattedPhone = formatPhoneBrazilian(newPatient.phone);
+    const formattedPhone = formatPhoneBrazilian(data.phone);
     
     addPatient({
       clinic_id: clinicId,
-      name: newPatient.name,
+      name: data.name,
       phone: formattedPhone,
-      email: newPatient.email,
-      cpf: newPatient.cpf || undefined,
-      birth_date: newPatient.birth_date || undefined,
-      allergies: newPatient.allergies ? newPatient.allergies.split(',').map(a => a.trim()) : [],
-      tags: newPatient.tags ? newPatient.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      email: data.email,
+      cpf: data.cpf || undefined,
+      birth_date: data.birth_date || undefined,
+      allergies: data.allergies ? data.allergies.split(',').map(a => a.trim()) : [],
+      tags: data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
       status: 'active',
     });
     setIsModalOpen(false);
-    setNewPatient({ name: '', phone: '', email: '', cpf: '', birth_date: '', tags: '', allergies: '' });
+    resetCreateForm();
     toast('Paciente cadastrado com sucesso!');
-  };
+  });
+
+  const handleAddPatient = handleCreateSubmit((data) => handleAddPatientInner(data));
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -306,45 +321,70 @@ export function PatientList({ onNavigate }: PatientListProps) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleConfirmImport = () => {
-    if (importErrors.length > 0) {
-      toast('Corrija os erros antes de confirmar a importação.', 'warning');
-      return;
+  const { execute: handleConfirmImport, isLoading: importLoading } = useAsyncAction(
+    async () => {
+      if (importErrors.length > 0) {
+        throw new Error('Corrija os erros antes de confirmar a importação.');
+      }
+      const existingEmails = new Set(
+        (patients || []).filter(p => p.clinic_id === clinicId).map(p => p.email.toLowerCase())
+      );
+      const existingCpfs = new Set(
+        (patients || []).filter(p => p.clinic_id === clinicId).map(p => p.cpf || '')
+      );
+      let duplicates = 0;
+
+      const newPatients = importData.map(row => ({
+        clinic_id: clinicId,
+        name: row.name || '',
+        phone: row.phone || '',
+        email: row.email || '',
+        cpf: row.cpf || undefined,
+        birth_date: row.birth_date || undefined,
+        allergies: row.allergies ? row.allergies.split(',').map((a: string) => a.trim()).filter(Boolean) : [],
+        tags: row.tags ? row.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+        status: 'active' as const,
+      })).filter(p => {
+        const emailKey = p.email.toLowerCase();
+        const cpfKey = p.cpf || '';
+        if (emailKey && existingEmails.has(emailKey)) { duplicates += 1; return false; }
+        if (cpfKey && existingCpfs.has(cpfKey)) { duplicates += 1; return false; }
+        if (emailKey) existingEmails.add(emailKey);
+        if (cpfKey) existingCpfs.add(cpfKey);
+        return !!p.name;
+      });
+
+      const count = importPatients(newPatients);
+      setShowImportPreview(false);
+      setImportData([]);
+      setImportErrors([]);
+      return { count, duplicates };
+    },
+    {
+      onSuccess: (result) => {
+        if (result) toast(`${result.count} pacientes importados com sucesso!${result.duplicates ? ` (${result.duplicates} duplicados ignorados)` : ''}`);
+      },
     }
-    const existingEmails = new Set(
-      (patients || []).filter(p => p.clinic_id === clinicId).map(p => p.email.toLowerCase())
-    );
-    const existingCpfs = new Set(
-      (patients || []).filter(p => p.clinic_id === clinicId).map(p => p.cpf || '')
-    );
-    let duplicates = 0;
+  );
 
-    const newPatients = importData.map(row => ({
-      clinic_id: clinicId,
-      name: row.name || '',
-      phone: row.phone || '',
-      email: row.email || '',
-      cpf: row.cpf || undefined,
-      birth_date: row.birth_date || undefined,
-      allergies: row.allergies ? row.allergies.split(',').map((a: string) => a.trim()).filter(Boolean) : [],
-      tags: row.tags ? row.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
-      status: 'active' as const,
-    })).filter(p => {
-      const emailKey = p.email.toLowerCase();
-      const cpfKey = p.cpf || '';
-      if (emailKey && existingEmails.has(emailKey)) { duplicates += 1; return false; }
-      if (cpfKey && existingCpfs.has(cpfKey)) { duplicates += 1; return false; }
-      if (emailKey) existingEmails.add(emailKey);
-      if (cpfKey) existingCpfs.add(cpfKey);
-      return !!p.name;
+  // Edit patient handler
+  const { submit: handleEditPatientInner, loading: editPatientLoading } = useSubmitOnce(async (data: PacienteFormData) => {
+    if (!editingPatient || !canManage) return;
+    const formattedPhone = formatPhoneBrazilian(data.phone);
+    updatePatient(editingPatient.id, {
+      name: data.name,
+      phone: formattedPhone,
+      email: data.email,
+      cpf: data.cpf || undefined,
+      birth_date: data.birth_date || undefined,
+      allergies: data.allergies ? data.allergies.split(',').map(a => a.trim()).filter(Boolean) : [],
+      tags: data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
     });
+    setEditingPatient(null);
+    toast('Paciente atualizado com sucesso!');
+  });
 
-    const count = importPatients(newPatients);
-    setShowImportPreview(false);
-    setImportData([]);
-    setImportErrors([]);
-    toast(`${count} pacientes importados com sucesso!${duplicates ? ` (${duplicates} duplicados ignorados)` : ''}`);
-  };
+  const handleEditPatient = handleEditSubmit((data) => handleEditPatientInner(data));
 
   return (
     <div className="space-y-6">
@@ -375,37 +415,41 @@ export function PatientList({ onNavigate }: PatientListProps) {
         <form onSubmit={handleAddPatient} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome Completo *</label>
-            <input required type="text" value={newPatient.name} onChange={e => setNewPatient({ ...newPatient, name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Maria Silva" />
+            <input {...regCreate('name')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", createErrors.name ? 'border-red-300' : 'border-transparent')} placeholder="Ex: Maria Silva" />
+            {createErrors.name && <span className="text-xs text-red-500 font-medium">{createErrors.name.message}</span>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Telefone *</label>
-              <input required type="text" value={newPatient.phone} onChange={e => setNewPatient({ ...newPatient, phone: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="(11) 99999-9999" />
+              <input {...regCreate('phone')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", createErrors.phone ? 'border-red-300' : 'border-transparent')} placeholder="(11) 99999-9999" />
+              {createErrors.phone && <span className="text-xs text-red-500 font-medium">{createErrors.phone.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">CPF</label>
-              <input type="text" value={newPatient.cpf} onChange={e => setNewPatient({ ...newPatient, cpf: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="000.000.000-00" />
+              <input {...regCreate('cpf')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="000.000.000-00" />
+              {createErrors.cpf && <span className="text-xs text-red-500 font-medium">{createErrors.cpf.message}</span>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email *</label>
-              <input required type="email" value={newPatient.email} onChange={e => setNewPatient({ ...newPatient, email: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="maria@email.com" />
+              <input {...regCreate('email')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", createErrors.email ? 'border-red-300' : 'border-transparent')} placeholder="maria@email.com" />
+              {createErrors.email && <span className="text-xs text-red-500 font-medium">{createErrors.email.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nascimento</label>
-              <input type="date" value={newPatient.birth_date} onChange={e => setNewPatient({ ...newPatient, birth_date: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" />
+              <input type="date" {...regCreate('birth_date')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" />
             </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tags (separadas por vírgula)</label>
-            <input type="text" value={newPatient.tags} onChange={e => setNewPatient({ ...newPatient, tags: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Ortodontia, Premium" />
+            <input {...regCreate('tags')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Ortodontia, Premium" />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Alergias (separadas por vírgula)</label>
-            <input type="text" value={newPatient.allergies} onChange={e => setNewPatient({ ...newPatient, allergies: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Penicilina, Látex" />
+            <input {...regCreate('allergies')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Penicilina, Látex" />
           </div>
-          <button type="submit" className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4">Cadastrar Paciente</button>
+          <LoadingButton type="submit" loading={addPatientLoading} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4">Cadastrar Paciente</LoadingButton>
 
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100" /></div>
@@ -427,61 +471,46 @@ export function PatientList({ onNavigate }: PatientListProps) {
 
       {/* Edit Patient Modal */}
       <Modal isOpen={!!editingPatient} onClose={() => setEditingPatient(null)} title="Editar Paciente">
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          if (!editingPatient || !canManage) return;
-          
-          // Formatar telefone automaticamente com +55
-          const formattedPhone = formatPhoneBrazilian(editForm.phone);
-          
-          updatePatient(editingPatient.id, {
-            name: editForm.name,
-            phone: formattedPhone,
-            email: editForm.email,
-            cpf: editForm.cpf || undefined,
-            birth_date: editForm.birth_date || undefined,
-            allergies: editForm.allergies ? editForm.allergies.split(',').map(a => a.trim()).filter(Boolean) : [],
-            tags: editForm.tags ? editForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-          });
-          
-          setEditingPatient(null);
-          toast('Paciente atualizado com sucesso!');
-        }} className="space-y-4">
+        <form onSubmit={handleEditPatient} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome Completo *</label>
-            <input required type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Maria Silva" />
+            <input {...regEdit('name')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", editErrors.name ? 'border-red-300' : 'border-transparent')} placeholder="Ex: Maria Silva" />
+            {editErrors.name && <span className="text-xs text-red-500 font-medium">{editErrors.name.message}</span>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Telefone *</label>
-              <input required type="text" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="(11) 99999-9999" />
+              <input {...regEdit('phone')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", editErrors.phone ? 'border-red-300' : 'border-transparent')} placeholder="(11) 99999-9999" />
+              {editErrors.phone && <span className="text-xs text-red-500 font-medium">{editErrors.phone.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">CPF</label>
-              <input type="text" value={editForm.cpf} onChange={e => setEditForm({ ...editForm, cpf: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="000.000.000-00" />
+              <input {...regEdit('cpf')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="000.000.000-00" />
+              {editErrors.cpf && <span className="text-xs text-red-500 font-medium">{editErrors.cpf.message}</span>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email *</label>
-              <input required type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="maria@email.com" />
+              <input {...regEdit('email')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", editErrors.email ? 'border-red-300' : 'border-transparent')} placeholder="maria@email.com" />
+              {editErrors.email && <span className="text-xs text-red-500 font-medium">{editErrors.email.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nascimento</label>
-              <input type="date" value={editForm.birth_date} onChange={e => setEditForm({ ...editForm, birth_date: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" />
+              <input type="date" {...regEdit('birth_date')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" />
             </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tags (separadas por vírgula)</label>
-            <input type="text" value={editForm.tags} onChange={e => setEditForm({ ...editForm, tags: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Ortodontia, Premium" />
+            <input {...regEdit('tags')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Ortodontia, Premium" />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Alergias (separadas por vírgula)</label>
-            <input type="text" value={editForm.allergies} onChange={e => setEditForm({ ...editForm, allergies: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Penicilina, Látex" />
+            <input {...regEdit('allergies')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Penicilina, Látex" />
           </div>
           <div className="flex gap-3 mt-4">
             <button type="button" onClick={() => setEditingPatient(null)} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all">Cancelar</button>
-            <button type="submit" className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200">Salvar Alterações</button>
+            <LoadingButton type="submit" loading={editPatientLoading} className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200">Salvar Alterações</LoadingButton>
           </div>
         </form>
       </Modal>
@@ -519,13 +548,14 @@ export function PatientList({ onNavigate }: PatientListProps) {
           {importData.length > 10 && <p className="text-xs text-slate-400">Mostrando 10 de {importData.length} registros</p>}
           <div className="flex gap-3">
             <button onClick={() => { setShowImportPreview(false); setImportData([]); }} className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl">Cancelar</button>
-            <button
+            <LoadingButton
               onClick={handleConfirmImport}
+              loading={importLoading}
               disabled={importErrors.length > 0}
               className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Confirmar Importação
-            </button>
+              {importLoading ? 'Importando...' : 'Confirmar Importação'}
+            </LoadingButton>
           </div>
         </div>
       </Modal>
@@ -631,7 +661,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
                         <button
                           onClick={() => {
                             setEditingPatient(patient);
-                            setEditForm({
+                            resetEditForm({
                               name: patient.name,
                               phone: patient.phone,
                               email: patient.email,

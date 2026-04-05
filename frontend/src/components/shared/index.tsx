@@ -1,7 +1,8 @@
 // ============================================
 // LuminaFlow — Shared UI Components
 // ============================================
-import React, { useState, useEffect, useCallback, type ComponentPropsWithoutRef } from 'react';
+import * as React from 'react';
+import { useState, useEffect, useCallback, type ComponentPropsWithoutRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, AlertTriangle, Info, XCircle, X, Loader2, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -249,10 +250,9 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    declare props: ErrorBoundaryProps;
     state: ErrorBoundaryState = { hasError: false };
 
-    static getDerivedStateFromError(error: Error) {
+    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
         return { hasError: true, error };
     }
 

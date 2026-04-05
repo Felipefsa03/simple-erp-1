@@ -5,7 +5,7 @@
 ### 1. Acesse o SQL Editor
 
 1. Vá para [supabase.com/dashboard](https://supabase.com/dashboard)
-2. Selecione o projeto **gzcimnredlffqyogxzqq**
+2. Selecione o projeto **YOUR_SUPABASE_PROJECT_ID**
 3. No menu lateral, clique em **SQL Editor**
 
 ### 2. Execute os blocos na ordem

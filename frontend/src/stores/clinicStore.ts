@@ -487,8 +487,8 @@ interface ClinicStore {
 console.log('[ClinicStore] Loading demo data - professionals:', DEMO_PROFESSIONALS.length, 'patients:', DEMO_PATIENTS.length);
 
 // Verificar se Supabase está configurado para usar dados reais
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-NOExiRGRb1XcRAMEgkTzQ_9d1AGmtK';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const useRealData = !!(SUPABASE_URL && SUPABASE_KEY);
 
 // Dados reais ou demo baseado na configuração
@@ -1286,7 +1286,7 @@ export const useClinicStore = create<ClinicStore>()(
             },
 
             // ---- Services ----
-            addService: async (s) => {
+            addService: (s) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const service: Service = { ...s, clinic_id, id: uid() };
                 set(st => ({ services: [...st.services, service] }));

@@ -13,6 +13,9 @@ import { toast, formatCurrency, useSubmitOnce } from '@/hooks/useShared';
 import { Modal, LoadingButton, EmptyState } from '@/components/shared';
 import { WhatsAppEmbedded } from '@/components/WhatsAppEmbedded';
 import type { Appointment } from '@/types';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { AgendamentoSchema, type AgendamentoFormData } from './agendamento.schema';
 
 interface AgendaProps {
   onNavigate?: (tab: string, ctx?: { patientId?: string; appointmentId?: string }) => void;
@@ -48,7 +51,12 @@ export function Agenda({ onNavigate }: AgendaProps) {
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [whatsappAppointment, setWhatsappAppointment] = useState<Appointment | null>(null);
-  const [newApt, setNewApt] = useState({ patient_id: '', professional_id: '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
+
+  // Zod-validated appointment form
+  const { register: regApt, handleSubmit: handleAptSubmit, formState: { errors: aptErrors }, setValue: setAptValue, reset: resetAptForm, watch: watchApt } = useForm<AgendamentoFormData>({
+    resolver: zodResolver(AgendamentoSchema),
+    defaultValues: { patient_id: '', professional_id: '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' },
+  });
   const [recurrence, setRecurrence] = useState<{ enabled: boolean; frequency: 'weekly' | 'biweekly' | 'monthly'; occurrences: number }>({ enabled: false, frequency: 'weekly', occurrences: 4 });
   const [waitForm, setWaitForm] = useState({
     patient_id: '',
@@ -88,15 +96,15 @@ export function Agenda({ onNavigate }: AgendaProps) {
   }, [clinicId]);
 
   useEffect(() => {
-    if (!newApt.professional_id && clinicProfessionals.length > 0) {
-      setNewApt(prev => ({ ...prev, professional_id: clinicProfessionals[0].id }));
+    if (!watchApt('professional_id') && clinicProfessionals.length > 0) {
+      setAptValue('professional_id', clinicProfessionals[0].id);
     }
   }, [clinicProfessionals, newApt.professional_id]);
 
   useEffect(() => {
     if (!navigationContext.patientId && !navigationContext.appointmentId) return;
     if (navigationContext.patientId) {
-      setNewApt(prev => ({ ...prev, patient_id: navigationContext.patientId || '' }));
+      setAptValue('patient_id', navigationContext.patientId || '');
     }
     if (navigationContext.appointmentId) {
       const apt = clinicAppointments.find(a => a.id === navigationContext.appointmentId);
@@ -125,35 +133,31 @@ export function Agenda({ onNavigate }: AgendaProps) {
     return clinicAppointments.filter(a => a.scheduled_at.startsWith(dayStr) && a.status !== 'cancelled');
   };
 
-  const { submit: handleAddAppointment, loading: addLoading } = useSubmitOnce(async () => {
+  const { submit: handleAddAppointmentInner, loading: addLoading } = useSubmitOnce(async (data: AgendamentoFormData) => {
     if (!canCreate) {
       toast('Você não tem permissão para criar agendamentos.', 'error');
       return;
     }
-    if (!newApt.patient_id || !newApt.professional_id || !newApt.date || !newApt.time) {
-      toast('Preencha todos os campos obrigatórios', 'error');
-      return;
-    }
-    const patient = clinicPatients.find(p => p.id === newApt.patient_id);
-    const prof = clinicProfessionals.find(p => p.id === newApt.professional_id);
-    const service = clinicServices.find(s => s.id === newApt.service_id);
+    const patient = clinicPatients.find(p => p.id === data.patient_id);
+    const prof = clinicProfessionals.find(p => p.id === data.professional_id);
+    const service = data.service_id ? clinicServices.find(s => s.id === data.service_id) : undefined;
 
     if (recurrence.enabled) {
       const created = createRecurringAppointments({
         base: {
           clinic_id: clinicId,
-          patient_id: newApt.patient_id,
+          patient_id: data.patient_id,
           patient_name: patient?.name || '',
-          professional_id: newApt.professional_id,
+          professional_id: data.professional_id,
           professional_name: prof?.name || '',
-          service_id: newApt.service_id || undefined,
+          service_id: data.service_id || undefined,
           service_name: service?.name || 'Consulta',
           duration_min: service?.avg_duration_min || 60,
           status: 'scheduled',
           base_value: service?.base_price || 0,
           source: 'internal',
         },
-        startDateTime: `${newApt.date}T${newApt.time}:00`,
+        startDateTime: `${data.date}T${data.time}:00`,
         frequency: recurrence.frequency,
         occurrences: recurrence.occurrences,
       });
@@ -174,13 +178,13 @@ export function Agenda({ onNavigate }: AgendaProps) {
     } else {
       const created = addAppointment({
         clinic_id: clinicId,
-        patient_id: newApt.patient_id,
+        patient_id: data.patient_id,
         patient_name: patient?.name || '',
-        professional_id: newApt.professional_id,
+        professional_id: data.professional_id,
         professional_name: prof?.name || '',
-        service_id: newApt.service_id || undefined,
+        service_id: data.service_id || undefined,
         service_name: service?.name || 'Consulta',
-        scheduled_at: `${newApt.date}T${newApt.time}:00`,
+        scheduled_at: `${data.date}T${data.time}:00`,
         duration_min: service?.avg_duration_min || 60,
         status: 'scheduled',
         base_value: service?.base_price || 0,
@@ -202,8 +206,10 @@ export function Agenda({ onNavigate }: AgendaProps) {
 
     setIsModalOpen(false);
     setRecurrence({ enabled: false, frequency: 'weekly', occurrences: 4 });
-    setNewApt({ patient_id: '', professional_id: clinicProfessionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
+    resetAptForm({ patient_id: '', professional_id: clinicProfessionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
   });
+
+  const handleAddAppointment = handleAptSubmit((data) => handleAddAppointmentInner(data));
 
   const handleStartAppointment = (apt: Appointment) => {
     if (!canFinalize) {
@@ -377,35 +383,34 @@ export function Agenda({ onNavigate }: AgendaProps) {
 
       {/* New Appointment Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Novo Agendamento">
-        <div className="space-y-4">
+        <form onSubmit={handleAddAppointment} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Paciente *</label>
             <select
-              value={newApt.patient_id}
-              onChange={e => setNewApt({ ...newApt, patient_id: e.target.value })}
-              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+              {...regApt('patient_id')}
+              className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", aptErrors.patient_id ? 'border-red-300' : 'border-transparent')}
             >
               <option value="">Selecione o paciente...</option>
               {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
+            {aptErrors.patient_id && <span className="text-xs text-red-500 font-medium">{aptErrors.patient_id.message}</span>}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Profissional *</label>
             <select
-              value={newApt.professional_id}
-              onChange={e => setNewApt({ ...newApt, professional_id: e.target.value })}
-              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+              {...regApt('professional_id')}
+              className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", aptErrors.professional_id ? 'border-red-300' : 'border-transparent')}
             >
               {clinicProfessionals.map(p => (
                 <option key={p.id} value={p.id}>{p.name} ({p.role === 'dentist' ? 'Dentista' : 'Esteticista'})</option>
               ))}
             </select>
+            {aptErrors.professional_id && <span className="text-xs text-red-500 font-medium">{aptErrors.professional_id.message}</span>}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Procedimento</label>
             <select
-              value={newApt.service_id}
-              onChange={e => setNewApt({ ...newApt, service_id: e.target.value })}
+              {...regApt('service_id')}
               className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
             >
               <option value="">Consulta Geral</option>
@@ -419,19 +424,19 @@ export function Agenda({ onNavigate }: AgendaProps) {
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Data *</label>
               <input
                 type="date"
-                value={newApt.date}
-                onChange={e => setNewApt({ ...newApt, date: e.target.value })}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+                {...regApt('date')}
+                className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", aptErrors.date ? 'border-red-300' : 'border-transparent')}
               />
+              {aptErrors.date && <span className="text-xs text-red-500 font-medium">{aptErrors.date.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Horário *</label>
               <input
                 type="time"
-                value={newApt.time}
-                onChange={e => setNewApt({ ...newApt, time: e.target.value })}
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+                {...regApt('time')}
+                className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", aptErrors.time ? 'border-red-300' : 'border-transparent')}
               />
+              {aptErrors.time && <span className="text-xs text-red-500 font-medium">{aptErrors.time.message}</span>}
             </div>
           </div>
           <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -468,14 +473,14 @@ export function Agenda({ onNavigate }: AgendaProps) {
             )}
           </div>
           <LoadingButton
-            onClick={handleAddAppointment}
+            type="submit"
             loading={addLoading}
             disabled={!canCreate}
             className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4"
           >
             Confirmar Agendamento
           </LoadingButton>
-        </div>
+        </form>
       </Modal>
 
       <Modal isOpen={isWaitModalOpen} onClose={() => setIsWaitModalOpen(false)} title="Fila de Espera">
@@ -812,12 +817,9 @@ export function Agenda({ onNavigate }: AgendaProps) {
           // Minimiza WhatsApp em vez de fechar
           setIsModalOpen(true);
           if (whatsappAppointment) {
-            setNewApt(prev => ({
-              ...prev,
-              patient_id: whatsappAppointment.patient_id,
-              professional_id: whatsappAppointment.professional_id,
-              service_id: whatsappAppointment.service_id || '',
-            }));
+            setAptValue('patient_id', whatsappAppointment.patient_id);
+            setAptValue('professional_id', whatsappAppointment.professional_id);
+            setAptValue('service_id', whatsappAppointment.service_id || '');
           }
         }}
         onConfirm={() => {
@@ -842,12 +844,9 @@ export function Agenda({ onNavigate }: AgendaProps) {
           // Minimiza WhatsApp em vez de fechar
           setIsModalOpen(true);
           if (whatsappAppointment) {
-            setNewApt(prev => ({
-              ...prev,
-              patient_id: whatsappAppointment.patient_id,
-              professional_id: whatsappAppointment.professional_id,
-              service_id: whatsappAppointment.service_id || '',
-            }));
+            setAptValue('patient_id', whatsappAppointment.patient_id);
+            setAptValue('professional_id', whatsappAppointment.professional_id);
+            setAptValue('service_id', whatsappAppointment.service_id || '');
           }
         }}
       />

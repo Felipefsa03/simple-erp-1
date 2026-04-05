@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast, formatCurrency, useSubmitOnce } from '@/hooks/useShared';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { Modal, EmptyState, ConfirmDialog, LoadingButton } from '@/components/shared';
 import type { OdontogramEntry, TreatmentPlanItem, AppointmentMaterial } from '@/types';
 import { integrationsApi } from '@/lib/integrationsApi';
@@ -329,27 +330,26 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
   };
 
   // Evolution handlers
-  const handleSaveEvolution = () => {
-    if (!patientId || !user) return;
-    if (!canEdit) { 
-      toast('Você não tem permissão para editar o prontuário.', 'error'); 
-      return; 
-    }
-    saveEvolution(appointmentId || undefined, patientId, clinicId, user.id, evolutionText);
-    toast('Evolução salva com sucesso!');
-    setEvolutionText('');
-  };
+  const { execute: handleSaveEvolution, isLoading: evolutionSaving } = useAsyncAction(
+    async () => {
+      if (!patientId || !user) throw new Error('Paciente ou usuário inválido');
+      if (!canEdit) throw new Error('Você não tem permissão para editar o prontuário.');
+      if (!evolutionText.trim()) throw new Error('Preencha a evolução antes de salvar.');
+      saveEvolution(appointmentId || undefined, patientId, clinicId, user.id, evolutionText);
+      setEvolutionText('');
+    },
+    { successMessage: 'Evolução salva com sucesso!' }
+  );
 
   // Anamnese handlers
-  const handleSaveAnamnese = () => {
-    if (!patientId) return;
-    if (!canEdit) { 
-      toast('Você não tem permissão para editar o prontuário.', 'error'); 
-      return; 
-    }
-    saveAnamnese({ ...anamneseForm, patient_id: patientId, clinic_id: clinicId, updated_at: new Date().toISOString() });
-    toast('Anamnese salva com sucesso!');
-  };
+  const { execute: handleSaveAnamnese, isLoading: anamneseSaving } = useAsyncAction(
+    async () => {
+      if (!patientId) throw new Error('Paciente inválido');
+      if (!canEdit) throw new Error('Você não tem permissão para editar o prontuário.');
+      saveAnamnese({ ...anamneseForm, patient_id: patientId, clinic_id: clinicId, updated_at: new Date().toISOString() });
+    },
+    { successMessage: 'Anamnese salva com sucesso!' }
+  );
 
   const handleGenerateAnamneseLink = async () => {
     if (!patientId || !user) return;
@@ -440,25 +440,24 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  const handleSaveSignature = () => {
-    if (!patientId || !signatureName.trim()) {
-      toast('Informe o nome de quem vai assinar.', 'error');
-      return;
-    }
-    const canvas = signatureCanvasRef.current;
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-    addSignature({
-      clinic_id: clinicId,
-      patient_id: patientId,
-      role: 'professional',
-      signer_name: signatureName,
-      image_data_url: dataUrl,
-    });
-    toast('Assinatura salva com sucesso!');
-    setSignatureName('');
-    clearSignature();
-  };
+  const { execute: handleSaveSignature, isLoading: signatureSaving } = useAsyncAction(
+    async () => {
+      if (!patientId || !signatureName.trim()) throw new Error('Informe o nome de quem vai assinar.');
+      const canvas = signatureCanvasRef.current;
+      if (!canvas) throw new Error('Canvas de assinatura não encontrado.');
+      const dataUrl = canvas.toDataURL('image/png');
+      addSignature({
+        clinic_id: clinicId,
+        patient_id: patientId,
+        role: 'professional',
+        signer_name: signatureName,
+        image_data_url: dataUrl,
+      });
+      setSignatureName('');
+      clearSignature();
+    },
+    { successMessage: 'Assinatura salva com sucesso!' }
+  );
 
   // Photo handlers
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -541,10 +540,9 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
           clinicPhone: '',
           professionalName: professional?.name || '',
           professionalCro: professional?.cro || '',
-          procedureDescription: consentText || appointment.service_name || 'Procedimento odontológico',
+          procedure: consentText || appointment.service_name || 'Procedimento odontológico',
           date: new Date().toISOString(),
-          city: 'São Paulo',
-          state: 'SP',
+          city: '',
         });
         break;
     }
@@ -829,13 +827,14 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                   className="w-full px-4 py-3 border border-slate-200 rounded-xl min-h-[120px] text-sm"
                   disabled={isLocked}
                 />
-                <button 
+                <LoadingButton 
                   onClick={handleSaveEvolution}
+                  loading={evolutionSaving}
                   disabled={isLocked || !evolutionText.trim()}
                   className="mt-3 px-6 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 disabled:opacity-50"
                 >
                   Salvar Evolução
-                </button>
+                </LoadingButton>
               </div>
 
               <div className="bg-white rounded-3xl border border-slate-100 p-6">
@@ -943,9 +942,9 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                   <textarea value={anamneseForm.complaints} onChange={e => setAnamneseForm(p => ({ ...p, complaints: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm min-h-[60px]" disabled={isLocked} />
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={handleSaveAnamnese} disabled={isLocked} className="px-6 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 disabled:opacity-50">
+                  <LoadingButton onClick={handleSaveAnamnese} loading={anamneseSaving} disabled={isLocked} className="px-6 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 disabled:opacity-50">
                     Salvar Anamnese
-                  </button>
+                  </LoadingButton>
                   <button onClick={handleGenerateAnamneseLink} className="px-6 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-200">
                     Gerar Link para Paciente
                   </button>

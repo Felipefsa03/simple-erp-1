@@ -381,11 +381,11 @@ export const generatePrescriptionHTML = (data: PrescriptionData): string => {
     
     ${data.prescriptions.map((rx, idx) => `
     <div class="prescription-item">
-      <div class="medication-name">${idx + 1}. ${rx.medication}</div>
-      <div class="prescription-detail"><strong>Dosagem:</strong> ${rx.dosage}</div>
-      <div class="prescription-detail"><strong>Frequência:</strong> ${rx.frequency}</div>
-      <div class="prescription-detail"><strong>Duração:</strong> ${rx.duration}</div>
-      ${rx.instructions ? `<div class="prescription-detail"><strong>Observações:</strong> ${rx.instructions}</div>` : ''}
+      <div class="medication-name">${idx + 1}. ${escapeHtml(rx.medication)}</div>
+      <div class="prescription-detail"><strong>Dosagem:</strong> ${escapeHtml(rx.dosage)}</div>
+      <div class="prescription-detail"><strong>Frequência:</strong> ${escapeHtml(rx.frequency)}</div>
+      <div class="prescription-detail"><strong>Duração:</strong> ${escapeHtml(rx.duration)}</div>
+      ${rx.instructions ? `<div class="prescription-detail"><strong>Observações:</strong> ${escapeHtml(rx.instructions)}</div>` : ''}
     </div>
     `).join('')}
     
