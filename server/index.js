@@ -742,22 +742,6 @@ const publicPaths = [
   '/integrations/rdstation/event',
 ];
 
-app.use('/api', (req, res, next) => {
-  const pathWithoutApi = req.path;
-  console.log(`[Middleware] Checking path: "${pathWithoutApi}" against publicPaths`);
-  
-  if (publicPaths.some(p => pathWithoutApi.startsWith(p))) {
-    console.log(`[Middleware] ALLOWING: "${pathWithoutApi}" matched "${publicPaths.find(p => pathWithoutApi.startsWith(p))}"`);
-    return next();
-  }
-  
-  console.log(`[Middleware] REQUIRING AUTH for: "${pathWithoutApi}"`);
-  return requireAuth(req, res, next);
-});
-
-// OAuth Google routes - explicitly public, defined AFTER auth middleware
-// NOTE: Duplicate route removed - keeping only the one before auth middleware
-
 app.use('/api/*', (req, res) => {
   res.status(404).json({ ok: false, error: `Rota não encontrada: ${req.path}` });
 });
