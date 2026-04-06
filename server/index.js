@@ -738,19 +738,19 @@ app.get('/api/auth/google/callback', async (req, res) => {
 // Apply auth middleware to all /api routes except public ones
 // ============================================
 const publicPaths = [
-  '/api/health',
-  '/api/health/extended',
-  '/api/stats',
-  '/api/webhooks/',
-  '/api/clinic/anamnese-sync',
-  '/api/auth/',
-  '/api/auth/google',
-  '/api/signup/init',
-  '/api/signup/verify-phone',
-  '/api/signup/complete',
-  '/api/mercadopago/create-preference',
-  '/api/asaas/test',
-  '/api/integrations/rdstation/event',
+  '/health',
+  '/health/extended',
+  '/stats',
+  '/webhooks/',
+  '/clinic/anamnese-sync',
+  '/auth/',
+  '/auth/google',
+  '/signup/init',
+  '/signup/verify-phone',
+  '/signup/complete',
+  '/mercadopago/create-preference',
+  '/asaas/test',
+  '/integrations/rdstation/event',
 ];
 
 app.use('/api', (req, res, next) => {
