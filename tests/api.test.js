@@ -2,7 +2,72 @@
 // LuminaFlow - Testes de Integração - API
 // ============================================
 
-const API_BASE = 'http://localhost:8787';
+import { spawn } from 'node:child_process';
+import { setTimeout as wait } from 'node:timers/promises';
+
+const API_PORT = '18787';
+const API_BASE = `http://localhost:${API_PORT}`;
+const SERVER_START_TIMEOUT_MS = 45000;
+const HEALTH_ENDPOINT = `${API_BASE}/api/health`;
+
+let serverProcess = null;
+let startedByTest = false;
+
+const isServerOnline = async () => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1500);
+  try {
+    const response = await fetch(HEALTH_ENDPOINT, { signal: controller.signal });
+    return response.ok;
+  } catch (_error) {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const waitForServer = async () => {
+  const start = Date.now();
+  while (Date.now() - start < SERVER_START_TIMEOUT_MS) {
+    if (await isServerOnline()) return;
+    await wait(500);
+  }
+  throw new Error('Servidor de API nao iniciou dentro do tempo esperado.');
+};
+
+beforeAll(async () => {
+  if (await isServerOnline()) {
+    return;
+  }
+
+  startedByTest = true;
+  serverProcess = spawn(process.execPath, ['server/index.js'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      NODE_ENV: 'development',
+      PORT: API_PORT,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  serverProcess.on('error', (error) => {
+    throw new Error(`Falha ao iniciar servidor de testes: ${error.message}`);
+  });
+
+  await waitForServer();
+}, 60000);
+
+afterAll(async () => {
+  if (!startedByTest || !serverProcess) return;
+
+  serverProcess.kill('SIGTERM');
+  await wait(1000);
+
+  if (!serverProcess.killed) {
+    serverProcess.kill('SIGKILL');
+  }
+});
 
 describe('API Integration Tests', () => {
   

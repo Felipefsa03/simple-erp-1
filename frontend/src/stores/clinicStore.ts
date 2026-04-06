@@ -16,6 +16,7 @@ import { useEventBus } from '@/stores/eventBus';
 import { useAuth } from '@/hooks/useAuth';
 import { uid, now } from '@/lib/utils';
 import { SupabaseSync } from '@/lib/supabaseSync';
+import { isSupabaseEnvConfigured } from '@/lib/supabaseConfig';
 
 // Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
 const CLINIC_API_BASE = '';
@@ -165,42 +166,46 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 // Wrapper para salvar no Supabase e atualizar estado local
 const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction', data: any, isNew: boolean = true) => {
     try {
+        let result: { error?: unknown } | undefined;
         if (type === 'patient') {
             if (isNew) {
-                await SupabaseSync.savePatient(data);
+                result = await SupabaseSync.savePatient(data);
             } else {
-                await SupabaseSync.updatePatient(data.id, data);
+                result = await SupabaseSync.updatePatient(data.id, data);
             }
         } else if (type === 'professional') {
             if (isNew) {
-                await SupabaseSync.saveProfessional(data);
+                result = await SupabaseSync.saveProfessional(data);
             } else {
-                await SupabaseSync.updateProfessional(data.id, data);
+                result = await SupabaseSync.updateProfessional(data.id, data);
             }
         } else if (type === 'appointment') {
             if (isNew) {
-                await SupabaseSync.saveAppointment(data);
+                result = await SupabaseSync.saveAppointment(data);
             } else {
-                await SupabaseSync.updateAppointment(data.id, data);
+                result = await SupabaseSync.updateAppointment(data.id, data);
             }
         } else if (type === 'service') {
             if (isNew) {
-                await SupabaseSync.saveService(data);
+                result = await SupabaseSync.saveService(data);
             } else {
-                await SupabaseSync.updateService(data.id, data);
+                result = await SupabaseSync.updateService(data.id, data);
             }
         } else if (type === 'stock') {
             if (isNew) {
-                await SupabaseSync.saveStockItem(data);
+                result = await SupabaseSync.saveStockItem(data);
             } else {
-                await SupabaseSync.updateStockItem(data.id, data);
+                result = await SupabaseSync.updateStockItem(data.id, data);
             }
         } else if (type === 'transaction') {
             if (isNew) {
-                await SupabaseSync.saveTransaction(data);
+                result = await SupabaseSync.saveTransaction(data);
             } else {
-                await SupabaseSync.updateTransaction(data.id, data);
+                result = await SupabaseSync.updateTransaction(data.id, data);
             }
+        }
+        if (result?.error) {
+            throw new Error(String(result.error));
         }
     } catch (error) {
         console.error(`[ClinicStore] Erro ao salvar ${type} no Supabase:`, error);
@@ -486,10 +491,8 @@ interface ClinicStore {
 // Debug: Log demo data on load
 console.log('[ClinicStore] Loading demo data - professionals:', DEMO_PROFESSIONALS.length, 'patients:', DEMO_PATIENTS.length);
 
-// Verificar se Supabase está configurado para usar dados reais
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const useRealData = !!(SUPABASE_URL && SUPABASE_KEY);
+const useRealData = isSupabaseEnvConfigured();
+const useDemoData = !useRealData && import.meta.env.DEV;
 
 // Dados reais ou demo baseado na configuração
 const INITIAL_DATA = useRealData ? {
@@ -499,16 +502,28 @@ const INITIAL_DATA = useRealData ? {
     services: DEMO_SERVICES,
     stockItems: DEMO_STOCK,
     transactions: [],
-} : {
+} : useDemoData ? {
     professionals: DEMO_PROFESSIONALS,
     patients: DEMO_PATIENTS,
     appointments: DEMO_APPOINTMENTS,
     services: DEMO_SERVICES,
     stockItems: DEMO_STOCK,
     transactions: DEMO_TRANSACTIONS,
+} : {
+    professionals: [],
+    patients: [],
+    appointments: [],
+    services: [],
+    stockItems: [],
+    transactions: [],
 };
 
-console.log('[ClinicStore] Modo:', useRealData ? 'REAL (Supabase)' : 'DEMO', '- Patients:', useRealData ? 'vai carregar do banco' : DEMO_PATIENTS.length);
+console.log(
+    '[ClinicStore] Modo:',
+    useRealData ? 'REAL (Supabase)' : (useDemoData ? 'DEMO (DEV)' : 'SEM-SUPABASE (PROD)'),
+    '- Patients:',
+    useRealData ? 'vai carregar do banco' : INITIAL_DATA.patients.length
+);
 
 // Monitor localStorage usage and warn if approaching limit
 if (typeof window !== 'undefined') {

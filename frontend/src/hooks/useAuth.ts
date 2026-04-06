@@ -3,10 +3,9 @@ import { persist } from 'zustand/middleware';
 import type { User, UserRole, Clinic, PlanType } from '@/types';
 import { PLAN_LIMITS } from '@/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { isSupabaseEnvConfigured } from '@/lib/supabaseConfig';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const useRealData = !!(SUPABASE_URL && SUPABASE_KEY);
+const useRealData = isSupabaseEnvConfigured();
 
 interface AuthState {
   user: User | null;
@@ -100,12 +99,11 @@ const DEMO_USERS: { email: string; password: string; user: User; clinic: Clinic 
       cnpj: '45.678.901/0001-23',
       phone: '(11) 3456-7890',
       email: 'contato@luminaodonto.com.br',
-      address: 'Av. Paulista, 1500, Sala 201',
-      city: 'São Paulo',
-      state: 'SP',
-      zip_code: '01310-200',
-      subscription_plan: 'professional',
-      subscription_status: 'active',
+      address: { street: 'Av. Paulista, 1500, Sala 201', city: 'São Paulo', state: 'SP', zipCode: '01310-200' },
+      plan: 'profissional',
+      status: 'active',
+      owner_email: 'contato@luminaodonto.com.br',
+      segment: 'odontologia',
       created_at: new Date().toISOString(),
     },
   },
@@ -130,12 +128,11 @@ const DEMO_USERS: { email: string; password: string; user: User; clinic: Clinic 
       cnpj: '45.678.901/0001-23',
       phone: '(11) 3456-7890',
       email: 'contato@luminaodonto.com.br',
-      address: 'Av. Paulista, 1500, Sala 201',
-      city: 'São Paulo',
-      state: 'SP',
-      zip_code: '01310-200',
-      subscription_plan: 'professional',
-      subscription_status: 'active',
+      address: { street: 'Av. Paulista, 1500, Sala 201', city: 'São Paulo', state: 'SP', zipCode: '01310-200' },
+      plan: 'profissional',
+      status: 'active',
+      owner_email: 'contato@luminaodonto.com.br',
+      segment: 'odontologia',
       created_at: new Date().toISOString(),
     },
   },
@@ -160,12 +157,11 @@ const DEMO_USERS: { email: string; password: string; user: User; clinic: Clinic 
       cnpj: '45.678.901/0001-23',
       phone: '(11) 3456-7890',
       email: 'contato@luminaodonto.com.br',
-      address: 'Av. Paulista, 1500, Sala 201',
-      city: 'São Paulo',
-      state: 'SP',
-      zip_code: '01310-200',
-      subscription_plan: 'professional',
-      subscription_status: 'active',
+      address: { street: 'Av. Paulista, 1500, Sala 201', city: 'São Paulo', state: 'SP', zipCode: '01310-200' },
+      plan: 'profissional',
+      status: 'active',
+      owner_email: 'contato@luminaodonto.com.br',
+      segment: 'odontologia',
       created_at: new Date().toISOString(),
     },
   },
@@ -190,12 +186,11 @@ const DEMO_USERS: { email: string; password: string; user: User; clinic: Clinic 
       cnpj: '45.678.901/0001-23',
       phone: '(11) 3456-7890',
       email: 'contato@luminaodonto.com.br',
-      address: 'Av. Paulista, 1500, Sala 201',
-      city: 'São Paulo',
-      state: 'SP',
-      zip_code: '01310-200',
-      subscription_plan: 'professional',
-      subscription_status: 'active',
+      address: { street: 'Av. Paulista, 1500, Sala 201', city: 'São Paulo', state: 'SP', zipCode: '01310-200' },
+      plan: 'profissional',
+      status: 'active',
+      owner_email: 'contato@luminaodonto.com.br',
+      segment: 'odontologia',
       created_at: new Date().toISOString(),
     },
   },
@@ -276,7 +271,13 @@ export const useAuth = create<AuthState>()(
           }
         }
 
-        // Fallback para modo demo
+        // Em produção, nunca cair para modo demo silenciosamente.
+        if (import.meta.env.PROD) {
+          set({ loading: false });
+          return false;
+        }
+
+        // Fallback para modo demo (somente desenvolvimento)
         const allUsers = [...DEMO_USERS, ...get().customUsers];
         const updatedPasswords = localStorage.getItem('luminaflow-reset-passwords');
         let passwords: Record<string, string> = {};
@@ -422,7 +423,7 @@ export const useAuth = create<AuthState>()(
       },
       hasFeature: (feature) => {
         const plan = (get().clinic?.plan as PlanType) || 'basico';
-        return PLAN_LIMITS[plan]?.[feature] ?? false;
+        return Boolean(PLAN_LIMITS[plan]?.[feature]);
       },
       checkLimit: (type, current) => {
         const plan = (get().clinic?.plan as PlanType) || 'basico';

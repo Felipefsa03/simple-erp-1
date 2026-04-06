@@ -3,14 +3,25 @@
 // Versão que funciona SEM o pacote @supabase/supabase-js
 // ============================================
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+import {
+  SUPABASE_PUBLISHABLE_KEY,
+  SUPABASE_URL,
+  isProductionBuild,
+  isSupabaseEnvConfigured,
+} from '@/lib/supabaseConfig';
 
-// Sempre configurado para este projeto
-const isConfigured = !!(supabaseUrl && supabaseAnonKey);
+const supabaseUrl = SUPABASE_URL;
+const supabaseAnonKey = SUPABASE_PUBLISHABLE_KEY;
+
+const isConfigured = isSupabaseEnvConfigured();
 
 if (!isConfigured) {
-  console.warn('[Supabase] Chave não configurada corretamente. Usando modo demo.');
+  const message =
+    '[Supabase] Variáveis ausentes. Configure VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY (ou VITE_SUPABASE_ANON_KEY).';
+  if (isProductionBuild) {
+    throw new Error(message);
+  }
+  console.warn(`${message} Usando modo demo (somente desenvolvimento).`);
 } else {
   console.log('[Supabase] Configurado com sucesso. URL:', supabaseUrl);
 }

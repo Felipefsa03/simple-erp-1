@@ -2,10 +2,25 @@
 // Supabase Sync - Sincronização de dados
 // ============================================
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+import {
+  SUPABASE_PUBLISHABLE_KEY,
+  SUPABASE_URL,
+  isProductionBuild,
+  isSupabaseEnvConfigured,
+} from '@/lib/supabaseConfig';
 
-const isConfigured = !!(SUPABASE_URL && SUPABASE_KEY);
+const SUPABASE_KEY = SUPABASE_PUBLISHABLE_KEY;
+
+const isConfigured = isSupabaseEnvConfigured();
+
+const ensureSupabaseConfigured = (operation: string) => {
+  if (isConfigured) return;
+  const message = `[SupabaseSync] Supabase não configurado para ${operation}. Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY (ou VITE_SUPABASE_ANON_KEY).`;
+  if (isProductionBuild) {
+    throw new Error(message);
+  }
+  console.warn(message);
+};
 
 const getHeaders = () => ({
   'Content-Type': 'application/json',
@@ -21,12 +36,12 @@ async function supabaseFetch(table: string, options: {
   body?: any;
   filters?: string;
 } = {}) {
+  const { method = 'GET', body, filters } = options;
+  ensureSupabaseConfigured(`${method} ${table}`);
   if (!isConfigured) {
-    console.warn('[SupabaseSync] Supabase não configurado');
     return { data: null, error: 'Not configured' };
   }
 
-  const { method = 'GET', body, filters } = options;
   const url = `${getBaseUrl()}/${table}${filters || ''}`;
 
   try {

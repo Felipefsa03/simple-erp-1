@@ -81,9 +81,9 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     google_calendar_email: integrationConfig?.google_calendar_email || '',
     mp_access_token: integrationConfig?.mp_access_token || '',
     mp_public_key: integrationConfig?.mp_public_key || '',
-    plan_price_basico: integrationConfig?.plan_price_basico || '97',
-    plan_price_profissional: integrationConfig?.plan_price_profissional || '197',
-    plan_price_premium: integrationConfig?.plan_price_premium || '397',
+    plan_price_basico: String(integrationConfig?.plan_price_basico ?? 97),
+    plan_price_profissional: String(integrationConfig?.plan_price_profissional ?? 197),
+    plan_price_premium: String(integrationConfig?.plan_price_premium ?? 397),
   });
 
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
@@ -99,6 +99,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const canManageSettings = hasPermission('manage_settings');
   const canManageCommissions = hasPermission('manage_commissions');
   const canManageTeam = hasPermission('manage_team');
+  const API_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+  const SYSTEM_GLOBAL_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
   const permissionRoles: { key: UserRole; label: string }[] = [
     { key: 'receptionist', label: 'Recepção' },
@@ -177,8 +179,70 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       meta_pixel_id: integrationConfig.meta_pixel_id || '',
       google_ads_customer_id: integrationConfig.google_ads_customer_id || '',
       google_calendar_email: integrationConfig.google_calendar_email || '',
+      mp_access_token: integrationConfig.mp_access_token || '',
+      mp_public_key: integrationConfig.mp_public_key || '',
+      plan_price_basico: String(integrationConfig.plan_price_basico ?? 97),
+      plan_price_profissional: String(integrationConfig.plan_price_profissional ?? 197),
+      plan_price_premium: String(integrationConfig.plan_price_premium ?? 397),
     });
   }, [integrationConfig]);
+
+  useEffect(() => {
+    if (user?.role !== 'super_admin' || activeSubTab !== 'sistema') return;
+
+    let cancelled = false;
+    const loadGlobalConfig = async () => {
+      try {
+        const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+        if (isSupabaseConfigured()) {
+          const { data, error } = await supabase!
+            .from('integration_config')
+            .select('mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium')
+            .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID)
+            .single();
+          if (!cancelled && !error && data) {
+            setIntegrationForm(prev => ({
+              ...prev,
+              mp_access_token: (data as any).mp_access_token || '',
+              mp_public_key: (data as any).mp_public_key || '',
+              plan_price_basico: String((data as any).plan_price_basico ?? 97),
+              plan_price_profissional: String((data as any).plan_price_profissional ?? 197),
+              plan_price_premium: String((data as any).plan_price_premium ?? 397),
+            }));
+            setIntegrationConfig({
+              mp_access_token: (data as any).mp_access_token || '',
+              mp_public_key: (data as any).mp_public_key || '',
+              plan_price_basico: Number((data as any).plan_price_basico ?? 97),
+              plan_price_profissional: Number((data as any).plan_price_profissional ?? 197),
+              plan_price_premium: Number((data as any).plan_price_premium ?? 397),
+            });
+            return;
+          }
+        }
+
+        const fallbackRes = await fetch(`${API_BASE}/api/system/signup-config`);
+        const fallbackData = await fallbackRes.json();
+        if (!cancelled && fallbackData?.ok && fallbackData.plan_prices) {
+          setIntegrationForm(prev => ({
+            ...prev,
+            plan_price_basico: String(fallbackData.plan_prices.basico ?? 97),
+            plan_price_profissional: String(fallbackData.plan_prices.profissional ?? 197),
+            plan_price_premium: String(fallbackData.plan_prices.premium ?? 397),
+          }));
+          setIntegrationConfig({
+            plan_price_basico: Number(fallbackData.plan_prices.basico ?? 97),
+            plan_price_profissional: Number(fallbackData.plan_prices.profissional ?? 197),
+            plan_price_premium: Number(fallbackData.plan_prices.premium ?? 397),
+          });
+        }
+      } catch (e) {
+        console.error('[Sistema Global] erro ao carregar config:', e);
+      }
+    };
+
+    void loadGlobalConfig();
+    return () => { cancelled = true; };
+  }, [activeSubTab, user?.role, API_BASE, SYSTEM_GLOBAL_CLINIC_ID, setIntegrationConfig]);
 
   const handleSaveClinic = () => {
     updateClinic(clinicForm);
@@ -1498,11 +1562,11 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             </h3>
             <p className="text-sm text-slate-500 mb-4">Defina os preços dos planos. Alterações refletem imediatamente no cadastro de novas clínicas.</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[
+              {([
                 { id: 'basico', name: 'Básico', color: 'cyan' },
                 { id: 'profissional', name: 'Profissional', color: 'blue' },
                 { id: 'premium', name: 'Premium', color: 'purple' },
-              ].map(plan => (
+              ] as const).map(plan => (
                 <div key={plan.id} className="bg-slate-50 rounded-xl p-4">
                   <p className="font-bold text-slate-800 mb-2">{plan.name}</p>
                   <div className="flex items-center gap-2">
@@ -1522,11 +1586,15 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               onClick={async () => {
                 try {
                   const { supabase } = await import('@/lib/supabase');
+                  if (!supabase) throw new Error('Supabase não configurado');
+                  const parsedBasico = parseFloat(integrationForm.plan_price_basico) || 97;
+                  const parsedProfissional = parseFloat(integrationForm.plan_price_profissional) || 197;
+                  const parsedPremium = parseFloat(integrationForm.plan_price_premium) || 397;
                   const planData = {
-                    clinic_id: '00000000-0000-0000-0000-000000000001',
-                    plan_price_basico: parseFloat(integrationForm.plan_price_basico) || 97,
-                    plan_price_profissional: parseFloat(integrationForm.plan_price_profissional) || 197,
-                    plan_price_premium: parseFloat(integrationForm.plan_price_premium) || 397,
+                    clinic_id: SYSTEM_GLOBAL_CLINIC_ID,
+                    plan_price_basico: parsedBasico,
+                    plan_price_profissional: parsedProfissional,
+                    plan_price_premium: parsedPremium,
                     mp_access_token: integrationForm.mp_access_token,
                     mp_public_key: integrationForm.mp_public_key,
                   };
@@ -1534,7 +1602,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   const { data: existing } = await supabase
                     .from('integration_config')
                     .select('clinic_id')
-                    .eq('clinic_id', '00000000-0000-0000-0000-000000000001')
+                    .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID)
                     .single();
                   
                   let error;
@@ -1542,13 +1610,20 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     ({ error } = await supabase
                       .from('integration_config')
                       .update(planData)
-                      .eq('clinic_id', '00000000-0000-0000-0000-000000000001'));
+                      .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID));
                   } else {
                     ({ error } = await supabase
                       .from('integration_config')
                       .insert(planData));
                   }
                   if (error) throw error;
+                  setIntegrationConfig({
+                    plan_price_basico: parsedBasico,
+                    plan_price_profissional: parsedProfissional,
+                    plan_price_premium: parsedPremium,
+                    mp_access_token: integrationForm.mp_access_token,
+                    mp_public_key: integrationForm.mp_public_key,
+                  });
                   toast('Preços e credenciais salvos com sucesso!');
                 } catch (e: any) {
                   toast('Erro ao salvar: ' + e.message, 'error');
@@ -1598,10 +1673,11 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   onClick={async () => {
                     try {
                       const { supabase } = await import('@/lib/supabase');
+                      if (!supabase) throw new Error('Supabase não configurado');
                       const { data: existing } = await supabase
                         .from('integration_config')
                         .select('clinic_id')
-                        .eq('clinic_id', '00000000-0000-0000-0000-000000000001')
+                        .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID)
                         .single();
                       
                       let error;
@@ -1609,13 +1685,17 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                         ({ error } = await supabase
                           .from('integration_config')
                           .update({ mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key })
-                          .eq('clinic_id', '00000000-0000-0000-0000-000000000001'));
+                          .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID));
                       } else {
                         ({ error } = await supabase
                           .from('integration_config')
-                          .insert({ clinic_id: '00000000-0000-0000-0000-000000000001', mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key }));
+                          .insert({ clinic_id: SYSTEM_GLOBAL_CLINIC_ID, mp_access_token: integrationForm.mp_access_token, mp_public_key: integrationForm.mp_public_key }));
                       }
                       if (error) throw error;
+                      setIntegrationConfig({
+                        mp_access_token: integrationForm.mp_access_token,
+                        mp_public_key: integrationForm.mp_public_key,
+                      });
                       toast('Credenciais do Mercado Pago salvas!');
                     } catch (e: any) {
                       toast('Erro ao salvar: ' + e.message, 'error');
@@ -1640,7 +1720,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                           phone: '11999999999',
                           plan: 'basico',
                           amount: 97,
-                          clinicId: '00000000-0000-0000-0000-000000000001',
+                          clinicId: SYSTEM_GLOBAL_CLINIC_ID,
                         }),
                       });
                       const data = await res.json();

@@ -444,6 +444,11 @@ export interface IntegrationConfig {
     meta_pixel_id?: string;
     google_ads_customer_id?: string;
     google_calendar_email?: string;
+    mp_access_token?: string;
+    mp_public_key?: string;
+    plan_price_basico?: number;
+    plan_price_profissional?: number;
+    plan_price_premium?: number;
 }
 
 export interface AutomationRule {

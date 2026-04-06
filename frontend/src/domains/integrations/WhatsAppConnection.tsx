@@ -42,7 +42,7 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState<string>('');
   const [countdown, setCountdown] = useState(120);
-  const [deviceInfo, setDeviceInfo] = useState<{ name: string; id: string; platform: string } | null>(null);
+  const [deviceInfo, setDeviceInfo] = useState<{ name: string; id: string; platform: string; lastSync?: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -169,7 +169,7 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
         setUiStatus('connected');
         setWhatsAppConnected(clinicId, true, '', '5511999999999');
         if (onStatusChange) onStatusChange(true);
-        setDeviceInfo({ name: 'WhatsApp Demo', platform: 'Modo Simulação', lastSync: new Date().toLocaleString('pt-BR') });
+        setDeviceInfo({ name: 'WhatsApp Demo', id: '', platform: 'Modo Simulação', lastSync: new Date().toLocaleString('pt-BR') });
         toast('Modo demo ativado - API não disponível', 'info');
         return;
       }

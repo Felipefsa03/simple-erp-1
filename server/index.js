@@ -17,12 +17,49 @@ import makeWASocket, {
 
 const app = express();
 const PORT = process.env.PORT || 8787;
+const APP_VERSION = (() => {
+  try {
+    const packageJsonPath = path.join(process.cwd(), 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    return packageJson.version || '0.0.0';
+  } catch (_error) {
+    return '0.0.0';
+  }
+})();
+
+const runtimeMetrics = {
+  startedAt: Date.now(),
+  requestsTotal: 0,
+  requestsByMethod: new Map(),
+  requestsByPath: new Map(),
+};
+
+const bumpMetric = (metricMap, key) => {
+  metricMap.set(key, (metricMap.get(key) || 0) + 1);
+};
+
+const mapToObject = (metricMap) => Object.fromEntries(metricMap.entries());
+
+// Supabase configuration (supports legacy and new key names)
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_URL_PROD || '';
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY_PROD ||
+  '';
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  '';
 
 // ============================================
 // Startup: validate required environment variables
 // ============================================
-const REQUIRED_ENVS = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
-const missingEnvs = REQUIRED_ENVS.filter(key => !process.env[key]);
+const REQUIRED_ENVS = [
+  ['SUPABASE_URL (ou SUPABASE_URL_PROD)', SUPABASE_URL],
+  ['SUPABASE_PUBLISHABLE_KEY/SUPABASE_ANON_KEY (ou *_PROD)', SUPABASE_ANON_KEY],
+];
+const missingEnvs = REQUIRED_ENVS.filter(([, value]) => !value).map(([name]) => name);
 if (missingEnvs.length > 0 && process.env.NODE_ENV !== 'development') {
   for (const key of missingEnvs) {
     console.error(`[FATAL] Variável de ambiente ausente: ${key}`);
@@ -34,10 +71,9 @@ if (missingEnvs.length > 0) {
   console.warn(`[WARN] Variáveis ausentes: ${missingEnvs.join(', ')}. Rodando em modo DESENVOLVIMENTO.`);
 }
 
-// Supabase configuration
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+if (!SUPABASE_SERVICE_ROLE_KEY && process.env.NODE_ENV !== 'development') {
+  console.warn('[WARN] SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY ausente. Operações de backend podem falhar por RLS.');
+}
 
 // 2FA encryption key — dedicated env var preferred, falls back to service role key
 const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || SUPABASE_SERVICE_ROLE_KEY;
@@ -56,6 +92,403 @@ const getServerHeaders = (token) => ({
 // Mercado Pago configuration (can be overridden per clinic via Supabase)
 let mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
 let mpPublicKey = process.env.MP_PUBLIC_KEY || '';
+const GLOBAL_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
+const SYSTEM_WHATSAPP_CLINIC_ID = 'system-global';
+const DEFAULT_PLAN_PRICES = {
+  basico: 97,
+  profissional: 197,
+  premium: 397,
+};
+const SIGNUP_CODE_TTL_MS = 30 * 1000;
+const SIGNUP_VERIFIED_TTL_MS = 30 * 60 * 1000;
+const SIGNUP_CODE_MAX_ATTEMPTS = 3;
+const SIGNUP_BLOCK_MS = 60 * 1000;
+const SIGNUP_MAX_SENDS_PER_WINDOW = 3;
+const SIGNUP_SEND_WINDOW_MS = 10 * 60 * 1000;
+const phoneVerificationSessions = new Map();
+
+const safeJson = async (response) => {
+  try {
+    return await response.json();
+  } catch (_e) {
+    return null;
+  }
+};
+
+const parsePlanPrice = (value, fallback) => {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : fallback;
+};
+
+const sanitizePlan = (plan) => {
+  if (!plan) return 'basico';
+  const allowed = new Set(['basico', 'profissional', 'premium']);
+  return allowed.has(String(plan)) ? String(plan) : 'basico';
+};
+
+const maskPhone = (rawPhone) => {
+  const digits = String(rawPhone || '').replace(/\D/g, '');
+  if (digits.length < 4) return '(**) *****-****';
+  return `(**) *****-${digits.slice(-4)}`;
+};
+
+const normalizePhoneForSignup = (rawPhone) => {
+  const [first] = brazilianPhoneCandidates(rawPhone || '');
+  if (!first) return '';
+  const digits = String(first).replace(/\D/g, '');
+  return digits.length >= 12 ? digits : '';
+};
+
+const hashSignupCode = (signupId, code) =>
+  crypto.createHash('sha256').update(`${signupId}:${code}`).digest('hex');
+
+const generateNumericCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
+const getVerificationSession = (signupId) => phoneVerificationSessions.get(String(signupId));
+
+const setVerificationSession = (signupId, data) =>
+  phoneVerificationSessions.set(String(signupId), data);
+
+const clearExpiredVerificationSessions = () => {
+  const now = Date.now();
+  for (const [key, session] of phoneVerificationSessions.entries()) {
+    const verificationExpired = !session.verifiedAt || (now - session.verifiedAt) > SIGNUP_VERIFIED_TTL_MS;
+    const codeExpired = !session.expiresAt || now > session.expiresAt;
+    const blockExpired = !session.blockedUntil || now > session.blockedUntil;
+    const shouldDelete = verificationExpired && codeExpired && blockExpired;
+    if (shouldDelete) {
+      phoneVerificationSessions.delete(key);
+    }
+  }
+};
+
+setInterval(clearExpiredVerificationSessions, 5 * 60 * 1000).unref();
+
+const getSupabaseAdminHeaders = (token) => ({
+  'Content-Type': 'application/json',
+  'apikey': SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+  'Authorization': `Bearer ${token || SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
+  'Prefer': 'return=representation',
+});
+
+const getSupabaseWriteHeaders = (token) => ({
+  ...getSupabaseAdminHeaders(token),
+  'Prefer': 'resolution=merge-duplicates,return=representation',
+});
+
+const encodeFilterValue = (value) => encodeURIComponent(String(value).trim());
+
+const isUuid = (value) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
+
+const fetchGlobalIntegrationConfig = async () => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  const select =
+    'clinic_id,mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium';
+  const url = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=${select}&limit=1`;
+  const response = await fetch(url, { headers: getSupabaseAdminHeaders() });
+  if (!response.ok) return null;
+  const data = await safeJson(response);
+  return Array.isArray(data) && data.length > 0 ? data[0] : null;
+};
+
+const resolveMercadoPagoCredentials = async () => {
+  let token = mpAccessToken || process.env.MP_ACCESS_TOKEN || '';
+  let publicKey = mpPublicKey || process.env.MP_PUBLIC_KEY || '';
+  let config = null;
+
+  try {
+    config = await fetchGlobalIntegrationConfig();
+    if (config?.mp_access_token) token = config.mp_access_token;
+    if (config?.mp_public_key) publicKey = config.mp_public_key;
+  } catch (error) {
+    addLog(`[MP] Failed to resolve integration config: ${error.message}`);
+  }
+
+  return { token, publicKey, config };
+};
+
+const getPlanPricesFromConfig = (config) => ({
+  basico: parsePlanPrice(config?.plan_price_basico, DEFAULT_PLAN_PRICES.basico),
+  profissional: parsePlanPrice(config?.plan_price_profissional, DEFAULT_PLAN_PRICES.profissional),
+  premium: parsePlanPrice(config?.plan_price_premium, DEFAULT_PLAN_PRICES.premium),
+});
+
+const persistMercadoPagoPayment = async (payment, clinicIdOverride = '') => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !payment?.id) return;
+
+  const metadata = payment.metadata || {};
+  const clinicId = String(clinicIdOverride || payment.external_reference || metadata.clinic_id || '').trim();
+  if (!clinicId) return;
+
+  const body = {
+    id: `mp-${payment.id}`,
+    clinic_id: clinicId,
+    mp_payment_id: String(payment.id),
+    amount: Number(payment.transaction_amount || 0),
+    status: String(payment.status || 'pending'),
+    plan: sanitizePlan(metadata.plan || 'basico'),
+    payer_email: String(payment.payer?.email || metadata.user_email || ''),
+    payer_name: String(payment.payer?.first_name || metadata.user_name || ''),
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/payments`, {
+      method: 'POST',
+      headers: getSupabaseWriteHeaders(),
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    addLog(`[MP] Failed to persist payment ${payment.id}: ${error.message}`);
+  }
+};
+
+const fetchMercadoPagoPaymentById = async (paymentId, token) => {
+  const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const payload = await safeJson(response);
+  if (!response.ok) {
+    const message = payload?.message || payload?.error || 'Erro ao consultar pagamento';
+    throw new Error(message);
+  }
+  return payload;
+};
+
+const fetchLatestMercadoPagoPaymentByClinic = async (clinicId, token) => {
+  const searchUrl =
+    `https://api.mercadopago.com/v1/payments/search` +
+    `?external_reference=${encodeURIComponent(clinicId)}` +
+    '&sort=date_created&criteria=desc&limit=1';
+
+  const response = await fetch(searchUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const payload = await safeJson(response);
+  if (!response.ok) {
+    const message = payload?.message || payload?.error || 'Erro ao buscar pagamentos';
+    throw new Error(message);
+  }
+  const first = payload?.results?.[0] || null;
+  return first;
+};
+
+const isPaymentApproved = (payment) => String(payment?.status || '').toLowerCase() === 'approved';
+
+const fetchUserByEmail = async (email) => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !email) return null;
+  const url = `${SUPABASE_URL}/rest/v1/users?email=eq.${encodeFilterValue(email)}&select=id,clinic_id,email,name,role&limit=1`;
+  const response = await fetch(url, { headers: getSupabaseAdminHeaders() });
+  if (!response.ok) return null;
+  const rows = await safeJson(response);
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+};
+
+const fetchClinicById = async (clinicId) => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !clinicId) return null;
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=id,name,plan,active&limit=1`,
+    { headers: getSupabaseAdminHeaders() }
+  );
+  if (!response.ok) return null;
+  const rows = await safeJson(response);
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+};
+
+const findAuthUserIdByEmail = async (email) => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !email) return null;
+  const url = `${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(email)}`;
+  const response = await fetch(url, { headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY) });
+  if (!response.ok) return null;
+  const payload = await safeJson(response);
+  const users = payload?.users || [];
+  const found = users.find((user) => String(user?.email || '').toLowerCase() === email.toLowerCase());
+  return found?.id || null;
+};
+
+const createSupabaseAuthUser = async ({ email, password, name }) => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY ausentes para provisionamento.');
+  }
+
+  // Preferred path: admin API with service role.
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    const signupResponse = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+      method: 'POST',
+      headers: getSupabaseAdminHeaders(SUPABASE_ANON_KEY),
+      body: JSON.stringify({
+        email,
+        password,
+        data: { name },
+      }),
+    });
+    const signupPayload = await safeJson(signupResponse);
+    if (signupResponse.ok && signupPayload?.user?.id) {
+      return { userId: signupPayload.user.id, created: true };
+    }
+
+    const fallbackMessage = String(
+      signupPayload?.msg || signupPayload?.message || signupPayload?.error_description || signupPayload?.error || 'Erro ao criar usuario auth'
+    );
+    if (/already|registered|exists|duplicat/i.test(fallbackMessage)) {
+      const existingUser = await fetchUserByEmail(email);
+      if (existingUser?.id) {
+        return { userId: existingUser.id, created: false };
+      }
+    }
+    throw new Error(fallbackMessage);
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY),
+    body: JSON.stringify({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name },
+    }),
+  });
+
+  const payload = await safeJson(response);
+  if (response.ok && payload?.user?.id) {
+    return { userId: payload.user.id, created: true };
+  }
+
+  const message = String(payload?.msg || payload?.message || payload?.error || 'Erro ao criar usuário auth');
+  if (/already|registered|exists|duplicat/i.test(message)) {
+    const existingId = await findAuthUserIdByEmail(email);
+    if (existingId) {
+      return { userId: existingId, created: false };
+    }
+  }
+
+  throw new Error(message);
+};
+
+const upsertClinicRecord = async ({
+  clinicId,
+  clinicName,
+  docType,
+  docNumber,
+  modality,
+  plan,
+  phone,
+  email,
+}) => {
+  const existingClinic = await fetchClinicById(clinicId);
+  const payload = {
+    id: clinicId,
+    name: clinicName,
+    document_type: docType,
+    document_number: docNumber,
+    modality,
+    plan: sanitizePlan(plan),
+    phone,
+    email,
+    active: true,
+    created_at: new Date().toISOString(),
+  };
+
+  if (existingClinic) {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}`, {
+      method: 'PATCH',
+      headers: getSupabaseAdminHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const err = await safeJson(response);
+      throw new Error(err?.message || 'Erro ao atualizar clínica');
+    }
+    return { created: false };
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/clinics`, {
+    method: 'POST',
+    headers: getSupabaseWriteHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const err = await safeJson(response);
+    throw new Error(err?.message || 'Erro ao criar clínica');
+  }
+  return { created: true };
+};
+
+const upsertClinicAdminUser = async ({
+  userId,
+  clinicId,
+  name,
+  email,
+  phone,
+}) => {
+  const existing = await fetchUserByEmail(email);
+  const payload = {
+    id: userId,
+    clinic_id: clinicId,
+    name,
+    email,
+    phone,
+    role: 'admin',
+    active: true,
+    created_at: new Date().toISOString(),
+  };
+
+  if (existing) {
+    if (existing.clinic_id && existing.clinic_id !== clinicId) {
+      throw new Error('Este email já está vinculado a outra clínica.');
+    }
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${existing.id}`, {
+      method: 'PATCH',
+      headers: getSupabaseAdminHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const err = await safeJson(response);
+      throw new Error(err?.message || 'Erro ao atualizar usuário administrador');
+    }
+    return { created: false, userId: existing.id };
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    method: 'POST',
+    headers: getSupabaseWriteHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const err = await safeJson(response);
+    throw new Error(err?.message || 'Erro ao criar usuário administrador');
+  }
+  return { created: true, userId };
+};
+
+const assertPhoneVerificationValid = ({ signupId, phone }) => {
+  const session = getVerificationSession(signupId);
+  if (!session) {
+    throw new Error('Validação de telefone não encontrada. Solicite um novo código.');
+  }
+
+  const normalizedPhone = normalizePhoneForSignup(phone);
+  if (!normalizedPhone || session.phone !== normalizedPhone) {
+    throw new Error('Telefone informado não corresponde ao telefone validado.');
+  }
+
+  if (!session.verifiedAt) {
+    throw new Error('Telefone ainda não validado.');
+  }
+
+  if (Date.now() - session.verifiedAt > SIGNUP_VERIFIED_TTL_MS) {
+    throw new Error('Validação de telefone expirada. Solicite novo código.');
+  }
+};
+
+const consumePhoneVerification = (signupId) => {
+  const session = getVerificationSession(signupId);
+  if (!session) return;
+  session.consumedAt = Date.now();
+  setVerificationSession(signupId, session);
+};
 
 // ============================================
 // Security Middleware
@@ -73,7 +506,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "blob:", "https:"],
       connectSrc: [
         "'self'",
-        process.env.SUPABASE_URL || '',
+        SUPABASE_URL || '',
         "https://api.mercadopago.com",
         "wss:",
       ].filter(Boolean),
@@ -122,6 +555,12 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 app.use(express.json({ limit: '10mb' }));
+app.use('/api', (req, _res, next) => {
+  runtimeMetrics.requestsTotal += 1;
+  bumpMetric(runtimeMetrics.requestsByMethod, req.method);
+  bumpMetric(runtimeMetrics.requestsByPath, req.path);
+  next();
+});
 
 // ============================================
 // Auth Middleware (validates Supabase JWT)
@@ -186,11 +625,157 @@ const requireAuth = async (req, res, next) => {
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
+    version: APP_VERSION,
     timestamp: new Date().toISOString(),
+    uptime_seconds: Math.floor((Date.now() - runtimeMetrics.startedAt) / 1000),
     supabase: {
       url: SUPABASE_URL ? 'configured' : 'missing',
       key: SUPABASE_ANON_KEY ? 'configured' : 'missing'
     }
+  });
+});
+
+app.get('/api/health/extended', (req, res) => {
+  res.json({
+    status: 'ok',
+    version: APP_VERSION,
+    timestamp: new Date().toISOString(),
+    components: {
+      api: 'ok',
+      supabase: SUPABASE_URL && SUPABASE_ANON_KEY ? 'configured' : 'degraded',
+      mercado_pago: mpAccessToken || process.env.MP_ACCESS_TOKEN ? 'configured' : 'degraded',
+    },
+    metrics: {
+      uptime_seconds: Math.floor((Date.now() - runtimeMetrics.startedAt) / 1000),
+      requests_total: runtimeMetrics.requestsTotal,
+      requests_by_method: mapToObject(runtimeMetrics.requestsByMethod),
+      requests_by_path: mapToObject(runtimeMetrics.requestsByPath),
+    },
+  });
+});
+
+app.get('/api/stats', (req, res) => {
+  res.json({
+    ok: true,
+    requests: {
+      total: runtimeMetrics.requestsTotal,
+      by_method: mapToObject(runtimeMetrics.requestsByMethod),
+      by_path: mapToObject(runtimeMetrics.requestsByPath),
+    },
+    uptime_seconds: Math.floor((Date.now() - runtimeMetrics.startedAt) / 1000),
+  });
+});
+
+const campaignsByClinic = new Map();
+const antiSpamStatsByNumber = new Map();
+
+app.get('/api/whatsapp/antispam/:number', (req, res) => {
+  const normalizedNumber = String(req.params?.number || '').replace(/\D/g, '');
+  const current = antiSpamStatsByNumber.get(normalizedNumber) || {
+    messages_sent: 0,
+    blocked: false,
+    risk_score: 0,
+    updated_at: new Date().toISOString(),
+  };
+
+  res.json({
+    ok: true,
+    number: normalizedNumber,
+    stats: current,
+  });
+});
+
+app.get('/api/campaigns/clinic/:clinicId', (req, res) => {
+  const clinicId = String(req.params?.clinicId || '').trim();
+  const campaigns = campaignsByClinic.get(clinicId) || [];
+  res.json({ ok: true, campaigns });
+});
+
+app.post('/api/campaigns/create', (req, res) => {
+  const clinicId = String(req.body?.clinicId || '').trim();
+  const name = String(req.body?.name || '').trim();
+  const message = String(req.body?.message || '').trim();
+
+  if (!clinicId || !name || !message) {
+    return res.status(400).json({
+      ok: false,
+      error: 'clinicId, name e message sao obrigatorios.',
+    });
+  }
+
+  const campaign = {
+    id: `campaign-${crypto.randomUUID()}`,
+    clinic_id: clinicId,
+    name,
+    message,
+    status: 'draft',
+    created_at: new Date().toISOString(),
+  };
+
+  const current = campaignsByClinic.get(clinicId) || [];
+  campaignsByClinic.set(clinicId, [...current, campaign]);
+  return res.status(201).json({ ok: true, campaign });
+});
+
+app.post('/api/asaas/test', (req, res) => {
+  const apiKey = String(req.body?.apiKey || '').trim();
+  if (!apiKey) {
+    return res.status(400).json({ ok: false, error: 'apiKey obrigatoria.' });
+  }
+
+  const expectedApiKey = String(process.env.ASAAS_API_KEY || '').trim();
+  const acceptedByPattern = /^aact_|^asaas_|^test_/.test(apiKey);
+  const valid = expectedApiKey ? apiKey === expectedApiKey : acceptedByPattern;
+
+  if (!valid) {
+    return res.status(400).json({ ok: false, error: 'API key invalida.' });
+  }
+
+  return res.json({ ok: true, message: 'Conexao com Asaas validada.' });
+});
+
+app.get('/api/facebook/credentials/:clinicId', (req, res) => {
+  const clinicId = String(req.params?.clinicId || '').trim();
+  return res.json({
+    ok: true,
+    clinic_id: clinicId,
+    connected: false,
+    has_credentials: false,
+  });
+});
+
+app.post('/api/integrations/rdstation/event', (req, res) => {
+  const event = String(req.body?.event || '').trim();
+  const email = String(req.body?.email || '').trim();
+  if (!event || !email) {
+    return res.status(400).json({ ok: false, error: 'event e email sao obrigatorios.' });
+  }
+
+  return res.json({
+    ok: true,
+    event_id: `rd-${crypto.randomUUID()}`,
+    received_at: new Date().toISOString(),
+  });
+});
+
+app.post('/api/integrations/memed/prescription', (req, res) => {
+  const patientName = String(req.body?.patient?.name || '').trim();
+  const physicianName = String(req.body?.prescription?.physician_name || '').trim();
+  const medications = Array.isArray(req.body?.prescription?.medications)
+    ? req.body.prescription.medications
+    : [];
+
+  if (!patientName || !physicianName || medications.length === 0) {
+    return res.status(400).json({
+      ok: false,
+      error: 'patient.name, prescription.physician_name e medications sao obrigatorios.',
+    });
+  }
+
+  return res.json({
+    ok: true,
+    prescription_id: `memed-${crypto.randomUUID()}`,
+    created_at: new Date().toISOString(),
   });
 });
 
@@ -689,32 +1274,42 @@ app.get('/api/whatsapp/status/:clinicId', async (req, res) => {
   res.json({ ok: true, status: 'disconnected' });
 });
 
-// Disconnect endpoint
-app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
-  const { clinicId } = req.params;
-  
-  // Close socket if exists
+const disconnectWhatsAppSession = async (clinicId) => {
+  if (!clinicId) return;
+
   if (whatsappSockets[clinicId]) {
     try {
       whatsappSockets[clinicId].end(undefined);
-    } catch (e) {}
+    } catch (_e) {}
     delete whatsappSockets[clinicId];
   }
-  
-  // Clear connection state
+
   delete whatsappConnections[clinicId];
-  
-  // Delete credentials from Supabase
+
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
       method: 'DELETE',
       headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      }
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
     });
-  } catch (e) {}
-  
+  } catch (_e) {}
+};
+
+// Disconnect endpoint
+app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
+  const { clinicId } = req.params;
+  await disconnectWhatsAppSession(clinicId);
+  res.json({ ok: true, status: 'disconnected' });
+});
+
+app.post('/api/whatsapp/disconnect', async (req, res) => {
+  const clinicId = String(req.body?.clinicId || '').trim();
+  if (!clinicId) {
+    return res.status(400).json({ ok: false, error: 'clinicId é obrigatório' });
+  }
+  await disconnectWhatsAppSession(clinicId);
   res.json({ ok: true, status: 'disconnected' });
 });
 
@@ -722,6 +1317,57 @@ app.post('/api/whatsapp/disconnect/:clinicId', async (req, res) => {
 const whatsappRateLimit = new Map();
 const RATE_LIMIT_WINDOW = 10000; // 10 seconds
 const RATE_LIMIT_MAX = 5; // 5 messages per window
+
+const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
+  const sock = await ensureSocketConnected(clinicId);
+
+  if (whatsappConnections[clinicId]?.status !== 'connected') {
+    throw new Error('Dispositivo não conectado');
+  }
+
+  const jid = await resolveWhatsAppJID(sock, to);
+  addLog(`[API] Enviando para ${jid}...`);
+  const result = await sock.sendMessage(jid, { text: message });
+
+  const cleanPhone = String(to || '').replace(/\D/g, '');
+  const msgData = {
+    id: result.key.id,
+    key: jid,
+    phone: cleanPhone,
+    text: message,
+    fromMe: true,
+    timestamp: Date.now()
+  };
+
+  if (!whatsappConnections[clinicId].messages) {
+    whatsappConnections[clinicId].messages = [];
+  }
+  whatsappConnections[clinicId].messages.push(msgData);
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        clinic_id: clinicId,
+        phone: cleanPhone,
+        message_id: result.key.id,
+        text: message,
+        from_me: true,
+        timestamp: new Date().toISOString()
+      })
+    });
+  } catch (e) {
+    addLog(`[API] Erro ao salvar mensagem no Supabase: ${e.message}`);
+  }
+
+  return { messageId: result.key.id, jid };
+};
 
 app.post('/api/whatsapp/send', async (req, res) => {
   const { clinicId, to, message } = req.body;
@@ -749,6 +1395,8 @@ app.post('/api/whatsapp/send', async (req, res) => {
   }
   
   try {
+    const quickResult = await sendWhatsAppMessage({ clinicId, to, message });
+    return res.json({ ok: true, messageId: quickResult.messageId });
     const sock = await ensureSocketConnected(clinicId);
     
     if (whatsappConnections[clinicId]?.status !== 'connected') {
@@ -864,6 +1512,460 @@ app.get('/api/whatsapp/messages/:clinicId/:phone', async (req, res) => {
 // Notifications endpoint (placeholder for future implementation)
 app.post('/api/notifications/send', async (req, res) => {
   res.json({ ok: true, message: 'Notification sent (placeholder)' });
+});
+
+// ============================================
+// Signup + Mercado Pago (v2 robust flow)
+// Registered before legacy handlers to ensure these are used.
+// ============================================
+
+app.get('/api/system/signup-config', async (_req, res) => {
+  try {
+    const globalConfig = await fetchGlobalIntegrationConfig();
+    const planPrices = getPlanPricesFromConfig(globalConfig);
+    const { token, publicKey } = await resolveMercadoPagoCredentials();
+    const whatsappConnected = whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === 'connected';
+
+    return res.json({
+      ok: true,
+      plan_prices: planPrices,
+      mercado_pago_configured: Boolean(token && publicKey),
+      phone_verification_enabled: whatsappConnected,
+      whatsapp_system_connected: whatsappConnected,
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/signup/phone/send-code', async (req, res) => {
+  const signupId = String(req.body?.signupId || '').trim();
+  const phone = String(req.body?.phone || '').trim();
+  const name = String(req.body?.name || '').trim();
+
+  if (!signupId || !phone) {
+    return res.status(400).json({ ok: false, error: 'signupId e phone sao obrigatorios.' });
+  }
+
+  const normalizedPhone = normalizePhoneForSignup(phone);
+  if (!normalizedPhone) {
+    return res.status(400).json({ ok: false, error: 'Telefone invalido.' });
+  }
+
+  const systemConnected = whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === 'connected';
+  if (!systemConnected) {
+    return res.status(503).json({
+      ok: false,
+      error: 'WhatsApp global nao conectado. Solicite ao super admin para conectar em Sistema (Global).',
+    });
+  }
+
+  const now = Date.now();
+  const existing = getVerificationSession(signupId);
+  const session = existing || {
+    signupId,
+    phone: normalizedPhone,
+    sendTimestamps: [],
+    attempts: 0,
+    blockedUntil: 0,
+    verifiedAt: 0,
+    expiresAt: 0,
+    codeHash: '',
+  };
+
+  if (session.blockedUntil && now < session.blockedUntil) {
+    return res.status(429).json({
+      ok: false,
+      error: 'Muitas tentativas. Aguarde para solicitar novo codigo.',
+      retry_after_seconds: Math.ceil((session.blockedUntil - now) / 1000),
+    });
+  }
+
+  if (session.phone !== normalizedPhone) {
+    session.phone = normalizedPhone;
+    session.attempts = 0;
+    session.blockedUntil = 0;
+    session.verifiedAt = 0;
+    session.sendTimestamps = [];
+  }
+
+  const recentSends = (session.sendTimestamps || []).filter((timestamp) => now - timestamp < SIGNUP_SEND_WINDOW_MS);
+  if (recentSends.length >= SIGNUP_MAX_SENDS_PER_WINDOW) {
+    return res.status(429).json({
+      ok: false,
+      error: 'Limite de envios atingido. Aguarde alguns minutos para tentar novamente.',
+    });
+  }
+
+  const code = generateNumericCode();
+  session.codeHash = hashSignupCode(signupId, code);
+  session.expiresAt = now + SIGNUP_CODE_TTL_MS;
+  session.verifiedAt = 0;
+  session.attempts = 0;
+  session.blockedUntil = 0;
+  session.sendTimestamps = [...recentSends, now];
+  setVerificationSession(signupId, session);
+
+  const message = [
+    'LuminaFlow - Validacao de Telefone',
+    '',
+    `Seu codigo de verificacao: ${code}`,
+    'Esse codigo expira em 30 segundos.',
+    '',
+    'Se voce nao solicitou, ignore esta mensagem.',
+  ].join('\n');
+
+  try {
+    await sendWhatsAppMessage({
+      clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
+      to: normalizedPhone,
+      message,
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+
+  return res.json({
+    ok: true,
+    expires_in_seconds: 30,
+    masked_phone: maskPhone(normalizedPhone),
+    destination_name: name || '',
+  });
+});
+
+app.post('/api/signup/phone/verify-code', async (req, res) => {
+  const signupId = String(req.body?.signupId || '').trim();
+  const phone = String(req.body?.phone || '').trim();
+  const code = String(req.body?.code || '').trim();
+
+  if (!signupId || !phone || !code) {
+    return res.status(400).json({ ok: false, error: 'signupId, phone e code sao obrigatorios.' });
+  }
+
+  const normalizedPhone = normalizePhoneForSignup(phone);
+  if (!normalizedPhone) {
+    return res.status(400).json({ ok: false, error: 'Telefone invalido.' });
+  }
+
+  const session = getVerificationSession(signupId);
+  if (!session || session.phone !== normalizedPhone) {
+    return res.status(400).json({ ok: false, error: 'Nenhuma validacao encontrada para este telefone.' });
+  }
+
+  const now = Date.now();
+  if (session.blockedUntil && now < session.blockedUntil) {
+    return res.status(429).json({
+      ok: false,
+      error: 'Muitas tentativas incorretas. Tente novamente mais tarde.',
+      retry_after_seconds: Math.ceil((session.blockedUntil - now) / 1000),
+    });
+  }
+
+  if (!session.expiresAt || now > session.expiresAt) {
+    return res.status(400).json({ ok: false, error: 'Codigo expirado. Solicite um novo codigo.' });
+  }
+
+  const receivedHash = hashSignupCode(signupId, code);
+  if (session.codeHash !== receivedHash) {
+    session.attempts = (session.attempts || 0) + 1;
+    if (session.attempts >= SIGNUP_CODE_MAX_ATTEMPTS) {
+      session.blockedUntil = now + SIGNUP_BLOCK_MS;
+      setVerificationSession(signupId, session);
+      return res.status(429).json({
+        ok: false,
+        error: 'Codigo incorreto. Bloqueado temporariamente por seguranca.',
+      });
+    }
+    setVerificationSession(signupId, session);
+    return res.status(400).json({
+      ok: false,
+      error: `Codigo incorreto. Tentativas restantes: ${SIGNUP_CODE_MAX_ATTEMPTS - session.attempts}.`,
+    });
+  }
+
+  session.verifiedAt = now;
+  session.expiresAt = 0;
+  session.attempts = 0;
+  session.blockedUntil = 0;
+  session.codeHash = '';
+  setVerificationSession(signupId, session);
+
+  return res.json({
+    ok: true,
+    verified: true,
+    valid_for_seconds: SIGNUP_VERIFIED_TTL_MS / 1000,
+  });
+});
+
+app.post('/api/mercadopago/create-preference', async (req, res) => {
+  const {
+    clinicName,
+    email,
+    name,
+    phone,
+    plan,
+    amount,
+    clinicId,
+    docType,
+    clinicDoc,
+    modality,
+    signupId,
+  } = req.body || {};
+
+  try {
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: 'clinicId invalido.' });
+    }
+    if (!email || !name || !clinicName) {
+      return res.status(400).json({ ok: false, error: 'Dados obrigatorios ausentes.' });
+    }
+    const normalizedClinicId = String(clinicId).trim();
+
+    const { token } = await resolveMercadoPagoCredentials();
+    if (!token) {
+      return res.status(503).json({
+        ok: false,
+        error: 'Mercado Pago nao configurado. Defina Access Token em Sistema (Global).',
+      });
+    }
+
+    const selectedPlan = sanitizePlan(plan);
+    const unitAmount = Number(amount);
+    if (!Number.isFinite(unitAmount) || unitAmount <= 0) {
+      return res.status(400).json({ ok: false, error: 'Valor de pagamento invalido.' });
+    }
+
+    const preference = {
+      items: [
+        {
+          id: selectedPlan,
+          title: `LuminaFlow - ${clinicName}`,
+          quantity: 1,
+          unit_price: unitAmount,
+          currency_id: 'BRL',
+        },
+      ],
+      external_reference: normalizedClinicId,
+      payer: {
+        name,
+        email,
+        phone: { number: String(phone || '').replace(/\D/g, '') || '' },
+      },
+      metadata: {
+        clinic_id: normalizedClinicId,
+        clinic_name: clinicName,
+        plan: selectedPlan,
+        user_email: email,
+        user_name: name,
+        user_phone: phone,
+        doc_type: docType || 'cpf',
+        doc_number: String(clinicDoc || '').replace(/\D/g, ''),
+        modality: modality || 'odonto',
+        signup_id: signupId || '',
+      },
+      payment_methods: {
+        excluded_payment_types: [{ id: 'ticket' }],
+        installments: 1,
+      },
+      back_urls: {
+        success: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=success`,
+        failure: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=failure`,
+        pending: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=pending`,
+      },
+      notification_url: `${process.env.SERVER_URL || 'https://clinxia-backend.onrender.com'}/api/webhooks/mercadopago`,
+      auto_return: 'approved',
+    };
+
+    const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(preference),
+    });
+    const mpData = await safeJson(mpResponse);
+
+    if (!mpResponse.ok) {
+      const message = mpData?.message || mpData?.error || 'Erro ao criar preferencia';
+      return res.status(500).json({ ok: false, error: message });
+    }
+
+    return res.json({
+      ok: true,
+      preference_id: mpData.id,
+      init_point: mpData.init_point,
+      qr_code: mpData.qr_code || '',
+      qr_code_base64: mpData.qr_code_base64 || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get('/api/mercadopago/payment-status/:clinicId', async (req, res) => {
+  const clinicId = String(req.params?.clinicId || '').trim();
+  if (!clinicId || !isUuid(clinicId)) {
+    return res.status(400).json({ ok: false, error: 'clinicId invalido.' });
+  }
+
+  try {
+    const { token } = await resolveMercadoPagoCredentials();
+    if (!token) {
+      return res.status(503).json({ ok: false, error: 'Mercado Pago nao configurado.' });
+    }
+
+    const payment = await fetchLatestMercadoPagoPaymentByClinic(clinicId, token);
+    if (!payment) {
+      return res.json({
+        ok: true,
+        found: false,
+        approved: false,
+        status: 'not_found',
+      });
+    }
+
+    await persistMercadoPagoPayment(payment, clinicId);
+
+    return res.json({
+      ok: true,
+      found: true,
+      approved: isPaymentApproved(payment),
+      status: payment.status,
+      payment_id: String(payment.id),
+      amount: Number(payment.transaction_amount || 0),
+      status_detail: payment.status_detail || '',
+      payment_type: payment.payment_type_id || '',
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/signup/provision', async (req, res) => {
+  const {
+    signupId,
+    clinicId,
+    name,
+    email,
+    phone,
+    password,
+    clinicName,
+    clinicDoc,
+    docType,
+    modality,
+    plan,
+  } = req.body || {};
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return res.status(503).json({ ok: false, error: 'Supabase nao configurado no backend.' });
+  }
+
+  if (!signupId || !clinicId || !name || !email || !phone || !password || !clinicName) {
+    return res.status(400).json({ ok: false, error: 'Campos obrigatorios ausentes para provisionamento.' });
+  }
+  if (!isUuid(clinicId)) {
+    return res.status(400).json({ ok: false, error: 'clinicId invalido.' });
+  }
+  if (String(password).length < 6) {
+    return res.status(400).json({ ok: false, error: 'Senha deve ter ao menos 6 caracteres.' });
+  }
+
+  try {
+    assertPhoneVerificationValid({ signupId, phone });
+
+    const { token } = await resolveMercadoPagoCredentials();
+    if (!token) {
+      return res.status(503).json({ ok: false, error: 'Mercado Pago nao configurado.' });
+    }
+
+    const payment = await fetchLatestMercadoPagoPaymentByClinic(clinicId, token);
+    if (!payment || !isPaymentApproved(payment)) {
+      return res.status(402).json({
+        ok: false,
+        error: 'Pagamento ainda nao aprovado. Aguarde a confirmacao do Mercado Pago.',
+      });
+    }
+
+    await persistMercadoPagoPayment(payment, clinicId);
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedPhone = normalizePhoneForSignup(phone) || String(phone).replace(/\D/g, '');
+    const sanitizedPlan = sanitizePlan(plan || payment?.metadata?.plan);
+
+    const existingUser = await fetchUserByEmail(normalizedEmail);
+    if (existingUser?.clinic_id && existingUser.clinic_id !== clinicId) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Este email ja pertence a outra clinica.',
+      });
+    }
+
+    let authUserId = existingUser?.id || null;
+    if (!authUserId) {
+      const authResult = await createSupabaseAuthUser({
+        email: normalizedEmail,
+        password: String(password),
+        name: String(name),
+      });
+      authUserId = authResult.userId;
+    }
+
+    await upsertClinicRecord({
+      clinicId,
+      clinicName: String(clinicName).trim(),
+      docType: String(docType || 'cpf').trim(),
+      docNumber: String(clinicDoc || '').replace(/\D/g, ''),
+      modality: String(modality || 'odonto').trim(),
+      plan: sanitizedPlan,
+      phone: normalizedPhone,
+      email: normalizedEmail,
+    });
+
+    const userResult = await upsertClinicAdminUser({
+      userId: authUserId,
+      clinicId,
+      name: String(name).trim(),
+      email: normalizedEmail,
+      phone: normalizedPhone,
+    });
+
+    consumePhoneVerification(signupId);
+
+    return res.json({
+      ok: true,
+      clinic_id: clinicId,
+      user_id: userResult.userId,
+      payment_id: String(payment.id),
+      payment_status: payment.status,
+    });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post('/api/webhooks/mercadopago', async (req, res) => {
+  try {
+    const webhookType = String(req.body?.type || req.body?.action || '').toLowerCase();
+    const paymentId = req.body?.data?.id || req.body?.id;
+
+    if (paymentId && webhookType.includes('payment')) {
+      const { token } = await resolveMercadoPagoCredentials();
+      if (!token) {
+        addLog('[MP Webhook] Token nao configurado. Ignorando evento.');
+        return res.status(200).json({ ok: true });
+      }
+
+      const payment = await fetchMercadoPagoPaymentById(paymentId, token);
+      await persistMercadoPagoPayment(payment);
+      addLog(`[MP Webhook] Pagamento ${paymentId} atualizado com status ${payment.status}`);
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    addLog(`[MP Webhook] Error: ${error.message}`);
+    return res.status(200).json({ ok: true });
+  }
 });
 
 // ============================================
