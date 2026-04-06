@@ -747,8 +747,14 @@ const publicPaths = [
   '/integrations/rdstation/event',
 ];
 
-app.use('/api/*', (req, res) => {
-  res.status(404).json({ ok: false, error: `Rota não encontrada: ${req.path}` });
+app.use('/api', (req, res, next) => {
+  const pathWithoutApi = req.path;
+  
+  if (publicPaths.some(p => pathWithoutApi.startsWith(p))) {
+    return next();
+  }
+  
+  return requireAuth(req, res, next);
 });
 
 app.get('/api/health/extended', (req, res) => {
