@@ -664,9 +664,44 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
-// OAuth Google Login/Signup (must be before auth middleware)
+// OAuth Google Login/Signup
 // ============================================
+
+// ============================================
+// Apply auth middleware to all /api routes except public ones
+// ============================================
+const publicPaths = [
+  '/health',
+  '/health/extended',
+  '/stats',
+  '/webhooks/',
+  '/clinic/anamnese-sync',
+  '/auth/',
+  '/auth/google',
+  '/signup/init',
+  '/signup/verify-phone',
+  '/signup/complete',
+  '/mercadopago/create-preference',
+  '/asaas/test',
+  '/integrations/rdstation/event',
+];
+
+app.use('/api', (req, res, next) => {
+  const pathWithoutApi = req.path;
+  console.log(`[Middleware] Checking path: "${pathWithoutApi}" against publicPaths`);
+  
+  if (publicPaths.some(p => pathWithoutApi.startsWith(p))) {
+    console.log(`[Middleware] ALLOWING: "${pathWithoutApi}" matched "${publicPaths.find(p => pathWithoutApi.startsWith(p))}"`);
+    return next();
+  }
+  
+  console.log(`[Middleware] REQUIRING AUTH for: "${pathWithoutApi}"`);
+  return requireAuth(req, res, next);
+});
+
+// OAuth Google routes - explicitly public, defined AFTER auth middleware
 app.get('/api/auth/google', (req, res) => {
+  console.log('[Google OAuth] Hit /api/auth/google');
   const isSignup = req.query.signup === 'true';
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`;
@@ -687,6 +722,7 @@ app.get('/api/auth/google', (req, res) => {
 });
 
 app.get('/api/auth/google/callback', async (req, res) => {
+  console.log('[Google OAuth] Callback hit');
   const { code, state } = req.query;
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -735,36 +771,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
   }
 });
 
-// ============================================
-// Apply auth middleware to all /api routes except public ones
-// ============================================
-const publicPaths = [
-  '/health',
-  '/health/extended',
-  '/stats',
-  '/webhooks/',
-  '/clinic/anamnese-sync',
-  '/auth/',
-  '/auth/google',
-  '/signup/init',
-  '/signup/verify-phone',
-  '/signup/complete',
-  '/mercadopago/create-preference',
-  '/asaas/test',
-  '/integrations/rdstation/event',
-];
-
-app.use('/api', (req, res, next) => {
-  const pathWithoutApi = req.path;
-  
-  if (publicPaths.some(p => pathWithoutApi.startsWith(p))) {
-    return next();
-  }
-  return requireAuth(req, res, next);
-});
-
 app.use('/api/*', (req, res) => {
-  console.log(`[404] Unmatched route: ${req.path}`);
   res.status(404).json({ ok: false, error: `Rota não encontrada: ${req.path}` });
 });
 
