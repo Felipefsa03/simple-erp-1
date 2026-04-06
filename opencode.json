@@ -1,4 +1,52 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/minimax-m2.5-free"
+  "model": "opencode/minimax-m2.5-free",
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "gh_grep": {
+      "type": "remote",
+      "url": "https://mcp.grep.app"
+    },
+    "sentry": {
+      "type": "remote",
+      "url": "https://mcp.sentry.dev/mcp",
+      "oauth": {}
+    },
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\junio\\Desktop\\Asaas Oportunity"]
+    },
+    "brave-search": {
+      "type": "remote",
+      "url": "https://mcp-brave-search.scrachforgpt.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:BRAVE_SEARCH_API_KEY}"
+      }
+    },
+    "fetch": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-fetch"]
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"]
+    },
+    "time": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-time"]
+    }
+  },
+  "tools": {
+    "context7_*": true,
+    "gh_grep_*": true,
+    "sentry_*": true,
+    "filesystem_*": true,
+    "brave-search_*": true,
+    "fetch_*": true,
+    "memory_*": true,
+    "time_*": true
+  }
 }

@@ -28,12 +28,20 @@ interface AuthState {
   checkLimit: (type: 'maxProfessionals' | 'maxPatients' | 'maxAppointmentsPerMonth', current: number) => boolean;
 }
 
+const GLOBAL_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
+
+const isValidUuid = (id: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || '');
+
 const getNormalizedClinicId = (clinicId: string | undefined): string => {
-  if (!clinicId) return '00000000-0000-0000-0000-000000000001';
-  if (clinicId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+  if (!clinicId) {
+    console.error('[Auth] clinic_id inválido ou ausente - usando fallback para global');
+    return GLOBAL_CLINIC_ID;
+  }
+  if (isValidUuid(clinicId)) {
     return clinicId;
   }
-  return '00000000-0000-0000-0000-000000000001';
+  console.error('[Auth] clinic_id inválido:', clinicId, '- usando fallback para global');
+  return GLOBAL_CLINIC_ID;
 };
 
 const DEFAULT_PERMISSIONS: Record<string, UserRole[]> = {

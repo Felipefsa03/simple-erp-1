@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast, formatCurrency } from '@/hooks/useShared';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { Modal, LoadingButton, EmptyState, ConfirmDialog } from '@/components/shared';
-import type { FinancialTransaction } from '@/types';
+import type { FinancialTransaction, TransactionStatus } from '@/types/index';
 import { integrationsApi } from '@/lib/integrationsApi';
 import { NFePanel } from './NFePanel';
 import { DREReport } from './DREReport';
@@ -147,9 +147,9 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
       setReconciling(true);
       try {
         const res = await integrationsApi.reconcileAsaas({ items: [{ transaction_id: txn.id, payment_id: txn.asaas_payment_id }] });
-        const upd = res?.updates?.[0];
-        if (upd) {
-          useClinicStore.getState().reconcileTransaction(txn.id, upd.next_status, { asaas_status: upd.asaas_status, paid_at: upd.paid_at });
+        if (res?.updates?.[0]) {
+          const upd = res.updates[0];
+          useClinicStore.getState().reconcileTransaction(txn.id, upd.next_status as TransactionStatus, { asaas_status: upd.asaas_status, paid_at: upd.paid_at });
           toast('Atualizado via Asaas!');
           return;
         }

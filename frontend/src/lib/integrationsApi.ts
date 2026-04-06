@@ -21,28 +21,28 @@ async function request<T = Json>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const integrationsApi = {
-  health: () => request('/api/health'),
+  health: () => request<{ status: string }>('/api/health'),
   asaasTest: (payload: { apiKey?: string; environment?: 'sandbox' | 'production' }) =>
-    request('/api/asaas/test', { method: 'POST', body: JSON.stringify(payload) }),
+    request<{ ok: boolean; message?: string }>('/api/asaas/test', { method: 'POST', body: JSON.stringify(payload) }),
   createAsaasCharge: (payload: Json) =>
-    request('/api/asaas/charge', { method: 'POST', body: JSON.stringify(payload) }),
+    request<{ payment: { id: string; status: string; pixCopyPaste?: string } | null }>('/api/asaas/charge', { method: 'POST', body: JSON.stringify(payload) }),
   createAsaasSubscription: (payload: Json) =>
-    request('/api/asaas/subscription', { method: 'POST', body: JSON.stringify(payload) }),
+    request<{ subscription: { id: string; status: string } | null }>('/api/asaas/subscription', { method: 'POST', body: JSON.stringify(payload) }),
   reconcileAsaas: (payload: Json) =>
-    request('/api/asaas/reconcile', { method: 'POST', body: JSON.stringify(payload) }),
+    request<{ updates: Array<{ next_status: string; asaas_status: string; paid_at: string }> }>('/api/asaas/reconcile', { method: 'POST', body: JSON.stringify(payload) }),
   sendNotification: (payload: Json) =>
-    request('/api/notifications/send', { method: 'POST', body: JSON.stringify(payload) }),
+    request<{ ok: boolean; delivered?: boolean; details?: Record<string, unknown> }>('/api/notifications/send', { method: 'POST', body: JSON.stringify(payload) }),
   memedPrescription: (payload: Json) =>
-    request('/api/integrations/memed/prescription', { method: 'POST', body: JSON.stringify({ payload }) }),
+    request<{ prescription_id: string }>('/api/integrations/memed/prescription', { method: 'POST', body: JSON.stringify({ payload }) }),
   tissExport: (claim: Json) =>
-    request('/api/integrations/tiss/export', { method: 'POST', body: JSON.stringify({ claim }) }),
+    request<{ export: string }>('/api/integrations/tiss/export', { method: 'POST', body: JSON.stringify({ claim }) }),
   rdEvent: (eventType: string, payload: Json) =>
-    request('/api/integrations/rdstation/event', {
+    request<{ ok: boolean }>('/api/integrations/rdstation/event', {
       method: 'POST',
       body: JSON.stringify({ eventType, payload }),
     }),
   pixelEvent: (provider: 'meta' | 'google', payload: Json) =>
-    request('/api/integrations/pixel/event', {
+    request<{ ok: boolean }>('/api/integrations/pixel/event', {
       method: 'POST',
       body: JSON.stringify({ provider, payload }),
     }),

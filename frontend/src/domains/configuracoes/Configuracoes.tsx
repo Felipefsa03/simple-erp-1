@@ -11,6 +11,7 @@ import { integrationsApi } from '@/lib/integrationsApi';
 import { Integrations } from '@/domains/integrations/Integrations';
 import { NFeSettings } from './NFeSettings';
 import { SystemWhatsAppConfig } from './SystemWhatsAppConfig';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 interface ConfiguracoesProps {
   onNavigate?: (tab: string, ctx?: any) => void;
@@ -479,13 +480,34 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
     setPasswordLoading(true);
 
-    // Salvar nova senha no localStorage (mesmo mecanismo do PasswordResetFlow)
     try {
-      const stored = localStorage.getItem('luminaflow-reset-passwords');
-      const passwords = stored ? JSON.parse(stored) : {};
-      passwords[user?.email?.toLowerCase() || ''] = passwordForm.new;
-      localStorage.setItem('luminaflow-reset-passwords', JSON.stringify(passwords));
-    } catch {}
+      const stored = localStorage.getItem('luminaflow-session');
+      const session = stored ? JSON.parse(stored) : null;
+      if (!session?.access_token) {
+        toast('Sessão expirada. Faça login novamente.', 'error');
+        setPasswordLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://example.supabase.co'}/auth/v1/user`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ password: passwordForm.new }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        toast(err.error_description || err.msg || 'Erro ao alterar senha', 'error');
+        setPasswordLoading(false);
+        return;
+      }
+    } catch (e) {
+      console.error('Password update error:', e);
+    }
 
     await new Promise(r => setTimeout(r, 1000));
     setPasswordLoading(false);

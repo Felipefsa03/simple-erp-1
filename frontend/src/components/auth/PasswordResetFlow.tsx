@@ -3,6 +3,7 @@ import { ArrowLeft, MessageSquare, Lock, Eye, EyeOff, Check, AlertCircle, Loader
 import { cn, uid, formatPhoneForWhatsApp } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 import { useClinicStore } from '@/stores/clinicStore';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 interface PasswordResetFlowProps {
   onBack: () => void;
@@ -328,27 +329,41 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
     }
 
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 500));
 
-    // Em produção: UPDATE users SET password = bcrypt.hash(newPassword) WHERE id = ?
-    // Atualizar a senha do usuário demo
-    if (currentUserId && currentUserEmail) {
-      const user = demoUsers[currentUserEmail.toLowerCase()];
-      if (user) {
-        user.password = newPassword;
+    try {
+      const stored = localStorage.getItem('luminaflow-session');
+      const session = stored ? JSON.parse(stored) : null;
+      
+      if (!session?.access_token) {
+        setError('Sessão expirada. Faça login novamente.');
+        setLoading(false);
+        return;
       }
-      // Armazenar senha atualizada no localStorage para uso no login
-      try {
-        const stored = localStorage.getItem('luminaflow-reset-passwords');
-        const passwords = stored ? JSON.parse(stored) : {};
-        passwords[currentUserEmail.toLowerCase()] = newPassword;
-        localStorage.setItem('luminaflow-reset-passwords', JSON.stringify(passwords));
-      } catch (err) {
-        console.error('[PasswordReset] Erro ao salvar senha:', err);
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://example.supabase.co'}/auth/v1/admin/users/${currentUserId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        setError(err.error_description || err.msg || 'Erro ao atualizar senha');
+        setLoading(false);
+        return;
       }
+    } catch (err) {
+      console.error('[PasswordReset] Erro ao atualizar senha:', err);
+      setError('Erro ao processar recuperação de senha.');
+      setLoading(false);
+      return;
     }
 
-    // Limpar código usado
     resetCodes.delete(currentUserId);
 
     setLoading(false);

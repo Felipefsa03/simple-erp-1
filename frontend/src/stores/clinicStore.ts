@@ -1534,7 +1534,6 @@ export const useClinicStore = create<ClinicStore>()(
                 automationRuns: state.automationRuns,
                 leads: state.leads,
                 funnelStages: state.funnelStages,
-                integrationConfig: state.integrationConfig,
                 insurances: state.insurances,
                 branches: state.branches,
                 whatsappIntegrations: state.whatsappIntegrations,

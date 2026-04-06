@@ -527,21 +527,45 @@ app.use(helmet({
 }));
 
 // CORS: whitelist allowed origins (configurable via env)
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-  : [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'https://clinxia.vercel.app',
-      process.env.FRONTEND_URL,
-    ].filter(Boolean);
+// Supports multiple formats: comma-separated list, wildcard for Vercel previews
+const ALLOWED_ORIGINS = (() => {
+  const envOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) || [];
+  
+  const defaultOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://clinxia.vercel.app',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean);
+  
+  // Allow all Vercel preview URLs in development
+  const vercelPreview = process.env.VERCEL === '1' ? ['https://*.vercel.app'] : [];
+  
+  return [...envOrigins, ...defaultOrigins, ...vercelPreview];
+})();
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+    if (!origin) {
       return callback(null, true);
     }
+    
+    // Check exact match
+    if (ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check wildcard patterns (e.g., *.vercel.app)
+    for (const pattern of ALLOWED_ORIGINS) {
+      if (pattern.includes('*')) {
+        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+        if (regex.test(origin)) {
+          return callback(null, true);
+        }
+      }
+    }
+    
     console.warn(`[CORS] Blocked request from: ${origin}`);
     callback(new Error(`Origem não permitida: ${origin}`));
   },
@@ -575,17 +599,12 @@ app.use('/api', (req, _res, next) => {
 // Auth Middleware (validates Supabase JWT)
 // ============================================
 const requireAuth = async (req, res, next) => {
-  // Skip auth for public endpoints
-  const publicPaths = ['/api/health', '/api/webhooks/', '/api/clinic/anamnese-sync'];
-  if (publicPaths.some(p => req.path.startsWith(p))) return next();
-
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) {
     return res.status(401).json({ ok: false, error: 'Token de autenticação ausente' });
   }
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    // Dev mode: skip auth if Supabase not configured
     req.user = { id: 'dev-user', role: 'admin', clinic_id: 'dev-clinic' };
     return next();
   }
@@ -604,7 +623,6 @@ const requireAuth = async (req, res, next) => {
 
     const userData = await userRes.json();
     
-    // Fetch user profile with clinic_id
     const profileRes = await fetch(
       `${SUPABASE_URL}/rest/v1/users?id=eq.${userData.id}&select=*`,
       {
@@ -642,6 +660,104 @@ app.get('/api/health', (req, res) => {
       key: SUPABASE_ANON_KEY ? 'configured' : 'missing'
     }
   });
+});
+
+// ============================================
+// Apply auth middleware to all /api routes except public ones
+// ============================================
+const publicPaths = [
+  '/api/health',
+  '/api/health/extended',
+  '/api/stats',
+  '/api/webhooks/',
+  '/api/clinic/anamnese-sync',
+  '/api/auth/',
+  '/api/auth/google',
+  '/api/signup/init',
+  '/api/signup/verify-phone',
+  '/api/signup/complete',
+  '/api/mercadopago/create-preference',
+  '/api/asaas/test',
+  '/api/integrations/rdstation/event',
+];
+
+app.use('/api', (req, res, next) => {
+  if (publicPaths.some(p => req.path.startsWith(p))) {
+    return next();
+  }
+  return requireAuth(req, res, next);
+});
+
+// ============================================
+// OAuth Google Login/Signup
+// ============================================
+app.get('/api/auth/google', (req, res) => {
+  const isSignup = req.query.signup === 'true';
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`;
+  
+  if (!clientId) {
+    return res.status(503).json({ 
+      ok: false, 
+      error: 'Google OAuth não configurado. Defina GOOGLE_CLIENT_ID.' 
+    });
+  }
+  
+  const scope = encodeURIComponent('openid email profile');
+  const state = isSignup ? 'signup' : 'login';
+  
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${state}&access_type=offline&prompt=consent`;
+  
+  res.redirect(authUrl);
+});
+
+app.get('/api/auth/google/callback', async (req, res) => {
+  const { code, state } = req.query;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`;
+  
+  if (!code) {
+    return res.redirect(`${process.env.FRONTEND_URL}/?error=google_auth_failed`);
+  }
+  
+  try {
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId || '',
+        client_secret: clientSecret || '',
+        code: String(code),
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri,
+      }),
+    });
+    
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenData.access_token) {
+      return res.redirect(`${process.env.FRONTEND_URL}/?error=google_token_failed`);
+    }
+    
+    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    
+    const googleUser = await userResponse.json();
+    
+    const isSignup = state === 'signup';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://clinxia.vercel.app';
+    
+    if (isSignup) {
+      return res.redirect(`${frontendUrl}/?google_signup=true&email=${encodeURIComponent(googleUser.email)}&name=${encodeURIComponent(googleUser.name)}`);
+    }
+    
+    res.redirect(`${frontendUrl}/?google_login=success`);
+  } catch (error) {
+    console.error('[Google OAuth] Error:', error.message);
+    res.redirect(`${process.env.FRONTEND_URL}/?error=google_auth_error`);
+  }
 });
 
 app.get('/api/health/extended', (req, res) => {
@@ -1953,8 +2069,35 @@ app.post('/api/signup/provision', async (req, res) => {
   }
 });
 
+const validateMercadoPagoWebhookSignature = (req, secret) => {
+  if (!secret) return true;
+  
+  const signature = req.headers['x-signature'];
+  const timestamp = req.headers['x-timestamp'];
+  
+  if (!signature || !timestamp) {
+    console.warn('[MP Webhook] Assinatura não fornecida');
+    return false;
+  }
+  
+  const data = timestamp + req.body.id + req.body.live_mode;
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(data)
+    .digest('hex');
+  
+  return signature === expectedSignature;
+};
+
 app.post('/api/webhooks/mercadopago', async (req, res) => {
   try {
+    const webhookSecret = process.env.MP_WEBHOOK_SECRET;
+    
+    if (webhookSecret && !validateMercadoPagoWebhookSignature(req, webhookSecret)) {
+      addLog('[MP Webhook] Assinatura inválida - ignorando evento');
+      return res.status(200).json({ ok: true });
+    }
+    
     const webhookType = String(req.body?.type || req.body?.action || '').toLowerCase();
     const paymentId = req.body?.data?.id || req.body?.id;
 
@@ -1982,244 +2125,47 @@ app.post('/api/webhooks/mercadopago', async (req, res) => {
 // ============================================
 
 // Create payment preference
-app.post('/api/mercadopago/create-preference', async (req, res) => {
-  const { clinicName, email, name, phone, plan, amount, clinicId } = req.body;
-  
-  try {
-    addLog(`[MP] Creating preference for ${email}, plan=${plan}, amount=${amount}`);
-    addLog(`[MP] SUPABASE_URL configured: ${!!SUPABASE_URL}`);
-    addLog(`[MP] SUPABASE_ANON_KEY configured: ${!!SUPABASE_ANON_KEY}`);
-    addLog(`[MP] MP_ACCESS_TOKEN env: ${!!process.env.MP_ACCESS_TOKEN}`);
-    
-    // Get MP credentials from Supabase or env
-    let token = mpAccessToken || process.env.MP_ACCESS_TOKEN;
-    addLog(`[MP] Initial token: ${token ? 'YES (length: ' + token.length + ')' : 'NO'}`);
-    
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      try {
-        const url = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.00000000-0000-0000-0000-000000000001&select=mp_access_token,mp_public_key`;
-        addLog(`[MP] Fetching from Supabase: ${url}`);
-        
-        const supaRes = await fetch(url, {
-          headers: { 
-            'apikey': SUPABASE_ANON_KEY, 
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        addLog(`[MP] Supabase response status: ${supaRes.status}`);
-        const configData = await supaRes.json();
-        addLog(`[MP] Supabase response: ${JSON.stringify(configData).substring(0, 200)}`);
-        
-        if (configData && configData.length > 0 && configData[0]?.mp_access_token) {
-          token = configData[0].mp_access_token;
-          addLog(`[MP] Token found in Supabase! Length: ${token.length}`);
-        } else {
-          addLog(`[MP] No token found in Supabase. Data length: ${configData?.length || 0}`);
-        }
-      } catch (e) { 
-        addLog(`[MP] Error fetching from Supabase: ${e.message}`);
-      }
-    }
-    
-    if (!token) {
-      addLog(`[MP] ERROR: No Mercado Pago token configured!`);
-      return res.status(500).json({ ok: false, error: 'Mercado Pago não configurado. Configure o Access Token no Super Admin → Sistema (Global) ou na variável de ambiente MP_ACCESS_TOKEN.' });
-    }
-    
-    const preference = {
-      items: [{
-        id: plan || 'plano-clinica',
-        title: `LuminaFlow - ${clinicName}`,
-        quantity: 1,
-        unit_price: parseFloat(amount) || 97,
-        currency_id: 'BRL',
-      }],
-      payer: {
-        name: name,
-        email: email,
-        phone: { number: phone?.replace(/\D/g, '') || '' },
-      },
-      metadata: {
-        clinic_id: clinicId,
-        clinic_name: clinicName,
-        plan: plan || 'basico',
-        user_email: email,
-        user_name: name,
-        user_phone: phone,
-      },
-      payment_methods: {
-        excluded_payment_types: [{ id: 'ticket' }],
-        installments: 1,
-      },
-      back_urls: {
-        success: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=success`,
-        failure: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=failure`,
-        pending: `${process.env.FRONTEND_URL || 'https://clinxia.vercel.app'}/?payment=pending`,
-      },
-      notification_url: `${process.env.SERVER_URL || 'https://clinxia-backend.onrender.com'}/api/webhooks/mercadopago`,
-      auto_return: 'approved',
-    };
-    
-    const mpRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(preference),
-    });
-    
-    const mpData = await mpRes.json();
-    
-    if (!mpRes.ok) {
-      console.error('[MP] Error creating preference:', mpData);
-      return res.status(500).json({ ok: false, error: mpData.message || 'Erro ao criar preferência' });
-    }
-    
-    res.json({
-      ok: true,
-      preference_id: mpData.id,
-      init_point: mpData.init_point,
-      qr_code: mpData.qr_code || '',
-      qr_code_base64: mpData.qr_code_base64 || '',
-    });
-  } catch (error) {
-    console.error('[MP] Error:', error);
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// Mercado Pago Webhook
-app.post('/api/webhooks/mercadopago', async (req, res) => {
-  try {
-    const { type, data } = req.body;
-    
-    if (type === 'payment') {
-      const paymentId = data.id;
-      
-      // Get MP credentials
-      let token = mpAccessToken;
-      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-        try {
-          const { data: configData } = await fetch(`${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.00000000-0000-0000-0000-000000000001&select=mp_access_token`, {
-            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` }
-          }).then(r => r.json());
-          if (configData && configData[0]?.mp_access_token) {
-            token = configData[0].mp_access_token;
-          }
-        } catch (e) { /* use env token */ }
-      }
-      
-      if (!token) {
-        addLog('[MP Webhook] Token não configurado');
-        return res.status(200).json({ ok: true });
-      }
-      
-      // Fetch payment details
-      const payRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const payment = await payRes.json();
-      
-      addLog(`[MP Webhook] Payment ${paymentId}: status=${payment.status}, metadata=${JSON.stringify(payment.metadata)}`);
-      
-      if (payment.status === 'approved') {
-        const metadata = payment.metadata || {};
-        const clinicId = metadata.clinic_id;
-        
-        if (clinicId && SUPABASE_URL && SUPABASE_ANON_KEY) {
-          // Create clinic in Supabase
-          const { error: clinicError } = await fetch(`${SUPABASE_URL}/rest/v1/clinics`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-              'Prefer': 'resolution=merge-duplicates'
-            },
-            body: JSON.stringify({
-              id: clinicId,
-              name: metadata.clinic_name || 'Nova Clínica',
-              document_type: metadata.doc_type || 'cpf',
-              document_number: metadata.doc_number || '',
-              modality: metadata.modality || 'odonto',
-              plan: metadata.plan || 'basico',
-              phone: metadata.user_phone || '',
-              email: metadata.user_email || '',
-              active: true,
-              created_at: new Date().toISOString(),
-            }),
-          }).then(r => r.json());
-          
-          // Create admin user
-          const userId = crypto.randomUUID();
-          await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({
-              id: userId,
-              clinic_id: clinicId,
-              name: metadata.user_name || 'Admin',
-              email: metadata.user_email || '',
-              phone: metadata.user_phone || '',
-              role: 'admin',
-              active: true,
-              created_at: new Date().toISOString(),
-            }),
-          });
-          
-          // Record payment
-          await fetch(`${SUPABASE_URL}/rest/v1/payments`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-            body: JSON.stringify({
-              id: `mp-${paymentId}`,
-              clinic_id: clinicId,
-              mp_payment_id: paymentId,
-              amount: payment.transaction_amount || 0,
-              status: payment.status,
-              plan: metadata.plan || 'basico',
-              payer_email: metadata.user_email || '',
-              payer_name: metadata.user_name || '',
-              created_at: new Date().toISOString(),
-            }),
-          });
-          
-          addLog(`[MP Webhook] Clínica ativada: ${metadata.clinic_name} (${clinicId})`);
-        }
-      }
-    }
-    
-    res.status(200).json({ ok: true });
-  } catch (error) {
-    addLog(`[MP Webhook] Error: ${error.message}`);
-    res.status(200).json({ ok: true }); // Always return 200 to MP
-  }
-});
-
-app.get('/api/clinic/anamnese-sync', (req, res) => {
-  res.json({ ok: true, items: [] });
-});
 
 // ============================================
 // 2FA Endpoints
 // ============================================
 
-app.post('/api/2fa/setup', async (req, res) => {
+const require2FAPermission = (req, res, next) => {
+  const requestedUserId = req.body.userId || req.query.userId;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+  
+  if (!requestedUserId) {
+    return res.status(400).json({ ok: false, error: 'userId é obrigatório' });
+  }
+  
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ ok: false, error: 'Autenticação requerida' });
+  }
+  
+  if (requestedUserId !== req.user.id && !isSuperAdmin) {
+    return res.status(403).json({ ok: false, error: 'Não autorizado a gerenciar 2FA de outro usuário' });
+  }
+  
+  next();
+};
+
+const requireSuperAdmin = (req, res, next) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({ ok: false, error: 'Autenticação requerida' });
+  }
+  
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ ok: false, error: 'Acesso restrito a super_admin' });
+  }
+  
+  next();
+};
+
+app.post('/api/2fa/setup', require2FAPermission, async (req, res) => {
   try {
     const userId = req.body.userId || req.query.userId;
     const userEmail = req.body.userEmail || req.query.userEmail || 'user@clinxia.com';
-    const userRole = req.body.userRole || req.query.userRole || 'admin';
+    const userRole = req.user?.role || 'admin';
     const isSuperAdmin = userRole === 'super_admin';
     
     if (!userId) {
@@ -2272,7 +2218,7 @@ app.post('/api/2fa/setup', async (req, res) => {
   }
 });
 
-app.post('/api/2fa/verify', async (req, res) => {
+app.post('/api/2fa/verify', require2FAPermission, async (req, res) => {
   try {
     const { code, userId } = req.body;
     
@@ -2360,7 +2306,7 @@ app.post('/api/2fa/verify', async (req, res) => {
   }
 });
 
-app.post('/api/2fa/disable', async (req, res) => {
+app.post('/api/2fa/disable', require2FAPermission, async (req, res) => {
   try {
     const { userId } = req.body;
     if (!userId) {
@@ -2376,7 +2322,7 @@ app.post('/api/2fa/disable', async (req, res) => {
   }
 });
 
-app.get('/api/2fa/status', async (req, res) => {
+app.get('/api/2fa/status', require2FAPermission, async (req, res) => {
   try {
     const userId = req.query.userId;
     if (!userId) {
