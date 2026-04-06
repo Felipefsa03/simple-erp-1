@@ -663,9 +663,65 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ============================================
-// OAuth Google Login/Signup
-// ============================================
+// EXPLICITLY PUBLIC OAuth routes - BEFORE any middleware
+app.get('/api/auth/google', (req, res) => {
+  const isSignup = req.query.signup === 'true';
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`;
+  
+  if (!clientId) {
+    return res.status(503).json({ ok: false, error: 'Google OAuth não configurado' });
+  }
+  
+  const scope = encodeURIComponent('openid email profile');
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${isSignup ? 'signup' : 'login'}&access_type=offline&prompt=consent`;
+  
+  res.redirect(authUrl);
+});
+
+app.get('/api/auth/google/callback', async (req, res) => {
+  const { code, state } = req.query;
+  const frontendUrl = process.env.FRONTEND_URL || 'https://clinxia.vercel.app';
+  
+  if (!code) {
+    return res.redirect(`${frontendUrl}/?error=google_auth_failed`);
+  }
+  
+  try {
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID || '',
+        client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+        code: String(code),
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`,
+      }),
+    });
+    
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenData.access_token) {
+      return res.redirect(`${frontendUrl}/?error=google_token_failed`);
+    }
+    
+    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    
+    const googleUser = await userResponse.json();
+    
+    if (state === 'signup') {
+      return res.redirect(`${frontendUrl}/?google_signup=true&email=${encodeURIComponent(googleUser.email)}&name=${encodeURIComponent(googleUser.name || googleUser.email.split('@')[0])}`);
+    }
+    
+    res.redirect(`${frontendUrl}/?google_login=success`);
+  } catch (error) {
+    console.error('[Google OAuth] Error:', error.message);
+    res.redirect(`${frontendUrl}/?error=google_auth_error`);
+  }
+});
 
 // ============================================
 // Apply auth middleware to all /api routes except public ones
@@ -700,76 +756,7 @@ app.use('/api', (req, res, next) => {
 });
 
 // OAuth Google routes - explicitly public, defined AFTER auth middleware
-app.get('/api/auth/google', (req, res) => {
-  console.log('[Google OAuth] Hit /api/auth/google');
-  const isSignup = req.query.signup === 'true';
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`;
-  
-  if (!clientId) {
-    return res.status(503).json({ 
-      ok: false, 
-      error: 'Google OAuth não configurado. Defina GOOGLE_CLIENT_ID.' 
-    });
-  }
-  
-  const scope = encodeURIComponent('openid email profile');
-  const state = isSignup ? 'signup' : 'login';
-  
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${state}&access_type=offline&prompt=consent`;
-  
-  res.redirect(authUrl);
-});
-
-app.get('/api/auth/google/callback', async (req, res) => {
-  console.log('[Google OAuth] Callback hit');
-  const { code, state } = req.query;
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`;
-  
-  if (!code) {
-    return res.redirect(`${process.env.FRONTEND_URL}/?error=google_auth_failed`);
-  }
-  
-  try {
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId || '',
-        client_secret: clientSecret || '',
-        code: String(code),
-        grant_type: 'authorization_code',
-        redirect_uri: redirectUri,
-      }),
-    });
-    
-    const tokenData = await tokenResponse.json();
-    
-    if (!tokenData.access_token) {
-      return res.redirect(`${process.env.FRONTEND_URL}/?error=google_token_failed`);
-    }
-    
-    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
-    
-    const googleUser = await userResponse.json();
-    
-    const isSignup = state === 'signup';
-    const frontendUrl = process.env.FRONTEND_URL || 'https://clinxia.vercel.app';
-    
-    if (isSignup) {
-      return res.redirect(`${frontendUrl}/?google_signup=true&email=${encodeURIComponent(googleUser.email)}&name=${encodeURIComponent(googleUser.name)}`);
-    }
-    
-    res.redirect(`${frontendUrl}/?google_login=success`);
-  } catch (error) {
-    console.error('[Google OAuth] Error:', error.message);
-    res.redirect(`${process.env.FRONTEND_URL}/?error=google_auth_error`);
-  }
-});
+// NOTE: Duplicate route removed - keeping only the one before auth middleware
 
 app.use('/api/*', (req, res) => {
   res.status(404).json({ ok: false, error: `Rota não encontrada: ${req.path}` });
