@@ -46,6 +46,8 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export function SignupPage({ onLoginClick }: SignupPageProps) {
   const { login } = useAuth();
   const [signupStep, setSignupStep] = useState<Step>(1);
+  // Google OAuth configuration status (null = loading, true = configured, false = not configured)
+  const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(null);
   const [signupForm, setSignupForm] = useState({
     name: '',
     email: '',
@@ -140,6 +142,19 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
         setPhoneVerificationEnabled(Boolean(data.phone_verification_enabled));
       } catch (_error) {
         setDynamicPlans(DEFAULT_PLANS);
+      }
+    })();
+  }, []);
+
+  // Load Google OAuth configuration status on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/auth/google-configured`);
+        const j = await r.json();
+        setGoogleConfigured(Boolean(j?.configured));
+      } catch {
+        setGoogleConfigured(false);
       }
     })();
   }, []);
@@ -391,10 +406,24 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
               {signupStep === 1 && (
                 <div className="space-y-4">
                   <h2 className="font-bold text-slate-900 text-lg">Dados Pessoais</h2>
+                  {/* Status de configuração do Google OAuth */}
+                  {googleConfigured === null && (
+                    <div className="text-sm text-slate-500 mb-2">Verificando configuração do Google OAuth...</div>
+                  )}
+                  {googleConfigured === true && (
+                    <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl p-2 mb-2">Google OAuth configurado</div>
+                  )}
+                  {googleConfigured === false && (
+                    <div className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-2 mb-2">Google OAuth não configurado. Contate o suporte.</div>
+                  )}
                   
                   <button
                     type="button"
                     onClick={() => {
+                      // Se o Google OAuth não estiver configurado, não redirecionar
+                      if (googleConfigured === false) {
+                        return;
+                      }
                       window.location.href = `${API_BASE}/api/auth/google?signup=true`;
                     }}
                     className="w-full py-3 px-4 bg-white border-2 border-slate-200 rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 font-semibold text-slate-700"
