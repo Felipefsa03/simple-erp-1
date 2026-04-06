@@ -756,15 +756,16 @@ const publicPaths = [
 
 app.use('/api', (req, res, next) => {
   const pathWithoutApi = req.path;
-  console.log(`[DEBUG] ${req.method} ${pathWithoutApi} - checking against publicPaths`);
   
   if (publicPaths.some(p => pathWithoutApi.startsWith(p))) {
-    console.log(`[DEBUG] ${pathWithoutApi} matched - allowing without auth`);
     return next();
   }
-  
-  console.log(`[DEBUG] ${pathWithoutApi} did not match - requiring auth`);
   return requireAuth(req, res, next);
+});
+
+app.use('/api/*', (req, res) => {
+  console.log(`[404] Unmatched route: ${req.path}`);
+  res.status(404).json({ ok: false, error: `Rota não encontrada: ${req.path}` });
 });
 
 app.get('/api/health/extended', (req, res) => {
