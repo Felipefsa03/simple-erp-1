@@ -41,16 +41,25 @@ const bumpMetric = (metricMap, key) => {
 const mapToObject = (metricMap) => Object.fromEntries(metricMap.entries());
 
 // Supabase configuration (supports legacy and new key names)
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_URL_PROD || '';
-const SUPABASE_ANON_KEY =
-  process.env.SUPABASE_PUBLISHABLE_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  process.env.SUPABASE_ANON_KEY_PROD ||
-  '';
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SECRET_KEY ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  '';
+const cleanEnv = (value) => String(value || '').trim();
+const pickEnv = (...values) => {
+  for (const value of values) {
+    const cleaned = cleanEnv(value);
+    if (cleaned) return cleaned;
+  }
+  return '';
+};
+
+const SUPABASE_URL = pickEnv(process.env.SUPABASE_URL, process.env.SUPABASE_URL_PROD);
+const SUPABASE_ANON_KEY = pickEnv(
+  process.env.SUPABASE_PUBLISHABLE_KEY,
+  process.env.SUPABASE_ANON_KEY,
+  process.env.SUPABASE_ANON_KEY_PROD,
+);
+const SUPABASE_SERVICE_ROLE_KEY = pickEnv(
+  process.env.SUPABASE_SECRET_KEY,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+);
 
 // ============================================
 // Startup: validate required environment variables
@@ -90,8 +99,8 @@ const getServerHeaders = (token) => ({
 });
 
 // Mercado Pago configuration (can be overridden per clinic via Supabase)
-let mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
-let mpPublicKey = process.env.MP_PUBLIC_KEY || '';
+let mpAccessToken = cleanEnv(process.env.MP_ACCESS_TOKEN);
+let mpPublicKey = cleanEnv(process.env.MP_PUBLIC_KEY);
 const GLOBAL_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 const SYSTEM_WHATSAPP_CLINIC_ID = 'system-global';
 const DEFAULT_PLAN_PRICES = {
@@ -193,8 +202,8 @@ const fetchGlobalIntegrationConfig = async () => {
 };
 
 const resolveMercadoPagoCredentials = async () => {
-  let token = mpAccessToken || process.env.MP_ACCESS_TOKEN || '';
-  let publicKey = mpPublicKey || process.env.MP_PUBLIC_KEY || '';
+  let token = mpAccessToken || cleanEnv(process.env.MP_ACCESS_TOKEN);
+  let publicKey = mpPublicKey || cleanEnv(process.env.MP_PUBLIC_KEY);
   let config = null;
 
   try {
