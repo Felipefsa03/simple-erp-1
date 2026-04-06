@@ -17,6 +17,7 @@ import makeWASocket, {
 
 const app = express();
 const PORT = process.env.PORT || 8787;
+console.log('[SERVER] Starting on port:', PORT);
 const APP_VERSION = (() => {
   try {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
@@ -663,7 +664,8 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// EXPLICITLY PUBLIC OAuth routes - BEFORE any middleware
+// OAuth v2.2 - deploy 2026-04-06
+console.log('[SERVER] OAuth routes at 667-730');
 app.all('/api/auth/google', (req, res) => {
   console.log('[DEBUG] /api/auth/google hit with method:', req.method);
   if (req.method !== 'GET') {
