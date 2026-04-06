@@ -664,7 +664,11 @@ app.get('/api/health', (req, res) => {
 });
 
 // EXPLICITLY PUBLIC OAuth routes - BEFORE any middleware
-app.get('/api/auth/google', (req, res) => {
+app.all('/api/auth/google', (req, res) => {
+  console.log('[DEBUG] /api/auth/google hit with method:', req.method);
+  if (req.method !== 'GET') {
+    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  }
   const isSignup = req.query.signup === 'true';
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`;
@@ -679,7 +683,8 @@ app.get('/api/auth/google', (req, res) => {
   res.redirect(authUrl);
 });
 
-app.get('/api/auth/google/callback', async (req, res) => {
+app.all('/api/auth/google/callback', async (req, res) => {
+  console.log('[DEBUG] /api/auth/google/callback hit');
   const { code, state } = req.query;
   const frontendUrl = process.env.FRONTEND_URL || 'https://clinxia.vercel.app';
   
