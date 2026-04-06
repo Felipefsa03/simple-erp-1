@@ -588,10 +588,11 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 app.use(express.json({ limit: '10mb' }));
-app.use('/api', (req, _res, next) => {
+app.use('/api', (req, res, next) => {
   runtimeMetrics.requestsTotal += 1;
+  const pathWithoutApi = req.path.replace(/^\/api/, '') || '/';
   bumpMetric(runtimeMetrics.requestsByMethod, req.method);
-  bumpMetric(runtimeMetrics.requestsByPath, req.path);
+  bumpMetric(runtimeMetrics.requestsByPath, pathWithoutApi);
   next();
 });
 
@@ -754,9 +755,15 @@ const publicPaths = [
 ];
 
 app.use('/api', (req, res, next) => {
-  if (publicPaths.some(p => req.path.startsWith(p))) {
+  const pathWithoutApi = req.path;
+  console.log(`[DEBUG] ${req.method} ${pathWithoutApi} - checking against publicPaths`);
+  
+  if (publicPaths.some(p => pathWithoutApi.startsWith(p))) {
+    console.log(`[DEBUG] ${pathWithoutApi} matched - allowing without auth`);
     return next();
   }
+  
+  console.log(`[DEBUG] ${pathWithoutApi} did not match - requiring auth`);
   return requireAuth(req, res, next);
 });
 
