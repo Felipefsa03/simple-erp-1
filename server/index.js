@@ -666,6 +666,11 @@ app.get('/api/health', (req, res) => {
 
 // OAuth v2.2 - deploy 2026-04-06
 console.log('[SERVER] OAuth routes at 667-730');
+app.get('/api/auth/google-configured', (req, res) => {
+  const configured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  res.json({ ok: true, configured });
+});
+
 app.all('/api/auth/google', (req, res) => {
   console.log('[DEBUG] /api/auth/google hit with method:', req.method);
   if (req.method !== 'GET') {
