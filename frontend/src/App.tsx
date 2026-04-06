@@ -22,7 +22,15 @@ function FullPageLoader() {
 
 export default function App() {
   const { user } = useAuth();
-  const [authView, setAuthView] = useState<'landing' | 'login' | 'signup' | 'forgot-password'>('landing');
+  const [authView, setAuthView] = useState<'landing' | 'login' | 'signup' | 'forgot-password'>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path === '/signup') return 'signup';
+      if (path === '/login') return 'login';
+      if (path === '/forgot-password') return 'forgot-password';
+    }
+    return 'landing';
+  });
   const [publicRoute, setPublicRoute] = useState<'landing' | 'book-online' | 'anamnese-form'>(() => {
     const hash = typeof window !== 'undefined' ? window.location.hash : '';
     if (hash.startsWith('#book-online')) return 'book-online';
@@ -46,10 +54,12 @@ export default function App() {
     return '';
   });
 
-  // Hash-based public route detection
+  // Hash-based public route detection + URL path sync
   useEffect(() => {
-    const syncPublicRoute = () => {
+    const syncRoute = () => {
       const hash = window.location.hash || '';
+      const path = window.location.pathname;
+      
       if (hash.startsWith('#book-online')) {
         setPublicRoute('book-online');
         const parsed = hash.includes('?') ? hash.split('?')[1] : '';
@@ -66,11 +76,18 @@ export default function App() {
       } else {
         setPublicRoute('landing');
         setPublicAnamneseToken('');
+        if (path === '/signup') setAuthView('signup');
+        else if (path === '/login') setAuthView('login');
+        else if (path === '/forgot-password') setAuthView('forgot-password');
       }
     };
-    syncPublicRoute();
-    window.addEventListener('hashchange', syncPublicRoute);
-    return () => window.removeEventListener('hashchange', syncPublicRoute);
+    syncRoute();
+    window.addEventListener('hashchange', syncRoute);
+    window.addEventListener('popstate', syncRoute);
+    return () => {
+      window.removeEventListener('hashchange', syncRoute);
+      window.removeEventListener('popstate', syncRoute);
+    };
   }, []);
 
   // Hydrate anamnese store for public form
