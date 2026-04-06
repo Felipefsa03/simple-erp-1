@@ -663,33 +663,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================
-// Apply auth middleware to all /api routes except public ones
-// ============================================
-const publicPaths = [
-  '/api/health',
-  '/api/health/extended',
-  '/api/stats',
-  '/api/webhooks/',
-  '/api/clinic/anamnese-sync',
-  '/api/auth/',
-  '/api/auth/google',
-  '/api/signup/init',
-  '/api/signup/verify-phone',
-  '/api/signup/complete',
-  '/api/mercadopago/create-preference',
-  '/api/asaas/test',
-  '/api/integrations/rdstation/event',
-];
-
-app.use('/api', (req, res, next) => {
-  if (publicPaths.some(p => req.path.startsWith(p))) {
-    return next();
-  }
-  return requireAuth(req, res, next);
-});
-
-// ============================================
-// OAuth Google Login/Signup
+// OAuth Google Login/Signup (must be before auth middleware)
 // ============================================
 app.get('/api/auth/google', (req, res) => {
   const isSignup = req.query.signup === 'true';
@@ -758,6 +732,32 @@ app.get('/api/auth/google/callback', async (req, res) => {
     console.error('[Google OAuth] Error:', error.message);
     res.redirect(`${process.env.FRONTEND_URL}/?error=google_auth_error`);
   }
+});
+
+// ============================================
+// Apply auth middleware to all /api routes except public ones
+// ============================================
+const publicPaths = [
+  '/api/health',
+  '/api/health/extended',
+  '/api/stats',
+  '/api/webhooks/',
+  '/api/clinic/anamnese-sync',
+  '/api/auth/',
+  '/api/auth/google',
+  '/api/signup/init',
+  '/api/signup/verify-phone',
+  '/api/signup/complete',
+  '/api/mercadopago/create-preference',
+  '/api/asaas/test',
+  '/api/integrations/rdstation/event',
+];
+
+app.use('/api', (req, res, next) => {
+  if (publicPaths.some(p => req.path.startsWith(p))) {
+    return next();
+  }
+  return requireAuth(req, res, next);
 });
 
 app.get('/api/health/extended', (req, res) => {
