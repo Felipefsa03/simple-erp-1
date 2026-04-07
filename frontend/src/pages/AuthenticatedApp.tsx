@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ToastProvider, ErrorBoundary } from '@/components/shared';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,21 +34,15 @@ function PageLoader() {
   );
 }
 
-// Route-based wrapper component that preserves existing behavior
-function AppRoutes() {
-  const navigate = useNavigate();
-  const location = useLocation();
+export function AuthenticatedApp() {
   const { user, clinic, logout, hasPermission } = useAuth();
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState<{ plan: string; amount: number; dueDate: string; qrCode: string; pixLink: string } | null>(null);
   const confirmationsCount = useClinicStore(s => s.appointmentConfirmations.length);
   const { canInstall, isInstalled, isIos, promptInstall } = usePWAInstall();
-
-  // Get current tab from URL path
-  const currentPath = location.pathname.replace('/', '') || 'dashboard';
-  const activeTab = currentPath;
 
   const handleInstallPwa = async () => {
     if (canInstall) {
@@ -74,6 +67,15 @@ function AppRoutes() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Set default tab based on role
+  useEffect(() => {
+    if (user?.role === 'super_admin') {
+      setActiveTab(prev => prev.startsWith('admin-') ? prev : 'admin-dashboard');
+    } else if (user) {
+      setActiveTab(prev => prev === 'admin-dashboard' || prev.startsWith('admin-') ? 'dashboard' : (prev || 'dashboard'));
+    }
+  }, [user?.id, user?.role]);
 
   // Check subscription status
   useEffect(() => {
@@ -145,11 +147,13 @@ function AppRoutes() {
     return () => { cancelled = true; };
   }, [confirmationsCount]);
 
-  // Event bus listeners
+  // Domain event listeners
   useEffect(() => {
     const offFinished = useEventBus.getState().on('APPOINTMENT_FINISHED', () => {
-      toast('Atendimento finalizado e lançado no financeiro.', 'info');
-      setTimeout(() => { navigate('/financeiro'); }, 1500);
+      if (activeTab !== 'financeiro') {
+        toast('Atendimento finalizado e lançado no financeiro.', 'info');
+        setTimeout(() => { setActiveTab('financeiro'); }, 1500);
+      }
     });
     const offPayment = useEventBus.getState().on('PAYMENT_RECEIVED', () => {
       toast('Pagamento recebido com sucesso.', 'success');
@@ -159,7 +163,7 @@ function AppRoutes() {
       toast(`${count} pacientes importados.`, 'success');
     });
     return () => { offFinished(); offPayment(); offImported(); };
-  }, [navigate]);
+  }, [activeTab]);
 
   const tabPermissions: Record<string, string | null> = {
     dashboard: 'view_dashboard',
@@ -183,11 +187,9 @@ function AppRoutes() {
     if (ctx) {
       useClinicStore.getState().setNavigationContext({ ...ctx, fromModule: activeTab });
     }
-    // Navigate to the route
-    navigate(`/${tab}`);
-  }, [activeTab, hasPermission, tabPermissions, navigate]);
+    setActiveTab(tab);
+  }, [activeTab, hasPermission, tabPermissions]);
 
-  // Render content based on route
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard onNavigate={handleNavigate} />;
@@ -211,7 +213,7 @@ function AppRoutes() {
         <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
           <AlertCircle className="w-12 h-12 opacity-20" />
           <p className="text-lg font-medium">Módulo em desenvolvimento</p>
-          <button onClick={() => navigate(user?.role === 'super_admin' ? '/admin-dashboard' : '/dashboard')} className="text-cyan-600 font-bold hover:underline">
+          <button onClick={() => setActiveTab(user?.role === 'super_admin' ? 'admin-dashboard' : 'dashboard')} className="text-cyan-600 font-bold hover:underline">
             Voltar ao Início
           </button>
         </div>
@@ -240,7 +242,7 @@ function AppRoutes() {
         <div className="flex h-screen bg-slate-50 overflow-hidden relative">
           <Sidebar
             activeTab={activeTab}
-            onTabChange={(tab) => navigate(`/${tab === 'admin-dashboard' || tab.startsWith('admin-') ? '/' + tab : '/' + tab}`)}
+            onTabChange={(tab) => handleNavigate(tab)}
             isOpen={isSidebarOpen}
             setIsOpen={setIsSidebarOpen}
             isMobile={isMobile}
@@ -260,7 +262,7 @@ function AppRoutes() {
             {isMobile && (
               <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between z-30">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">C</div>
+                  <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">L</div>
                   <span className="font-bold text-lg tracking-tight text-slate-900">Clinxia</span>
                 </div>
                 <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
@@ -291,45 +293,5 @@ function AppRoutes() {
         </div>
       </ErrorBoundary>
     </ToastProvider>
-  );
-}
-
-// Protected route wrapper - redirects to login if not authenticated
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/login', { state: { from: location.pathname }, replace: true });
-    }
-  }, [user, isLoading, navigate, location]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  return <>{children}</>;
-}
-
-// Main component that sets up routing
-export function AuthenticatedApp() {
-  return (
-    <Routes>
-      <Route path="/*" element={
-        <ProtectedRoute>
-          <AppRoutes />
-        </ProtectedRoute>
-      } />
-    </Routes>
   );
 }
