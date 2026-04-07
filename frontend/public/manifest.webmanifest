@@ -1,6 +1,6 @@
 {
-  "name": "LuminaFlow ERP",
-  "short_name": "LuminaFlow",
+  "name": "Clinxia ERP",
+  "short_name": "Clinxia",
   "description": "ERP para clinicas de odonto e estetica com agenda, prontuario e financeiro integrado.",
   "start_url": "/",
   "display": "standalone",

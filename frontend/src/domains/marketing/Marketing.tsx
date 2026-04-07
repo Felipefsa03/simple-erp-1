@@ -191,7 +191,7 @@ export function Marketing() {
         await integrationsApi.sendNotification({
           channel: 'whatsapp',
           recipients: targets.slice(0, 50).map(p => p.phone || p.id),
-          message: whatsAppDefaultMessage || 'Campanha enviada via CRM LuminaFlow.',
+          message: whatsAppDefaultMessage || 'Campanha enviada via CRM Clinxia.',
           metadata: { campaign_name: campaignName, target: campaignTarget },
         });
       }
@@ -625,7 +625,7 @@ export function Marketing() {
             {campaignType === 'facebook' && (
               <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
                 <p className="text-sm font-bold text-blue-800 mb-2">Público Semelhante (Lookalike)</p>
-                <p className="text-xs text-blue-600">O LuminaFlow enviará sua lista de pacientes rentáveis para o Facebook criar públicos altamente segmentados e gerar novos leads direto no seu funil.</p>
+                <p className="text-xs text-blue-600">O Clinxia enviará sua lista de pacientes rentáveis para o Facebook criar públicos altamente segmentados e gerar novos leads direto no seu funil.</p>
               </div>
             )}
 

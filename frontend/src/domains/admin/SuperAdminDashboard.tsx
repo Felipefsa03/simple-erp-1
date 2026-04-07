@@ -524,7 +524,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     <div className="space-y-8">
       <header>
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Shield className="w-6 h-6 text-cyan-500" />Painel Super Admin</h1>
-        <p className="text-slate-500">Visão geral de todas as clínicas da plataforma LuminaFlow.</p>
+        <p className="text-slate-500">Visão geral de todas as clínicas da plataforma Clinxia.</p>
       </header>
 
       {/* KPI Cards */}

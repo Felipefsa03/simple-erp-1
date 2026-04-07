@@ -37,9 +37,9 @@ export function LoginPage({ onForgotPassword, onSignup, onBackToLanding }: Login
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-cyan-200/50">
-                <span className="text-2xl font-black">L</span>
+                <span className="text-2xl font-black">C</span>
               </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">LuminaFlow</h1>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Clinxia</h1>
               <p className="text-slate-500 mt-1">A inteligência que sua clínica precisa para brilhar.</p>
             </div>
 

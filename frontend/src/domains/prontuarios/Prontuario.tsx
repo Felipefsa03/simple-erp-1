@@ -491,7 +491,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
     if (!patient || !appointment || !docType) return;
 
     let htmlContent = '';
-    const clinicName = 'LuminaFlow Clínica';
+    const clinicName = 'Clinxia Clínica';
     const professional = useClinicStore.getState().professionals.find(p => p.id === appointment.professional_id);
 
     switch (docType) {
