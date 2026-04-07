@@ -1044,21 +1044,21 @@ const ensureClinicStatus = (clinicId) => {
 
 // Supabase helpers for WhatsApp credentials
 const saveCredentialsToSupabase = async (clinicId, credentials) => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.log('[Supabase] Credenciais não configuradas, usando arquivo local');
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('[Supabase] SERVICE_ROLE_KEY não configurada, usando arquivo local');
     return false;
   }
   
   try {
     const credsString = JSON.stringify(credentials, BufferJSON.replacer);
     
-    // Try insert first (will fail if exists)
+    // Try insert first (will fail if exists) - use SERVICE_ROLE_KEY
     const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         'Prefer': 'resolution=ignore-duplicates'
       },
       body: JSON.stringify({
@@ -1073,13 +1073,13 @@ const saveCredentialsToSupabase = async (clinicId, credentials) => {
       return true;
     }
     
-    // If insert failed (duplicate), try update
+    // If insert failed (duplicate), try update - use SERVICE_ROLE_KEY
     const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
@@ -1097,16 +1097,16 @@ const saveCredentialsToSupabase = async (clinicId, credentials) => {
 };
 
 const loadCredentialsFromSupabase = async (clinicId) => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.log('[Supabase] Credenciais não configuradas');
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('[Supabase] SERVICE_ROLE_KEY não configurada');
     return null;
   }
   
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}&select=credentials`, {
       headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
       }
     });
     
@@ -1254,8 +1254,8 @@ const createWhatsAppSocket = async (clinicId) => {
               await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
                 method: 'DELETE',
                 headers: {
-                  'apikey': SUPABASE_ANON_KEY,
-                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                  'apikey': SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
                 }
               });
               addLog(`[Baileys] Credenciais removidas do Supabase para ${clinicId}`);
@@ -1375,8 +1375,8 @@ app.post('/api/whatsapp/connect', async (req, res) => {
       await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
         method: 'DELETE',
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
         }
       });
     } catch (e) {}
@@ -1478,8 +1478,8 @@ const disconnectWhatsAppSession = async (clinicId) => {
     await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
       method: 'DELETE',
       headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
       },
     });
   } catch (_e) {}
