@@ -16,6 +16,7 @@ import makeWASocket, {
 } from 'baileys';
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8787;
 console.log('[SERVER] Starting on port:', PORT);
 const APP_VERSION = (() => {
