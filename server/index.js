@@ -193,13 +193,43 @@ const isUuid = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
 
 const fetchGlobalIntegrationConfig = async () => {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
+  console.log('[Config] fetchGlobalIntegrationConfig called');
+  if (!SUPABASE_URL) {
+    console.log('[Config] Missing SUPABASE_URL');
+    return null;
+  }
+  
   const select =
     'clinic_id,mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium';
   const url = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=${select}&limit=1`;
-  const response = await fetch(url, { headers: getSupabaseAdminHeaders() });
-  if (!response.ok) return null;
+  console.log('[Config] Fetching from:', url);
+  
+  // Try with service role key first, fallback to anon key
+  const headers = SUPABASE_SERVICE_ROLE_KEY 
+    ? getSupabaseAdminHeaders() 
+    : { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` };
+  console.log('[Config] Using headers with service_role:', Boolean(SUPABASE_SERVICE_ROLE_KEY));
+  
+  const response = await fetch(url, { headers });
+  console.log('[Config] Response status:', response.status);
+  if (!response.ok) {
+    console.log('[Config] Failed to fetch config, status:', response.status);
+    // Try one more time with anon key as fallback
+    if (SUPABASE_SERVICE_ROLE_KEY) {
+      console.log('[Config] Retrying with anon key...');
+      const fallbackRes = await fetch(url, { 
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } 
+      });
+      if (fallbackRes.ok) {
+        const data = await safeJson(fallbackRes);
+        console.log('[Config] Data from fallback:', data);
+        return Array.isArray(data) && data.length > 0 ? data[0] : null;
+      }
+    }
+    return null;
+  }
   const data = await safeJson(response);
+  console.log('[Config] Data from DB:', data);
   return Array.isArray(data) && data.length > 0 ? data[0] : null;
 };
 
@@ -1712,8 +1742,11 @@ app.post('/api/notifications/send', async (req, res) => {
 
 app.get('/api/system/signup-config', async (_req, res) => {
   try {
+    console.log('[SignupConfig] Endpoint called');
     const globalConfig = await fetchGlobalIntegrationConfig();
+    console.log('[SignupConfig] globalConfig:', globalConfig);
     const planPrices = getPlanPricesFromConfig(globalConfig);
+    console.log('[SignupConfig] planPrices:', planPrices);
     const { token, publicKey } = await resolveMercadoPagoCredentials();
     const whatsappConnected = whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === 'connected';
 
