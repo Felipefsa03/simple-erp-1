@@ -769,6 +769,7 @@ const publicPaths = [
   '/mercadopago/create-preference',
   '/asaas/test',
   '/integrations/rdstation/event',
+  '/whatsapp/',
 ];
 
 app.use('/api', (req, res, next) => {
