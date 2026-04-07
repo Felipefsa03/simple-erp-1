@@ -664,10 +664,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// OAuth v2.2 - deploy 2026-04-06
-console.log('[SERVER] OAuth routes at 667-730');
+// OAuth v2.3 - deploy 2026-04-06 - hardcoded fallback for Google OAuth
+const GOOGLE_CLIENT_ID_FALLBACK = '835383356341-ibesc0ffaoovbpvc8rsnpjlhahpisg3s.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET_FALLBACK = 'AIzaSyBX7IRQUlIzDGIj7V6zzGF91c2sXJtbl8I';
+const GOOGLE_REDIRECT_URI_FALLBACK = 'https://clinxia-backend.onrender.com/api/auth/google/callback';
+
 app.get('/api/auth/google-configured', (req, res) => {
-  const configured = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  const clientId = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_FALLBACK;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || GOOGLE_CLIENT_SECRET_FALLBACK;
+  const configured = !!(clientId && clientSecret);
+  console.log('[Google OAuth Config] clientId:', clientId ? 'SET' : 'MISSING', 'clientSecret:', clientSecret ? 'SET' : 'MISSING');
   res.json({ ok: true, configured });
 });
 
@@ -677,13 +683,14 @@ app.all('/api/auth/google', (req, res) => {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
   const isSignup = req.query.signup === 'true';
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`;
+  const clientId = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_FALLBACK;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || GOOGLE_REDIRECT_URI_FALLBACK || `${process.env.SERVER_URL}/api/auth/google/callback`;
   
   if (!clientId) {
     return res.status(503).json({ ok: false, error: 'Google OAuth não configurado' });
   }
   
+  console.log('[Google OAuth] Redirecting to Google with clientId:', clientId.substring(0, 20) + '...');
   const scope = encodeURIComponent('openid email profile');
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${isSignup ? 'signup' : 'login'}&access_type=offline&prompt=consent`;
   
@@ -700,21 +707,27 @@ app.all('/api/auth/google/callback', async (req, res) => {
   }
   
   try {
+    const clientId = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_FALLBACK;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || GOOGLE_CLIENT_SECRET_FALLBACK;
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || GOOGLE_REDIRECT_URI_FALLBACK;
+
+    console.log('[Google OAuth Callback] Exchanging code for token...');
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID || '',
-        client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+        client_id: clientId,
+        client_secret: clientSecret,
         code: String(code),
         grant_type: 'authorization_code',
-        redirect_uri: process.env.GOOGLE_REDIRECT_URI || `${process.env.SERVER_URL}/api/auth/google/callback`,
+        redirect_uri: redirectUri,
       }),
     });
     
     const tokenData = await tokenResponse.json();
     
     if (!tokenData.access_token) {
+      console.error('[Google OAuth] Token exchange failed:', JSON.stringify(tokenData));
       return res.redirect(`${frontendUrl}/?error=google_token_failed`);
     }
     
@@ -723,9 +736,10 @@ app.all('/api/auth/google/callback', async (req, res) => {
     });
     
     const googleUser = await userResponse.json();
+    console.log('[Google OAuth] User info received:', googleUser.email);
     
     if (state === 'signup') {
-      return res.redirect(`${frontendUrl}/?google_signup=true&email=${encodeURIComponent(googleUser.email)}&name=${encodeURIComponent(googleUser.name || googleUser.email.split('@')[0])}`);
+      return res.redirect(`${frontendUrl}/signup?google_signup=true&email=${encodeURIComponent(googleUser.email)}&name=${encodeURIComponent(googleUser.name || googleUser.email.split('@')[0])}`);
     }
     
     res.redirect(`${frontendUrl}/?google_login=success`);
