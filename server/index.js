@@ -572,11 +572,14 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'Accept', 'Origin'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'Accept', 'Origin', 'ngrok-skip-browser-warning'],
 }));
 
 // Handle preflight explicitly
-app.options('*', cors());
+app.options('*', cors({
+  origin: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'Accept', 'Origin', 'ngrok-skip-browser-warning'],
+}));
 
 // Rate limiting: 100 requests per 15 minutes per IP
 const limiter = rateLimit({
