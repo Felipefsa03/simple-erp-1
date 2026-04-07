@@ -192,6 +192,35 @@ export function SystemWhatsAppConfig() {
     }
   }, [startPolling, startCountdown, setSystemWhatsApp]);
 
+  // Check WhatsApp status on mount (when page loads)
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, {
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        const data = await res.json();
+        
+        if (data.status === 'connected') {
+          setUiStatus('connected');
+          setSystemWhatsApp(true);
+          setDeviceInfo({
+            name: data.phoneNumber || 'WhatsApp Web',
+            id: '',
+            platform: 'API Render',
+          });
+        } else {
+          setUiStatus('disconnected');
+          setSystemWhatsApp(false);
+        }
+      } catch (err) {
+        console.error('[WhatsApp Sistema] Status check error:', err);
+      }
+    };
+    
+    checkStatus();
+  }, [setSystemWhatsApp]);
+
   useEffect(() => {
     if (showModal && !didInitRef.current) {
       didInitRef.current = true;
