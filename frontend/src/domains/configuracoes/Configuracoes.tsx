@@ -940,8 +940,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   <tr key={svc.id} className="hover:bg-slate-50/50">
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-900">{svc.name}</p>
-                      {svc.materials.length > 0 && <p className="text-[10px] text-slate-400">{svc.materials.length} material(is) vinculado(s)</p>}
-                      {svc.professional_prices && Object.keys(svc.professional_prices).length > 0 && <p className="text-[10px] text-cyan-500 font-medium">Preços por profissional configurados</p>}
+                      {(svc.materials || []).length > 0 && <p className="text-[10px] text-slate-400">{(svc.materials || []).length} material(is) vinculado(s)</p>}
+                      {(svc.professional_prices && Object.keys(svc.professional_prices || {}).length > 0) && <p className="text-[10px] text-cyan-500 font-medium">Preços por profissional configurados</p>}
                     </td>
                     <td className="px-6 py-4"><span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">{svc.category}</span></td>
                     <td className="px-6 py-4 text-sm text-slate-600">{svc.avg_duration_min} min</td>
