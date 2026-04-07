@@ -10,7 +10,7 @@ const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 const SYSTEM_CLINIC_ID = 'system-global';
 
-type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected';
+type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected' | 'pairing';
 
 export function SystemWhatsAppConfig() {
   const { user } = useAuth();
@@ -160,7 +160,39 @@ export function SystemWhatsAppConfig() {
       if (data.status === 'connected') {
         setUiStatus('connected');
         setSystemWhatsApp(true);
+        setDeviceInfo({
+          name: data.phoneNumber || 'WhatsApp Web',
+          id: '',
+          platform: 'API Render',
+        });
         return;
+      }
+
+      // If disconnected, need to connect to get QR code
+      if (data.status === 'disconnected' || data.status === undefined) {
+        try {
+          const connectRes = await fetch(`${API_BASE}/api/whatsapp/connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID })
+          });
+          const connectData = await connectRes.json();
+          
+          if (connectData.qrCode) {
+            setQrCode(connectData.qrCode);
+            setUiStatus('qr');
+            startCountdown();
+            return;
+          }
+          
+          if (connectData.pairingCode) {
+            setQrCode(connectData.pairingCode);
+            setUiStatus('pairing');
+            return;
+          }
+        } catch (e) {
+          console.error('[WhatsApp Sistema] Connect error:', e);
+        }
       }
 
       startPolling();
