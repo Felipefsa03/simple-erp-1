@@ -806,6 +806,7 @@ const publicPaths = [
   '/signup/phone/verify-code',
   '/system/signup-config',
   '/mercadopago/create-preference',
+  '/mercadopago/payment-status/',
   '/asaas/test',
   '/integrations/rdstation/event',
   '/whatsapp/',
@@ -2015,12 +2016,55 @@ app.post('/api/mercadopago/create-preference', async (req, res) => {
       return res.status(500).json({ ok: false, error: message });
     }
 
+    // Create PIX payment directly to get QR code
+    let qrCode = '';
+    let qrCodeBase64 = '';
+    let pointOfInteractionUrl = '';
+    try {
+      const pixPayment = {
+        transaction_amount: unitAmount,
+        description: `LuminaFlow - ${clinicName} - Plano ${selectedPlan}`,
+        payment_method_id: 'pix',
+        external_reference: normalizedClinicId,
+        payer: {
+          email,
+          first_name: name,
+          phone: { number: String(phone || '').replace(/\D/g, '') || '' },
+        },
+        metadata: {
+          clinic_id: normalizedClinicId,
+          plan: selectedPlan,
+          signup_id: signupId || '',
+        },
+      };
+
+      const pixResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(pixPayment),
+      });
+      const pixData = await safeJson(pixResponse);
+
+      if (pixResponse.ok && pixData?.point_of_interaction?.transaction_data) {
+        qrCode = pixData.point_of_interaction.transaction_data.qr_code || '';
+        qrCodeBase64 = pixData.point_of_interaction.transaction_data.qr_code_base64 || '';
+        pointOfInteractionUrl = pixData.point_of_interaction?.transaction_data?.ticket_url || '';
+        console.log('[MP] PIX payment created:', pixData.id, 'status:', pixData.status);
+      }
+    } catch (pixError) {
+      console.log('[MP] Failed to create PIX payment:', pixError.message);
+    }
+
     return res.json({
       ok: true,
       preference_id: mpData.id,
       init_point: mpData.init_point,
-      qr_code: mpData.qr_code || '',
-      qr_code_base64: mpData.qr_code_base64 || '',
+      qr_code: qrCode,
+      qr_code_base64: qrCodeBase64,
+      point_of_interaction_url: pointOfInteractionUrl,
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
