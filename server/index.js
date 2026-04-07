@@ -1243,7 +1243,7 @@ const createWhatsAppSocket = async (clinicId) => {
         auth: state,
         version: version,
         printQRInTerminal: false,
-        browser: ['LuminaFlow', 'Chrome', '122.0.0.0'],
+        browser: ['Clinxia', 'Chrome', '122.0.0.0'],
         connectTimeoutMs: 120000,
         keepAliveIntervalMs: 60000,
         logger: logger,
@@ -1832,7 +1832,7 @@ app.post('/api/signup/phone/send-code', async (req, res) => {
   setVerificationSession(signupId, session);
 
   const message = [
-    'LuminaFlow - Validacao de Telefone',
+    'Clinxia - Validacao de Telefone',
     '',
     `Seu codigo de verificacao: ${code}`,
     'Esse codigo expira em 30 segundos.',
@@ -1964,7 +1964,7 @@ app.post('/api/mercadopago/create-preference', async (req, res) => {
       items: [
         {
           id: selectedPlan,
-          title: `LuminaFlow - ${clinicName}`,
+          title: `Clinxia - ${clinicName}`,
           quantity: 1,
           unit_price: unitAmount,
           currency_id: 'BRL',
@@ -2023,7 +2023,7 @@ app.post('/api/mercadopago/create-preference', async (req, res) => {
     try {
       const pixPayment = {
         transaction_amount: unitAmount,
-        description: `LuminaFlow - ${clinicName} - Plano ${selectedPlan}`,
+        description: `Clinxia - ${clinicName} - Plano ${selectedPlan}`,
         payment_method_id: 'pix',
         external_reference: normalizedClinicId,
         payer: {

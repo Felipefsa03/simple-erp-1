@@ -252,7 +252,7 @@ export function AuthenticatedApp() {
             {!isInstalled && (canInstall || isIos) && (
               <div className="bg-cyan-50 border-b border-cyan-100 px-4 py-2 flex items-center justify-between gap-3">
                 <p className="text-xs text-cyan-800 font-medium">
-                  Instale o LuminaFlow no celular para acesso rápido e experiência de app.
+                  Instale o Clinxia no celular para acesso rápido e experiência de app.
                 </p>
                 <button onClick={handleInstallPwa} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 whitespace-nowrap">
                   Instalar
@@ -263,7 +263,7 @@ export function AuthenticatedApp() {
               <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between z-30">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">L</div>
-                  <span className="font-bold text-lg tracking-tight text-slate-900">LuminaFlow</span>
+                  <span className="font-bold text-lg tracking-tight text-slate-900">Clinxia</span>
                 </div>
                 <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
                   <Menu className="w-6 h-6" />

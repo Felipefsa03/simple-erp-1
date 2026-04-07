@@ -412,7 +412,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
               <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-cyan-200/50">
                 <span className="text-xl font-black">L</span>
               </div>
-              <h1 className="text-xl font-black text-slate-900">Criar Conta - LuminaFlow</h1>
+              <h1 className="text-xl font-black text-slate-900">Criar Conta - Clinxia</h1>
               <div className="flex items-center justify-center gap-2 mt-3">
                 {[1, 2, 3, 4, 5].map(step => (
                   <div key={step} className={`w-7 h-1.5 rounded-full transition-all ${step <= signupStep ? 'bg-cyan-500' : 'bg-slate-200'}`} />

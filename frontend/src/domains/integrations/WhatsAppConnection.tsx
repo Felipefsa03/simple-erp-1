@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - WhatsApp Business Connection (Real QR Code)
+// Clinxia - WhatsApp Business Connection (Real QR Code)
 // Polling-based architecture: call /connect once, then poll /status
 // ============================================
 

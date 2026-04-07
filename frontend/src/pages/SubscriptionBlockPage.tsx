@@ -19,7 +19,7 @@ export function SubscriptionBlockPage({ user, subscriptionInfo, onPaymentConfirm
             <span className="text-3xl">🔒</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 mb-2">Assinatura Pendente</h1>
-          <p className="text-slate-500 mb-6">Para continuar usando o LuminaFlow, realize o pagamento do seu plano.</p>
+          <p className="text-slate-500 mb-6">Para continuar usando o Clinxia, realize o pagamento do seu plano.</p>
 
           <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left">
             <div className="flex justify-between text-sm mb-2"><span className="text-slate-500">Plano:</span><span className="font-bold capitalize">{subscriptionInfo.plan}</span></div>

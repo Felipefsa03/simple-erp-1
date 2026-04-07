@@ -1749,7 +1749,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                          clinicName: 'Teste LuminaFlow',
+                          clinicName: 'Teste Clinxia',
                           email: 'teste@teste.com',
                           name: 'Usuario Teste',
                           phone: '11999999999',

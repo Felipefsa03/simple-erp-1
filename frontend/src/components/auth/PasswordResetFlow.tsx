@@ -167,7 +167,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
     resetCodes.set(user.id, { code: codeGenerated, expiresAt: now + 30000, attempts: 0 });
 
     // Mensagem para enviar
-    const message = `🔐 *LuminaFlow - Recuperação de Senha*\n\nSeu código de recuperação de senha é:\n\n*${codeGenerated}*\n\nEste código expira em 30 segundos.\n\nSe você não solicitou esta alteração, ignore esta mensagem.`;
+    const message = `🔐 *Clinxia - Recuperação de Senha*\n\nSeu código de recuperação de senha é:\n\n*${codeGenerated}*\n\nEste código expira em 30 segundos.\n\nSe você não solicitou esta alteração, ignore esta mensagem.`;
 
     // Enviar via WhatsApp
     const sent = await sendWhatsAppMessage(user.phone, message);
