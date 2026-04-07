@@ -838,6 +838,41 @@ app.get('/api/campaigns/clinic/:clinicId', (req, res) => {
   res.json({ ok: true, campaigns });
 });
 
+// Anamnese sync endpoint
+app.get('/api/clinic/anamnese-sync', async (req, res) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return res.json({ ok: true, items: [] });
+    }
+    
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/medical_records?select=patient_id,clinic_id,anamnese,updated_at&updated_at=gte.${new Date(Date.now() - 24*60*60*1000).toISOString()}&limit=100`,
+      {
+        headers: {
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      return res.json({ ok: true, items: [] });
+    }
+    
+    const records = await response.json();
+    const items = records.map(r => ({
+      patientId: r.patient_id,
+      clinicId: r.clinic_id,
+      data: { anamnese: r.anamnese },
+      submittedAt: r.updated_at,
+    }));
+    
+    res.json({ ok: true, items });
+  } catch (error) {
+    res.json({ ok: true, items: [] });
+  }
+});
+
 app.post('/api/campaigns/create', (req, res) => {
   const clinicId = String(req.body?.clinicId || '').trim();
   const name = String(req.body?.name || '').trim();
