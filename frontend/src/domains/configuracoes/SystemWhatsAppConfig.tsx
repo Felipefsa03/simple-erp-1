@@ -4,13 +4,12 @@ import { cn } from '@/lib/utils';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/useShared';
-import { useWhatsAppSync } from '@/hooks/useWhatsAppSync';
 
 const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 const SYSTEM_CLINIC_ID = 'system-global';
 
-type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected' | 'pairing';
+type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected';
 
 export function SystemWhatsAppConfig() {
   const { user } = useAuth();
@@ -29,22 +28,12 @@ export function SystemWhatsAppConfig() {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const didInitRef = useRef(false);
-
-  // Auto-sync WhatsApp on mount
-  useWhatsAppSync(SYSTEM_CLINIC_ID, (connected) => {
-    if (connected && !didInitRef.current) {
-      didInitRef.current = true;
-      startPolling();
-    }
-  });
   const connectedNotifiedRef = useRef(false);
 
-  // Só Super Admin pode configurar
   if (!isSuperAdmin) {
     return null;
   }
 
-  // --- Helpers ---
   const stopTimers = useCallback(() => {
     if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
     if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
@@ -65,30 +54,6 @@ export function SystemWhatsAppConfig() {
     }, 1000);
   }, []);
 
-  // --- Poll backend status ---
-  const initiateCheck = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, { 
-        headers: { 'ngrok-skip-browser-warning': 'true' }
-      });
-      const data = await res.json();
-      
-      if (data.status === 'connected') {
-        setSystemWhatsApp(true);
-        setDeviceInfo({
-          name: data.phoneNumber || 'WhatsApp Web',
-          id: '',
-          platform: 'API Render'
-        });
-      } else {
-        setSystemWhatsApp(false);
-      }
-    } catch (err) {
-      console.error('[WhatsApp] System config check failed:', err);
-    }
-  }, [setSystemWhatsApp]);
-
-  // --- Poll backend status ---
   const startPolling = useCallback(() => {
     if (pollingRef.current) clearInterval(pollingRef.current);
 
@@ -98,8 +63,12 @@ export function SystemWhatsAppConfig() {
           cache: 'no-store',
           headers: { 'ngrok-skip-browser-warning': 'true' }
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.error('[WhatsApp Sistema] Poll failed:', res.status);
+          return;
+        }
         const data = await res.json();
+        console.log('[WhatsApp Sistema] Status poll:', data.status, 'hasQrBase64:', !!data.qrBase64, 'hasQrCode:', !!data.qrCode);
 
         if (data.status === 'connected') {
           stopTimers();
@@ -118,8 +87,9 @@ export function SystemWhatsAppConfig() {
           return;
         }
 
-        if ((data.status === 'qr' || data.status === 'waiting_scan')) {
+        if (data.status === 'qr' || data.status === 'waiting_scan') {
           const imgSource = data.qrBase64 || (data.qrCode?.startsWith('data:image') ? data.qrCode : null);
+          console.log('[WhatsApp Sistema] QR available:', !!imgSource);
           if (imgSource) {
             setQrCode(imgSource);
             setUiStatus('qr');
@@ -143,7 +113,6 @@ export function SystemWhatsAppConfig() {
     pollingRef.current = setInterval(poll, 3000);
   }, [stopTimers, startCountdown, setSystemWhatsApp]);
 
-  // --- Initiate connection ---
   const initiate = useCallback(async () => {
     setUiStatus('loading');
     setQrCode(null);
@@ -151,11 +120,11 @@ export function SystemWhatsAppConfig() {
     connectedNotifiedRef.current = false;
 
     try {
-      // Just check status - backend triggers auto-connect
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, {
         headers: { 'ngrok-skip-browser-warning': 'true' }
       });
       const data = await res.json();
+      console.log('[WhatsApp Sistema] Initial status:', data.status);
 
       if (data.status === 'connected') {
         setUiStatus('connected');
@@ -168,8 +137,7 @@ export function SystemWhatsAppConfig() {
         return;
       }
 
-      // If disconnected, need to connect to get QR code
-      if (data.status === 'disconnected' || data.status === undefined) {
+      if (data.status === 'disconnected' || data.status === undefined || data.status === 'connecting') {
         try {
           const connectRes = await fetch(`${API_BASE}/api/whatsapp/connect`, {
             method: 'POST',
@@ -177,17 +145,12 @@ export function SystemWhatsAppConfig() {
             body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID })
           });
           const connectData = await connectRes.json();
+          console.log('[WhatsApp Sistema] Connect response:', connectData);
           
           if (connectData.qrCode) {
             setQrCode(connectData.qrCode);
             setUiStatus('qr');
             startCountdown();
-            return;
-          }
-          
-          if (connectData.pairingCode) {
-            setQrCode(connectData.pairingCode);
-            setUiStatus('pairing');
             return;
           }
         } catch (e) {
@@ -201,9 +164,8 @@ export function SystemWhatsAppConfig() {
       setUiStatus('error');
       setErrorMsg('Servidor offline ou erro de conexão.');
     }
-  }, [startPolling, setSystemWhatsApp]);
+  }, [startPolling, startCountdown, setSystemWhatsApp]);
 
-  // --- Auto-start when modal opens ---
   useEffect(() => {
     if (showModal && !didInitRef.current) {
       didInitRef.current = true;
@@ -211,7 +173,6 @@ export function SystemWhatsAppConfig() {
     }
   }, [showModal, initiate]);
 
-  // --- Reset when modal closes ---
   useEffect(() => {
     if (!showModal) {
       stopTimers();
@@ -225,10 +186,8 @@ export function SystemWhatsAppConfig() {
     }
   }, [showModal, stopTimers]);
 
-  // --- Cleanup on unmount ---
   useEffect(() => () => stopTimers(), [stopTimers]);
 
-  // --- Manual retry ---
   const handleRetry = useCallback(() => {
     stopTimers();
     didInitRef.current = false;
@@ -244,7 +203,6 @@ export function SystemWhatsAppConfig() {
     }, 300);
   }, [stopTimers, initiate]);
 
-  // --- Disconnect ---
   const handleDisconnect = useCallback(async () => {
     try {
       await fetch(`${API_BASE}/api/whatsapp/disconnect`, {
@@ -337,11 +295,9 @@ export function SystemWhatsAppConfig() {
         )}
       </div>
 
-      {/* Modal de Conexão QR Code */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
-            {/* Header */}
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -360,7 +316,6 @@ export function SystemWhatsAppConfig() {
             </div>
 
             <div className="p-6">
-              {/* LOADING */}
               {uiStatus === 'loading' && (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -371,7 +326,6 @@ export function SystemWhatsAppConfig() {
                 </div>
               )}
 
-              {/* ERROR */}
               {uiStatus === 'error' && (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -382,11 +336,9 @@ export function SystemWhatsAppConfig() {
                   <button onClick={handleRetry} className="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 flex items-center justify-center gap-2">
                     <RefreshCw className="w-4 h-4" /> Tentar novamente
                   </button>
-                  <p className="text-xs text-slate-400 mt-2">Certifique-se de que o backend está rodando na porta 8787</p>
                 </div>
               )}
 
-              {/* QR CODE */}
               {uiStatus === 'qr' && qrCode && (
                 <div className="text-center">
                   <p className="text-slate-600 mb-4">Escaneie o QR Code com o WhatsApp no seu celular</p>
@@ -407,7 +359,6 @@ export function SystemWhatsAppConfig() {
                 </div>
               )}
 
-              {/* EXPIRED */}
               {uiStatus === 'expired' && (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -421,7 +372,6 @@ export function SystemWhatsAppConfig() {
                 </div>
               )}
 
-              {/* CONNECTED */}
               {uiStatus === 'connected' && (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -442,7 +392,6 @@ export function SystemWhatsAppConfig() {
                 </div>
               )}
 
-              {/* DISCONNECTED */}
               {uiStatus === 'disconnected' && (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
