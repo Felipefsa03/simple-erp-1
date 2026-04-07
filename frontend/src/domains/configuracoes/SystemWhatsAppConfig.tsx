@@ -9,7 +9,7 @@ const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 const SYSTEM_CLINIC_ID = 'system-global';
 
-type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected';
+type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected' | 'pairing';
 
 export function SystemWhatsAppConfig() {
   const { user } = useAuth();
@@ -120,6 +120,25 @@ export function SystemWhatsAppConfig() {
     connectedNotifiedRef.current = false;
 
     try {
+      // First check if backend is available
+      const healthRes = await fetch(`${API_BASE}/api/health`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      if (!healthRes.ok) {
+        setUiStatus('error');
+        setErrorMsg('Servidor de conexão não está respondendo.');
+        return;
+      }
+    } catch (err) {
+      console.error('[WhatsApp Sistema] Backend unavailable:', err);
+      setUiStatus('error');
+      setErrorMsg('Não foi possível conectar ao servidor. O backend pode estar offline.');
+      return;
+    }
+
+    // Now get WhatsApp status
+    try {
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, {
         headers: { 'ngrok-skip-browser-warning': 'true' }
       });
@@ -137,6 +156,7 @@ export function SystemWhatsAppConfig() {
         return;
       }
 
+      // If disconnected or undefined, connect to get QR code
       if (data.status === 'disconnected' || data.status === undefined || data.status === 'connecting') {
         try {
           const connectRes = await fetch(`${API_BASE}/api/whatsapp/connect`, {
@@ -151,6 +171,12 @@ export function SystemWhatsAppConfig() {
             setQrCode(connectData.qrCode);
             setUiStatus('qr');
             startCountdown();
+            return;
+          }
+          
+          if (connectData.pairingCode) {
+            setQrCode(connectData.pairingCode);
+            setUiStatus('pairing');
             return;
           }
         } catch (e) {
