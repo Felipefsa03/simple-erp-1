@@ -581,13 +581,17 @@ app.options('*', cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'Accept', 'Origin', 'ngrok-skip-browser-warning'],
 }));
 
-// Rate limiting: 100 requests per 15 minutes per IP
+// Rate limiting: 500 requests per 15 minutes per IP (increased for health checks)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, error: 'Muitas requisições. Tente novamente em alguns minutos.' },
+  skip: (req) => {
+    const path = req.path || '';
+    return path.startsWith('/health') || path.startsWith('/clinic/anamnese-sync');
+  },
 });
 app.use('/api/', limiter);
 

@@ -114,7 +114,7 @@ export function AuthenticatedApp() {
     if (!user) return;
     const sync = () => useClinicStore.getState().syncAnamneseWithServer();
     sync();
-    const interval = setInterval(sync, 15000);
+    const interval = setInterval(sync, 60000);
     return () => clearInterval(interval);
   }, [user?.id, user]);
 
