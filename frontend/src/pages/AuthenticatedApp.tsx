@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ToastProvider, ErrorBoundary } from '@/components/shared';
 import { useAuth } from '@/hooks/useAuth';
@@ -36,7 +37,13 @@ function PageLoader() {
 
 export function AuthenticatedApp() {
   const { user, clinic, logout, hasPermission } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(() => {
+    // Initialize from URL path on first load
+    const path = location.pathname.replace('/', '');
+    return path || 'dashboard';
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
@@ -188,7 +195,9 @@ export function AuthenticatedApp() {
       useClinicStore.getState().setNavigationContext({ ...ctx, fromModule: activeTab });
     }
     setActiveTab(tab);
-  }, [activeTab, hasPermission, tabPermissions]);
+    // Navigate to URL
+    navigate(`/${tab === 'dashboard' ? '' : tab}`);
+  }, [activeTab, hasPermission, tabPermissions, navigate]);
 
   const renderContent = () => {
     switch (activeTab) {
