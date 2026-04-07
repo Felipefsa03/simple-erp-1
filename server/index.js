@@ -106,7 +106,7 @@ let mpPublicKey = cleanEnv(process.env.MP_PUBLIC_KEY);
 const GLOBAL_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 const SYSTEM_WHATSAPP_CLINIC_ID = 'system-global';
 const DEFAULT_PLAN_PRICES = {
-  basico: 97,
+  basico: 17,
   profissional: 197,
   premium: 397,
 };
@@ -193,7 +193,7 @@ const isUuid = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
 
 const fetchGlobalIntegrationConfig = async () => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
   const select =
     'clinic_id,mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium';
   const url = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=${select}&limit=1`;
