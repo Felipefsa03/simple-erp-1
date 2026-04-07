@@ -2405,9 +2405,41 @@ app.get('/api/2fa/status', require2FAPermission, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 WhatsApp API ready for connections`);
+  
+  // Auto-reconnect all saved WhatsApp sessions on startup
+  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?select=clinic_id,credentials`, {
+        headers: {
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        }
+      });
+      
+      if (res.ok) {
+        const credentials = await res.json();
+        if (Array.isArray(credentials) && credentials.length > 0) {
+          console.log(`🔄 Auto-reconnecting ${credentials.length} WhatsApp session(s)...`);
+          for (const cred of credentials) {
+            try {
+              whatsappConnections[cred.clinic_id] = { status: 'connecting' };
+              const sock = await ensureSocketConnected(cred.clinic_id);
+              if (sock.authState?.creds?.registered) {
+                console.log(`✅ Reconnected: ${cred.clinic_id}`);
+              }
+            } catch (e) {
+              console.log(`⚠️ Failed to reconnect ${cred.clinic_id}: ${e.message}`);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log(`⚠️ Auto-reconnect failed: ${e.message}`);
+    }
+  }
 });
 
 // Graceful shutdown for Cloud environments (Render/Docker)
