@@ -537,11 +537,12 @@ const ALLOWED_ORIGINS = (() => {
     'http://localhost:3000',
     'http://localhost:5173',
     'https://clinxia.vercel.app',
+    'https://simple-erp-1.vercel.app',
     process.env.FRONTEND_URL,
   ].filter(Boolean);
   
-  // Allow all Vercel preview URLs in development
-  const vercelPreview = process.env.VERCEL === '1' ? ['https://*.vercel.app'] : [];
+  // Allow all Vercel preview URLs
+  const vercelPreview = ['https://*.vercel.app'];
   
   return [...envOrigins, ...defaultOrigins, ...vercelPreview];
 })();
