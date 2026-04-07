@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform, useSpring, useInView, AnimatePresence } from 'motion/react';
 import {
   Sparkles, ArrowRight, CheckCircle2, Calendar, FileText, DollarSign,
@@ -421,15 +422,15 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={onLoginClick} className="hidden sm:block text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+            <Link to="/login" className="hidden sm:block text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
               Entrar
-            </button>
-            <button
-              onClick={onLoginClick}
+            </Link>
+            <Link
+              to="/signup"
               className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all"
             >
               Teste Grátis
-            </button>
+            </Link>
             <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
               {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>

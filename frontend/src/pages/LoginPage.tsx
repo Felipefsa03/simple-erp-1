@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { ToastProvider, ErrorBoundary } from '@/components/shared';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,6 +12,8 @@ interface LoginPageProps {
 
 export function LoginPage({ onForgotPassword, onSignup, onBackToLanding }: LoginPageProps) {
   const { login } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,6 +30,14 @@ export function LoginPage({ onForgotPassword, onSignup, onBackToLanding }: Login
 
     if (!success) {
       setLoginError('Email ou senha incorretos. Verifique os dados e tente novamente.');
+    } else {
+      // Redirect to callback URL or dashboard
+      const callbackUrl = searchParams.get('callbackUrl');
+      if (callbackUrl) {
+        navigate(callbackUrl);
+      } else {
+        navigate('/dashboard');
+      }
     }
   };
 

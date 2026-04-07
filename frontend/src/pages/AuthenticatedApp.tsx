@@ -39,6 +39,14 @@ export function AuthenticatedApp() {
   const { user, clinic, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!user && location.pathname !== '/login') {
+      navigate(`/login?callbackUrl=${encodeURIComponent(location.pathname)}`, { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
+  
   const [activeTab, setActiveTab] = useState(() => {
     // Initialize from URL path on first load
     const path = location.pathname.replace('/', '');
