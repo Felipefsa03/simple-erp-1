@@ -101,27 +101,47 @@ export function AuthenticatedApp() {
         if (!isSupabaseConfigured()) return;
         const clinicId = user?.clinic_id;
         if (!clinicId) return;
+        
+        // Buscar pagamento aprovado primeiro
         const { data: payments } = await supabase!.from('payments').select('*').eq('clinic_id', clinicId).eq('status', 'approved').order('created_at', { ascending: false }).limit(1);
-        if (!payments || payments.length === 0) {
-          const { data: clinics } = await supabase!.from('clinics').select('plan').eq('id', clinicId).single();
-          let plan = (clinics as Record<string, string>)?.plan || 'basico';
-          // Normalizar plano: enterprise -> basico, profissional, premium
-          if (plan === 'enterprise') plan = 'basico';
-          const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
-          const prices = config as Record<string, number> || {};
-          const defaultPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
-          const amount = prices[`plan_price_${plan}`] || defaultPrices[plan] || 97;
-          const isDev = import.meta.env.DEV;
-          const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
-          const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clinicName: clinic?.name || 'Minha Clínica', email: user.email, name: user.name, phone: user.phone || '', plan, amount, clinicId }),
-          });
-          const data = await res.json();
-          if (data.ok) {
-            setSubscriptionBlocked(true);
-            setSubscriptionInfo({ plan, amount, dueDate: new Date().toLocaleDateString('pt-BR'), qrCode: data.qr_code || '', pixLink: data.init_point || '' });
-          }
+        if (payments && payments.length > 0) {
+          console.log('[Subscription] Pagamento aprovado encontrado, liberando acesso');
+          setSubscriptionBlocked(false);
+          setSubscriptionInfo(null);
+          return;
+        }
+        
+        // Se não tem pagamento aprovado, verificar plano e gerar cobrança
+        console.log('[Subscription] Nenhum pagamento aprovado, verificando plano...');
+        const { data: clinics } = await supabase!.from('clinics').select('plan').eq('id', clinicId).single();
+        let plan = (clinics as Record<string, string>)?.plan || 'basico';
+        
+        // Buscar preços do integration_config global primeiro (antes de normalizar)
+        const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+        const prices = config as Record<string, number> || {};
+        const defaultPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
+        
+        // Normalizar plano: enterprise -> basico E atualizar no banco
+        if (plan === 'enterprise') {
+          console.log('[Subscription] Normalizando plano enterprise -> basico e atualizando banco');
+          plan = 'basico';
+          // Atualizar o plano no banco de dados
+          await supabase!.from('clinics').update({ plan: 'basico' }).eq('id', clinicId);
+        }
+        
+        console.log('[Subscription] Plano atual:', plan);
+        const amount = prices[`plan_price_${plan}`] || defaultPrices[plan] || 97;
+        console.log('[Subscription] Valor do plano:', amount, 'prices from DB:', prices);
+        const isDev = import.meta.env.DEV;
+        const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+        const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clinicName: clinic?.name || 'Minha Clínica', email: user.email, name: user.name, phone: user.phone || '', plan, amount, clinicId }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setSubscriptionBlocked(true);
+          setSubscriptionInfo({ plan, amount, dueDate: new Date().toLocaleDateString('pt-BR'), qrCode: data.qr_code || '', pixLink: data.init_point || '' });
         }
       } catch (e: unknown) { console.error('[Subscription] Error:', e); }
     })();
