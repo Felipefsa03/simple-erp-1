@@ -104,28 +104,6 @@ export function LoginPage({ onForgotPassword, onSignup, onBackToLanding }: Login
                 </button>
               </form>
 
-              <div className="mt-6 pt-6 border-t border-slate-100">
-                <p className="text-xs text-center text-slate-500 mb-4 font-medium">Acesso de Demonstração</p>
-                <div className="space-y-2 bg-slate-50 rounded-xl p-3">
-                  <div className="text-xs text-slate-600">
-                    <span className="font-bold text-slate-700">Admin/Dono:</span>
-                    <span className="ml-1 font-mono text-slate-500">clinica@luminaflow.com.br</span>
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    <span className="font-bold text-slate-700">Recepcionista:</span>
-                    <span className="ml-1 font-mono text-slate-500">recepcao@luminaflow.com.br</span>
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    <span className="font-bold text-slate-700">Dentista:</span>
-                    <span className="ml-1 font-mono text-slate-500">dentista@luminaflow.com.br</span>
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    <span className="font-bold text-slate-700">Super Admin:</span>
-                    <span className="ml-1 font-mono text-slate-500">admin@luminaflow.com.br</span>
-                  </div>
-                </div>
-              </div>
-
               <div className="mt-4 text-center">
                 <button onClick={onForgotPassword} className="text-sm text-cyan-600 font-medium hover:underline">
                   Esqueceu sua senha?
