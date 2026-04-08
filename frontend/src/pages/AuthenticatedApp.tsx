@@ -104,10 +104,13 @@ export function AuthenticatedApp() {
         const { data: payments } = await supabase!.from('payments').select('*').eq('clinic_id', clinicId).eq('status', 'approved').order('created_at', { ascending: false }).limit(1);
         if (!payments || payments.length === 0) {
           const { data: clinics } = await supabase!.from('clinics').select('plan').eq('id', clinicId).single();
-          const plan = (clinics as Record<string, string>)?.plan || 'basico';
-          const planPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
-          const { data: config } = await supabase!.from('integration_config').select('*').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
-          const amount = (config as Record<string, number>)?.[`plan_price_${plan}`] || planPrices[plan] || 97;
+          let plan = (clinics as Record<string, string>)?.plan || 'basico';
+          // Normalizar plano: enterprise -> basico, profissional, premium
+          if (plan === 'enterprise') plan = 'basico';
+          const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+          const prices = config as Record<string, number> || {};
+          const defaultPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
+          const amount = prices[`plan_price_${plan}`] || defaultPrices[plan] || 97;
           const isDev = import.meta.env.DEV;
           const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
           const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
