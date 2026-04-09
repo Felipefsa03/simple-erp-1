@@ -29,7 +29,12 @@ export function SubscriptionBlockPage({ user, subscriptionInfo, onPaymentConfirm
 
           {subscriptionInfo.qrCode ? (
             <div className="bg-white border-2 border-slate-200 rounded-xl p-4 mb-4 inline-block">
-              <div dangerouslySetInnerHTML={{ __html: subscriptionInfo.qrCode.replace(/<svg/, '<svg style="width:180px;height:180px"') }} />
+              <img 
+                src={subscriptionInfo.qrCode} 
+                alt="QR Code PIX" 
+                style={{ width: '180px', height: '180px' }}
+                className="w-44 h-44"
+              />
             </div>
           ) : (
             <div className="w-44 h-44 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-4">
