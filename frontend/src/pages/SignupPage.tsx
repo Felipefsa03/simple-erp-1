@@ -653,7 +653,12 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                     <div className="text-center space-y-4">
                       {mpPreference?.qr_code ? (
                         <div className="bg-white border-2 border-slate-200 rounded-xl p-4">
-                          <div dangerouslySetInnerHTML={{ __html: mpPreference.qr_code.replace(/<svg/, '<svg style="width:200px;height:200px"') }} />
+                          <img 
+                            src={mpPreference.qr_code} 
+                            alt="QR Code Pix" 
+                            style={{ width: '200px', height: '200px' }}
+                            className="w-52 h-52"
+                          />
                         </div>
                       ) : (
                         <div className="bg-white border-2 border-slate-200 rounded-xl p-6 inline-block">

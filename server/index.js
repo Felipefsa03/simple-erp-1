@@ -505,7 +505,7 @@ const consumePhoneVerification = (signupId) => {
 // Security Middleware
 // ============================================
 
-// Helmet: secure HTTP headers with CSP
+// Helmet: secure HTTP headers with CSP + HSTS
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: {
@@ -526,6 +526,8 @@ app.use(helmet({
       baseUri: ["'self'"],
     },
   },
+  hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+  xFrameOptions: { action: 'deny' },
 }));
 
 // CORS: whitelist allowed origins (configurable via env)
@@ -591,7 +593,7 @@ const limiter = rateLimit({
   message: { ok: false, error: 'Muitas requisições. Tente novamente em alguns minutos.' },
   skip: (req) => {
     const path = req.path || '';
-    return path.startsWith('/health') || path.startsWith('/clinic/anamnese-sync');
+    return path.startsWith('/health');
   },
 });
 app.use('/api/', limiter);
@@ -672,16 +674,22 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// OAuth v2.3 - deploy 2026-04-06 - hardcoded fallback for Google OAuth
-const GOOGLE_CLIENT_ID_FALLBACK = '835383356341-ibesc0ffaoovbpvc8rsnpjlhahpisg3s.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET_FALLBACK = 'AIzaSyBX7IRQUlIzDGIj7V6zzGF91c2sXJtbl8I';
+// OAuth v2.3 - deploy 2026-04-06 - Google OAuth (obrigatório em produção)
 const GOOGLE_REDIRECT_URI_FALLBACK = 'https://clinxia-backend.onrender.com/api/auth/google/callback';
 
+const getGoogleOAuthConfig = () => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return null;
+  }
+  return { clientId, clientSecret };
+};
+
 app.get('/api/auth/google-configured', (req, res) => {
-  const clientId = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_FALLBACK;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET || GOOGLE_CLIENT_SECRET_FALLBACK;
-  const configured = !!(clientId && clientSecret);
-  console.log('[Google OAuth Config] clientId:', clientId ? 'SET' : 'MISSING', 'clientSecret:', clientSecret ? 'SET' : 'MISSING');
+  const config = getGoogleOAuthConfig();
+  const configured = config !== null;
+  console.log('[Google OAuth Config] clientId:', configured ? 'SET' : 'MISSING', 'clientSecret:', configured ? 'SET' : 'MISSING');
   res.json({ ok: true, configured });
 });
 
@@ -690,17 +698,17 @@ app.all('/api/auth/google', (req, res) => {
   if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
-  const isSignup = req.query.signup === 'true';
-  const clientId = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_FALLBACK;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI || GOOGLE_REDIRECT_URI_FALLBACK || `${process.env.SERVER_URL}/api/auth/google/callback`;
-  
-  if (!clientId) {
-    return res.status(503).json({ ok: false, error: 'Google OAuth não configurado' });
+  const config = getGoogleOAuthConfig();
+  if (!config) {
+    return res.status(503).json({ ok: false, error: 'Google OAuth não configurado. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.' });
   }
   
-  console.log('[Google OAuth] Redirecting to Google with clientId:', clientId.substring(0, 20) + '...');
+  const isSignup = req.query.signup === 'true';
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || GOOGLE_REDIRECT_URI_FALLBACK || `${process.env.SERVER_URL}/api/auth/google/callback`;
+  
+  console.log('[Google OAuth] Redirecting to Google with clientId:', config.clientId.substring(0, 20) + '...');
   const scope = encodeURIComponent('openid email profile');
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${isSignup ? 'signup' : 'login'}&access_type=offline&prompt=consent`;
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${config.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&state=${isSignup ? 'signup' : 'login'}&access_type=offline&prompt=consent`;
   
   res.redirect(authUrl);
 });
@@ -714,9 +722,12 @@ app.all('/api/auth/google/callback', async (req, res) => {
     return res.redirect(`${frontendUrl}/?error=google_auth_failed`);
   }
   
+  const config = getGoogleOAuthConfig();
+  if (!config) {
+    return res.redirect(`${frontendUrl}/?error=google_auth_not_configured`);
+  }
+  
   try {
-    const clientId = process.env.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID_FALLBACK;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || GOOGLE_CLIENT_SECRET_FALLBACK;
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || GOOGLE_REDIRECT_URI_FALLBACK;
 
     console.log('[Google OAuth Callback] Exchanging code for token...');
@@ -724,8 +735,8 @@ app.all('/api/auth/google/callback', async (req, res) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
         code: String(code),
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
@@ -765,7 +776,6 @@ const publicPaths = [
   '/health/extended',
   '/stats',
   '/webhooks/',
-  '/clinic/anamnese-sync',
   '/auth/',
   '/auth/google',
   '/signup/init',
@@ -843,12 +853,15 @@ app.get('/api/campaigns/clinic/:clinicId', (req, res) => {
   res.json({ ok: true, campaigns });
 });
 
-// Anamnese sync endpoint
-app.get('/api/clinic/anamnese-sync', async (req, res) => {
+// Anamnese sync endpoint (PROTEGIDO - requer autenticação)
+app.get('/api/clinic/anamnese-sync', requireAuth, async (req, res) => {
   try {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return res.json({ ok: true, items: [] });
     }
+    
+    const userClinicId = req.clinicId;
+    const userRole = req.user?.role;
     
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/medical_records?select=patient_id,clinic_id,anamnese,updated_at&updated_at=gte.${new Date(Date.now() - 24*60*60*1000).toISOString()}&limit=100`,
@@ -865,7 +878,13 @@ app.get('/api/clinic/anamnese-sync', async (req, res) => {
     }
     
     const records = await response.json();
-    const items = records.map(r => ({
+    
+    let filteredRecords = records;
+    if (userRole !== 'admin' && userRole !== 'owner') {
+      filteredRecords = records.filter(r => r.clinic_id === userClinicId);
+    }
+    
+    const items = filteredRecords.map(r => ({
       patientId: r.patient_id,
       clinicId: r.clinic_id,
       data: { anamnese: r.anamnese },
