@@ -411,7 +411,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
   const handleUpgrade = async (plan: string) => {
     try {
-      const planPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
+      const planPrices: Record<string, number> = { basico: 17, profissional: 197, premium: 397 };
       const currentPlan = clinic?.plan || 'basico';
       const currentPrice = planPrices[currentPlan] || 17;
       const newPrice = planPrices[plan] || 197;
@@ -1798,7 +1798,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                           name: 'Usuario Teste',
                           phone: '11999999999',
                           plan: 'basico',
-                          amount: 97,
+                          amount: 17,
                           clinicId: SYSTEM_GLOBAL_CLINIC_ID,
                         }),
                       });
