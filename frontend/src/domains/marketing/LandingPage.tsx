@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform, useSpring, useInView, AnimatePresence } from 'motion/react';
 import {
   Sparkles, ArrowRight, CheckCircle2, Calendar, FileText, DollarSign,
@@ -402,7 +403,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
             <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-cyan-500/20">
               L
             </div>
-            <span className="font-bold text-xl text-slate-800">LuminaFlow</span>
+            <span className="font-bold text-xl text-slate-800">Clinxia</span>
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-700">
@@ -421,15 +422,15 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={onLoginClick} className="hidden sm:block text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+            <Link to="/login" className="hidden sm:block text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
               Entrar
-            </button>
-            <button
-              onClick={onLoginClick}
+            </Link>
+            <Link
+              to="/signup"
               className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all"
             >
               Teste Grátis
-            </button>
+            </Link>
             <button className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
               {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -593,7 +594,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
               whileInView={{ opacity: 1 }}
               className="text-cyan-600 font-semibold text-sm uppercase tracking-wider mb-4"
             >
-              Por que escolher o LuminaFlow?
+              Por que escolher o Clinxia?
             </motion.p>
             <motion.h2
               initial={{ opacity: 0, y: 20 }}
@@ -979,7 +980,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center font-bold text-sm">
                   L
                 </div>
-                <span className="font-bold text-xl">LuminaFlow</span>
+                <span className="font-bold text-xl">Clinxia</span>
               </div>
               <p className="text-slate-400 text-sm leading-relaxed">
                 O sistema de gestão mais completo para clínicas de odontologia e estética do Brasil.
@@ -1018,7 +1019,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           </div>
 
           <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-slate-500">© 2026 LuminaFlow. Todos os direitos reservados.</p>
+            <p className="text-sm text-slate-500">© 2026 Clinxia. Todos os direitos reservados.</p>
             <div className="flex gap-4">
               <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                 <Globe className="w-5 h-5 text-slate-400" />

@@ -154,7 +154,7 @@ export default function HomePage() {
             </h2>
             <p className="text-slate-600 max-w-2xl mx-auto mb-8">
               Junte-se a milhares de profissionais que já otimizaram 
-              a gestão de suas clínicas com o LuminaFlow.
+              a gestão de suas clínicas com o Clinxia.
             </p>
             <div className="flex items-center justify-center gap-4">
               <Link to="/dashboard">
@@ -193,12 +193,12 @@ export default function HomePage() {
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <span className="font-bold text-lg">LuminaFlow</span>
+                <span className="font-bold text-lg">Clinxia</span>
                 <p className="text-xs text-slate-400">Gestão Inteligente</p>
               </div>
             </div>
             <p className="text-slate-400 text-sm">
-              © 2026 LuminaFlow. Todos os direitos reservados.
+              © 2026 Clinxia. Todos os direitos reservados.
             </p>
           </div>
         </div>

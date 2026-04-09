@@ -1,4 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useClinicStore } from './stores/clinicStore';
 import { ToastProvider, ErrorBoundary } from './components/shared';
@@ -20,145 +21,71 @@ function FullPageLoader() {
   );
 }
 
+// Wrapper components for legacy props
+function LoginPageWrapper() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  return (
+    <LoginPage 
+      onForgotPassword={() => navigate('/forgot-password')}
+      onSignup={() => navigate('/signup')}
+      onBackToLanding={() => navigate('/')}
+    />
+  );
+}
+
+function SignupPageWrapper() {
+  const navigate = useNavigate();
+  
+  return (
+    <SignupPage 
+      onLoginClick={() => navigate('/login')}
+    />
+  );
+}
+
+function PasswordResetFlowWrapper() {
+  const navigate = useNavigate();
+  
+  return (
+    <PasswordResetFlow 
+      onBack={() => navigate('/login')}
+      onSuccess={() => navigate('/login')}
+    />
+  );
+}
+
 export default function App() {
   const { user } = useAuth();
-  const [authView, setAuthView] = useState<'landing' | 'login' | 'signup' | 'forgot-password'>(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname;
-      if (path === '/signup') return 'signup';
-      if (path === '/login') return 'login';
-      if (path === '/forgot-password') return 'forgot-password';
-    }
-    return 'landing';
-  });
-  const [publicRoute, setPublicRoute] = useState<'landing' | 'book-online' | 'anamnese-form'>(() => {
-    const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    if (hash.startsWith('#book-online')) return 'book-online';
-    if (hash.startsWith('#anamnese-form')) return 'anamnese-form';
-    return 'landing';
-  });
-  const [publicClinicId, setPublicClinicId] = useState<string>(() => {
-    const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    if (hash.startsWith('#book-online')) {
-      const params = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
-      return params.get('clinic') || 'clinic-1';
-    }
-    return 'clinic-1';
-  });
-  const [publicAnamneseToken, setPublicAnamneseToken] = useState<string>(() => {
-    const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    if (hash.startsWith('#anamnese-form')) {
-      const params = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
-      return params.get('token') || '';
-    }
-    return '';
-  });
 
-  // Hash-based public route detection + URL path sync
-  useEffect(() => {
-    const syncRoute = () => {
-      const hash = window.location.hash || '';
-      const path = window.location.pathname;
-      
-      if (hash.startsWith('#book-online')) {
-        setPublicRoute('book-online');
-        const parsed = hash.includes('?') ? hash.split('?')[1] : '';
-        const params = new URLSearchParams(parsed);
-        setPublicClinicId(params.get('clinic') || 'clinic-1');
-        setPublicAnamneseToken('');
-        setAuthView('landing');
-      } else if (hash.startsWith('#anamnese-form')) {
-        setPublicRoute('anamnese-form');
-        const parsed = hash.includes('?') ? hash.split('?')[1] : '';
-        const params = new URLSearchParams(parsed);
-        setPublicAnamneseToken(params.get('token') || '');
-        setAuthView('landing');
-      } else {
-        setPublicRoute('landing');
-        setPublicAnamneseToken('');
-        if (path === '/signup') setAuthView('signup');
-        else if (path === '/login') setAuthView('login');
-        else if (path === '/forgot-password') setAuthView('forgot-password');
-      }
-    };
-    syncRoute();
-    window.addEventListener('hashchange', syncRoute);
-    window.addEventListener('popstate', syncRoute);
-    return () => {
-      window.removeEventListener('hashchange', syncRoute);
-      window.removeEventListener('popstate', syncRoute);
-    };
-  }, []);
-
-  // Hydrate anamnese store for public form
-  useEffect(() => {
-    if (publicRoute === 'anamnese-form' && publicAnamneseToken) {
-      useClinicStore.persist.hasHydrated();
-    }
-  }, [publicRoute, publicAnamneseToken]);
-
-  // --- Public Routes (no auth required) ---
-  if (publicRoute === 'book-online') {
-    return (
-      <ToastProvider>
-        <ErrorBoundary key="guest-online-booking">
-          <Suspense fallback={<FullPageLoader />}>
-            <OnlineBookingPage clinicId={publicClinicId} onBack={() => { window.location.hash = ''; setPublicRoute('landing'); }} />
-          </Suspense>
-        </ErrorBoundary>
-      </ToastProvider>
-    );
-  }
-
-  if (publicRoute === 'anamnese-form') {
-    return (
-      <ToastProvider>
-        <ErrorBoundary key="guest-anamnese-form">
-          <Suspense fallback={<FullPageLoader />}>
-            <PublicAnamneseForm token={publicAnamneseToken} onBack={() => { window.location.hash = ''; setPublicRoute('landing'); }} />
-          </Suspense>
-        </ErrorBoundary>
-      </ToastProvider>
-    );
-  }
-
-  // --- Authenticated App ---
-  if (user) {
-    return (
-      <Suspense fallback={<FullPageLoader />}>
-        <AuthenticatedApp />
-      </Suspense>
-    );
-  }
-
-  // --- Unauthenticated Views ---
   return (
     <Suspense fallback={<FullPageLoader />}>
-      {authView === 'signup' && (
-        <SignupPage onLoginClick={() => setAuthView('login')} />
-      )}
-      {authView === 'forgot-password' && (
-        <ToastProvider>
-          <PasswordResetFlow
-            onBack={() => setAuthView('login')}
-            onSuccess={() => setAuthView('login')}
-          />
-        </ToastProvider>
-      )}
-      {authView === 'login' && (
-        <LoginPage
-          onForgotPassword={() => setAuthView('forgot-password')}
-          onSignup={() => setAuthView('signup')}
-          onBackToLanding={() => setAuthView('landing')}
-        />
-      )}
-      {authView === 'landing' && (
-        <ToastProvider>
-          <ErrorBoundary key="guest-landing">
-            <LandingPage onLoginClick={() => setAuthView('login')} onSignupClick={() => setAuthView('signup')} />
-          </ErrorBoundary>
-        </ToastProvider>
-      )}
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={
+          <ToastProvider>
+            <ErrorBoundary key="landing">
+              <LandingPage onLoginClick={() => window.location.href = '/login'} onSignupClick={() => window.location.href = '/signup'} />
+            </ErrorBoundary>
+          </ToastProvider>
+        } />
+        <Route path="/login" element={<LoginPageWrapper />} />
+        <Route path="/signup" element={<SignupPageWrapper />} />
+        <Route path="/forgot-password" element={<PasswordResetFlowWrapper />} />
+        
+        {/* Public booking and anamnese (via hash) */}
+        <Route path="/book" element={
+          <ToastProvider>
+            <OnlineBookingPage clinicId="clinic-1" onBack={() => window.location.href = '/'} />
+          </ToastProvider>
+        } />
+        
+        {/* Authenticated routes - handled by AuthenticatedApp */}
+        <Route path="/*" element={
+          user ? <AuthenticatedApp /> : <React.Fragment><ToastProvider><LandingPage onLoginClick={() => window.location.href = '/login'} onSignupClick={() => window.location.href = '/signup'} /></ToastProvider></React.Fragment>
+        } />
+      </Routes>
     </Suspense>
   );
 }

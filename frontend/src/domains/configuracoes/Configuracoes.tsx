@@ -82,7 +82,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     google_calendar_email: integrationConfig?.google_calendar_email || '',
     mp_access_token: integrationConfig?.mp_access_token || '',
     mp_public_key: integrationConfig?.mp_public_key || '',
-    plan_price_basico: String(integrationConfig?.plan_price_basico ?? 97),
+    plan_price_basico: String(integrationConfig?.plan_price_basico ?? 17),
     plan_price_profissional: String(integrationConfig?.plan_price_profissional ?? 197),
     plan_price_premium: String(integrationConfig?.plan_price_premium ?? 397),
   });
@@ -195,43 +195,50 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     const loadGlobalConfig = async () => {
       try {
         const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+        console.log('[Sistema Global] Carregando config, Supabase configured:', isSupabaseConfigured());
         if (isSupabaseConfigured()) {
           const { data, error } = await supabase!
             .from('integration_config')
             .select('mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium')
             .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID)
             .single();
+          console.log('[Sistema Global] Query result:', { data, error });
           if (!cancelled && !error && data) {
+            console.log('[Sistema Global] Usando dados do banco:', data);
             setIntegrationForm(prev => ({
               ...prev,
               mp_access_token: (data as any).mp_access_token || '',
               mp_public_key: (data as any).mp_public_key || '',
-              plan_price_basico: String((data as any).plan_price_basico ?? 97),
+              plan_price_basico: String((data as any).plan_price_basico ?? 17),
               plan_price_profissional: String((data as any).plan_price_profissional ?? 197),
               plan_price_premium: String((data as any).plan_price_premium ?? 397),
             }));
             setIntegrationConfig({
               mp_access_token: (data as any).mp_access_token || '',
               mp_public_key: (data as any).mp_public_key || '',
-              plan_price_basico: Number((data as any).plan_price_basico ?? 97),
+              plan_price_basico: Number((data as any).plan_price_basico ?? 17),
               plan_price_profissional: Number((data as any).plan_price_profissional ?? 197),
               plan_price_premium: Number((data as any).plan_price_premium ?? 397),
             });
             return;
+          } else if (error) {
+            console.error('[Sistema Global] Erro na query:', error);
           }
         }
 
-        const fallbackRes = await fetch(`${API_BASE}/api/system/signup-config`);
+        console.log('[Sistema Global] Usando fallback API...');
+        const fallbackRes = await fetch(`${API_BASE}/api/system/signup-config?t=${Date.now()}`);
         const fallbackData = await fallbackRes.json();
+        console.log('[Sistema Global] API response:', fallbackData);
         if (!cancelled && fallbackData?.ok && fallbackData.plan_prices) {
           setIntegrationForm(prev => ({
             ...prev,
-            plan_price_basico: String(fallbackData.plan_prices.basico ?? 97),
+            plan_price_basico: String(fallbackData.plan_prices.basico ?? 17),
             plan_price_profissional: String(fallbackData.plan_prices.profissional ?? 197),
             plan_price_premium: String(fallbackData.plan_prices.premium ?? 397),
           }));
           setIntegrationConfig({
-            plan_price_basico: Number(fallbackData.plan_prices.basico ?? 97),
+            plan_price_basico: Number(fallbackData.plan_prices.basico ?? 17),
             plan_price_profissional: Number(fallbackData.plan_prices.profissional ?? 197),
             plan_price_premium: Number(fallbackData.plan_prices.premium ?? 397),
           });
@@ -933,8 +940,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   <tr key={svc.id} className="hover:bg-slate-50/50">
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-900">{svc.name}</p>
-                      {svc.materials.length > 0 && <p className="text-[10px] text-slate-400">{svc.materials.length} material(is) vinculado(s)</p>}
-                      {svc.professional_prices && Object.keys(svc.professional_prices).length > 0 && <p className="text-[10px] text-cyan-500 font-medium">Preços por profissional configurados</p>}
+                      {(svc.materials || []).length > 0 && <p className="text-[10px] text-slate-400">{(svc.materials || []).length} material(is) vinculado(s)</p>}
+                      {(svc.professional_prices && Object.keys(svc.professional_prices || {}).length > 0) && <p className="text-[10px] text-cyan-500 font-medium">Preços por profissional configurados</p>}
                     </td>
                     <td className="px-6 py-4"><span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-medium">{svc.category}</span></td>
                     <td className="px-6 py-4 text-sm text-slate-600">{svc.avg_duration_min} min</td>
@@ -1639,6 +1646,12 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       .insert(planData));
                   }
                   if (error) throw error;
+                  setIntegrationForm(prev => ({
+                    ...prev,
+                    plan_price_basico: String(parsedBasico),
+                    plan_price_profissional: String(parsedProfissional),
+                    plan_price_premium: String(parsedPremium),
+                  }));
                   setIntegrationConfig({
                     plan_price_basico: parsedBasico,
                     plan_price_profissional: parsedProfissional,
@@ -1736,7 +1749,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                          clinicName: 'Teste LuminaFlow',
+                          clinicName: 'Teste Clinxia',
                           email: 'teste@teste.com',
                           name: 'Usuario Teste',
                           phone: '11999999999',

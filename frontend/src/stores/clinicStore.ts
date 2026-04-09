@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP — Main Clinic Store (Zustand + localStorage)
+// Clinxia ERP — Main Clinic Store (Zustand + localStorage)
 // ============================================
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';

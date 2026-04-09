@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ToastProvider, ErrorBoundary } from '@/components/shared';
 import { useAuth } from '@/hooks/useAuth';
+// @ts-ignore - qrcode package doesn't have types
+import QRCode from 'qrcode';
 
 interface SignupPageProps {
   onLoginClick: () => void;
@@ -71,7 +73,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   const [phoneTimer, setPhoneTimer] = useState(0);
   const [maskedPhone, setMaskedPhone] = useState('');
   const [pixGenerated, setPixGenerated] = useState(false);
-  const [mpPreference, setMpPreference] = useState<{ init_point: string; qr_code: string } | null>(null);
+  const [mpPreference, setMpPreference] = useState<{ init_point: string; qr_code: string; qr_code_base64: string } | null>(null);
+  const [qrCodeImage, setQrCodeImage] = useState<string>('');
   const [pollingPayment, setPollingPayment] = useState(false);
   const [paymentApproved, setPaymentApproved] = useState(false);
   const idsRef = useRef<{ signupId: string; clinicId: string }>({
@@ -315,7 +318,22 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || 'Erro ao gerar pagamento.');
 
-      setMpPreference({ init_point: data.init_point, qr_code: data.qr_code || '' });
+      // Generate QR code image from the pix copy-paste code
+      let qrImage = '';
+      if (data.qr_code) {
+        try {
+          qrImage = await QRCode.toDataURL(data.qr_code, { width: 200, margin: 1 });
+        } catch (e) {
+          console.error('Failed to generate QR:', e);
+        }
+      }
+
+      setMpPreference({ 
+        init_point: data.init_point, 
+        qr_code: data.qr_code || '',
+        qr_code_base64: data.qr_code_base64 || ''
+      });
+      setQrCodeImage(qrImage);
       setPixGenerated(true);
 
       setPollingPayment(true);
@@ -394,7 +412,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
               <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-cyan-200/50">
                 <span className="text-xl font-black">L</span>
               </div>
-              <h1 className="text-xl font-black text-slate-900">Criar Conta - LuminaFlow</h1>
+              <h1 className="text-xl font-black text-slate-900">Criar Conta - Clinxia</h1>
               <div className="flex items-center justify-center gap-2 mt-3">
                 {[1, 2, 3, 4, 5].map(step => (
                   <div key={step} className={`w-7 h-1.5 rounded-full transition-all ${step <= signupStep ? 'bg-cyan-500' : 'bg-slate-200'}`} />
@@ -651,7 +669,11 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                     </>
                   ) : (
                     <div className="text-center space-y-4">
-                      {mpPreference?.qr_code ? (
+                      {qrCodeImage ? (
+                        <div className="bg-white border-2 border-slate-200 rounded-xl p-4 inline-block">
+                          <img src={qrCodeImage} alt="QR Code Pix" className="w-48 h-48" />
+                        </div>
+                      ) : mpPreference?.qr_code ? (
                         <div className="bg-white border-2 border-slate-200 rounded-xl p-4">
                           <img 
                             src={mpPreference.qr_code} 
@@ -662,7 +684,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                         </div>
                       ) : (
                         <div className="bg-white border-2 border-slate-200 rounded-xl p-6 inline-block">
-                          <p className="text-xs text-slate-500">QR Code Pix</p>
+                          <p className="text-xs text-slate-500">Gerando QR Code...</p>
                         </div>
                       )}
                       {mpPreference?.init_point && (

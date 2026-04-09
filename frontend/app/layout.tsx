@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-bold text-lg text-slate-900">LuminaFlow</span>
+                  <span className="font-bold text-lg text-slate-900">Clinxia</span>
                   <span className="text-xs text-slate-400">Gestão Inteligente</span>
                 </div>
               </Link>

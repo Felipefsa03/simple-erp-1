@@ -313,7 +313,7 @@ export const generateCertificateHTML = (data: CertificateData): string => {
     </div>
     
     <div class="watermark">
-      Documento gerado por LuminaFlow - Sistema de Gestão para Clínicas
+      Documento gerado por Clinxia - Sistema de Gestão para Clínicas
     </div>
   </div>
 </body>
@@ -414,7 +414,7 @@ export const generatePrescriptionHTML = (data: PrescriptionData): string => {
       </div>
     </div>
     
-    <div class="watermark">LuminaFlow - Sistema de Gestão para Clínicas</div>
+    <div class="watermark">Clinxia - Sistema de Gestão para Clínicas</div>
   </div>
 </body>
 </html>
@@ -525,7 +525,7 @@ export const generateConsentHTML = (data: ConsentData): string => {
       </div>
     </div>
     
-    <div class="watermark">LuminaFlow - Sistema de Gestão para Clínicas</div>
+    <div class="watermark">Clinxia - Sistema de Gestão para Clínicas</div>
   </div>
 </body>
 </html>

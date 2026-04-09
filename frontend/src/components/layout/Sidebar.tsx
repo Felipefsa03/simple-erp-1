@@ -123,7 +123,7 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
             </div>
             {(isOpen || !isMobile) && (
               <div className="flex flex-col">
-                <span className="font-bold text-lg tracking-tight text-slate-900">LuminaFlow</span>
+                <span className="font-bold text-lg tracking-tight text-slate-900">Clinxia</span>
                 <span className="text-xs text-slate-400">Gestão Inteligente</span>
               </div>
             )}

@@ -106,7 +106,7 @@ let mpPublicKey = cleanEnv(process.env.MP_PUBLIC_KEY);
 const GLOBAL_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 const SYSTEM_WHATSAPP_CLINIC_ID = 'system-global';
 const DEFAULT_PLAN_PRICES = {
-  basico: 97,
+  basico: 17,
   profissional: 197,
   premium: 397,
 };
@@ -193,13 +193,43 @@ const isUuid = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
 
 const fetchGlobalIntegrationConfig = async () => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  console.log('[Config] fetchGlobalIntegrationConfig called');
+  if (!SUPABASE_URL) {
+    console.log('[Config] Missing SUPABASE_URL');
+    return null;
+  }
+  
   const select =
     'clinic_id,mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium';
   const url = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=${select}&limit=1`;
-  const response = await fetch(url, { headers: getSupabaseAdminHeaders() });
-  if (!response.ok) return null;
+  console.log('[Config] Fetching from:', url);
+  
+  // Try with service role key first, fallback to anon key
+  const headers = SUPABASE_SERVICE_ROLE_KEY 
+    ? getSupabaseAdminHeaders() 
+    : { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` };
+  console.log('[Config] Using headers with service_role:', Boolean(SUPABASE_SERVICE_ROLE_KEY));
+  
+  const response = await fetch(url, { headers });
+  console.log('[Config] Response status:', response.status);
+  if (!response.ok) {
+    console.log('[Config] Failed to fetch config, status:', response.status);
+    // Try one more time with anon key as fallback
+    if (SUPABASE_SERVICE_ROLE_KEY) {
+      console.log('[Config] Retrying with anon key...');
+      const fallbackRes = await fetch(url, { 
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } 
+      });
+      if (fallbackRes.ok) {
+        const data = await safeJson(fallbackRes);
+        console.log('[Config] Data from fallback:', data);
+        return Array.isArray(data) && data.length > 0 ? data[0] : null;
+      }
+    }
+    return null;
+  }
   const data = await safeJson(response);
+  console.log('[Config] Data from DB:', data);
   return Array.isArray(data) && data.length > 0 ? data[0] : null;
 };
 
@@ -539,11 +569,12 @@ const ALLOWED_ORIGINS = (() => {
     'http://localhost:3000',
     'http://localhost:5173',
     'https://clinxia.vercel.app',
+    'https://simple-erp-1.vercel.app',
     process.env.FRONTEND_URL,
   ].filter(Boolean);
   
-  // Allow all Vercel preview URLs in development
-  const vercelPreview = process.env.VERCEL === '1' ? ['https://*.vercel.app'] : [];
+  // Allow all Vercel preview URLs
+  const vercelPreview = ['https://*.vercel.app'];
   
   return [...envOrigins, ...defaultOrigins, ...vercelPreview];
 })();
@@ -781,7 +812,11 @@ const publicPaths = [
   '/signup/init',
   '/signup/verify-phone',
   '/signup/complete',
+  '/signup/phone/send-code',
+  '/signup/phone/verify-code',
+  '/system/signup-config',
   '/mercadopago/create-preference',
+  '/mercadopago/payment-status/',
   '/asaas/test',
   '/integrations/rdstation/event',
   '/whatsapp/',
@@ -1062,21 +1097,21 @@ const ensureClinicStatus = (clinicId) => {
 
 // Supabase helpers for WhatsApp credentials
 const saveCredentialsToSupabase = async (clinicId, credentials) => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.log('[Supabase] Credenciais não configuradas, usando arquivo local');
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('[Supabase] SERVICE_ROLE_KEY não configurada, usando arquivo local');
     return false;
   }
   
   try {
     const credsString = JSON.stringify(credentials, BufferJSON.replacer);
     
-    // Try insert first (will fail if exists)
+    // Try insert first (will fail if exists) - use SERVICE_ROLE_KEY
     const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         'Prefer': 'resolution=ignore-duplicates'
       },
       body: JSON.stringify({
@@ -1091,13 +1126,13 @@ const saveCredentialsToSupabase = async (clinicId, credentials) => {
       return true;
     }
     
-    // If insert failed (duplicate), try update
+    // If insert failed (duplicate), try update - use SERVICE_ROLE_KEY
     const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
@@ -1115,16 +1150,16 @@ const saveCredentialsToSupabase = async (clinicId, credentials) => {
 };
 
 const loadCredentialsFromSupabase = async (clinicId) => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.log('[Supabase] Credenciais não configuradas');
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('[Supabase] SERVICE_ROLE_KEY não configurada');
     return null;
   }
   
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}&select=credentials`, {
       headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
       }
     });
     
@@ -1227,7 +1262,7 @@ const createWhatsAppSocket = async (clinicId) => {
         auth: state,
         version: version,
         printQRInTerminal: false,
-        browser: ['LuminaFlow', 'Chrome', '122.0.0.0'],
+        browser: ['Clinxia', 'Chrome', '122.0.0.0'],
         connectTimeoutMs: 120000,
         keepAliveIntervalMs: 60000,
         logger: logger,
@@ -1272,8 +1307,8 @@ const createWhatsAppSocket = async (clinicId) => {
               await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
                 method: 'DELETE',
                 headers: {
-                  'apikey': SUPABASE_ANON_KEY,
-                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                  'apikey': SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
                 }
               });
               addLog(`[Baileys] Credenciais removidas do Supabase para ${clinicId}`);
@@ -1393,8 +1428,8 @@ app.post('/api/whatsapp/connect', async (req, res) => {
       await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
         method: 'DELETE',
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
         }
       });
     } catch (e) {}
@@ -1496,8 +1531,8 @@ const disconnectWhatsAppSession = async (clinicId) => {
     await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
       method: 'DELETE',
       headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
       },
     });
   } catch (_e) {}
@@ -1727,8 +1762,11 @@ app.post('/api/notifications/send', async (req, res) => {
 
 app.get('/api/system/signup-config', async (_req, res) => {
   try {
+    console.log('[SignupConfig] Endpoint called');
     const globalConfig = await fetchGlobalIntegrationConfig();
+    console.log('[SignupConfig] globalConfig:', globalConfig);
     const planPrices = getPlanPricesFromConfig(globalConfig);
+    console.log('[SignupConfig] planPrices:', planPrices);
     const { token, publicKey } = await resolveMercadoPagoCredentials();
     const whatsappConnected = whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === 'connected';
 
@@ -1813,7 +1851,7 @@ app.post('/api/signup/phone/send-code', async (req, res) => {
   setVerificationSession(signupId, session);
 
   const message = [
-    'LuminaFlow - Validacao de Telefone',
+    'Clinxia - Validacao de Telefone',
     '',
     `Seu codigo de verificacao: ${code}`,
     'Esse codigo expira em 30 segundos.',
@@ -1945,7 +1983,7 @@ app.post('/api/mercadopago/create-preference', async (req, res) => {
       items: [
         {
           id: selectedPlan,
-          title: `LuminaFlow - ${clinicName}`,
+          title: `Clinxia - ${clinicName}`,
           quantity: 1,
           unit_price: unitAmount,
           currency_id: 'BRL',
@@ -1997,12 +2035,55 @@ app.post('/api/mercadopago/create-preference', async (req, res) => {
       return res.status(500).json({ ok: false, error: message });
     }
 
+    // Create PIX payment directly to get QR code
+    let qrCode = '';
+    let qrCodeBase64 = '';
+    let pointOfInteractionUrl = '';
+    try {
+      const pixPayment = {
+        transaction_amount: unitAmount,
+        description: `Clinxia - ${clinicName} - Plano ${selectedPlan}`,
+        payment_method_id: 'pix',
+        external_reference: normalizedClinicId,
+        payer: {
+          email,
+          first_name: name,
+          phone: { number: String(phone || '').replace(/\D/g, '') || '' },
+        },
+        metadata: {
+          clinic_id: normalizedClinicId,
+          plan: selectedPlan,
+          signup_id: signupId || '',
+        },
+      };
+
+      const pixResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(pixPayment),
+      });
+      const pixData = await safeJson(pixResponse);
+
+      if (pixResponse.ok && pixData?.point_of_interaction?.transaction_data) {
+        qrCode = pixData.point_of_interaction.transaction_data.qr_code || '';
+        qrCodeBase64 = pixData.point_of_interaction.transaction_data.qr_code_base64 || '';
+        pointOfInteractionUrl = pixData.point_of_interaction?.transaction_data?.ticket_url || '';
+        console.log('[MP] PIX payment created:', pixData.id, 'status:', pixData.status);
+      }
+    } catch (pixError) {
+      console.log('[MP] Failed to create PIX payment:', pixError.message);
+    }
+
     return res.json({
       ok: true,
       preference_id: mpData.id,
       init_point: mpData.init_point,
-      qr_code: mpData.qr_code || '',
-      qr_code_base64: mpData.qr_code_base64 || '',
+      qr_code: qrCode,
+      qr_code_base64: qrCodeBase64,
+      point_of_interaction_url: pointOfInteractionUrl,
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
@@ -2423,9 +2504,41 @@ app.get('/api/2fa/status', require2FAPermission, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 WhatsApp API ready for connections`);
+  
+  // Auto-reconnect all saved WhatsApp sessions on startup
+  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?select=clinic_id,credentials`, {
+        headers: {
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        }
+      });
+      
+      if (res.ok) {
+        const credentials = await res.json();
+        if (Array.isArray(credentials) && credentials.length > 0) {
+          console.log(`🔄 Auto-reconnecting ${credentials.length} WhatsApp session(s)...`);
+          for (const cred of credentials) {
+            try {
+              whatsappConnections[cred.clinic_id] = { status: 'connecting' };
+              const sock = await ensureSocketConnected(cred.clinic_id);
+              if (sock.authState?.creds?.registered) {
+                console.log(`✅ Reconnected: ${cred.clinic_id}`);
+              }
+            } catch (e) {
+              console.log(`⚠️ Failed to reconnect ${cred.clinic_id}: ${e.message}`);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log(`⚠️ Auto-reconnect failed: ${e.message}`);
+    }
+  }
 });
 
 // Graceful shutdown for Cloud environments (Render/Docker)

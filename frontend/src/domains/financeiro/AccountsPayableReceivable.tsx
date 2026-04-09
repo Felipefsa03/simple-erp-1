@@ -32,7 +32,7 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
     { id: 'acc-5', type: 'payable', description: 'Aluguel Março', counterparty: 'Imobiliária XYZ', value: 5500, paid: 0, dueDate: '2026-03-30', status: 'pending', category: 'rent', createdAt: '2026-03-01T00:00:00Z' },
     { id: 'acc-6', type: 'payable', description: 'Fornecedor Dental', counterparty: 'Dental Plus', value: 2300, paid: 0, dueDate: '2026-04-05', status: 'pending', category: 'supplies', createdAt: '2026-03-15T00:00:00Z' },
     { id: 'acc-7', type: 'payable', description: 'Salário Março', counterparty: 'Funcionários', value: 28000, paid: 28000, dueDate: '2026-03-20', status: 'paid', category: 'salary', createdAt: '2026-03-01T00:00:00Z' },
-    { id: 'acc-8', type: 'payable', description: 'Software', counterparty: 'LuminaFlow', value: 497, paid: 0, dueDate: '2026-04-01', status: 'pending', category: 'software', createdAt: '2026-03-15T00:00:00Z' },
+    { id: 'acc-8', type: 'payable', description: 'Software', counterparty: 'Clinxia', value: 497, paid: 0, dueDate: '2026-04-01', status: 'pending', category: 'software', createdAt: '2026-03-15T00:00:00Z' },
   ]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
