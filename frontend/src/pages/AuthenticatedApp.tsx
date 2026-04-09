@@ -119,18 +119,9 @@ export function AuthenticatedApp() {
         // Buscar preços do integration_config global primeiro (antes de normalizar)
         const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
         const prices = config as Record<string, number> || {};
-        const defaultPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
-        
-        // Normalizar plano: enterprise -> basico E atualizar no banco
-        if (plan === 'enterprise') {
-          console.log('[Subscription] Normalizando plano enterprise -> basico e atualizando banco');
-          plan = 'basico';
-          // Atualizar o plano no banco de dados
-          await supabase!.from('clinics').update({ plan: 'basico' }).eq('id', clinicId);
-        }
-        
+        const defaultPrices: Record<string, number> = { basico: 17, profissional: 197, premium: 397 };
         console.log('[Subscription] Plano atual:', plan);
-        const amount = prices[`plan_price_${plan}`] || defaultPrices[plan] || 97;
+        const amount = prices[`plan_price_${plan}`] || defaultPrices[plan] || 17;
         console.log('[Subscription] Valor do plano:', amount, 'prices from DB:', prices);
         const isDev = import.meta.env.DEV;
         const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');

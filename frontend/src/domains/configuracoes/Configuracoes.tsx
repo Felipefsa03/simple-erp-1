@@ -182,7 +182,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       google_calendar_email: integrationConfig.google_calendar_email || '',
       mp_access_token: integrationConfig.mp_access_token || '',
       mp_public_key: integrationConfig.mp_public_key || '',
-      plan_price_basico: String(integrationConfig.plan_price_basico ?? 97),
+      plan_price_basico: String(integrationConfig.plan_price_basico ?? 17),
       plan_price_profissional: String(integrationConfig.plan_price_profissional ?? 197),
       plan_price_premium: String(integrationConfig.plan_price_premium ?? 397),
     });
@@ -413,7 +413,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     try {
       const planPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
       const currentPlan = clinic?.plan || 'basico';
-      const currentPrice = planPrices[currentPlan] || 97;
+      const currentPrice = planPrices[currentPlan] || 17;
       const newPrice = planPrices[plan] || 197;
       
       // Calculate proportional cost
@@ -1171,7 +1171,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 <p className="text-sm text-white/70 mt-1">Próxima cobrança: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR')}</p>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-black">R${clinic?.plan === 'profissional' ? (integrationConfig?.plan_price_profissional || 197) : clinic?.plan === 'premium' ? (integrationConfig?.plan_price_premium || 397) : (integrationConfig?.plan_price_basico || 97)}</p>
+                <p className="text-3xl font-black">R${clinic?.plan === 'profissional' ? (integrationConfig?.plan_price_profissional || 197) : clinic?.plan === 'premium' ? (integrationConfig?.plan_price_premium || 397) : (integrationConfig?.plan_price_basico || 17)}</p>
                 <p className="text-sm text-white/70">/mês</p>
               </div>
             </div>
@@ -1180,7 +1180,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           {/* Plans Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { id: 'basico', name: 'Básico', price: integrationConfig?.plan_price_basico || 97, desc: 'Ideal para clínicas iniciantes', features: ['1 profissional', '500 pacientes', '200 consultas/mês', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'], color: 'cyan' },
+              { id: 'basico', name: 'Básico', price: integrationConfig?.plan_price_basico || 17, desc: 'Ideal para clínicas iniciantes', features: ['1 profissional', '500 pacientes', '200 consultas/mês', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'], color: 'cyan' },
               { id: 'profissional', name: 'Profissional', price: integrationConfig?.plan_price_profissional || 197, desc: 'Para clínicas em crescimento', features: ['5 profissionais', '2.000 pacientes', '1.000 consultas/mês', 'Financeiro completo', 'Estoque', 'Marketing', 'Relatórios avançados', 'Suporte prioritário'], color: 'blue', popular: true },
               { id: 'premium', name: 'Premium', price: integrationConfig?.plan_price_premium || 397, desc: 'Máximo desempenho', features: ['Profissionais ilimitados', 'Pacientes ilimitados', 'Consultas ilimitadas', 'Tudo do Profissional', 'Multi-unidades', 'API integrada', 'Personalização total', 'SLA 99.9%'], color: 'purple' },
             ].map(plan => {
@@ -1214,8 +1214,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             {upgradeModal && (() => {
               const planMap: Record<string, string> = { 'Básico': 'basico', 'Profissional': 'profissional', 'Premium': 'premium' };
               const planId = planMap[upgradeModal.plan] || 'profissional';
-              const priceMap: Record<string, number> = { basico: integrationConfig?.plan_price_basico || 97, profissional: integrationConfig?.plan_price_profissional || 197, premium: integrationConfig?.plan_price_premium || 397 };
-              const currentPrice = priceMap[clinic?.plan || 'basico'] || 97;
+              const priceMap: Record<string, number> = { basico: integrationConfig?.plan_price_basico || 17, profissional: integrationConfig?.plan_price_profissional || 197, premium: integrationConfig?.plan_price_premium || 397 };
+              const currentPrice = priceMap[clinic?.plan || 'basico'] || 17;
               const newPrice = priceMap[planId] || 197;
               const today = new Date();
               const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
