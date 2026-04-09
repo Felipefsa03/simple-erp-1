@@ -182,7 +182,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       google_calendar_email: integrationConfig.google_calendar_email || '',
       mp_access_token: integrationConfig.mp_access_token || '',
       mp_public_key: integrationConfig.mp_public_key || '',
-      plan_price_basico: String(integrationConfig.plan_price_basico ?? 97),
+      plan_price_basico: String(integrationConfig.plan_price_basico ?? 17),
       plan_price_profissional: String(integrationConfig.plan_price_profissional ?? 197),
       plan_price_premium: String(integrationConfig.plan_price_premium ?? 397),
     });
@@ -194,31 +194,51 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     let cancelled = false;
     const loadGlobalConfig = async () => {
       try {
-        const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+        const { supabase, isSupabaseConfigured, getSupabaseSession } = await import('@/lib/supabase');
         console.log('[Sistema Global] Carregando config, Supabase configured:', isSupabaseConfigured());
+        
+        // Obter sessão atual para ter o token
+        const session = getSupabaseSession ? getSupabaseSession() : null;
+        console.log('[Sistema Global] Session:', session ? 'tem sessão' : 'sem sessão');
+        
         if (isSupabaseConfigured()) {
-          const { data, error } = await supabase!
-            .from('integration_config')
-            .select('mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium')
-            .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID)
-            .single();
-          console.log('[Sistema Global] Query result:', { data, error });
-          if (!cancelled && !error && data) {
-            console.log('[Sistema Global] Usando dados do banco:', data);
+          // Usar query direta com fetch para garantir que o token seja enviado
+          const supabaseUrl = 'https://gzcimnredlffqyogxzqq.supabase.co';
+          const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6Y2ltbnJlZGxmZnF5b2d4enFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDY3NjU4NjAsImV4cCI6MjAyMjM0MTg2MH0.f1L5HLRq7vPVUE2Vz0vRaH0nq-6HhG0R8qE3U0zG7cI';
+          
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': session?.access_token ? `Bearer ${session.access_token}` : `Bearer ${supabaseKey}`,
+          };
+          
+          const response = await fetch(
+            `${supabaseUrl}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium`,
+            { headers }
+          );
+          
+          const data = response.ok ? await response.json() : null;
+          const error = response.ok ? null : { message: 'Failed to fetch' };
+          
+          console.log('[Sistema Global] Query result:', { data, error, status: response.status });
+          
+          if (!cancelled && data && data.length > 0) {
+            const config = data[0];
+            console.log('[Sistema Global] Usando dados do banco:', config);
             setIntegrationForm(prev => ({
               ...prev,
-              mp_access_token: (data as any).mp_access_token || '',
-              mp_public_key: (data as any).mp_public_key || '',
-              plan_price_basico: String((data as any).plan_price_basico ?? 17),
-              plan_price_profissional: String((data as any).plan_price_profissional ?? 197),
-              plan_price_premium: String((data as any).plan_price_premium ?? 397),
+              mp_access_token: config.mp_access_token || '',
+              mp_public_key: config.mp_public_key || '',
+              plan_price_basico: String(config.plan_price_basico ?? 17),
+              plan_price_profissional: String(config.plan_price_profissional ?? 197),
+              plan_price_premium: String(config.plan_price_premium ?? 397),
             }));
             setIntegrationConfig({
-              mp_access_token: (data as any).mp_access_token || '',
-              mp_public_key: (data as any).mp_public_key || '',
-              plan_price_basico: Number((data as any).plan_price_basico ?? 17),
-              plan_price_profissional: Number((data as any).plan_price_profissional ?? 197),
-              plan_price_premium: Number((data as any).plan_price_premium ?? 397),
+              mp_access_token: config.mp_access_token || '',
+              mp_public_key: config.mp_public_key || '',
+              plan_price_basico: Number(config.plan_price_basico ?? 17),
+              plan_price_profissional: Number(config.plan_price_profissional ?? 197),
+              plan_price_premium: Number(config.plan_price_premium ?? 397),
             });
             return;
           } else if (error) {
@@ -393,9 +413,9 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
   const handleUpgrade = async (plan: string) => {
     try {
-      const planPrices: Record<string, number> = { basico: 97, profissional: 197, premium: 397 };
+      const planPrices: Record<string, number> = { basico: 17, profissional: 197, premium: 397 };
       const currentPlan = clinic?.plan || 'basico';
-      const currentPrice = planPrices[currentPlan] || 97;
+      const currentPrice = planPrices[currentPlan] || 17;
       const newPrice = planPrices[plan] || 197;
       
       // Calculate proportional cost
@@ -1153,7 +1173,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 <p className="text-sm text-white/70 mt-1">Próxima cobrança: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('pt-BR')}</p>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-black">R${clinic?.plan === 'profissional' ? (integrationConfig?.plan_price_profissional || 197) : clinic?.plan === 'premium' ? (integrationConfig?.plan_price_premium || 397) : (integrationConfig?.plan_price_basico || 97)}</p>
+                <p className="text-3xl font-black">R${clinic?.plan === 'profissional' ? (integrationConfig?.plan_price_profissional || 197) : clinic?.plan === 'premium' ? (integrationConfig?.plan_price_premium || 397) : (integrationConfig?.plan_price_basico || 17)}</p>
                 <p className="text-sm text-white/70">/mês</p>
               </div>
             </div>
@@ -1162,7 +1182,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           {/* Plans Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { id: 'basico', name: 'Básico', price: integrationConfig?.plan_price_basico || 97, desc: 'Ideal para clínicas iniciantes', features: ['1 profissional', '500 pacientes', '200 consultas/mês', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'], color: 'cyan' },
+              { id: 'basico', name: 'Básico', price: integrationConfig?.plan_price_basico || 17, desc: 'Ideal para clínicas iniciantes', features: ['1 profissional', '500 pacientes', '200 consultas/mês', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'], color: 'cyan' },
               { id: 'profissional', name: 'Profissional', price: integrationConfig?.plan_price_profissional || 197, desc: 'Para clínicas em crescimento', features: ['5 profissionais', '2.000 pacientes', '1.000 consultas/mês', 'Financeiro completo', 'Estoque', 'Marketing', 'Relatórios avançados', 'Suporte prioritário'], color: 'blue', popular: true },
               { id: 'premium', name: 'Premium', price: integrationConfig?.plan_price_premium || 397, desc: 'Máximo desempenho', features: ['Profissionais ilimitados', 'Pacientes ilimitados', 'Consultas ilimitadas', 'Tudo do Profissional', 'Multi-unidades', 'API integrada', 'Personalização total', 'SLA 99.9%'], color: 'purple' },
             ].map(plan => {
@@ -1196,8 +1216,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             {upgradeModal && (() => {
               const planMap: Record<string, string> = { 'Básico': 'basico', 'Profissional': 'profissional', 'Premium': 'premium' };
               const planId = planMap[upgradeModal.plan] || 'profissional';
-              const priceMap: Record<string, number> = { basico: integrationConfig?.plan_price_basico || 97, profissional: integrationConfig?.plan_price_profissional || 197, premium: integrationConfig?.plan_price_premium || 397 };
-              const currentPrice = priceMap[clinic?.plan || 'basico'] || 97;
+              const priceMap: Record<string, number> = { basico: integrationConfig?.plan_price_basico || 17, profissional: integrationConfig?.plan_price_profissional || 197, premium: integrationConfig?.plan_price_premium || 397 };
+              const currentPrice = priceMap[clinic?.plan || 'basico'] || 17;
               const newPrice = priceMap[planId] || 197;
               const today = new Date();
               const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
@@ -1602,7 +1622,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     <span className="text-sm text-slate-500">R$</span>
                     <input
                       type="number"
-                      value={integrationForm[`plan_price_${plan.id}`] || (plan.id === 'basico' ? '97' : plan.id === 'profissional' ? '197' : '397')}
+                      value={integrationForm[`plan_price_${plan.id}`] || (plan.id === 'basico' ? '17' : plan.id === 'profissional' ? '197' : '397')}
                       onChange={(e) => setIntegrationForm({...integrationForm, [`plan_price_${plan.id}`]: e.target.value})}
                       className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-lg text-lg font-bold text-center outline-none focus:border-emerald-400"
                     />
@@ -1614,9 +1634,20 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             <button
               onClick={async () => {
                 try {
-                  const { supabase } = await import('@/lib/supabase');
-                  if (!supabase) throw new Error('Supabase não configurado');
-                  const parsedBasico = parseFloat(integrationForm.plan_price_basico) || 97;
+                  const { getSupabaseSession } = await import('@/lib/supabase');
+                  
+                  const supabaseUrl = 'https://gzcimnredlffqyogxzqq.supabase.co';
+                  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6Y2ltbnJlZGxmZnF5b2d4enFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDY3NjU4NjAsImV4cCI6MjAyMjM0MTg2MH0.f1L5HLRq7vPVUE2Vz0vRaH0nq-6HhG0R8qE3U0zG7cI';
+                  
+                  const session = getSupabaseSession ? getSupabaseSession() : null;
+                  const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                    'apikey': supabaseKey,
+                    'Authorization': session?.access_token ? `Bearer ${session.access_token}` : `Bearer ${supabaseKey}`,
+                    'Prefer': 'return=representation',
+                  };
+                  
+                  const parsedBasico = parseFloat(integrationForm.plan_price_basico) || 17;
                   const parsedProfissional = parseFloat(integrationForm.plan_price_profissional) || 197;
                   const parsedPremium = parseFloat(integrationForm.plan_price_premium) || 397;
                   const planData = {
@@ -1627,25 +1658,40 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     mp_access_token: integrationForm.mp_access_token,
                     mp_public_key: integrationForm.mp_public_key,
                   };
-                  // Try update first
-                  const { data: existing } = await supabase
-                    .from('integration_config')
-                    .select('clinic_id')
-                    .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID)
-                    .single();
                   
-                  let error;
-                  if (existing) {
-                    ({ error } = await supabase
-                      .from('integration_config')
-                      .update(planData)
-                      .eq('clinic_id', SYSTEM_GLOBAL_CLINIC_ID));
+                  // Check if exists first
+                  const checkRes = await fetch(
+                    `${supabaseUrl}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=id`,
+                    { headers }
+                  );
+                  
+                  const exists = checkRes.ok && (await checkRes.json()).length > 0;
+                  let error: any = null;
+                  
+                  if (exists) {
+                    const updateRes = await fetch(
+                      `${supabaseUrl}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}`,
+                      {
+                        method: 'PATCH',
+                        headers,
+                        body: JSON.stringify(planData),
+                      }
+                    );
+                    if (!updateRes.ok) error = { message: 'Update failed' };
                   } else {
-                    ({ error } = await supabase
-                      .from('integration_config')
-                      .insert(planData));
+                    const insertRes = await fetch(
+                      `${supabaseUrl}/rest/v1/integration_config`,
+                      {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(planData),
+                      }
+                    );
+                    if (!insertRes.ok) error = { message: 'Insert failed' };
                   }
+                  
                   if (error) throw error;
+                  
                   setIntegrationForm(prev => ({
                     ...prev,
                     plan_price_basico: String(parsedBasico),
@@ -1754,7 +1800,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                           name: 'Usuario Teste',
                           phone: '11999999999',
                           plan: 'basico',
-                          amount: 97,
+                          amount: 17,
                           clinicId: SYSTEM_GLOBAL_CLINIC_ID,
                         }),
                       });

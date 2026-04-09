@@ -1,7 +1,7 @@
 @echo off
 REM ========================================
-REM OpenClaude Qwen Manager
-REM Gerencia automaticamente o rate limit do Qwen
+REM OpenClaude - Qwen 3.6 Plus Free
+REM Configurado para Auditoria e Desenvolvimento Avançado
 REM ========================================
 
 set CLAUDE_CODE_USE_OPENAI=1
@@ -10,16 +10,22 @@ set OPENAI_BASE_URL=https://opencode.ai/zen/v1
 set OPENAI_MODEL=qwen3.6-plus-free
 set OPENAI_MAX_RETRIES=10
 set OPENAI_RETRY_DELAY=5000
+set OPENAI_TIMEOUT=180000
 
 echo ========================================
-echo OpenClaude - Qwen 3.6 Manager
+echo OpenClaude - Qwen 3.6 Plus Free
+echo Configurado para Auditoria e Seguranca
 echo ========================================
 echo.
-echo Modelo: Qwen 3.6 Plus Free
+echo Modelo: qwen3.6-plus-free
 echo Max Retries: 10
-echo Retry Delay: 5 segundos
+echo Timeout: 180s
 echo.
-echo Pressione Ctrl+C para cancelar
+echo Skills ativados:
+echo   - Code Auditor (.claude/skills/code-auditor.md)
+echo   - Advanced Developer (.claude/skills/advanced-developer.md)
+echo   - SECURITY.md (Instrucoes de seguranca)
+echo   - AGENTS.md (Regras do projeto)
 echo.
 
 openclaude %*

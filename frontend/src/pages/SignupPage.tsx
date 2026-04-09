@@ -25,7 +25,7 @@ const DEFAULT_PLANS: PlanItem[] = [
   {
     id: 'basico',
     name: 'Basico',
-    price: 97,
+    price: 17,
     features: ['1 profissional', '500 pacientes', '200 consultas/mes', 'Prontuario digital', 'WhatsApp integrado', 'Suporte por email'],
   },
   {
@@ -126,7 +126,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
           {
             id: 'basico',
             name: 'Basico',
-            price: Number(data.plan_prices?.basico ?? 97),
+            price: Number(data.plan_prices?.basico ?? 17),
             features: DEFAULT_PLANS[0].features,
           },
           {
