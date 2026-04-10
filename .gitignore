@@ -45,3 +45,6 @@ playwright-report/
 
 # Vitest
 .vitest/
+
+# Vercel
+.vercel/output
