@@ -5,7 +5,10 @@
 
 const crypto = require('crypto');
 
-const DEFAULT_KEY = process.env.SECURITY_KEY || 'default-dev-key-change-in-production';
+const DEFAULT_KEY = process.env.SECURITY_KEY || 'dev-only-key-do-not-use-in-prod';
+if (!DEFAULT_KEY && process.env.NODE_ENV === 'production') {
+  throw new Error('[SECURITY] SECURITY_KEY environment variable is required in production');
+}
 
 const ALGORITHM = 'aes-256-gcm';
 

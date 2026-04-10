@@ -20,7 +20,11 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "typecheck": "tsc --noEmit",
-    "ci": "npm run typecheck && npm run lint && npm run test && npm run build"
+    "ci": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "security:audit": "npm audit --audit-level=high",
+    "security:audit:fix": "npm audit fix",
+    "security:deps": "npm outdated --depth=0",
+    "security:licenses": "license-checker --summary --production"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
