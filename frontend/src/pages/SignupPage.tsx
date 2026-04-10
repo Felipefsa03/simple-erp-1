@@ -25,7 +25,7 @@ const DEFAULT_PLANS: PlanItem[] = [
   {
     id: 'basico',
     name: 'Basico',
-    price: 97,
+    price: 17,
     features: ['1 profissional', '500 pacientes', '200 consultas/mes', 'Prontuario digital', 'WhatsApp integrado', 'Suporte por email'],
   },
   {
@@ -126,7 +126,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
           {
             id: 'basico',
             name: 'Basico',
-            price: Number(data.plan_prices?.basico ?? 97),
+            price: Number(data.plan_prices?.basico ?? 17),
             features: DEFAULT_PLANS[0].features,
           },
           {
@@ -674,8 +674,13 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                           <img src={qrCodeImage} alt="QR Code Pix" className="w-48 h-48" />
                         </div>
                       ) : mpPreference?.qr_code ? (
-                        <div className="bg-white border-2 border-slate-200 rounded-xl p-6 inline-block">
-                          <p className="text-xs text-slate-500">QR Code Pix</p>
+                        <div className="bg-white border-2 border-slate-200 rounded-xl p-4">
+                          <img 
+                            src={mpPreference.qr_code} 
+                            alt="QR Code Pix" 
+                            style={{ width: '200px', height: '200px' }}
+                            className="w-52 h-52"
+                          />
                         </div>
                       ) : (
                         <div className="bg-white border-2 border-slate-200 rounded-xl p-6 inline-block">

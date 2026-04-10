@@ -26,13 +26,16 @@ if (!isConfigured) {
   console.log('[Supabase] Configurado com sucesso. URL:', supabaseUrl);
 }
 
-// Headers padrão para requisições
-const getHeaders = (token?: string) => ({
+// Headers padrão para requisições - agora inclui o token da sessão
+const getHeaders = () => ({
   'Content-Type': 'application/json',
   'apikey': supabaseAnonKey,
-  'Authorization': token ? `Bearer ${token}` : `Bearer ${supabaseAnonKey}`,
+  'Authorization': currentSession ? `Bearer ${currentSession.access_token}` : `Bearer ${supabaseAnonKey}`,
   'Prefer': 'return=representation',
 });
+
+// Função para obter o token da sessão atual
+export const getSupabaseSession = () => currentSession;
 
 // ============================================
 // Cliente Supabase Simplificado (sem pacote)

@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - Módulo de Alertas de Segurança
+// LuminaFlow ERP - Módulo de Alertas de Segurança
 // Detecção e notificação de eventos de segurança
 // ============================================
 

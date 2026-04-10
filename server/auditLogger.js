@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - Módulo de Auditoria LGPD
+// LuminaFlow ERP - Módulo de Auditoria LGPD
 // Logging de segurança e conformidade LGPD
 // ============================================
 
