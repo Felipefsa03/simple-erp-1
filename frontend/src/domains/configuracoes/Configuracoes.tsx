@@ -171,6 +171,10 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   }, []);
 
   useEffect(() => {
+    // Só carrega do clinicStore se NÃO for super_admin na aba sistema
+    const isSuperAdminOnSistema = user?.role === 'super_admin' && activeSubTab === 'sistema';
+    if (isSuperAdminOnSistema) return;
+    
     setIntegrationForm({
       memed_api_url: integrationConfig.memed_api_url || '',
       memed_api_token: integrationConfig.memed_api_token || '',
@@ -186,7 +190,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       plan_price_profissional: String(integrationConfig.plan_price_profissional ?? 197),
       plan_price_premium: String(integrationConfig.plan_price_premium ?? 397),
     });
-  }, [integrationConfig]);
+  }, [integrationConfig, user?.role, activeSubTab]);
 
   useEffect(() => {
     if (user?.role !== 'super_admin' || activeSubTab !== 'sistema') return;
