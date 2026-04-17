@@ -346,7 +346,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
   const plans = [
     {
       name: 'Básico',
-      price: 97,
+      price: 17,
       description: 'Ideal para clínicas iniciantes',
       features: ['1 profissional', 'Agenda inteligente', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'],
       highlighted: false,
