@@ -20,6 +20,9 @@ interface PlanItem {
 }
 
 const API_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const GLOBAL_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 
 const DEFAULT_PLANS: PlanItem[] = [
   {
@@ -66,6 +69,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   const [signupError, setSignupError] = useState('');
   const [signupLoading, setSignupLoading] = useState(false);
   const [dynamicPlans, setDynamicPlans] = useState<PlanItem[]>(DEFAULT_PLANS);
+  const [plansLoaded, setPlansLoaded] = useState(false);
   const [phoneVerificationEnabled, setPhoneVerificationEnabled] = useState(true);
   const [phoneCodeSent, setPhoneCodeSent] = useState(false);
   const [phoneCode, setPhoneCode] = useState('');
@@ -119,33 +123,78 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   useEffect(() => {
     (async () => {
       try {
+        if (SUPABASE_KEY) {
+          const supabaseResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=plan_price_basico,plan_price_profissional,plan_price_premium&limit=1`,
+            {
+              headers: {
+                apikey: SUPABASE_KEY,
+                Authorization: `Bearer ${SUPABASE_KEY}`,
+              },
+            }
+          );
+          if (supabaseResponse.ok) {
+            const rows = await supabaseResponse.json();
+            if (Array.isArray(rows) && rows.length > 0) {
+              const row = rows[0];
+              const basico = Number(row.plan_price_basico);
+              const profissional = Number(row.plan_price_profissional);
+              const premium = Number(row.plan_price_premium);
+              if (basico > 0 && profissional > 0 && premium > 0) {
+                setDynamicPlans([
+                  { id: 'basico', name: 'Basico', price: basico, features: DEFAULT_PLANS[0].features },
+                  { id: 'profissional', name: 'Profissional', price: profissional, features: DEFAULT_PLANS[1].features, popular: true },
+                  { id: 'premium', name: 'Premium', price: premium, features: DEFAULT_PLANS[2].features },
+                ]);
+                setPlansLoaded(true);
+                return;
+              }
+            }
+          }
+        }
+
         const response = await fetch(`${API_BASE}/api/system/signup-config`);
         const data = await response.json();
-        if (!data?.ok) return;
+        if (!data?.ok) {
+          setDynamicPlans(DEFAULT_PLANS);
+          setPlansLoaded(true);
+          return;
+        }
+        const basico = Number(data.plan_prices?.basico);
+        const profissional = Number(data.plan_prices?.profissional);
+        const premium = Number(data.plan_prices?.premium);
+        if (!(basico > 0 && profissional > 0 && premium > 0)) {
+          setDynamicPlans(DEFAULT_PLANS);
+          setPlansLoaded(true);
+          return;
+        }
         setDynamicPlans([
           {
             id: 'basico',
             name: 'Basico',
-            price: Number(data.plan_prices?.basico ?? 17),
+            price: basico,
             features: DEFAULT_PLANS[0].features,
           },
           {
             id: 'profissional',
             name: 'Profissional',
-            price: Number(data.plan_prices?.profissional ?? 197),
+            price: profissional,
             features: DEFAULT_PLANS[1].features,
             popular: true,
           },
           {
             id: 'premium',
             name: 'Premium',
-            price: Number(data.plan_prices?.premium ?? 397),
+            price: premium,
             features: DEFAULT_PLANS[2].features,
           },
         ]);
         setPhoneVerificationEnabled(Boolean(data.phone_verification_enabled));
+        setPlansLoaded(true);
       } catch (_error) {
+        // Fallback de emergência apenas quando Supabase/API falham
         setDynamicPlans(DEFAULT_PLANS);
+        setPlansLoaded(true);
       }
     })();
   }, []);
@@ -624,6 +673,11 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
               {signupStep === 4 && (
                 <div className="space-y-4">
                   <h2 className="font-bold text-slate-900 text-lg">Escolha seu Plano</h2>
+                  {!plansLoaded && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                      Carregando preços atualizados...
+                    </div>
+                  )}
                   <div className="space-y-3">
                     {dynamicPlans.map(plan => (
                       <button key={plan.id} type="button" onClick={() => setSignupForm({ ...signupForm, plan: plan.id })} className={`w-full p-4 rounded-xl border-2 text-left transition-all relative ${signupForm.plan === plan.id ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200'}`}>

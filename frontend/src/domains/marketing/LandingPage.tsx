@@ -6,9 +6,14 @@ import {
   Users, Shield, MessageSquare, Menu, X, PlayCircle, ChevronDown,
   Package, BarChart3, Zap, Star, Clock, TrendingUp, Heart,
   Phone, Mail, Globe, Smartphone, Monitor, Check, ArrowUpRight,
-  Quote, Building2, Stethoscope, Activity, CreditCard, Bell
+  Quote, Building2, Stethoscope, Activity, CreditCard, Bell, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const API_BASE = import.meta.env.VITE_API_BASE || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const GLOBAL_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 
 interface LandingPageProps {
   onLoginClick: () => void;
@@ -322,7 +327,64 @@ function GradientText({ children, className }: { children: React.ReactNode; clas
 
 export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [planPrices, setPlanPrices] = useState<{ basico: number; profissional: number; premium: number }>({
+    basico: 97,
+    profissional: 197,
+    premium: 397
+  });
+  const [loadingPrices, setLoadingPrices] = useState(true);
   const { scrollYProgress } = useScroll();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (SUPABASE_KEY) {
+          const supabaseResponse = await fetch(
+            `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=plan_price_basico,plan_price_profissional,plan_price_premium&limit=1`,
+            {
+              headers: {
+                apikey: SUPABASE_KEY,
+                Authorization: `Bearer ${SUPABASE_KEY}`,
+              },
+            }
+          );
+          if (supabaseResponse.ok) {
+            const rows = await supabaseResponse.json();
+            if (Array.isArray(rows) && rows.length > 0) {
+              const row = rows[0];
+              const basico = Number(row.plan_price_basico);
+              const profissional = Number(row.plan_price_profissional);
+              const premium = Number(row.plan_price_premium);
+              if (basico > 0 && profissional > 0 && premium > 0) {
+                setPlanPrices({ basico, profissional, premium });
+                return;
+              }
+            }
+          }
+        }
+
+        const response = await fetch(`${API_BASE}/api/system/signup-config`);
+        const data = await response.json();
+        if (data?.ok && data?.plan_prices) {
+          const basico = Number(data.plan_prices.basico);
+          const profissional = Number(data.plan_prices.profissional);
+          const premium = Number(data.plan_prices.premium);
+          if (!(basico > 0 && profissional > 0 && premium > 0)) {
+            throw new Error('Dados de preço inválidos no fallback API');
+          }
+          setPlanPrices({
+            basico,
+            profissional,
+            premium
+          });
+        }
+      } catch (_error) {
+        console.log('Using default prices');
+      } finally {
+        setLoadingPrices(false);
+      }
+    })();
+  }, []);
 
   const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -50]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0.8]);
@@ -346,21 +408,21 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
   const plans = [
     {
       name: 'Básico',
-      price: 17,
+      price: planPrices.basico,
       description: 'Ideal para clínicas iniciantes',
       features: ['1 profissional', 'Agenda inteligente', 'Prontuário digital', 'WhatsApp integrado', 'Suporte por email'],
       highlighted: false,
     },
     {
       name: 'Profissional',
-      price: 197,
+      price: planPrices.profissional,
       description: 'O mais popular',
       features: ['5 profissionais', 'Agenda avançada', 'Prontuário completo', 'Financeiro integrado', 'WhatsApp Business', 'Relatórios completos', 'Suporte prioritário'],
       highlighted: true,
     },
     {
-      name: 'Enterprise',
-      price: null,
+      name: 'Premium',
+      price: planPrices.premium,
       description: 'Para grandes clínicas',
       features: ['Profissionais ilimitados', 'Tudo do Profissional', 'API personalizada', 'Treinamento incluso', 'Suporte 24/7', 'Consultoria dedicada'],
       highlighted: false,
@@ -820,7 +882,12 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {plans.map((plan, i) => (
+            {loadingPrices ? (
+              <div className="col-span-3 flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+                <span className="ml-3 text-slate-500">Carregando preços...</span>
+              </div>
+            ) : plans.map((plan, i) => (
               <motion.div
                 key={plan.name}
                 initial={{ opacity: 0, y: 40 }}
