@@ -22,12 +22,43 @@ const ensureSupabaseConfigured = (operation: string) => {
   console.warn(message);
 };
 
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-  'Prefer': 'return=representation',
-});
+// Obter token JWT do usuário logado - múltiplas tentativas
+const getAuthToken = (): string | null => {
+  try {
+    // Tentar 1: Zustand store format
+    const authData = localStorage.getItem('luminaflow-auth');
+    if (authData) {
+      const parsed = JSON.parse(authData);
+      // access_token dentro de state.user
+      if (parsed?.state?.user?.access_token) {
+        return parsed.state.user.access_token;
+      }
+    }
+    
+    // Tentar 2: supabase session
+    const supabaseSession = localStorage.getItem('supabase.auth.token');
+    if (supabaseSession) {
+      const parsed = JSON.parse(supabaseSession);
+      if (parsed?.access_token) {
+        return parsed.access_token;
+      }
+    }
+  } catch (e) {
+    console.log('[SupabaseSync] Error getting auth token:', e);
+  }
+  return null;
+};
+
+const getHeaders = () => {
+  const token = getAuthToken();
+  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : 'NOT FOUND - using public key');
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': token ? `Bearer ${token}` : `Bearer ${SUPABASE_KEY}`,
+    'Prefer': 'return=representation',
+  };
+};
 
 const getBaseUrl = () => `${SUPABASE_URL}/rest/v1`;
 
