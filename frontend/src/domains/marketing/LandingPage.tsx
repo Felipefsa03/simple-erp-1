@@ -462,19 +462,8 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 overflow-hidden">
-              <svg viewBox="0 0 32 32" className="w-7 h-7">
-                <defs>
-                  <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#22d3d3"/>
-                    <stop offset="100%" stopColor="#2563eb"/>
-                  </linearGradient>
-                </defs>
-                <rect width="32" height="32" rx="6" fill="url(#logoGrad)"/>
-                <path d="M16 8c-4 0-6 2.5-6 6 0 2.5 1.5 4 3.5 5.5 1.5 1 2 1.5 2.5 3v1c0 1 .5 1.5 1.5 2h1c1 0 1.5-1 1.5-2v-1c0-1.5.5-2 2.5-3 2.5-1.5 4-3 4-5.5C22 10.5 20 8 16 8z" fill="white"/>
-                <ellipse cx="12" cy="20" rx="2" ry="2.5" fill="white"/>
-                <ellipse cx="20" cy="20" rx="2" ry="2.5" fill="white"/>
-              </svg>
+            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white font-bold">
+              ⚕
             </div>
             <span className="font-bold text-xl text-slate-800">Clinxia</span>
           </div>
@@ -1062,19 +1051,8 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center overflow-hidden">
-                  <svg viewBox="0 0 32 32" className="w-7 h-7">
-                    <defs>
-                      <linearGradient id="logoGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#22d3d3"/>
-                        <stop offset="100%" stopColor="#2563eb"/>
-                      </linearGradient>
-                    </defs>
-                    <rect width="32" height="32" rx="6" fill="url(#logoGrad2)"/>
-                    <path d="M16 8c-4 0-6 2.5-6 6 0 2.5 1.5 4 3.5 5.5 1.5 1 2 1.5 2.5 3v1c0 1 .5 1.5 1.5 2h1c1 0 1.5-1 1.5-2v-1c0-1.5.5-2 2.5-3 2.5-1.5 4-3 4-5.5C22 10.5 20 8 16 8z" fill="white"/>
-                    <ellipse cx="12" cy="20" rx="2" ry="2.5" fill="white"/>
-                    <ellipse cx="20" cy="20" rx="2" ry="2.5" fill="white"/>
-                  </svg>
+                <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
+                  ⚕
                 </div>
                 <span className="font-bold text-xl">Clinxia</span>
               </div>
