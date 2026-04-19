@@ -69,10 +69,26 @@ async function supabaseFetch(table: string, options: {
 const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 
 const getClinicId = (clinicId?: string) => {
-  if (!clinicId) return DEFAULT_CLINIC_ID;
+  // Log para debug
+  console.log('[SupabaseSync] getClinicId called with:', clinicId);
+  
+  if (!clinicId) {
+    console.log('[SupabaseSync] No clinicId, using DEFAULT:', DEFAULT_CLINIC_ID);
+    return DEFAULT_CLINIC_ID;
+  }
+  
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(clinicId)) return clinicId;
-  if (clinicId === 'clinic-1') return DEFAULT_CLINIC_ID;
+  if (uuidRegex.test(clinicId)) {
+    console.log('[SupabaseSync] Valid UUID, using:', clinicId);
+    return clinicId;
+  }
+  
+  if (clinicId === 'clinic-1') {
+    console.log('[SupabaseSync] clinic-1, using DEFAULT:', DEFAULT_CLINIC_ID);
+    return DEFAULT_CLINIC_ID;
+  }
+  
+  console.log('[SupabaseSync] Unknown format, using DEFAULT:', DEFAULT_CLINIC_ID);
   return DEFAULT_CLINIC_ID;
 };
 
@@ -201,18 +217,24 @@ const mapTransaction = (t: any) => ({
 export const SupabaseSync = {
   async loadPatients(clinicId: string) {
     const uuid = getClinicId(clinicId);
+    console.log('[SupabaseSync] loadPatients with clinicId:', clinicId, '-> uuid:', uuid);
+    
     const { data, error } = await supabaseFetch('patients', {
       filters: `?clinic_id=eq.${uuid}&select=*&deleted_at=is.null&order=created_at.desc`,
     });
+    console.log('[SupabaseSync] patients loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
     return data.map(mapPatient);
   },
 
   async loadProfessionals(clinicId: string) {
     const uuid = getClinicId(clinicId);
+    console.log('[SupabaseSync] loadProfessionals with clinicId:', clinicId, '-> uuid:', uuid);
+    
     const { data, error } = await supabaseFetch('professionals', {
       filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.asc`,
     });
+    console.log('[SupabaseSync] professionals loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
     
     // Batch-fetch all users at once to avoid N+1 queries
