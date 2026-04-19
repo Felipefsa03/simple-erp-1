@@ -462,10 +462,18 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
-              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-white" stroke="currentColor" strokeWidth="2.5">
-                <path d="M12 2c-3 0-5.5 2-5.5 5.5 0 2.5 1.5 4 3.5 5 1.5.8 2 1.2 2 2.5v1c0 1 .5 2 1.5 2.5h1c1-.5 1.5-1.5 1.5-2.5v-1c0-1.3.5-1.7 2-2.5 2-1 3.5-2.5 3.5-5C17.5 4 15 2 12 2z" />
-                <path d="M9 14c0 1.5 1.5 2 3 2s3-.5 3-2" strokeLinecap="round"/>
+            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 overflow-hidden">
+              <svg viewBox="0 0 32 32" className="w-7 h-7">
+                <defs>
+                  <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#22d3d3"/>
+                    <stop offset="100%" stopColor="#2563eb"/>
+                  </linearGradient>
+                </defs>
+                <rect width="32" height="32" rx="6" fill="url(#logoGrad)"/>
+                <path d="M16 8c-4 0-6 2.5-6 6 0 2.5 1.5 4 3.5 5.5 1.5 1 2 1.5 2.5 3v1c0 1 .5 1.5 1.5 2h1c1 0 1.5-1 1.5-2v-1c0-1.5.5-2 2.5-3 2.5-1.5 4-3 4-5.5C22 10.5 20 8 16 8z" fill="white"/>
+                <ellipse cx="12" cy="20" rx="2" ry="2.5" fill="white"/>
+                <ellipse cx="20" cy="20" rx="2" ry="2.5" fill="white"/>
               </svg>
             </div>
             <span className="font-bold text-xl text-slate-800">Clinxia</span>
@@ -1054,10 +1062,18 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-white" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M12 2c-3 0-5.5 2-5.5 5.5 0 2.5 1.5 4 3.5 5 1.5.8 2 1.2 2 2.5v1c0 1 .5 2 1.5 2.5h1c1-.5 1.5-1.5 1.5-2.5v-1c0-1.3.5-1.7 2-2.5 2-1 3.5-2.5 3.5-5C17.5 4 15 2 12 2z" />
-                    <path d="M9 14c0 1.5 1.5 2 3 2s3-.5 3-2" strokeLinecap="round"/>
+                <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center overflow-hidden">
+                  <svg viewBox="0 0 32 32" className="w-7 h-7">
+                    <defs>
+                      <linearGradient id="logoGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#22d3d3"/>
+                        <stop offset="100%" stopColor="#2563eb"/>
+                      </linearGradient>
+                    </defs>
+                    <rect width="32" height="32" rx="6" fill="url(#logoGrad2)"/>
+                    <path d="M16 8c-4 0-6 2.5-6 6 0 2.5 1.5 4 3.5 5.5 1.5 1 2 1.5 2.5 3v1c0 1 .5 1.5 1.5 2h1c1 0 1.5-1 1.5-2v-1c0-1.5.5-2 2.5-3 2.5-1.5 4-3 4-5.5C22 10.5 20 8 16 8z" fill="white"/>
+                    <ellipse cx="12" cy="20" rx="2" ry="2.5" fill="white"/>
+                    <ellipse cx="20" cy="20" rx="2" ry="2.5" fill="white"/>
                   </svg>
                 </div>
                 <span className="font-bold text-xl">Clinxia</span>
