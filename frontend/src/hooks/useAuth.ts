@@ -430,10 +430,32 @@ export const useAuth = create<AuthState>()(
         return getNormalizedClinicId(userClinicId);
       },
       getPlan: () => {
-        // Garantir que o plano sempre tenha um valor válido
-        const plan = (get().clinic?.plan as PlanType) || 'basico';
-        console.log('[Auth] getPlan called, clinic:', get().clinic?.name, 'plan:', plan);
-        return plan;
+        // Tentar ler de múltiplas fontes para garantir o plano correto
+        const clinic = get().clinic;
+        
+        // 1. Tentar subscription_plan primeiro (mais atual)
+        let plan = clinic?.subscription_plan as PlanType;
+        if (plan && plan !== 'basico') {
+          console.log('[Auth] getPlan from subscription_plan:', plan);
+          return plan;
+        }
+        
+        // 2. Tentar plan
+        plan = clinic?.plan as PlanType;
+        if (plan && plan !== 'basico') {
+          console.log('[Auth] getPlan from plan:', plan);
+          return plan;
+        }
+        
+        // 3. Tentar status da subscription
+        if (clinic?.subscription_status === 'active' && clinic?.subscription_plan) {
+          plan = clinic?.subscription_plan as PlanType;
+          console.log('[Auth] getPlan from subscription_status active, using subscription_plan:', plan);
+          return plan || 'professional';
+        }
+        
+        console.log('[Auth] getPlan - fallback to professional (no premium found)');
+        return 'professional';
       },
       hasFeature: (feature) => {
         const plan = (get().clinic?.plan as PlanType) || 'basico';
