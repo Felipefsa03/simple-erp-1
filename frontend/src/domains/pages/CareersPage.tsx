@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, MapPin, Clock, Send, CheckCircle2, DollarSign, Heart, Zap, Users, Globe } from 'lucide-react';
 
+const CLINEMAIL = 'contato.clinxia@gmail.com';
+
 export function CareersPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', role: '', linkedin: '', message: '' });
   const [sending, setSending] = useState(false);
@@ -10,12 +12,32 @@ export function CareersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const subject = encodeURIComponent(`[Clinxia Currículo] ${formData.role} - ${formData.name}`);
+    const body = encodeURIComponent(
+      `Nome Completo: ${formData.name}\n` +
+      `Email: ${formData.email}\n` +
+      `Telefone: ${formData.phone}\n` +
+      `Vaga de Interesse: ${formData.role}\n` +
+      `LinkedIn: ${formData.linkedin || 'Não informado'}\n\n` +
+      `Mensagem:\n${formData.message}`
+    );
+    
+    window.location.href = `mailto:${CLINEMAIL}?subject=${subject}&body=${body}`;
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
     setSending(false);
     setSent(true);
+    setFormData({ name: '', email: '', phone: '', role: '', linkedin: '', message: '' });
   };
 
-  const openings: { role: string; type: string; location: string; requirements: string[] }[] = [];
+  const roleOptions = [
+    'Desenvolvedor Full Stack',
+    'Designer UX/UI', 
+    'Especialista de Produto',
+    'Customer Success',
+    'Outro'
+  ];
 
   return (
     <div className="min-h-screen bg-white">
@@ -56,32 +78,6 @@ export function CareersPage() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">Vagas Abertas</h2>
-          {openings.length === 0 ? (
-            <p className="text-slate-600">No momento, não há vagas abertas. Mas siempre aceitamos currículos.</p>
-          ) : (
-            <div className="space-y-4">
-              {openings.map(job => (
-                <div key={job.role} className="p-6 border border-slate-200 rounded-xl hover:border-cyan-300 transition-colors">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-bold text-slate-900">{job.role}</h3>
-                    <span className="text-sm bg-cyan-100 text-cyan-700 px-3 py-1 rounded-full font-medium">{job.type}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-slate-500 mb-3">
-                    <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {job.location}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {job.requirements.map(req => (
-                      <span key={req} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">{req}</span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section>
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Envie seu Currículo</h2>
           {sent ? (
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-6 text-center">
@@ -104,16 +100,15 @@ export function CareersPage() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label>
-                  <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="(DDD) XXXXX-XXXX" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Vaga de Interesse</label>
                   <select required value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500">
                     <option value="">Selecione...</option>
-                    {openings.map(job => (
-                      <option key={job.role} value={job.role}>{job.role}</option>
+                    {roleOptions.map(role => (
+                      <option key={role} value={role}>{role}</option>
                     ))}
-                    <option value="outro">Outro</option>
                   </select>
                 </div>
               </div>
@@ -123,7 +118,7 @@ export function CareersPage() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Mensagem</label>
-                <textarea rows={3} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} placeholder="Conte-nos um pouco sobre você..." className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                <textarea rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} placeholder="Conte-nos um pouco sobre você..." className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
               </div>
               <button type="submit" disabled={sending} className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
                 {sending ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}

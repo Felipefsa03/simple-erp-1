@@ -463,9 +463,9 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
-              <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-white" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z" strokeLinejoin="round"/>
-                <path d="M8 12v4M12 12v4M16 12v4" strokeLinecap="round"/>
+              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-white" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 2c-3 0-5.5 2-5.5 5.5 0 2.5 1.5 4 3.5 5 1.5.8 2 1.2 2 2.5v1c0 1 .5 2 1.5 2.5h1c1-.5 1.5-1.5 1.5-2.5v-1c0-1.3.5-1.7 2-2.5 2-1 3.5-2.5 3.5-5C17.5 4 15 2 12 2z" />
+                <path d="M9 14c0 1.5 1.5 2 3 2s3-.5 3-2" strokeLinecap="round"/>
               </svg>
             </div>
             <span className="font-bold text-xl text-slate-800">Clinxia</span>
@@ -1055,9 +1055,9 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-white" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z" strokeLinejoin="round"/>
-                    <path d="M8 12v4M12 12v4M16 12v4" strokeLinecap="round"/>
+                  <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-white" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 2c-3 0-5.5 2-5.5 5.5 0 2.5 1.5 4 3.5 5 1.5.8 2 1.2 2 2.5v1c0 1 .5 2 1.5 2.5h1c1-.5 1.5-1.5 1.5-2.5v-1c0-1.3.5-1.7 2-2.5 2-1 3.5-2.5 3.5-5C17.5 4 15 2 12 2z" />
+                    <path d="M9 14c0 1.5 1.5 2 3 2s3-.5 3-2" strokeLinecap="round"/>
                   </svg>
                 </div>
                 <span className="font-bold text-xl">Clinxia</span>
