@@ -255,6 +255,8 @@ const mapTransaction = (t: any) => ({
 });
 
 export const SupabaseSync = {
+  getAuthToken,
+  
   async loadPatients(clinicId: string) {
     const uuid = getClinicId(clinicId);
     console.log('[SupabaseSync] loadPatients with clinicId:', clinicId, '-> uuid:', uuid);

@@ -1038,10 +1038,16 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Anamnese Links & Public Forms ----
             syncAnamneseWithServer: async () => {
                 try {
+                    const token = SupabaseSync.getAuthToken();
+                    const headers: Record<string, string> = {
+                        'ngrok-skip-browser-warning': 'true'
+                    };
+                    if (token) {
+                        headers['Authorization'] = `Bearer ${token}`;
+                    }
+                    
                     const response = await fetch(`${CLINIC_API_BASE}/api/clinic/anamnese-sync`, {
-                        headers: {
-                            'ngrok-skip-browser-warning': 'true'
-                        }
+                        headers
                     });
                     if (!response.ok) return false;
                     
