@@ -4,12 +4,13 @@
 
 import {
   SUPABASE_PUBLISHABLE_KEY,
+  SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_URL,
   isProductionBuild,
   isSupabaseEnvConfigured,
 } from '@/lib/supabaseConfig';
 
-const SUPABASE_KEY = SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_PUBLISHABLE_KEY;
 
 const isConfigured = isSupabaseEnvConfigured();
 
@@ -51,7 +52,7 @@ const getAuthToken = (): string | null => {
 
 const getHeaders = () => {
   const token = getAuthToken();
-  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : 'NOT FOUND - using public key');
+  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : 'NOT FOUND - using service role key');
   return {
     'Content-Type': 'application/json',
     'apikey': SUPABASE_KEY,
