@@ -40,8 +40,11 @@ export function Integrations() {
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
   
-  // Obter plano da clínica atual
-  const clinicPlan = (useClinicStore.getState().clinic?.plan as 'basic' | 'professional' | 'enterprise') || 'basic';
+  // Obter plano da clínica atual - com debug
+  const rawClinic = useClinicStore.getState().clinic;
+  const rawPlan = rawClinic?.plan as string | undefined;
+  const clinicPlan = (rawPlan as 'basic' | 'professional' | 'enterprise') || 'basic';
+  console.log('[Integrations] clinic:', rawClinic?.name, 'rawPlan:', rawPlan, 'clinicPlan:', clinicPlan);
   
   // Função para verificar se integração está liberada
   const isIntegrationAllowed = (minPlan?: string) => {

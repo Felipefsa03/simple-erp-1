@@ -243,6 +243,9 @@ export const useAuth = create<AuthState>()(
                     .eq('id', userData.clinic_id)
                     .single();
                   clinic = clinicData;
+                  
+                  // DEBUG: Log do plano carregado
+                  console.log('[Auth] Clinic loaded:', clinic?.name, 'plan:', clinic?.plan, 'status:', clinic?.status);
                 }
 
                 const user: User = {
@@ -427,11 +430,16 @@ export const useAuth = create<AuthState>()(
         return getNormalizedClinicId(userClinicId);
       },
       getPlan: () => {
-        return (get().clinic?.plan as PlanType) || 'basico';
+        // Garantir que o plano sempre tenha um valor válido
+        const plan = (get().clinic?.plan as PlanType) || 'basico';
+        console.log('[Auth] getPlan called, clinic:', get().clinic?.name, 'plan:', plan);
+        return plan;
       },
       hasFeature: (feature) => {
         const plan = (get().clinic?.plan as PlanType) || 'basico';
-        return Boolean(PLAN_LIMITS[plan]?.[feature]);
+        const hasIt = Boolean(PLAN_LIMITS[plan]?.[feature]);
+        console.log('[Auth] hasFeature:', feature, 'plan:', plan, 'result:', hasIt);
+        return hasIt;
       },
       checkLimit: (type, current) => {
         const plan = (get().clinic?.plan as PlanType) || 'basico';
