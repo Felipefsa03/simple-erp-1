@@ -511,6 +511,13 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 <a href="#features" className="block text-slate-700 hover:text-cyan-600 font-medium">Funcionalidades</a>
                 <a href="#pricing" className="block text-slate-700 hover:text-cyan-600 font-medium">Planos</a>
                 <a href="#testimonials" className="block text-slate-700 hover:text-cyan-600 font-medium">Depoimentos</a>
+                <a href="/api" className="block text-slate-700 hover:text-cyan-600 font-medium">API</a>
+                <a href="/sobre" className="block text-slate-700 hover:text-cyan-600 font-medium">Sobre</a>
+                <a href="/blog" className="block text-slate-700 hover:text-cyan-600 font-medium">Blog</a>
+                <a href="/carreiras" className="block text-slate-700 hover:text-cyan-600 font-medium">Carreiras</a>
+                <a href="/contato" className="block text-slate-700 hover:text-cyan-600 font-medium">Contato</a>
+                <a href="/termos" className="block text-slate-700 hover:text-cyan-600 font-medium">Termos de Uso</a>
+                <a href="/privacidade" className="block text-slate-700 hover:text-cyan-600 font-medium">Privacidade</a>
               </div>
             </motion.div>
           )}
@@ -1059,28 +1066,28 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
               <ul className="space-y-3 text-sm text-slate-400">
                 <li><a href="#features" className="hover:text-cyan-400 transition-colors">Funcionalidades</a></li>
                 <li><a href="#pricing" className="hover:text-cyan-400 transition-colors">Planos</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Integrações</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">API</a></li>
+                <li><a href="/carreiras" className="hover:text-cyan-400 transition-colors">Carreiras</a></li>
+                <li><a href="/api" className="hover:text-cyan-400 transition-colors">API</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-bold mb-4 text-white">Empresa</h4>
               <ul className="space-y-3 text-sm text-slate-400">
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Sobre</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Carreiras</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Contato</a></li>
+                <li><a href="/sobre" className="hover:text-cyan-400 transition-colors">Sobre</a></li>
+                <li><a href="/blog" className="hover:text-cyan-400 transition-colors">Blog</a></li>
+                <li><a href="/carreiras" className="hover:text-cyan-400 transition-colors">Carreiras</a></li>
+                <li><a href="/contato" className="hover:text-cyan-400 transition-colors">Contato</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-bold mb-4 text-white">Legal</h4>
               <ul className="space-y-3 text-sm text-slate-400">
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Termos de Uso</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Privacidade</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">LGPD</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Cookies</a></li>
+                <li><a href="/termos" className="hover:text-cyan-400 transition-colors">Termos de Uso</a></li>
+                <li><a href="/privacidade" className="hover:text-cyan-400 transition-colors">Privacidade</a></li>
+                <li><a href="/lgpd" className="hover:text-cyan-400 transition-colors">LGPD</a></li>
+                <li><a href="/cookies" className="hover:text-cyan-400 transition-colors">Cookies</a></li>
               </ul>
             </div>
           </div>

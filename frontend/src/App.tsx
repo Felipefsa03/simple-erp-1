@@ -13,6 +13,17 @@ const OnlineBookingPage = React.lazy(() => import('./domains/agenda/OnlineBookin
 const PublicAnamneseForm = React.lazy(() => import('./domains/prontuarios/PublicAnamneseForm').then(m => ({ default: m.PublicAnamneseForm })));
 const PasswordResetFlow = React.lazy(() => import('./components/auth/PasswordResetFlow').then(m => ({ default: m.PasswordResetFlow })));
 
+// Public pages
+const AboutPage = React.lazy(() => import('./domains/pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const ContactPage = React.lazy(() => import('./domains/pages/ContactPage').then(m => ({ default: m.ContactPage })));
+const APIPage = React.lazy(() => import('./domains/pages/APIPage').then(m => ({ default: m.APIPage })));
+const BlogPage = React.lazy(() => import('./domains/pages/BlogPage').then(m => ({ default: m.BlogPage })));
+const CareersPage = React.lazy(() => import('./domains/pages/CareersPage').then(m => ({ default: m.CareersPage })));
+const TermsPage = React.lazy(() => import('./domains/pages/TermsPage').then(m => ({ default: m.TermsPage })));
+const PrivacyPage = React.lazy(() => import('./domains/pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
+const LGPDPage = React.lazy(() => import('./domains/pages/LGPDPage').then(m => ({ default: m.LGPDPage })));
+const CookiesPage = React.lazy(() => import('./domains/pages/CookiesPage').then(m => ({ default: m.CookiesPage })));
+
 function FullPageLoader() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -73,6 +84,17 @@ export default function App() {
         <Route path="/login" element={<LoginPageWrapper />} />
         <Route path="/signup" element={<SignupPageWrapper />} />
         <Route path="/forgot-password" element={<PasswordResetFlowWrapper />} />
+        
+        {/* Public pages */}
+        <Route path="/sobre" element={<AboutPage />} />
+        <Route path="/contato" element={<ContactPage />} />
+        <Route path="/api" element={<APIPage />} />
+        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/carreiras" element={<CareersPage />} />
+        <Route path="/termos" element={<TermsPage />} />
+        <Route path="/privacidade" element={<PrivacyPage />} />
+        <Route path="/lgpd" element={<LGPDPage />} />
+        <Route path="/cookies" element={<CookiesPage />} />
         
         {/* Public booking and anamnese (via hash) */}
         <Route path="/book" element={

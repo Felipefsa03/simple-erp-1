@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ToastProvider, ErrorBoundary } from '@/components/shared';
 import { useAuth } from '@/hooks/useAuth';
+import { X, FileText } from 'lucide-react';
 // @ts-ignore - qrcode package doesn't have types
 import QRCode from 'qrcode';
 
@@ -81,6 +83,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   const [qrCodeImage, setQrCodeImage] = useState<string>('');
   const [pollingPayment, setPollingPayment] = useState(false);
   const [paymentApproved, setPaymentApproved] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const idsRef = useRef<{ signupId: string; clinicId: string }>({
     signupId: crypto.randomUUID(),
     clinicId: crypto.randomUUID(),
@@ -247,6 +251,13 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
     return () => clearPaymentPolling();
   }, []);
 
+  useEffect(() => {
+    const termsAcceptedStorage = localStorage.getItem('terms_accepted');
+    if (termsAcceptedStorage === 'true') {
+      setTermsAccepted(true);
+    }
+  }, []);
+
   const goToStep = (step: Step) => {
     setSignupError('');
     setSignupStep(step);
@@ -342,6 +353,13 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
       setSignupError('Valide o telefone antes de gerar o pagamento.');
       return;
     }
+    if (!termsAccepted) {
+      setShowTermsModal(true);
+      setSignupError('Você precisa aceitar os Termos de Uso e Política de Privacidade.');
+      return;
+    }
+    localStorage.setItem('terms_accepted', 'true');
+    localStorage.setItem('terms_accepted_at', new Date().toISOString());
 
     setSignupLoading(true);
     setSignupError('');
@@ -697,7 +715,60 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => goToStep(3)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl">Voltar</button>
-                    <button onClick={() => goToStep(5)} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl">Revisar</button>
+                    <button onClick={() => { if (!termsAccepted) { setShowTermsModal(true); } else { goToStep(5); }}} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl">
+                      {!termsAccepted ? 'Revisar (aceite termos)' : 'Revisar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Terms Modal */}
+              {showTermsModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <FileText className="w-6 h-6 text-cyan-600" />
+                        Termos de Uso e Privacidade
+                      </h3>
+                      <button onClick={() => setShowTermsModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+                        <X className="w-5 h-5 text-slate-500" />
+                      </button>
+                    </div>
+                    <div className="space-y-4 text-sm text-slate-600 max-h-60 overflow-y-auto mb-4">
+                      <div>
+                        <h4 className="font-bold text-slate-900 mb-2">1. Aceitação dos Termos</h4>
+                        <p>Ao utilizar o sistema Clinxia, você reconhece que leu, compreendeu e concorda em cumprir os Termos de Uso e Política de Privacidade.</p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 mb-2">2. Uso lawful</h4>
+                        <p>Você concorda em utilizar o sistema apenas para fins legais e authorized, não compartilhando sua conta com terceiros.</p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 mb-2">3. Dados Pessoais</h4>
+                        <p>Seus dados serão tratados conforme LGPD (Lei nº 13.709/2018), com strict measures de segurança.</p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 mb-2">4. Responsabilidades</h4>
+                        <p>Você é responsible pela confidentiality de suas credenciais e por todas as atividades em sua conta.</p>
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-slate-900 mb-2">5. Propriedade Intelectual</h4>
+                        <p>O sistema e todo conteúdo são de propriedade exclusiva da Clinxia. Reprodução não autorizada é proibida.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3 mb-4 p-3 bg-cyan-50 rounded-xl">
+                      <input type="checkbox" id="termsCheck" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-1 w-4 h-4 text-cyan-600 rounded" />
+                      <label htmlFor="termsCheck" className="text-sm text-slate-700">
+                        Li e aceito os <Link to="/termos" target="_blank" className="text-cyan-600 underline">Termos de Uso</Link> e <Link to="/privacidade" target="_blank" className="text-cyan-600 underline">Política de Privacidade</Link>
+                      </label>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => setShowTermsModal(false)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl">Cancelar</button>
+                      <button onClick={() => { setShowTermsModal(false); goToStep(5); }} disabled={!termsAccepted} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl disabled:opacity-50">
+                        Continuar
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
