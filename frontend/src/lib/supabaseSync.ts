@@ -42,7 +42,9 @@ async function supabaseFetch(table: string, options: {
     return { data: null, error: 'Not configured' };
   }
 
-  const url = `${getBaseUrl()}/${table}${filters || ''}`;
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}/${table}${filters || ''}`;
+  console.log('[SupabaseSync] Fetch URL:', url);
 
   try {
     const response = await fetch(url, {
@@ -51,6 +53,8 @@ async function supabaseFetch(table: string, options: {
       body: body ? JSON.stringify(body) : undefined,
     });
 
+    console.log('[SupabaseSync] Response status:', response.status);
+
     if (!response.ok) {
       const error = await response.text();
       console.error(`[SupabaseSync] Erro ${method} ${table}:`, error);
@@ -58,6 +62,7 @@ async function supabaseFetch(table: string, options: {
     }
 
     const data = await response.json();
+    console.log('[SupabaseSync] Data received:', Array.isArray(data) ? data.length : data);
     return { data, error: null };
   } catch (err: any) {
     console.error(`[SupabaseSync] Exception ${method} ${table}:`, err.message);
@@ -219,9 +224,18 @@ export const SupabaseSync = {
     const uuid = getClinicId(clinicId);
     console.log('[SupabaseSync] loadPatients with clinicId:', clinicId, '-> uuid:', uuid);
     
-    const { data, error } = await supabaseFetch('patients', {
-      filters: `?clinic_id=eq.${uuid}&select=*&deleted_at=is.null&order=created_at.desc`,
+    // Tentar primeiro com deleted_at, se não retornar, tentar sem
+    let { data, error } = await supabaseFetch('patients', {
+      filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
     });
+    
+    // Se 返回 0，试 sem filtro de deleted_at
+    if (!data || data.length === 0) {
+      ({ data, error } = await supabaseFetch('patients', {
+        filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
+      }));
+    }
+    
     console.log('[SupabaseSync] patients loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
     return data.map(mapPatient);
