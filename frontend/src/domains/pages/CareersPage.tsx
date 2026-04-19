@@ -15,12 +15,7 @@ export function CareersPage() {
     setSent(true);
   };
 
-  const openings = [
-    { role: 'Desenvolvedor Full Stack', type: 'Tempo Integral', location: 'Remoto (Brasil)', requirements: ['TypeScript', 'React', 'Node.js', 'PostgreSQL'] },
-    { role: 'Designer UX/UI', type: 'Tempo Integral', location: 'Remoto (Brasil)', requirements: ['Figma', 'Design System', 'Prototipagem'] },
-    { role: 'Especialista de Produto', type: 'Tempo Integral', location: 'São Paulo, SP', requirements: ['Produtos digitais', 'Metodologias ágeis'] },
-    { role: 'Customer Success', type: 'Tempo Integral', location: 'Remoto (Brasil)', requirements: ['Suporte técnico', 'Comunicação'] },
-  ];
+  const openings: { role: string; type: string; location: string; requirements: string[] }[] = [];
 
   return (
     <div className="min-h-screen bg-white">

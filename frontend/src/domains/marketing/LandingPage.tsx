@@ -462,8 +462,11 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-cyan-500/20">
-              L
+            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
+              <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-white" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z" strokeLinejoin="round"/>
+                <path d="M8 12v4M12 12v4M16 12v4" strokeLinecap="round"/>
+              </svg>
             </div>
             <span className="font-bold text-xl text-slate-800">Clinxia</span>
           </div>
@@ -1051,8 +1054,11 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center font-bold text-sm">
-                  L
+                <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-white" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z" strokeLinejoin="round"/>
+                    <path d="M8 12v4M12 12v4M16 12v4" strokeLinecap="round"/>
+                  </svg>
                 </div>
                 <span className="font-bold text-xl">Clinxia</span>
               </div>
@@ -1095,13 +1101,13 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-slate-500">© 2026 Clinxia. Todos os direitos reservados.</p>
             <div className="flex gap-4">
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
+              <Link to="/" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                 <Globe className="w-5 h-5 text-slate-400" />
-              </a>
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
+              </Link>
+              <a href="https://wa.me/557591517196" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                 <MessageSquare className="w-5 h-5 text-slate-400" />
               </a>
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
+              <a href="mailto:contato.clinxia@gmail.com" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                 <Mail className="w-5 h-5 text-slate-400" />
               </a>
             </div>

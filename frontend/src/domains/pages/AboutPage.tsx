@@ -77,11 +77,11 @@ export function AboutPage() {
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-slate-600">
                 <Mail className="w-5 h-5 text-cyan-600" />
-                <span>contato@clinxia.com.br</span>
+                <span>contato.clinxia@gmail.com</span>
               </div>
               <div className="flex items-center gap-3 text-slate-600">
                 <Phone className="w-5 h-5 text-cyan-600" />
-                <span>(11) 4000-4000</span>
+                <span>(75) 99151-7196</span>
               </div>
               <div className="flex items-center gap-3 text-slate-600">
                 <MapPin className="w-5 h-5 text-cyan-600" />

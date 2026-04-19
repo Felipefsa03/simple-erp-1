@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Mail, Phone, MapPin, Send, MessageSquare, Clock } from 'lucide-react';
 
+const CLINPHONE = '(75) 99151-7196';
+const CLINEMAIL = 'contato.clinxia@gmail.com';
+
 export function ContactPage() {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [sending, setSending] = useState(false);
@@ -10,9 +13,15 @@ export function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const mailtoLink = `mailto:${CLINEMAIL}?subject=${encodeURIComponent(`[Clinxia Contato] ${formData.subject}: ${formData.name}`)}&body=${encodeURIComponent(`Nome: ${formData.name}\nEmail: ${formData.email}\nTelefone: ${formData.phone}\n\nMensagem:\n${formData.message}`)}`;
+    
+    window.location.href = mailtoLink;
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
     setSending(false);
     setSent(true);
+    setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
   };
 
   return (
@@ -50,7 +59,7 @@ export function ContactPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label>
-                  <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="(DDD) XXXXX-XXXX" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Assunto</label>
@@ -81,11 +90,11 @@ export function ContactPage() {
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-slate-600">
                   <Mail className="w-5 h-5 text-cyan-600" />
-                  <span>contato@clinxia.com.br</span>
+                  <span>{CLINEMAIL}</span>
                 </div>
                 <div className="flex items-center gap-3 text-slate-600">
                   <Phone className="w-5 h-5 text-cyan-600" />
-                  <span>(11) 4000-4000</span>
+                  <span>{CLINPHONE}</span>
                 </div>
                 <div className="flex items-center gap-3 text-slate-600">
                   <MapPin className="w-5 h-5 text-cyan-600" />
@@ -104,7 +113,7 @@ export function ContactPage() {
 
             <div className="bg-slate-50 rounded-xl p-6">
               <h3 className="font-bold text-slate-900 mb-2">Suporte Técnico</h3>
-              <p className="text-slate-600 text-sm mb-4">Para questões técnicas, accedemos painel administrativo após login.</p>
+              <p className="text-slate-600 text-sm mb-4">Para questões técnicas, accessemos painel administrativo após login.</p>
               <Link to="/login" className="text-cyan-600 font-semibold hover:underline">Acessar sistema</Link>
             </div>
           </div>

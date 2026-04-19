@@ -36,7 +36,7 @@ export function LGPDPage() {
               { title: 'Registro', desc: 'Mantemos registro de todas as operações de tratamento' },
               { title: 'Direitos', desc: 'Respeitamos todos os direitos dos titulares de dados' },
             ].map(item => (
-              <div key={title} className="flex items-start gap-3">
+              <div key={item.title} className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
                 <div>
                   <h3 className="font-bold text-slate-900">{item.title}</h3>
