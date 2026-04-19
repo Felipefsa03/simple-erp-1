@@ -462,8 +462,8 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white font-bold">
-              ⚕
+            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
+              <span className="text-xl text-white font-bold">⚕</span>
             </div>
             <span className="font-bold text-xl text-slate-800">Clinxia</span>
           </div>
@@ -1051,8 +1051,8 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
-                  ⚕
+                <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center">
+                  <span className="text-xl text-white font-bold">⚕</span>
                 </div>
                 <span className="font-bold text-xl">Clinxia</span>
               </div>
