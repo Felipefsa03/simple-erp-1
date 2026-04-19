@@ -16,6 +16,7 @@ const isConfigured = isSupabaseEnvConfigured();
 
 console.log('[SupabaseSync] Using key:', SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE_KEY (bypasses RLS)' : 'PUBLISHABLE_KEY (RLS protected)');
 console.log('[SupabaseSync] Service role key present:', Boolean(SUPABASE_SERVICE_ROLE_KEY));
+console.log('[SupabaseSync] Key preview:', SUPABASE_SERVICE_ROLE_KEY ? SUPABASE_SERVICE_ROLE_KEY.substring(0, 30) + '...' : 'none');
 
 const ensureSupabaseConfigured = (operation: string) => {
   if (isConfigured) return;
