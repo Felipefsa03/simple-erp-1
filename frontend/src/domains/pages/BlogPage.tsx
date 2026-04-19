@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Calendar, User, ArrowRight, ArrowBack, Clock, Share2 } from 'lucide-react';
+import { ArrowLeft, Calendar, User, ArrowRight, Clock, Share2 } from 'lucide-react';
 
 const BLOG_POSTS = [
   {
@@ -153,7 +153,7 @@ function BlogPost({ post, onBack }: { post: typeof BLOG_POSTS[0]; onBack: () => 
   return (
     <div className="max-w-4xl mx-auto px-6 py-16">
       <button onClick={onBack} className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 mb-8">
-        <ArrowBack className="w-5 h-5" />
+        <ArrowLeft className="w-5 h-5" />
         Voltar ao blog
       </button>
       
