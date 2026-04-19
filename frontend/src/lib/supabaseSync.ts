@@ -14,6 +14,9 @@ const SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_PUBLISHABLE_KEY;
 
 const isConfigured = isSupabaseEnvConfigured();
 
+console.log('[SupabaseSync] Using key:', SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE_KEY (bypasses RLS)' : 'PUBLISHABLE_KEY (RLS protected)');
+console.log('[SupabaseSync] Service role key present:', Boolean(SUPABASE_SERVICE_ROLE_KEY));
+
 const ensureSupabaseConfigured = (operation: string) => {
   if (isConfigured) return;
   const message = `[SupabaseSync] Supabase não configurado para ${operation}. Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY (ou VITE_SUPABASE_ANON_KEY).`;
@@ -52,7 +55,8 @@ const getAuthToken = (): string | null => {
 
 const getHeaders = () => {
   const token = getAuthToken();
-  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : 'NOT FOUND - using service role key');
+  const usingServiceKey = Boolean(SUPABASE_SERVICE_ROLE_KEY);
+  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : (usingServiceKey ? 'NOT FOUND - using service role key' : 'NOT FOUND - using public key'));
   return {
     'Content-Type': 'application/json',
     'apikey': SUPABASE_KEY,
