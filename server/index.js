@@ -2323,16 +2323,11 @@ const requireSuperAdmin = (req, res, next) => {
   next();
 };
 
-app.post('/api/2fa/setup', async (req, res) => {
+app.post('/api/2fa/setup', require2FAPermission, async (req, res) => {
   try {
     const userId = req.body.userId || req.query.userId;
-    const userEmail = req.body.userEmail || req.query.userEmail || 'user@clinxia.com';
-    const userRole = 'admin';
-    const isSuperAdmin = userEmail === 'juniorcoutojoni@gmail.com';
-    
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: 'userId é obrigatório' });
-    }
+    const userEmail = req.user?.email || 'user@clinxia.com';
+    const isSuperAdmin = req.user?.role === 'super_admin';
     
     // Generate cryptographically secure secret (32 chars base32)
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -2387,7 +2382,12 @@ app.post('/api/2fa/setup', async (req, res) => {
     
     res.json({ ok: true, secret, otpauthUri, mandatory: isSuperAdmin });
   } catch (error) {
-    res.status(500).json({ ok: false, error: 'Erro ao configurar 2FA' });
+    console.error('[2FA Setup] Exception:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : '',
+      code: error.code || 'UNKNOWN',
+    });
+    res.status(500).json({ ok: false, error: error instanceof Error ? error.message : 'Erro ao configurar 2FA' });
   }
 });
 
