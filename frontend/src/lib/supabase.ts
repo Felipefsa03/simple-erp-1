@@ -34,6 +34,44 @@ const getHeaders = () => ({
   'Prefer': 'return=representation',
 });
 
+// ============================================
+// Session Storage (localStorage)
+// ============================================
+
+const SESSION_STORAGE_KEY = 'clinxia_supabase_session';
+
+const saveSessionToStorage = (session: { access_token: string; user: Record<string, unknown> } | null) => {
+  try {
+    if (typeof window !== 'undefined') {
+      if (session) {
+        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+        console.log('[Supabase] Sessão salva em localStorage');
+      } else {
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        console.log('[Supabase] Sessão removida do localStorage');
+      }
+    }
+  } catch (e) {
+    console.warn('[Supabase] Falha ao salvar sessão em localStorage:', e);
+  }
+};
+
+const restoreSessionFromStorage = () => {
+  try {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        console.log('[Supabase] Sessão restaurada do localStorage');
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('[Supabase] Falha ao restaurar sessão do localStorage:', e);
+  }
+  return null;
+};
+
 // Função para obter o token da sessão atual
 export const getSupabaseSession = () => currentSession;
 
@@ -42,6 +80,11 @@ export const getSupabaseSession = () => currentSession;
 // ============================================
 
 let currentSession: { access_token: string; user: Record<string, unknown> } | null = null;
+
+// Restaurar sessão do localStorage ao carregar o módulo
+if (typeof window !== 'undefined') {
+  currentSession = restoreSessionFromStorage();
+}
 
 export const supabase = isConfigured ? {
   auth: {
@@ -65,6 +108,7 @@ export const supabase = isConfigured ? {
             access_token: data.access_token,
             user: data.user,
           };
+          saveSessionToStorage(currentSession);
           return { data: { user: data.user, session: data }, error: null };
         }
         
@@ -93,6 +137,7 @@ export const supabase = isConfigured ? {
           access_token: data.access_token,
           user: data.user,
         };
+        saveSessionToStorage(currentSession);
 
         return { data: { user: data.user, session: data }, error: null };
       } catch (err: unknown) {
@@ -110,6 +155,7 @@ export const supabase = isConfigured ? {
           });
         }
         currentSession = null;
+        saveSessionToStorage(null);
         return { error: null };
       } catch (err) {
         currentSession = null;
