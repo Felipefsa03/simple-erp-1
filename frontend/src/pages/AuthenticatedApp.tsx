@@ -36,16 +36,17 @@ function PageLoader() {
 }
 
 export function AuthenticatedApp() {
-  const { user, clinic, logout, hasPermission } = useAuth();
+  const { user, clinic, logout, hasPermission, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (but wait for loading to complete)
   useEffect(() => {
+    if (loading) return; // Aguarda verificação de sessão
     if (!user && location.pathname !== '/login') {
       navigate(`/login?callbackUrl=${encodeURIComponent(location.pathname)}`, { replace: true });
     }
-  }, [user, location.pathname, navigate]);
+  }, [user, loading, location.pathname, navigate]);
   
   const [activeTab, setActiveTab] = useState(() => {
     // Initialize from URL path on first load
