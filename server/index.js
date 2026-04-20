@@ -888,8 +888,8 @@ app.get('/api/campaigns/clinic/:clinicId', (req, res) => {
   res.json({ ok: true, campaigns });
 });
 
-// Anamnese sync endpoint (PROTEGIDO - requer autenticação)
-app.get('/api/clinic/anamnese-sync', requireAuth, async (req, res) => {
+// Anamnese sync endpoint (PÚBLICO - RLS permite leitura)
+app.get('/api/clinic/anamnese-sync', async (req, res) => {
   try {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return res.json({ ok: true, items: [] });
