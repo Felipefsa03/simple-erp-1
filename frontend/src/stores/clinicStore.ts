@@ -19,7 +19,7 @@ import { SupabaseSync } from '@/lib/supabaseSync';
 import { isSupabaseEnvConfigured } from '@/lib/supabaseConfig';
 
 // Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
-const CLINIC_API_BASE = '';
+const CLINIC_API_BASE = import.meta.env.VITE_URL_BASE_API_VITE || '';
 
 // Formatar telefone para padrão brasileiro WhatsApp (55 + DDD + 9 + Numero)
 const formatPhoneForWhatsApp = (phone: string | undefined | null): string => {
@@ -1038,28 +1038,22 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Anamnese Links & Public Forms ----
             syncAnamneseWithServer: async () => {
                 try {
-                    const response = await fetch(`${CLINIC_API_BASE}/api/clinic/anamnese-sync`, {
-                        headers: {
-                            'ngrok-skip-browser-warning': 'true'
-                        }
-                    });
-                    if (!response.ok) return false;
+                    // Directly fetch from Supabase instead of backend
+                    const { data, error } = await SupabaseSync.loadMedicalRecords();
+                    if (error || !data) return false;
                     
-                    const text = await response.text();
-                    if (!text) return false;
-                    
-                    const data = JSON.parse(text);
-                    if (data.ok && Array.isArray(data.items) && data.items.length > 0) {
-                        data.items.forEach((item: any) => {
+                    if (Array.isArray(data) && data.length > 0) {
+                        data.forEach((item: any) => {
                             get().saveAnamnese({
-                                ...item.data,
-                                patient_id: item.patientId,
-                                clinic_id: item.clinicId,
-                                updated_at: item.submittedAt,
+                                ...item.anamnese,
+                                patient_id: item.patient_id,
+                                clinic_id: item.clinic_id,
+                                updated_at: item.updated_at,
                             });
                         });
                         return true;
                     }
+                    return false;
                 } catch (error) {
                     // Silent catch to prevent spamming the console on network errors
                 }

@@ -7,7 +7,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar, ExternalLink, Settings, CheckCircle2, AlertCircle,
   Facebook, Target, CreditCard, Link2, Unlink, RefreshCw,
-  Globe, Mail, Smartphone, Zap, Shield, X, TrendingUp, FileText
+  Globe, Mail, Smartphone, Zap, Shield, X, TrendingUp, FileText, Lock, ArrowUpCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,11 +30,29 @@ interface Integration {
   connected: boolean;
   category: 'calendar' | 'ads' | 'payments' | 'communication' | 'marketing' | 'medical';
   features: string[];
+  minPlan?: 'basic' | 'professional' | 'premium';
+  lockReason?: string;
 }
 
+const PLAN_ORDER = { basic: 1, professional: 2, premium: 3 };
+
 export function Integrations() {
-  const { user } = useAuth();
+  const { user, getPlan } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
+  
+  // Obter plano da clínica atual - do useAuth
+  const clinicPlan = getPlan() as 'basic' | 'professional' | 'premium';
+  console.log('[Integrations] user clinic_id:', user?.clinic_id, 'plan from getPlan():', clinicPlan);
+  
+  // Função para verificar se integração está liberada
+  const isIntegrationAllowed = (minPlan?: string) => {
+    if (isSuperAdmin) return true;
+    if (!minPlan) return true;
+    const currentPlanLevel = PLAN_ORDER[clinicPlan as keyof typeof PLAN_ORDER] || 0;
+    const requiredPlanLevel = PLAN_ORDER[minPlan as keyof typeof PLAN_ORDER] || 0;
+    console.log('[Integrations] isIntegrationAllowed:', clinicPlan, 'level:', currentPlanLevel, 'required:', minPlan, 'level:', requiredPlanLevel, 'allowed:', currentPlanLevel >= requiredPlanLevel);
+    return currentPlanLevel >= requiredPlanLevel;
+  };
   
   // Estado para clínica selecionada (Super Admin pode trocar)
   const [selectedClinicId, setSelectedClinicId] = useState<string>('clinic-1');
@@ -69,6 +87,7 @@ export function Integrations() {
       connected: false,
       category: 'calendar',
       features: ['Sincronização bidirecional', 'Lembretes automáticos', 'Disponibilidade em tempo real'],
+      minPlan: 'basic',
     },
     {
       id: 'facebook-ads',
@@ -79,6 +98,8 @@ export function Integrations() {
       connected: false,
       category: 'ads',
       features: ['Importação automática de leads', 'ROI por campanha', 'Segmentação de público'],
+      minPlan: 'professional',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'google-ads',
@@ -89,6 +110,8 @@ export function Integrations() {
       connected: false,
       category: 'ads',
       features: ['Conversões em tempo real', 'Custo por aquisição', 'Palavras-chave performáticas'],
+      minPlan: 'professional',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'asaas',
@@ -99,6 +122,8 @@ export function Integrations() {
       connected: false,
       category: 'payments',
       features: ['PIX instantâneo', 'Boleto bancário', 'Cartão de crédito', 'Cobrança recorrente'],
+      minPlan: 'professional',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'email-marketing',
@@ -109,6 +134,8 @@ export function Integrations() {
       connected: false,
       category: 'communication',
       features: ['Templates personalizados', 'Automação de sequências', 'Relatórios de abertura'],
+      minPlan: 'professional',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'rd-station',
@@ -119,6 +146,8 @@ export function Integrations() {
       connected: false,
       category: 'marketing',
       features: ['Automação de marketing', 'CRM integrado', 'Lead scoring', 'E-mail marketing'],
+      minPlan: 'professional',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'memed',
@@ -129,6 +158,8 @@ export function Integrations() {
       connected: false,
       category: 'medical',
       features: ['Prescrição digital', 'Receitas automáticas', 'Histórico de prescrições'],
+      minPlan: 'professional',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'meta-pixel',
@@ -139,6 +170,8 @@ export function Integrations() {
       connected: false,
       category: 'ads',
       features: ['Rastreamento de conversões', 'Públicos personalizados', 'Remarketing'],
+      minPlan: 'professional',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
   ]);
 
@@ -193,7 +226,10 @@ export function Integrations() {
   };
 
   const connectedCount = integrations.filter(i => i.connected).length + (whatsappConnected ? 1 : 0);
-  const totalCount = integrations.length + 1; // +1 for WhatsApp
+  const totalCount = integrations.length + 1;
+  const accessibleIntegrations = integrations.filter(i => isIntegrationAllowed(i.minPlan));
+  const accessibleCount = accessibleIntegrations.filter(i => i.connected).length + (whatsappConnected ? 1 : 0);
+  const lockedCount = integrations.filter(i => !isIntegrationAllowed(i.minPlan)).length;
 
   return (
     <div className="space-y-6">
@@ -206,11 +242,17 @@ export function Integrations() {
           <p className="text-slate-500">Conecte suas ferramentas favoritas para automatizar seu fluxo</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-500">{connectedCount} de {totalCount} conectadas</span>
+          <span className="text-sm text-slate-500">{accessibleCount} de {accessibleCount + lockedCount} conectadas</span>
+          {lockedCount > 0 && (
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full flex items-center gap-1">
+              <Lock className="w-3 h-3" />
+              {lockedCount} bloqueada{lockedCount > 1 ? 's' : ''}
+            </span>
+          )}
           <div className="w-32 bg-slate-100 rounded-full h-2">
             <div 
               className="bg-cyan-500 h-2 rounded-full transition-all"
-              style={{ width: `${(connectedCount / totalCount) * 100}%` }}
+              style={{ width: `${accessibleCount > 0 ? (accessibleCount / (accessibleCount + lockedCount)) * 100 : 0}%` }}
             />
           </div>
         </div>
@@ -240,7 +282,7 @@ export function Integrations() {
 
       {/* WhatsApp Business Card - Special */}
       <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-3xl border border-green-200 p-6">
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-green-200">
               <Smartphone className="w-7 h-7" />
@@ -259,6 +301,20 @@ export function Integrations() {
             </div>
           </div>
         </div>
+        
+        {clinicPlan !== 'premium' && (
+          <div className="mb-4 bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-3 flex items-center gap-3">
+            <ArrowUpCircle className="w-5 h-5 text-cyan-600" />
+            <div>
+              <p className="text-sm font-medium text-cyan-800">
+                Plano {clinicPlan === 'basic' ? 'Básico' : clinicPlan === 'profissional' ? 'Profissional' : 'Premium'}
+              </p>
+              <p className="text-xs text-cyan-600">
+                Todas as funcionalidades do WhatsApp estão disponíveis
+              </p>
+            </div>
+          </div>
+        )}
         
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-white rounded-xl p-3 text-center border border-green-100">
@@ -298,60 +354,78 @@ export function Integrations() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {categoryIntegrations.map(integration => (
-                  <div 
-                    key={integration.id} 
-                    className={cn(
-                      "bg-white rounded-2xl border p-5 transition-all hover:shadow-md cursor-pointer",
-                      integration.connected ? "border-emerald-200" : "border-slate-100"
-                    )}
-                    onClick={() => {
-                      // Abre o modal de configuração diretamente (fluxo: credenciais primeiro)
-                      if (integration.id === 'facebook-ads') {
-                        setShowFacebookConfig(true);
-                      } else if (integration.id === 'asaas') {
-                        setShowAsaasConfig(true);
-                      } else if (integration.id === 'google-calendar') {
-                        setShowGoogleCalendarConfig(true);
-                      } else if (integration.id === 'google-ads') {
-                        setShowGoogleAdsConfig(true);
-                      } else if (integration.id === 'email-marketing') {
-                        setShowEmailMarketingConfig(true);
-                      } else {
-                        setSelectedIntegration(integration);
-                      }
-                    }}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-white", integration.color)}>
-                          <integration.icon className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-slate-900">{integration.name}</h3>
-                          <p className="text-xs text-slate-500">{integration.description}</p>
-                        </div>
-                      </div>
-                      <span className={cn(
-                        "text-xs font-bold px-2 py-1 rounded-full",
-                        integration.connected ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-                      )}>
-                        {integration.connected ? 'Conectado' : 'Desconectado'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-1">
-                      {integration.features.slice(0, 2).map(feature => (
-                        <span key={feature} className="text-[10px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
-                          {feature}
-                        </span>
-                      ))}
-                      {integration.features.length > 2 && (
-                        <span className="text-[10px] text-slate-400">+{integration.features.length - 2}</span>
+                {categoryIntegrations.map(integration => {
+                  const isLocked = !isIntegrationAllowed(integration.minPlan);
+                  return (
+                    <div 
+                      key={integration.id} 
+                      className={cn(
+                        "bg-white rounded-2xl border p-5 transition-all hover:shadow-md cursor-pointer relative overflow-hidden",
+                        integration.connected ? "border-emerald-200" : "border-slate-100",
+                        isLocked && "opacity-75"
                       )}
+                      onClick={() => {
+                        if (isLocked) {
+                          toast(integration.lockReason || 'Integração disponível em plano superior', 'warning');
+                          return;
+                        }
+                        if (integration.id === 'facebook-ads') {
+                          setShowFacebookConfig(true);
+                        } else if (integration.id === 'asaas') {
+                          setShowAsaasConfig(true);
+                        } else if (integration.id === 'google-calendar') {
+                          setShowGoogleCalendarConfig(true);
+                        } else if (integration.id === 'google-ads') {
+                          setShowGoogleAdsConfig(true);
+                        } else if (integration.id === 'email-marketing') {
+                          setShowEmailMarketingConfig(true);
+                        } else {
+                          setSelectedIntegration(integration);
+                        }
+                      }}
+                    >
+                      {isLocked && (
+                        <div className="absolute inset-0 bg-slate-100/90 flex flex-col items-center justify-center z-10">
+                          <Lock className="w-8 h-8 text-slate-400 mb-2" />
+                          <span className="text-xs font-semibold text-slate-600 bg-slate-200 px-3 py-1 rounded-full">
+                            Upgrade
+                          </span>
+                          <p className="text-xs text-slate-500 mt-2 text-center px-4">
+                            {integration.lockReason}
+                          </p>
+                        </div>
+                      )}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-white", integration.color)}>
+                            <integration.icon className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-900">{integration.name}</h3>
+                            <p className="text-xs text-slate-500">{integration.description}</p>
+                          </div>
+                        </div>
+                        <span className={cn(
+                          "text-xs font-bold px-2 py-1 rounded-full",
+                          integration.connected ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                        )}>
+                          {integration.connected ? 'Conectado' : 'Desconectado'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-1">
+                        {integration.features.slice(0, 2).map(feature => (
+                          <span key={feature} className="text-[10px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
+                            {feature}
+                          </span>
+                        ))}
+                        {integration.features.length > 2 && (
+                          <span className="text-[10px] text-slate-400">+{integration.features.length - 2}</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );

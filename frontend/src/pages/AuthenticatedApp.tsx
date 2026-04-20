@@ -36,16 +36,17 @@ function PageLoader() {
 }
 
 export function AuthenticatedApp() {
-  const { user, clinic, logout, hasPermission } = useAuth();
+  const { user, clinic, logout, hasPermission, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (but wait for loading to complete)
   useEffect(() => {
+    if (loading) return; // Aguarda verificação de sessão
     if (!user && location.pathname !== '/login') {
       navigate(`/login?callbackUrl=${encodeURIComponent(location.pathname)}`, { replace: true });
     }
-  }, [user, location.pathname, navigate]);
+  }, [user, loading, location.pathname, navigate]);
   
   const [activeTab, setActiveTab] = useState(() => {
     // Initialize from URL path on first load
@@ -121,12 +122,12 @@ export function AuthenticatedApp() {
         const prices = config as Record<string, number> || {};
         const defaultPrices: Record<string, number> = { basico: 17, profissional: 197, premium: 397 };
         
-        // Normalizar plano: enterprise -> basico E atualizar no banco
+        // Normalizar plano: enterprise -> premium E atualizar no banco
         if (plan === 'enterprise') {
-          console.log('[Subscription] Normalizando plano enterprise -> basico e atualizando banco');
-          plan = 'basico';
+          console.log('[Subscription] Normalizando plano enterprise -> premium e atualizando banco');
+          plan = 'premium';
           // Atualizar o plano no banco de dados
-          await supabase!.from('clinics').update({ plan: 'basico' }).eq('id', clinicId);
+          await supabase!.from('clinics').update({ plan: 'premium' }).eq('id', clinicId);
         }
         
         console.log('[Subscription] Plano atual:', plan);

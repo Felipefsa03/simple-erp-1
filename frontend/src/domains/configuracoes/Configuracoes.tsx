@@ -31,8 +31,12 @@ const configTabs = [
   { id: 'integracoes', label: 'Integrações', icon: Link2 },
 ];
 
+const filteredConfigTabs = (userRole: string | undefined) => 
+  userRole === 'super_admin' ? configTabs : configTabs.filter(tab => tab.id !== 'sistema');
+
 export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const { user, clinic, updateClinic, hasPermission, permissions, setPermission, resetPermissions, createClinicUser } = useAuth();
+  const visibleTabs = filteredConfigTabs(user?.role);
   const permissionMatrix = permissions || {};
   const store = useClinicStore();
   const {
@@ -91,12 +95,11 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [twoFactorLoading, setTwoFactorLoading] = useState(false);
-  const [twoFactorModal, setTwoFactorModal] = useState(false);
-  const [twoFactorQR, setTwoFactorQR] = useState<{ secret: string; otpauthUri: string } | null>(null);
-  const [twoFactorQRUrl, setTwoFactorQRUrl] = useState<string>('');
-  const [twoFactorVerifyCode, setTwoFactorVerifyCode] = useState('');
-  const [twoFactorVerifying, setTwoFactorVerifying] = useState(false);
-  const [twoFactorUserId, setTwoFactorUserId] = useState<string | null>(null);
+  const [showTwoFAModal, setShowTwoFAModal] = useState(false);
+  const [twoFAQrCode, setTwoFAQrCode] = useState('');
+  const [twoFASecret, setTwoFASecret] = useState('');
+  const [twoFAVerifyCode, setTwoFAVerifyCode] = useState('');
+  const [twoFAError, setTwoFAError] = useState('');
   const [apiKeys, setApiKeys] = useState<{ id: string; name: string; key: string; created: string; lastUsed: string }[]>([
     { id: '1', name: 'Produção', key: 'sk_live_••••••••••••', created: '15/01/2026', lastUsed: '24/03/2026' }
   ]);
@@ -280,28 +283,6 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     void loadGlobalConfig();
     return () => { cancelled = true; };
   }, [activeSubTab, user?.role, API_BASE, SYSTEM_GLOBAL_CLINIC_ID, setIntegrationConfig, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL]);
-
-  // Generate QR Code for 2FA
-  useEffect(() => {
-    if (twoFactorQR?.otpauthUri) {
-      try {
-        const QRCode = require('qrcode');
-        QRCode.toDataURL(twoFactorQR.otpauthUri, {
-          errorCorrectionLevel: 'H',
-          type: 'image/png',
-          quality: 0.95,
-          margin: 1,
-          width: 200,
-        }).then((url: string) => {
-          setTwoFactorQRUrl(url);
-        }).catch((err: any) => {
-          console.error('Erro ao gerar QR code:', err);
-        });
-      } catch (err) {
-        console.error('Erro ao importar QRCode:', err);
-      }
-    }
-  }, [twoFactorQR]);
 
   const handleSaveClinic = () => {
     updateClinic(clinicForm);
@@ -578,104 +559,123 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   };
 
   const handleToggle2FA = async () => {
-    const currentUser = useAuth.getState().user;
-    if (!currentUser?.id) {
-      toast('Usuário não identificado', 'error');
-      return;
-    }
-
     if (twoFactorEnabled) {
-      // Desativar 2FA
       setTwoFactorLoading(true);
       try {
+        const { getSupabaseSession } = await import('@/lib/supabase');
+        const session = getSupabaseSession ? getSupabaseSession() : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        
         const res = await fetch(`${API_BASE}/api/2fa/disable`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id })
+          headers,
+          body: JSON.stringify({ userId: user?.id })
         });
         const data = await res.json();
         if (data.ok) {
           setTwoFactorEnabled(false);
-          toast('2FA desativado com sucesso', 'success');
+          toast('2FA desativado com sucesso!', 'success');
         } else {
           toast(data.error || 'Erro ao desativar 2FA', 'error');
         }
-      } catch (error) {
-        console.error('Erro ao desativar 2FA:', error);
-        toast('Erro ao desativar 2FA', 'error');
-      } finally {
-        setTwoFactorLoading(false);
+      } catch (e) {
+        toast('Erro ao conectar com o servidor', 'error');
       }
-    } else {
-      // Ativar 2FA - Gerar QR Code
-      setTwoFactorLoading(true);
-      try {
-        const res = await fetch(`${API_BASE}/api/2fa/setup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: currentUser.id,
-            userEmail: currentUser.email
-          })
-        });
-        const data = await res.json();
-        if (data.ok && data.otpauthUri) {
-          setTwoFactorUserId(currentUser.id);
-          setTwoFactorQR({ secret: data.secret, otpauthUri: data.otpauthUri });
-          setTwoFactorModal(true);
-          setTwoFactorVerifyCode('');
-          toast('Escaneie o código QR com seu aplicativo autenticador', 'info');
-        } else {
-          toast(data.error || 'Erro ao configurar 2FA', 'error');
-        }
-      } catch (error) {
-        console.error('Erro ao configurar 2FA:', error);
-        toast('Erro ao configurar 2FA', 'error');
-      } finally {
-        setTwoFactorLoading(false);
-      }
+      setTwoFactorLoading(false);
+      return;
     }
+    
+    setTwoFactorLoading(true);
+    setTwoFAError('');
+    try {
+      const { getSupabaseSession } = await import('@/lib/supabase');
+      const session = getSupabaseSession ? getSupabaseSession() : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      
+      const res = await fetch(`${API_BASE}/api/2fa/setup`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ userId: user?.id, userEmail: user?.email })
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        setTwoFASecret(data.secret);
+        setTwoFAQrCode(data.otpauthUri);
+        setShowTwoFAModal(true);
+      } else {
+        setTwoFAError(data.error || 'Erro ao gerar 2FA');
+        toast(data.error || 'Erro ao configurar 2FA', 'error');
+      }
+    } catch (e) {
+      setTwoFAError('Erro ao conectar com o servidor');
+    }
+    setTwoFactorLoading(false);
   };
 
   const handleVerify2FA = async () => {
-    if (!twoFactorVerifyCode || twoFactorVerifyCode.length !== 6) {
-      toast('Digite um código de 6 dígitos', 'warning');
+    if (!twoFAVerifyCode || twoFAVerifyCode.length !== 6) {
+      setTwoFAError('Digite o código de 6 dígitos');
       return;
     }
-
-    if (!twoFactorUserId) {
-      toast('Erro: usuário não identificado', 'error');
-      return;
-    }
-
-    setTwoFactorVerifying(true);
+    setTwoFactorLoading(true);
+    setTwoFAError('');
     try {
+      const { getSupabaseSession } = await import('@/lib/supabase');
+      const session = getSupabaseSession ? getSupabaseSession() : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      
       const res = await fetch(`${API_BASE}/api/2fa/verify`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: twoFactorUserId,
-          code: twoFactorVerifyCode
-        })
+        headers,
+        body: JSON.stringify({ userId: user?.id, code: twoFAVerifyCode })
       });
       const data = await res.json();
+      
       if (data.ok) {
         setTwoFactorEnabled(true);
-        setTwoFactorModal(false);
-        setTwoFactorQR(null);
-        setTwoFactorVerifyCode('');
+        setShowTwoFAModal(false);
+        setTwoFAQrCode('');
+        setTwoFASecret('');
+        setTwoFAVerifyCode('');
         toast('2FA ativado com sucesso!', 'success');
       } else {
-        toast(data.error || 'Código inválido', 'error');
-        setTwoFactorVerifyCode('');
+        setTwoFAError(data.error || 'Código inválido');
       }
-    } catch (error) {
-      console.error('Erro ao verificar 2FA:', error);
-      toast('Erro ao verificar código', 'error');
-    } finally {
-      setTwoFactorVerifying(false);
+    } catch (e) {
+      setTwoFAError('Erro ao verificar código');
     }
+    setTwoFactorLoading(false);
   };
+
+  // Check 2FA status on mount
+  useEffect(() => {
+    if (user?.id && API_BASE) {
+      (async () => {
+        const { getSupabaseSession } = await import('@/lib/supabase');
+        const session = getSupabaseSession ? getSupabaseSession() : null;
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        fetch(`${API_BASE}/api/2fa/status?userId=${user.id}`, { headers })
+          .then(res => res.json())
+          .then(data => {
+            if (data.ok && data.enabled) setTwoFactorEnabled(true);
+          })
+          .catch(() => {});
+      })();
+    }
+  }, [user?.id, API_BASE]);
 
   const handleGenerateApiKey = async () => {
     if (!newApiKeyName.trim()) {
@@ -756,7 +756,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
       {/* Tabs */}
       <div className="flex bg-white border border-slate-100 rounded-2xl p-1 overflow-x-auto no-scrollbar">
-        {configTabs.map(tab => (
+        {visibleTabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveSubTab(tab.id)} className={cn("flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap", activeSubTab === tab.id ? "bg-cyan-50 text-cyan-600 shadow-sm" : "text-slate-500 hover:text-slate-900")}>
             <tab.icon className="w-4 h-4" />{tab.label}
           </button>
@@ -1559,8 +1559,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   <p className="text-sm text-slate-500">Camada adicional de segurança</p>
                 </div>
               </div>
-              <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">
-                Desativado
+              <span className={`px-3 py-1 text-xs font-bold rounded-full ${twoFactorEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                {twoFactorEnabled ? 'Ativado' : 'Desativado'}
               </span>
             </div>
             
@@ -1576,6 +1576,63 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               </div>
             </div>
           </div>
+
+          {/* 2FA Setup Modal */}
+          <Modal isOpen={showTwoFAModal} onClose={() => { setShowTwoFAModal(false); setTwoFAQrCode(''); setTwoFASecret(''); }} title="Configurar 2FA" maxWidth="max-w-md">
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 text-center">
+                Escaneie o QR Code com seu aplicativo autenticador (Google Authenticator, Authy, etc.)
+              </p>
+              
+              {twoFAQrCode && (
+                <div className="bg-white p-4 rounded-xl inline-block border">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(twoFAQrCode)}`}
+                    alt="QR Code 2FA"
+                    className="w-48 h-48 mx-auto"
+                  />
+                </div>
+              )}
+              
+              {twoFASecret && (
+                <div className="mt-4 p-3 bg-slate-100 rounded-lg">
+                  <p className="text-xs text-slate-500 mb-1">Ou digite esta chave:</p>
+                  <p className="font-mono text-sm font-bold text-slate-700">{twoFASecret}</p>
+                </div>
+              )}
+              
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Código</label>
+                <input 
+                  type="text" 
+                  value={twoFAVerifyCode}
+                  onChange={e => setTwoFAVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  maxLength={6}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-2xl font-bold tracking-widest outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+              
+              {twoFAError && <p className="text-sm text-red-600 text-center">{twoFAError}</p>}
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => { setShowTwoFAModal(false); setTwoFAQrCode(''); setTwoFASecret(''); }}
+                  className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleVerify2FA}
+                  disabled={twoFactorLoading || twoFAVerifyCode.length !== 6}
+                  className="flex-1 px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {twoFactorLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  Ativar
+                </button>
+              </div>
+            </div>
+          </Modal>
 
           {/* API Keys */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
@@ -1925,80 +1982,6 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           </div>
         </motion.div>
       )}
-
-      {/* Modal 2FA with QR Code */}
-      <Modal isOpen={twoFactorModal} onClose={() => { setTwoFactorModal(false); setTwoFactorQR(null); setTwoFactorVerifyCode(''); }} title="Configurar Autenticação em Dois Fatores" maxWidth="max-w-md">
-        {twoFactorQR && (
-          <div className="space-y-6">
-            <div className="text-center space-y-2">
-              <p className="text-sm font-bold text-slate-900">Escaneie o QR Code</p>
-              <p className="text-xs text-slate-500">Use Google Authenticator, Authy ou outro aplicativo autenticador</p>
-            </div>
-
-            {/* QR Code - Centered */}
-            <div className="flex justify-center bg-slate-50 rounded-2xl p-6">
-              {twoFactorQRUrl ? (
-                <img src={twoFactorQRUrl} alt="QR Code 2FA" className="w-48 h-48" />
-              ) : (
-                <div className="w-48 h-48 flex items-center justify-center">
-                  <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-600 rounded-full animate-spin" />
-                </div>
-              )}
-            </div>
-
-            {/* Secret Key for manual entry */}
-            <div className="space-y-2">
-              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Ou insira manualmente:</p>
-              <div className="bg-slate-100 rounded-xl p-4 font-mono text-sm text-center text-slate-700 break-all select-all">
-                {twoFactorQR.secret}
-              </div>
-              <p className="text-xs text-slate-500 text-center">Copie e cole em seu aplicativo autenticador</p>
-            </div>
-
-            {/* Verification Code Input */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Digite o código (6 dígitos):</label>
-              <input
-                type="text"
-                maxLength={6}
-                value={twoFactorVerifyCode}
-                onChange={(e) => setTwoFactorVerifyCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="000000"
-                className="w-full px-4 py-3 text-center text-2xl tracking-widest font-bold rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all"
-              />
-              <p className="text-xs text-slate-500 text-center">O código muda a cada 30 segundos</p>
-            </div>
-
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setTwoFactorModal(false); setTwoFactorQR(null); setTwoFactorVerifyCode(''); }}
-                disabled={twoFactorVerifying}
-                className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all disabled:opacity-70"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleVerify2FA}
-                disabled={twoFactorVerifying || twoFactorVerifyCode.length !== 6}
-                className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {twoFactorVerifying ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Verificando...
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Ativar 2FA
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

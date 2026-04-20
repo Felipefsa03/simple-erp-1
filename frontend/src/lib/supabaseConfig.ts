@@ -16,6 +16,14 @@ export const SUPABASE_PUBLISHABLE_KEY = cleanEnv(
     '',
 );
 
+export const SUPABASE_SERVICE_ROLE_KEY = cleanEnv(
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+    import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY_PROD ||
+    import.meta.env.VITE_SUPABASE_SECRET_KEY ||
+    import.meta.env.VITE_SUPABASE_SECRET_KEY_PROD ||
+    '',
+);
+
 export const isProductionBuild = import.meta.env.PROD;
 
 export const isSupabaseEnvConfigured = () =>

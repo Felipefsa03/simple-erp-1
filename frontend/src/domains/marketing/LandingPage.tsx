@@ -462,8 +462,8 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-cyan-500/20">
-              L
+            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
+              <span className="text-xl text-white font-bold">⚕</span>
             </div>
             <span className="font-bold text-xl text-slate-800">Clinxia</span>
           </div>
@@ -511,6 +511,13 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 <a href="#features" className="block text-slate-700 hover:text-cyan-600 font-medium">Funcionalidades</a>
                 <a href="#pricing" className="block text-slate-700 hover:text-cyan-600 font-medium">Planos</a>
                 <a href="#testimonials" className="block text-slate-700 hover:text-cyan-600 font-medium">Depoimentos</a>
+                <a href="/api" className="block text-slate-700 hover:text-cyan-600 font-medium">API</a>
+                <a href="/sobre" className="block text-slate-700 hover:text-cyan-600 font-medium">Sobre</a>
+                <a href="/blog" className="block text-slate-700 hover:text-cyan-600 font-medium">Blog</a>
+                <a href="/carreiras" className="block text-slate-700 hover:text-cyan-600 font-medium">Carreiras</a>
+                <a href="/contato" className="block text-slate-700 hover:text-cyan-600 font-medium">Contato</a>
+                <a href="/termos" className="block text-slate-700 hover:text-cyan-600 font-medium">Termos de Uso</a>
+                <a href="/privacidade" className="block text-slate-700 hover:text-cyan-600 font-medium">Privacidade</a>
               </div>
             </motion.div>
           )}
@@ -1044,8 +1051,8 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center font-bold text-sm">
-                  L
+                <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center">
+                  <span className="text-xl text-white font-bold">⚕</span>
                 </div>
                 <span className="font-bold text-xl">Clinxia</span>
               </div>
@@ -1059,28 +1066,28 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
               <ul className="space-y-3 text-sm text-slate-400">
                 <li><a href="#features" className="hover:text-cyan-400 transition-colors">Funcionalidades</a></li>
                 <li><a href="#pricing" className="hover:text-cyan-400 transition-colors">Planos</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Integrações</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">API</a></li>
+                <li><a href="/carreiras" className="hover:text-cyan-400 transition-colors">Carreiras</a></li>
+                <li><a href="/api" className="hover:text-cyan-400 transition-colors">API</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-bold mb-4 text-white">Empresa</h4>
               <ul className="space-y-3 text-sm text-slate-400">
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Sobre</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Carreiras</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Contato</a></li>
+                <li><a href="/sobre" className="hover:text-cyan-400 transition-colors">Sobre</a></li>
+                <li><a href="/blog" className="hover:text-cyan-400 transition-colors">Blog</a></li>
+                <li><a href="/carreiras" className="hover:text-cyan-400 transition-colors">Carreiras</a></li>
+                <li><a href="/contato" className="hover:text-cyan-400 transition-colors">Contato</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-bold mb-4 text-white">Legal</h4>
               <ul className="space-y-3 text-sm text-slate-400">
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Termos de Uso</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Privacidade</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">LGPD</a></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Cookies</a></li>
+                <li><a href="/termos" className="hover:text-cyan-400 transition-colors">Termos de Uso</a></li>
+                <li><a href="/privacidade" className="hover:text-cyan-400 transition-colors">Privacidade</a></li>
+                <li><a href="/lgpd" className="hover:text-cyan-400 transition-colors">LGPD</a></li>
+                <li><a href="/cookies" className="hover:text-cyan-400 transition-colors">Cookies</a></li>
               </ul>
             </div>
           </div>
@@ -1088,13 +1095,13 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-slate-500">© 2026 Clinxia. Todos os direitos reservados.</p>
             <div className="flex gap-4">
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
+              <Link to="/" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                 <Globe className="w-5 h-5 text-slate-400" />
-              </a>
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
+              </Link>
+              <a href="https://wa.me/557591517196" target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                 <MessageSquare className="w-5 h-5 text-slate-400" />
               </a>
-              <a href="#" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
+              <a href="mailto:contato.clinxia@gmail.com" className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition-colors">
                 <Mail className="w-5 h-5 text-slate-400" />
               </a>
             </div>

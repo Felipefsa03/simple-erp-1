@@ -4,6 +4,7 @@
 
 import {
   SUPABASE_PUBLISHABLE_KEY,
+  SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_URL,
   isProductionBuild,
   isSupabaseEnvConfigured,
@@ -12,6 +13,8 @@ import {
 const SUPABASE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
 const isConfigured = isSupabaseEnvConfigured();
+
+console.log('[SupabaseSync] Using key: PUBLISHABLE_KEY (RLS allows public read)');
 
 const ensureSupabaseConfigured = (operation: string) => {
   if (isConfigured) return;
@@ -22,12 +25,44 @@ const ensureSupabaseConfigured = (operation: string) => {
   console.warn(message);
 };
 
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-  'Prefer': 'return=representation',
-});
+// Obter token JWT do usuário logado - múltiplas tentativas
+const getAuthToken = (): string | null => {
+  try {
+    // Tentar 1: Zustand store format
+    const authData = localStorage.getItem('luminaflow-auth');
+    if (authData) {
+      const parsed = JSON.parse(authData);
+      // access_token dentro de state.user
+      if (parsed?.state?.user?.access_token) {
+        return parsed.state.user.access_token;
+      }
+    }
+    
+    // Tentar 2: supabase session
+    const supabaseSession = localStorage.getItem('supabase.auth.token');
+    if (supabaseSession) {
+      const parsed = JSON.parse(supabaseSession);
+      if (parsed?.access_token) {
+        return parsed.access_token;
+      }
+    }
+  } catch (e) {
+    console.log('[SupabaseSync] Error getting auth token:', e);
+  }
+  return null;
+};
+
+const getHeaders = () => {
+  const token = getAuthToken();
+  const usingServiceKey = Boolean(SUPABASE_SERVICE_ROLE_KEY);
+  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : (usingServiceKey ? 'NOT FOUND - using service role key' : 'NOT FOUND - using public key'));
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': token ? `Bearer ${token}` : `Bearer ${SUPABASE_KEY}`,
+    'Prefer': 'return=representation',
+  };
+};
 
 const getBaseUrl = () => `${SUPABASE_URL}/rest/v1`;
 
@@ -42,7 +77,9 @@ async function supabaseFetch(table: string, options: {
     return { data: null, error: 'Not configured' };
   }
 
-  const url = `${getBaseUrl()}/${table}${filters || ''}`;
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}/${table}${filters || ''}`;
+  console.log('[SupabaseSync] Fetch URL:', url);
 
   try {
     const response = await fetch(url, {
@@ -51,6 +88,8 @@ async function supabaseFetch(table: string, options: {
       body: body ? JSON.stringify(body) : undefined,
     });
 
+    console.log('[SupabaseSync] Response status:', response.status);
+
     if (!response.ok) {
       const error = await response.text();
       console.error(`[SupabaseSync] Erro ${method} ${table}:`, error);
@@ -58,6 +97,7 @@ async function supabaseFetch(table: string, options: {
     }
 
     const data = await response.json();
+    console.log('[SupabaseSync] Data received:', Array.isArray(data) ? data.length : data);
     return { data, error: null };
   } catch (err: any) {
     console.error(`[SupabaseSync] Exception ${method} ${table}:`, err.message);
@@ -69,10 +109,26 @@ async function supabaseFetch(table: string, options: {
 const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 
 const getClinicId = (clinicId?: string) => {
-  if (!clinicId) return DEFAULT_CLINIC_ID;
+  // Log para debug
+  console.log('[SupabaseSync] getClinicId called with:', clinicId);
+  
+  if (!clinicId) {
+    console.log('[SupabaseSync] No clinicId, using DEFAULT:', DEFAULT_CLINIC_ID);
+    return DEFAULT_CLINIC_ID;
+  }
+  
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(clinicId)) return clinicId;
-  if (clinicId === 'clinic-1') return DEFAULT_CLINIC_ID;
+  if (uuidRegex.test(clinicId)) {
+    console.log('[SupabaseSync] Valid UUID, using:', clinicId);
+    return clinicId;
+  }
+  
+  if (clinicId === 'clinic-1') {
+    console.log('[SupabaseSync] clinic-1, using DEFAULT:', DEFAULT_CLINIC_ID);
+    return DEFAULT_CLINIC_ID;
+  }
+  
+  console.log('[SupabaseSync] Unknown format, using DEFAULT:', DEFAULT_CLINIC_ID);
   return DEFAULT_CLINIC_ID;
 };
 
@@ -199,20 +255,37 @@ const mapTransaction = (t: any) => ({
 });
 
 export const SupabaseSync = {
+  getAuthToken,
+  
   async loadPatients(clinicId: string) {
     const uuid = getClinicId(clinicId);
-    const { data, error } = await supabaseFetch('patients', {
-      filters: `?clinic_id=eq.${uuid}&select=*&deleted_at=is.null&order=created_at.desc`,
+    console.log('[SupabaseSync] loadPatients with clinicId:', clinicId, '-> uuid:', uuid);
+    
+    // Tentar primeiro com deleted_at, se não retornar, tentar sem
+    let { data, error } = await supabaseFetch('patients', {
+      filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
     });
+    
+    // Se 返回 0，试 sem filtro de deleted_at
+    if (!data || data.length === 0) {
+      ({ data, error } = await supabaseFetch('patients', {
+        filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
+      }));
+    }
+    
+    console.log('[SupabaseSync] patients loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
     return data.map(mapPatient);
   },
 
   async loadProfessionals(clinicId: string) {
     const uuid = getClinicId(clinicId);
+    console.log('[SupabaseSync] loadProfessionals with clinicId:', clinicId, '-> uuid:', uuid);
+    
     const { data, error } = await supabaseFetch('professionals', {
       filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.asc`,
     });
+    console.log('[SupabaseSync] professionals loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
     
     // Batch-fetch all users at once to avoid N+1 queries
@@ -301,6 +374,15 @@ export const SupabaseSync = {
     });
     if (error || !data || data.length === 0) return null;
     return data[0];
+  },
+
+  async loadMedicalRecords() {
+    const clinicId = getClinicId('00000000-0000-0000-0000-000000000001');
+    const { data, error } = await supabaseFetch('medical_records', {
+      filters: `?clinic_id=eq.${clinicId}&select=patient_id,clinic_id,anamnese,updated_at&limit=100`,
+    });
+    if (error || !data) return { data: null, error };
+    return { data, error: null };
   },
 
   async saveIntegrationConfig(config: any) {

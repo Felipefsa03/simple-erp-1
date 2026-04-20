@@ -243,6 +243,9 @@ export const useAuth = create<AuthState>()(
                     .eq('id', userData.clinic_id)
                     .single();
                   clinic = clinicData;
+                  
+                  // DEBUG: Log do plano carregado
+                  console.log('[Auth] Clinic loaded:', clinic?.name, 'plan:', clinic?.plan, 'status:', clinic?.status);
                 }
 
                 const user: User = {
@@ -324,7 +327,7 @@ export const useAuth = create<AuthState>()(
         if (isSupabaseConfigured()) {
           await supabase!.auth.signOut();
         }
-        set({ user: null, clinic: null });
+        set({ user: null, clinic: null, loading: false });
       },
 
       hasPermission: (action: string) => {
@@ -427,11 +430,38 @@ export const useAuth = create<AuthState>()(
         return getNormalizedClinicId(userClinicId);
       },
       getPlan: () => {
-        return (get().clinic?.plan as PlanType) || 'basico';
+        // Tentar ler de múltiplas fontes para garantir o plano correto
+        const clinic = get().clinic;
+        
+        // 1. Tentar subscription_plan primeiro (mais atual)
+        let plan = clinic?.subscription_plan as PlanType;
+        if (plan && plan !== 'basico') {
+          console.log('[Auth] getPlan from subscription_plan:', plan);
+          return plan;
+        }
+        
+        // 2. Tentar plan
+        plan = clinic?.plan as PlanType;
+        if (plan && plan !== 'basico') {
+          console.log('[Auth] getPlan from plan:', plan);
+          return plan;
+        }
+        
+        // 3. Tentar status da subscription
+        if (clinic?.subscription_status === 'active' && clinic?.subscription_plan) {
+          plan = clinic?.subscription_plan as PlanType;
+          console.log('[Auth] getPlan from subscription_status active, using subscription_plan:', plan);
+          return plan || 'professional';
+        }
+        
+        console.log('[Auth] getPlan - fallback to professional (no premium found)');
+        return 'professional';
       },
       hasFeature: (feature) => {
         const plan = (get().clinic?.plan as PlanType) || 'basico';
-        return Boolean(PLAN_LIMITS[plan]?.[feature]);
+        const hasIt = Boolean(PLAN_LIMITS[plan]?.[feature]);
+        console.log('[Auth] hasFeature:', feature, 'plan:', plan, 'result:', hasIt);
+        return hasIt;
       },
       checkLimit: (type, current) => {
         const plan = (get().clinic?.plan as PlanType) || 'basico';
