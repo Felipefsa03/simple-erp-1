@@ -73,19 +73,12 @@ export default function App() {
   return (
     <Suspense fallback={<FullPageLoader />}>
       <Routes>
-        {/* Public routes */}
-        <Route path="/" element={
-          <ToastProvider>
-            <ErrorBoundary key="landing">
-              <LandingPage onLoginClick={() => window.location.href = '/login'} onSignupClick={() => window.location.href = '/signup'} />
-            </ErrorBoundary>
-          </ToastProvider>
-        } />
+        {/* Public routes - redirect to login if authenticated */}
         <Route path="/login" element={<LoginPageWrapper />} />
         <Route path="/signup" element={<SignupPageWrapper />} />
         <Route path="/forgot-password" element={<PasswordResetFlowWrapper />} />
         
-        {/* Public pages */}
+        {/* Public pages - always accessible */}
         <Route path="/sobre" element={<AboutPage />} />
         <Route path="/contato" element={<ContactPage />} />
         <Route path="/api" element={<APIPage />} />
@@ -103,7 +96,18 @@ export default function App() {
           </ToastProvider>
         } />
         
-        {/* Authenticated routes - handled by AuthenticatedApp */}
+        {/* Root route - shows landing for visitors, app for authenticated users */}
+        <Route path="/" element={
+          user ? <AuthenticatedApp /> : (
+            <ToastProvider>
+              <ErrorBoundary key="landing">
+                <LandingPage onLoginClick={() => window.location.href = '/login'} onSignupClick={() => window.location.href = '/signup'} />
+              </ErrorBoundary>
+            </ToastProvider>
+          )
+        } />
+        
+        {/* All other routes - authenticated or redirect to landing */}
         <Route path="/*" element={
           user ? <AuthenticatedApp /> : <React.Fragment><ToastProvider><LandingPage onLoginClick={() => window.location.href = '/login'} onSignupClick={() => window.location.href = '/signup'} /></ToastProvider></React.Fragment>
         } />
