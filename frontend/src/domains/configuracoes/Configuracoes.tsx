@@ -95,6 +95,11 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+  const [showTwoFAModal, setShowTwoFAModal] = useState(false);
+  const [twoFAQrCode, setTwoFAQrCode] = useState('');
+  const [twoFASecret, setTwoFASecret] = useState('');
+  const [twoFAVerifyCode, setTwoFAVerifyCode] = useState('');
+  const [twoFAError, setTwoFAError] = useState('');
   const [apiKeys, setApiKeys] = useState<{ id: string; name: string; key: string; created: string; lastUsed: string }[]>([
     { id: '1', name: 'Produção', key: 'sk_live_••••••••••••', created: '15/01/2026', lastUsed: '24/03/2026' }
   ]);
@@ -554,17 +559,94 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   };
 
   const handleToggle2FA = async () => {
+    if (twoFactorEnabled) {
+      setTwoFactorLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/2fa/disable`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user?.id })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setTwoFactorEnabled(false);
+          toast('2FA desativado com sucesso!', 'success');
+        } else {
+          toast(data.error || 'Erro ao desativar 2FA', 'error');
+        }
+      } catch (e) {
+        toast('Erro ao conectar com o servidor', 'error');
+      }
+      setTwoFactorLoading(false);
+      return;
+    }
+    
     setTwoFactorLoading(true);
-    // TODO: Implementar 2FA real com Supabase MFA
-    // Por enquanto, salvar estado no localStorage
+    setTwoFAError('');
     try {
-      localStorage.setItem('luminaflow-2fa-enabled', String(!twoFactorEnabled));
-    } catch {}
-    await new Promise(r => setTimeout(r, 1000));
-    setTwoFactorEnabled(!twoFactorEnabled);
+      const res = await fetch(`${API_BASE}/api/2fa/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id, userEmail: user?.email })
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        setTwoFASecret(data.secret);
+        setTwoFAQrCode(data.otpauthUri);
+        setShowTwoFAModal(true);
+      } else {
+        setTwoFAError(data.error || 'Erro ao gerar 2FA');
+        toast(data.error || 'Erro ao configurar 2FA', 'error');
+      }
+    } catch (e) {
+      setTwoFAError('Erro ao conectar com o servidor');
+    }
     setTwoFactorLoading(false);
-    toast(twoFactorEnabled ? '2FA desativado.' : '2FA pré-configurado. Integração completa pendente.', 'info');
   };
+
+  const handleVerify2FA = async () => {
+    if (!twoFAVerifyCode || twoFAVerifyCode.length !== 6) {
+      setTwoFAError('Digite o código de 6 dígitos');
+      return;
+    }
+    setTwoFactorLoading(true);
+    setTwoFAError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/2fa/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id, code: twoFAVerifyCode })
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        setTwoFactorEnabled(true);
+        setShowTwoFAModal(false);
+        setTwoFAQrCode('');
+        setTwoFASecret('');
+        setTwoFAVerifyCode('');
+        toast('2FA ativado com sucesso!', 'success');
+      } else {
+        setTwoFAError(data.error || 'Código inválido');
+      }
+    } catch (e) {
+      setTwoFAError('Erro ao verificar código');
+    }
+    setTwoFactorLoading(false);
+  };
+
+  // Check 2FA status on mount
+  useEffect(() => {
+    if (user?.id && API_BASE) {
+      fetch(`${API_BASE}/api/2fa/status?userId=${user.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.ok && data.enabled) setTwoFactorEnabled(true);
+        })
+        .catch(() => {});
+    }
+  }, [user?.id, API_BASE]);
 
   const handleGenerateApiKey = async () => {
     if (!newApiKeyName.trim()) {
@@ -1448,8 +1530,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   <p className="text-sm text-slate-500">Camada adicional de segurança</p>
                 </div>
               </div>
-              <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">
-                Desativado
+              <span className={`px-3 py-1 text-xs font-bold rounded-full ${twoFactorEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                {twoFactorEnabled ? 'Ativado' : 'Desativado'}
               </span>
             </div>
             
@@ -1465,6 +1547,63 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               </div>
             </div>
           </div>
+
+          {/* 2FA Setup Modal */}
+          <Modal isOpen={showTwoFAModal} onClose={() => { setShowTwoFAModal(false); setTwoFAQrCode(''); setTwoFASecret(''); }} title="Configurar 2FA" maxWidth="max-w-md">
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 text-center">
+                Escaneie o QR Code com seu aplicativo autenticador (Google Authenticator, Authy, etc.)
+              </p>
+              
+              {twoFAQrCode && (
+                <div className="bg-white p-4 rounded-xl inline-block border">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(twoFAQrCode)}`}
+                    alt="QR Code 2FA"
+                    className="w-48 h-48 mx-auto"
+                  />
+                </div>
+              )}
+              
+              {twoFASecret && (
+                <div className="mt-4 p-3 bg-slate-100 rounded-lg">
+                  <p className="text-xs text-slate-500 mb-1">Ou digite esta chave:</p>
+                  <p className="font-mono text-sm font-bold text-slate-700">{twoFASecret}</p>
+                </div>
+              )}
+              
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Código</label>
+                <input 
+                  type="text" 
+                  value={twoFAVerifyCode}
+                  onChange={e => setTwoFAVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  maxLength={6}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-2xl font-bold tracking-widest outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+              
+              {twoFAError && <p className="text-sm text-red-600 text-center">{twoFAError}</p>}
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => { setShowTwoFAModal(false); setTwoFAQrCode(''); setTwoFASecret(''); }}
+                  className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 font-bold rounded-xl"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleVerify2FA}
+                  disabled={twoFactorLoading || twoFAVerifyCode.length !== 6}
+                  className="flex-1 px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {twoFactorLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  Ativar
+                </button>
+              </div>
+            </div>
+          </Modal>
 
           {/* API Keys */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
