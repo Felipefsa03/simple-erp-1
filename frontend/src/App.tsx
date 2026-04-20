@@ -68,7 +68,14 @@ function PasswordResetFlowWrapper() {
 }
 
 export default function App() {
-  const { user } = useAuth();
+  const { user, loading, checkSession } = useAuth();
+
+  // Verificar sessão ao carregar app (apenas uma vez)
+  useEffect(() => {
+    let mounted = true;
+    if (mounted) checkSession();
+    return () => { mounted = false; };
+  }, [checkSession]);
 
   return (
     <Suspense fallback={<FullPageLoader />}>
@@ -109,7 +116,7 @@ export default function App() {
         
         {/* All other routes - authenticated or redirect to landing */}
         <Route path="/*" element={
-          user ? <AuthenticatedApp /> : <React.Fragment><ToastProvider><LandingPage onLoginClick={() => window.location.href = '/login'} onSignupClick={() => window.location.href = '/signup'} /></ToastProvider></React.Fragment>
+          loading ? <FullPageLoader /> : user ? <AuthenticatedApp /> : <React.Fragment><ToastProvider><LandingPage onLoginClick={() => window.location.href = '/login'} onSignupClick={() => window.location.href = '/signup'} /></ToastProvider></React.Fragment>
         } />
       </Routes>
     </Suspense>
