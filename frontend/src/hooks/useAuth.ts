@@ -324,7 +324,7 @@ export const useAuth = create<AuthState>()(
         if (isSupabaseConfigured()) {
           await supabase!.auth.signOut();
         }
-        set({ user: null, clinic: null });
+        set({ user: null, clinic: null, loading: false });
       },
 
       hasPermission: (action: string) => {

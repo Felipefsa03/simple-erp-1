@@ -57,7 +57,14 @@ function PasswordResetFlowWrapper() {
 }
 
 export default function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, checkSession } = useAuth();
+
+  // Verificar sessão ao carregar app (apenas uma vez)
+  useEffect(() => {
+    let mounted = true;
+    if (mounted) checkSession();
+    return () => { mounted = false; };
+  }, [checkSession]);
 
   return (
     <Suspense fallback={<FullPageLoader />}>
