@@ -37,14 +37,12 @@ interface Integration {
 const PLAN_ORDER = { basic: 1, professional: 2, premium: 3 };
 
 export function Integrations() {
-  const { user } = useAuth();
+  const { user, getPlan } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
   
-  // Obter plano da clínica atual - com debug
-  const rawClinic = useClinicStore.getState().clinic;
-  const rawPlan = rawClinic?.plan as string | undefined;
-  const clinicPlan = (rawPlan as 'basic' | 'professional' | 'premium') || 'basic';
-  console.log('[Integrations] clinic:', rawClinic?.name, 'rawPlan:', rawPlan, 'clinicPlan:', clinicPlan);
+  // Obter plano da clínica atual - do useAuth
+  const clinicPlan = getPlan() as 'basic' | 'professional' | 'premium';
+  console.log('[Integrations] user clinic_id:', user?.clinic_id, 'plan from getPlan():', clinicPlan);
   
   // Função para verificar se integração está liberada
   const isIntegrationAllowed = (minPlan?: string) => {
