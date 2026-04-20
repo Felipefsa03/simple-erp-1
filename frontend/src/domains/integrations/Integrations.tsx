@@ -98,7 +98,7 @@ export function Integrations() {
       category: 'ads',
       features: ['Importação automática de leads', 'ROI por campanha', 'Segmentação de público'],
       minPlan: 'professional',
-      lockReason: 'Disponível no plano Profissional ou Enterprise',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'google-ads',
@@ -110,7 +110,7 @@ export function Integrations() {
       category: 'ads',
       features: ['Conversões em tempo real', 'Custo por aquisição', 'Palavras-chave performáticas'],
       minPlan: 'professional',
-      lockReason: 'Disponível no plano Profissional ou Enterprise',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'asaas',
@@ -122,7 +122,7 @@ export function Integrations() {
       category: 'payments',
       features: ['PIX instantâneo', 'Boleto bancário', 'Cartão de crédito', 'Cobrança recorrente'],
       minPlan: 'professional',
-      lockReason: 'Disponível no plano Profissional ou Enterprise',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'email-marketing',
@@ -134,7 +134,7 @@ export function Integrations() {
       category: 'communication',
       features: ['Templates personalizados', 'Automação de sequências', 'Relatórios de abertura'],
       minPlan: 'professional',
-      lockReason: 'Disponível no plano Profissional ou Enterprise',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'rd-station',
@@ -146,7 +146,7 @@ export function Integrations() {
       category: 'marketing',
       features: ['Automação de marketing', 'CRM integrado', 'Lead scoring', 'E-mail marketing'],
       minPlan: 'professional',
-      lockReason: 'Disponível no plano Profissional ou Enterprise',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'memed',
@@ -158,7 +158,7 @@ export function Integrations() {
       category: 'medical',
       features: ['Prescrição digital', 'Receitas automáticas', 'Histórico de prescrições'],
       minPlan: 'professional',
-      lockReason: 'Disponível no plano Profissional ou Enterprise',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
     {
       id: 'meta-pixel',
@@ -170,7 +170,7 @@ export function Integrations() {
       category: 'ads',
       features: ['Rastreamento de conversões', 'Públicos personalizados', 'Remarketing'],
       minPlan: 'professional',
-      lockReason: 'Disponível no plano Profissional ou Enterprise',
+      lockReason: 'Disponível no plano Profissional ou Premium',
     },
   ]);
 
