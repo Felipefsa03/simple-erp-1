@@ -562,9 +562,16 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     if (twoFactorEnabled) {
       setTwoFactorLoading(true);
       try {
+        const { getSupabaseSession } = await import('@/lib/supabase');
+        const session = getSupabaseSession ? getSupabaseSession() : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        
         const res = await fetch(`${API_BASE}/api/2fa/disable`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ userId: user?.id })
         });
         const data = await res.json();
@@ -584,9 +591,16 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     setTwoFactorLoading(true);
     setTwoFAError('');
     try {
+      const { getSupabaseSession } = await import('@/lib/supabase');
+      const session = getSupabaseSession ? getSupabaseSession() : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      
       const res = await fetch(`${API_BASE}/api/2fa/setup`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ userId: user?.id, userEmail: user?.email })
       });
       const data = await res.json();
@@ -613,9 +627,16 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     setTwoFactorLoading(true);
     setTwoFAError('');
     try {
+      const { getSupabaseSession } = await import('@/lib/supabase');
+      const session = getSupabaseSession ? getSupabaseSession() : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      
       const res = await fetch(`${API_BASE}/api/2fa/verify`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ userId: user?.id, code: twoFAVerifyCode })
       });
       const data = await res.json();
@@ -639,12 +660,20 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   // Check 2FA status on mount
   useEffect(() => {
     if (user?.id && API_BASE) {
-      fetch(`${API_BASE}/api/2fa/status?userId=${user.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.ok && data.enabled) setTwoFactorEnabled(true);
-        })
-        .catch(() => {});
+      (async () => {
+        const { getSupabaseSession } = await import('@/lib/supabase');
+        const session = getSupabaseSession ? getSupabaseSession() : null;
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        fetch(`${API_BASE}/api/2fa/status?userId=${user.id}`, { headers })
+          .then(res => res.json())
+          .then(data => {
+            if (data.ok && data.enabled) setTwoFactorEnabled(true);
+          })
+          .catch(() => {});
+      })();
     }
   }, [user?.id, API_BASE]);
 
