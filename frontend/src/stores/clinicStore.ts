@@ -19,7 +19,7 @@ import { SupabaseSync } from '@/lib/supabaseSync';
 import { isSupabaseEnvConfigured } from '@/lib/supabaseConfig';
 
 // Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
-const CLINIC_API_BASE = '';
+const CLINIC_API_BASE = import.meta.env.VITE_URL_BASE_API_VITE || '';
 
 // Formatar telefone para padrão brasileiro WhatsApp (55 + DDD + 9 + Numero)
 const formatPhoneForWhatsApp = (phone: string | undefined | null): string => {
