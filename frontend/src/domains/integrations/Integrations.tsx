@@ -30,11 +30,11 @@ interface Integration {
   connected: boolean;
   category: 'calendar' | 'ads' | 'payments' | 'communication' | 'marketing' | 'medical';
   features: string[];
-  minPlan?: 'basic' | 'professional' | 'enterprise';
+  minPlan?: 'basic' | 'professional' | 'premium';
   lockReason?: string;
 }
 
-const PLAN_ORDER = { basic: 1, professional: 2, enterprise: 3 };
+const PLAN_ORDER = { basic: 1, professional: 2, premium: 3 };
 
 export function Integrations() {
   const { user } = useAuth();
@@ -43,7 +43,7 @@ export function Integrations() {
   // Obter plano da clínica atual - com debug
   const rawClinic = useClinicStore.getState().clinic;
   const rawPlan = rawClinic?.plan as string | undefined;
-  const clinicPlan = (rawPlan as 'basic' | 'professional' | 'enterprise') || 'basic';
+  const clinicPlan = (rawPlan as 'basic' | 'professional' | 'premium') || 'basic';
   console.log('[Integrations] clinic:', rawClinic?.name, 'rawPlan:', rawPlan, 'clinicPlan:', clinicPlan);
   
   // Função para verificar se integração está liberada
@@ -301,12 +301,12 @@ export function Integrations() {
           </div>
         </div>
         
-        {clinicPlan !== 'enterprise' && (
+        {clinicPlan !== 'premium' && (
           <div className="mb-4 bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-3 flex items-center gap-3">
             <ArrowUpCircle className="w-5 h-5 text-cyan-600" />
             <div>
               <p className="text-sm font-medium text-cyan-800">
-                Plano {clinicPlan === 'basic' ? 'Básico' : 'Profissional'}
+                Plano {clinicPlan === 'basic' ? 'Básico' : clinicPlan === 'profissional' ? 'Profissional' : 'Premium'}
               </p>
               <p className="text-xs text-cyan-600">
                 Todas as funcionalidades do WhatsApp estão disponíveis
