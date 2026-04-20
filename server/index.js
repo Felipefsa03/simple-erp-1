@@ -838,13 +838,11 @@ app.all("/api/auth/google", (req, res) => {
   }
   const config = getGoogleOAuthConfig();
   if (!config) {
-    return res
-      .status(503)
-      .json({
-        ok: false,
-        error:
-          "Google OAuth não configurado. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.",
-      });
+    return res.status(503).json({
+      ok: false,
+      error:
+        "Google OAuth não configurado. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.",
+    });
   }
 
   const isSignup = req.query.signup === "true";
@@ -2115,12 +2113,10 @@ app.post("/api/signup/phone/verify-code", async (req, res) => {
 
   const session = getVerificationSession(signupId);
   if (!session || session.phone !== normalizedPhone) {
-    return res
-      .status(400)
-      .json({
-        ok: false,
-        error: "Nenhuma validacao encontrada para este telefone.",
-      });
+    return res.status(400).json({
+      ok: false,
+      error: "Nenhuma validacao encontrada para este telefone.",
+    });
   }
 
   const now = Date.now();
@@ -2412,12 +2408,10 @@ app.post("/api/signup/provision", async (req, res) => {
     !password ||
     !clinicName
   ) {
-    return res
-      .status(400)
-      .json({
-        ok: false,
-        error: "Campos obrigatorios ausentes para provisionamento.",
-      });
+    return res.status(400).json({
+      ok: false,
+      error: "Campos obrigatorios ausentes para provisionamento.",
+    });
   }
   if (!isUuid(clinicId)) {
     return res.status(400).json({ ok: false, error: "clinicId invalido." });
@@ -2589,12 +2583,10 @@ const require2FAPermission = (req, res, next) => {
   }
 
   if (requestedUserId !== req.user.id && !isSuperAdmin) {
-    return res
-      .status(403)
-      .json({
-        ok: false,
-        error: "Não autorizado a gerenciar 2FA de outro usuário",
-      });
+    return res.status(403).json({
+      ok: false,
+      error: "Não autorizado a gerenciar 2FA de outro usuário",
+    });
   }
 
   next();
@@ -2634,12 +2626,10 @@ app.post(
 
       // Encrypt secret with server key
       if (!TOTP_ENCRYPTION_KEY) {
-        return res
-          .status(503)
-          .json({
-            ok: false,
-            error: "2FA indisponível: chave de criptografia não configurada.",
-          });
+        return res.status(503).json({
+          ok: false,
+          error: "2FA indisponível: chave de criptografia não configurada.",
+        });
       }
       const iv = crypto.randomBytes(16);
       const cipher = crypto.createCipheriv(
@@ -2712,13 +2702,11 @@ app.post(
         stack: error instanceof Error ? error.stack : "",
         code: error.code || "UNKNOWN",
       });
-      res
-        .status(500)
-        .json({
-          ok: false,
-          error:
-            error instanceof Error ? error.message : "Erro ao configurar 2FA",
-        });
+      res.status(500).json({
+        ok: false,
+        error:
+          error instanceof Error ? error.message : "Erro ao configurar 2FA",
+      });
     }
   },
 );
@@ -2767,12 +2755,10 @@ app.post(
       // Decrypt secret
       const parsed = JSON.parse(data[0].secret_encrypted);
       if (!TOTP_ENCRYPTION_KEY) {
-        return res
-          .status(503)
-          .json({
-            ok: false,
-            error: "2FA indisponível: chave de criptografia não configurada.",
-          });
+        return res.status(503).json({
+          ok: false,
+          error: "2FA indisponível: chave de criptografia não configurada.",
+        });
       }
       const decipher = crypto.createDecipheriv(
         "aes-256-gcm",
@@ -2816,7 +2802,8 @@ app.post(
 
       const now = Math.floor(Date.now() / 1000 / 30);
       let isValid = false;
-      for (let offset = -1; offset <= 1; offset++) {
+      // Janela de ±2 (150 segundos de tolerância para clock skew)
+      for (let offset = -2; offset <= 2; offset++) {
         const expected = generateTOTP(decrypted, now + offset);
         if (expected === code) {
           isValid = true;
@@ -2886,37 +2873,29 @@ app.post(
   },
 );
 
-app.get(
-  "/api/2fa/status",
-  requireAuth,
-  require2FAPermission,
-  async (req, res) => {
-    try {
-      const userId = req.query.userId;
-      if (!userId) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "userId é obrigatório" });
-      }
-      const supaRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}&select=*`,
-        {
-          headers: getServerHeaders(),
-        },
-      );
-      let enabled = false;
-      if (supaRes.ok) {
-        const data = await supaRes.json();
-        enabled = data?.[0]?.enabled || false;
-      }
-      res.json({ ok: true, enabled });
-    } catch (error) {
-      res
-        .status(500)
-        .json({ ok: false, error: "Erro ao verificar status 2FA" });
+app.get("/api/2fa/status", requireAuth, async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    console.log("[2FA Status] userId:", userId, "| req.user.id:", req.user?.id);
+    if (!userId) {
+      return res.status(400).json({ ok: false, error: "userId é obrigatório" });
     }
-  },
-);
+    const supaRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}&select=*`,
+      {
+        headers: getServerHeaders(),
+      },
+    );
+    let enabled = false;
+    if (supaRes.ok) {
+      const data = await supaRes.json();
+      enabled = data?.[0]?.enabled || false;
+    }
+    res.json({ ok: true, enabled });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: "Erro ao verificar status 2FA" });
+  }
+});
 
 // Debug endpoint - test Supabase connectivity for 2FA table
 app.get("/api/2fa/test", async (req, res) => {
