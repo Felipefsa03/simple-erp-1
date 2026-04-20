@@ -50,7 +50,10 @@ export function Integrations() {
   const isIntegrationAllowed = (minPlan?: string) => {
     if (isSuperAdmin) return true;
     if (!minPlan) return true;
-    return PLAN_ORDER[clinicPlan as keyof typeof PLAN_ORDER] >= PLAN_ORDER[minPlan as keyof typeof PLAN_ORDER];
+    const currentPlanLevel = PLAN_ORDER[clinicPlan as keyof typeof PLAN_ORDER] || 0;
+    const requiredPlanLevel = PLAN_ORDER[minPlan as keyof typeof PLAN_ORDER] || 0;
+    console.log('[Integrations] isIntegrationAllowed:', clinicPlan, 'level:', currentPlanLevel, 'required:', minPlan, 'level:', requiredPlanLevel, 'allowed:', currentPlanLevel >= requiredPlanLevel);
+    return currentPlanLevel >= requiredPlanLevel;
   };
   
   // Estado para clínica selecionada (Super Admin pode trocar)
