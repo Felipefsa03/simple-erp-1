@@ -2353,13 +2353,17 @@ app.post('/api/2fa/setup', require2FAPermission, async (req, res) => {
     const authTag = cipher.getAuthTag();
     
     // Delete existing 2FA record for this user first
-    await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
+    const deleteRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
       method: 'DELETE',
       headers: getServerHeaders(),
     });
     
+    if (!deleteRes.ok) {
+      console.error('[2FA Setup] Failed to delete existing 2FA record:', await deleteRes.text());
+    }
+    
     // Save to Supabase
-    await fetch(`${SUPABASE_URL}/rest/v1/user_2fa`, {
+    const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa`, {
       method: 'POST',
       headers: getServerHeaders(),
       body: JSON.stringify({
@@ -2369,6 +2373,13 @@ app.post('/api/2fa/setup', require2FAPermission, async (req, res) => {
         created_at: new Date().toISOString(),
       }),
     });
+    
+    // CHECK RESPONSE - If insert fails, throw error
+    if (!insertRes.ok) {
+      const errorText = await insertRes.text();
+      console.error('[2FA Setup] Failed to save 2FA secret to database:', insertRes.status, errorText);
+      return res.status(500).json({ ok: false, error: 'Erro ao salvar 2FA no banco de dados' });
+    }
     
     // Generate QR code URI for authenticator app
     const appName = 'Clinxia';
@@ -2454,16 +2465,23 @@ app.post('/api/2fa/verify', require2FAPermission, async (req, res) => {
     }
     
     if (isValid) {
-      await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
+      const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
         method: 'PATCH',
         headers: getServerHeaders(),
         body: JSON.stringify({ enabled: true, verified_at: new Date().toISOString() }),
       });
+      
+      if (!updateRes.ok) {
+        console.error('[2FA Verify] Failed to update 2FA status:', updateRes.status, await updateRes.text());
+        return res.status(500).json({ ok: false, error: 'Erro ao ativar 2FA' });
+      }
+      
       res.json({ ok: true });
     } else {
       res.status(400).json({ ok: false, error: 'Código inválido' });
     }
   } catch (error) {
+    console.error('[2FA Verify] Exception caught:', error instanceof Error ? error.message : String(error), error instanceof Error ? error.stack : '');
     res.status(500).json({ ok: false, error: 'Erro ao verificar 2FA' });
   }
 });
