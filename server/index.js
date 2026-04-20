@@ -2323,7 +2323,7 @@ const requireSuperAdmin = (req, res, next) => {
   next();
 };
 
-app.post('/api/2fa/setup', require2FAPermission, async (req, res) => {
+app.post('/api/2fa/setup', requireAuth, require2FAPermission, async (req, res) => {
   try {
     const userId = req.body.userId || req.query.userId;
     const userEmail = req.user?.email || 'user@clinxia.com';
@@ -2391,7 +2391,7 @@ app.post('/api/2fa/setup', require2FAPermission, async (req, res) => {
   }
 });
 
-app.post('/api/2fa/verify', async (req, res) => {
+app.post('/api/2fa/verify', requireAuth, require2FAPermission, async (req, res) => {
   try {
     const { code, userId } = req.body;
     
@@ -2486,7 +2486,7 @@ app.post('/api/2fa/verify', async (req, res) => {
   }
 });
 
-app.post('/api/2fa/disable', async (req, res) => {
+app.post('/api/2fa/disable', requireAuth, require2FAPermission, async (req, res) => {
   try {
     const { userId } = req.body;
     if (!userId) {
@@ -2502,7 +2502,7 @@ app.post('/api/2fa/disable', async (req, res) => {
   }
 });
 
-app.get('/api/2fa/status', async (req, res) => {
+app.get('/api/2fa/status', requireAuth, require2FAPermission, async (req, res) => {
   try {
     const userId = req.query.userId;
     if (!userId) {
@@ -2519,6 +2519,48 @@ app.get('/api/2fa/status', async (req, res) => {
     res.json({ ok: true, enabled });
   } catch (error) {
     res.status(500).json({ ok: false, error: 'Erro ao verificar status 2FA' });
+  }
+});
+
+// Debug endpoint - test Supabase connectivity for 2FA table
+app.get('/api/2fa/test', async (req, res) => {
+  try {
+    console.log('[2FA Test] Testing Supabase connectivity...');
+    console.log('[2FA Test] SUPABASE_URL:', SUPABASE_URL);
+    console.log('[2FA Test] Using Service Role Key:', SUPABASE_SERVICE_ROLE_KEY ? 'YES' : 'NO');
+    
+    const testRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?limit=1`, {
+      headers: getServerHeaders(),
+    });
+    
+    const data = await testRes.json();
+    
+    console.log('[2FA Test] Response status:', testRes.status);
+    console.log('[2FA Test] Response:', data);
+    
+    if (!testRes.ok) {
+      return res.status(testRes.status).json({
+        ok: false,
+        error: data?.message || 'Failed to access user_2fa table',
+        status: testRes.status,
+        details: data,
+      });
+    }
+    
+    res.json({
+      ok: true,
+      message: 'Supabase connection OK',
+      tableExists: true,
+      recordCount: Array.isArray(data) ? data.length : 0,
+      data,
+    });
+  } catch (error) {
+    console.error('[2FA Test] Exception:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Test failed',
+      stack: error instanceof Error ? error.stack : '',
+    });
   }
 });
 
