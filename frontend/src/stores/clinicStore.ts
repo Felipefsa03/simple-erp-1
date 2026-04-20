@@ -1054,12 +1054,6 @@ export const useClinicStore = create<ClinicStore>()(
                         return true;
                     }
                     return false;
-                                clinic_id: item.clinicId,
-                                updated_at: item.submittedAt,
-                            });
-                        });
-                        return true;
-                    }
                 } catch (error) {
                     // Silent catch to prevent spamming the console on network errors
                 }
