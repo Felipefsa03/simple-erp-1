@@ -1038,28 +1038,22 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Anamnese Links & Public Forms ----
             syncAnamneseWithServer: async () => {
                 try {
-                    const token = SupabaseSync.getAuthToken();
-                    const headers: Record<string, string> = {
-                        'ngrok-skip-browser-warning': 'true'
-                    };
-                    if (token) {
-                        headers['Authorization'] = `Bearer ${token}`;
-                    }
+                    // Directly fetch from Supabase instead of backend
+                    const { data, error } = await SupabaseSync.loadMedicalRecords();
+                    if (error || !data) return false;
                     
-                    const response = await fetch(`${CLINIC_API_BASE}/api/clinic/anamnese-sync`, {
-                        headers
-                    });
-                    if (!response.ok) return false;
-                    
-                    const text = await response.text();
-                    if (!text) return false;
-                    
-                    const data = JSON.parse(text);
-                    if (data.ok && Array.isArray(data.items) && data.items.length > 0) {
-                        data.items.forEach((item: any) => {
+                    if (Array.isArray(data) && data.length > 0) {
+                        data.forEach((item: any) => {
                             get().saveAnamnese({
-                                ...item.data,
-                                patient_id: item.patientId,
+                                ...item.anamnese,
+                                patient_id: item.patient_id,
+                                clinic_id: item.clinic_id,
+                                updated_at: item.updated_at,
+                            });
+                        });
+                        return true;
+                    }
+                    return false;
                                 clinic_id: item.clinicId,
                                 updated_at: item.submittedAt,
                             });

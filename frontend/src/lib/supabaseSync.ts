@@ -376,6 +376,15 @@ export const SupabaseSync = {
     return data[0];
   },
 
+  async loadMedicalRecords() {
+    const clinicId = getClinicId('00000000-0000-0000-0000-000000000001');
+    const { data, error } = await supabaseFetch('medical_records', {
+      filters: `?clinic_id=eq.${clinicId}&select=patient_id,clinic_id,anamnese,updated_at&limit=100`,
+    });
+    if (error || !data) return { data: null, error };
+    return { data, error: null };
+  },
+
   async saveIntegrationConfig(config: any) {
     const { data: existing } = await supabaseFetch('integration_config', {
       filters: `?clinic_id=eq.${getClinicId(config.clinic_id)}&select=clinic_id`,
