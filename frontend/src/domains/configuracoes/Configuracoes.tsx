@@ -31,8 +31,12 @@ const configTabs = [
   { id: 'integracoes', label: 'Integrações', icon: Link2 },
 ];
 
+const filteredConfigTabs = (userRole: string | undefined) => 
+  userRole === 'super_admin' ? configTabs : configTabs.filter(tab => tab.id !== 'sistema');
+
 export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const { user, clinic, updateClinic, hasPermission, permissions, setPermission, resetPermissions, createClinicUser } = useAuth();
+  const visibleTabs = filteredConfigTabs(user?.role);
   const permissionMatrix = permissions || {};
   const store = useClinicStore();
   const {
@@ -641,7 +645,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
       {/* Tabs */}
       <div className="flex bg-white border border-slate-100 rounded-2xl p-1 overflow-x-auto no-scrollbar">
-        {configTabs.map(tab => (
+        {visibleTabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveSubTab(tab.id)} className={cn("flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap", activeSubTab === tab.id ? "bg-cyan-50 text-cyan-600 shadow-sm" : "text-slate-500 hover:text-slate-900")}>
             <tab.icon className="w-4 h-4" />{tab.label}
           </button>
