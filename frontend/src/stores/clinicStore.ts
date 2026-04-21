@@ -107,28 +107,15 @@ const ensureObject = <T extends Record<string, any>>(value: unknown, fallback: T
 // ============================================
 
 let lastSyncedClinicId = '';
-let lastSyncTimestamp = 0;
-
-export const resetClinicSyncState = () => {
-    lastSyncedClinicId = '';
-    lastSyncTimestamp = 0;
-    console.log('[ClinicStore] 🔄 Estado de sincronização resetado');
-};
 
 const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) => {
-    const now = Date.now();
-    const TIME_BEFORE_RESYNC = 5 * 60 * 1000;
-    
-    // Sempre sincronizar se:
-    // 1. ClinicId diferente
-    // 2. Passou mais de 5 minutos desde último sync
-    if (lastSyncedClinicId === clinicId && (now - lastSyncTimestamp) < TIME_BEFORE_RESYNC) {
-        console.log('[ClinicStore] ⏭️ Já sincronizado recentemente para esta clínica, pulando...');
+    // Só pular se já sincronizou esta clínica específica
+    if (lastSyncedClinicId === clinicId) {
+        console.log('[ClinicStore] ⏭️ Já sincronizado para esta clínica, pulando...');
         return;
     }
-    
+    // Marcar como sincronizado no início para evitar race conditions
     lastSyncedClinicId = clinicId;
-    lastSyncTimestamp = now;
     
     console.log('[ClinicStore] 🔄 Iniciando sincronização com Supabase para:', clinicId);
     
