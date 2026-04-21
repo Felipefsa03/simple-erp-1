@@ -28,31 +28,22 @@ const ensureSupabaseConfigured = (operation: string) => {
 // Obter token JWT do usuário logado - múltiplas tentativas
 const getAuthToken = (): string | null => {
   try {
-    // Tentar 1: clinxia_supabase_session (chave correta usada pelo supabase.ts)
-    const clinxiaSession = localStorage.getItem('clinxia_supabase_session');
-    if (clinxiaSession) {
-      const parsed = JSON.parse(clinxiaSession);
-      if (parsed?.access_token) {
-        return parsed.access_token;
-      }
-    }
-    
-    // Tentar 2: supabase.auth.token (padrão do @supabase/supabase-js)
-    const supabaseSession = localStorage.getItem('supabase.auth.token');
-    if (supabaseSession) {
-      const parsed = JSON.parse(supabaseSession);
-      if (parsed?.access_token) {
-        return parsed.access_token;
-      }
-    }
-    
-    // Tentar 3: Zustand store format (luminaflow-auth)
+    // Tentar 1: Zustand store format
     const authData = localStorage.getItem('luminaflow-auth');
     if (authData) {
       const parsed = JSON.parse(authData);
       // access_token dentro de state.user
       if (parsed?.state?.user?.access_token) {
         return parsed.state.user.access_token;
+      }
+    }
+    
+    // Tentar 2: supabase session
+    const supabaseSession = localStorage.getItem('supabase.auth.token');
+    if (supabaseSession) {
+      const parsed = JSON.parse(supabaseSession);
+      if (parsed?.access_token) {
+        return parsed.access_token;
       }
     }
   } catch (e) {
@@ -63,7 +54,8 @@ const getAuthToken = (): string | null => {
 
 const getHeaders = () => {
   const token = getAuthToken();
-  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : 'NOT FOUND');
+  const usingServiceKey = Boolean(SUPABASE_SERVICE_ROLE_KEY);
+  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : (usingServiceKey ? 'NOT FOUND - using service role key' : 'NOT FOUND - using public key'));
   return {
     'Content-Type': 'application/json',
     'apikey': SUPABASE_KEY,
