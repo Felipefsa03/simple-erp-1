@@ -64,24 +64,25 @@ const getHeaders = (method?: string) => {
   const token = getAuthToken();
   const hasServiceKey = Boolean(SUPABASE_SERVICE_ROLE_KEY && SUPABASE_SERVICE_ROLE_KEY.length > 10);
   
-  // Se tem JWT, usa ele. Se não tem JWT mas tem service role key, usa service role key.
-  // Para writes (POST/PATCH/DELETE), tenta usar service key se disponível.
   let apiKey: string;
   let authHeader: string;
+  let authType: string;
   
   if (token) {
     apiKey = SUPABASE_KEY;
     authHeader = token;
-    console.log('[SupabaseSync] Auth: JWT do usuário');
+    authType = 'JWT';
   } else if (hasServiceKey) {
     apiKey = SUPABASE_SERVICE_ROLE_KEY;
     authHeader = SUPABASE_SERVICE_ROLE_KEY;
-    console.log('[SupabaseSync] Auth: Service Role Key');
+    authType = 'service_role';
   } else {
     apiKey = SUPABASE_KEY;
     authHeader = SUPABASE_KEY;
-    console.log('[SupabaseSync] Auth: PublIc Key (sem JWT)');
+    authType = 'public';
   }
+  
+  console.log('[SupabaseSync] Auth:', authType);
   
   return {
     'Content-Type': 'application/json',
