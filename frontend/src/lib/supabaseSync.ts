@@ -63,24 +63,11 @@ const getAuthToken = (): string | null => {
 
 const getHeaders = () => {
   const token = getAuthToken();
-  const usingServiceKey = Boolean(SUPABASE_SERVICE_ROLE_KEY);
-  const apiKey = usingServiceKey ? SUPABASE_SERVICE_ROLE_KEY : SUPABASE_KEY;
-  
-  if (token) {
-    console.log('[SupabaseSync] Auth token: present (JWT do usuário)');
-    return {
-      'Content-Type': 'application/json',
-      'apikey': apiKey,
-      'Authorization': `Bearer ${token}`,
-      'Prefer': 'return=representation',
-    };
-  }
-  
-  console.log('[SupabaseSync] Auth token: NOT FOUND - usando service role key');
+  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : 'NOT FOUND');
   return {
     'Content-Type': 'application/json',
-    'apikey': apiKey,
-    'Authorization': `Bearer ${apiKey}`,
+    'apikey': SUPABASE_KEY,
+    'Authorization': token ? `Bearer ${token}` : `Bearer ${SUPABASE_KEY}`,
     'Prefer': 'return=representation',
   };
 };
