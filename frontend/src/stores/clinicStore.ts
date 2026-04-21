@@ -1336,8 +1336,19 @@ export const useClinicStore = create<ClinicStore>()(
                 }
             },
             deleteProfessional: (id) => {
+                const toDelete = get().professionals.find(p => p.id === id);
                 set(s => ({ professionals: s.professionals.filter(p => p.id !== id) }));
-                SupabaseSync.deleteProfessional(id).catch(e => console.error('[ClinicStore] Erro ao deletar profissional:', e));
+                SupabaseSync.deleteProfessional(id).then(result => {
+                    if (result.error) {
+                        console.error('[ClinicStore] Erro ao deletar profissional:', result.error);
+                        set(s => ({ professionals: [...s.professionals, toDelete] }));
+                        alert('Erro ao excluir: ' + (result.error?.message || result.error));
+                    }
+                }).catch(e => {
+                    console.error('[ClinicStore] Erro ao deletar profissional:', e);
+                    set(s => ({ professionals: [...s.professionals, toDelete] }));
+                    alert('Erro ao excluir profissional');
+                });
             },
             getProfessionalStats: (id, clinicId) => {
                 const state = get();
