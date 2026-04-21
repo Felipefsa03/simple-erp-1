@@ -60,14 +60,33 @@ const getAuthToken = (): string | null => {
   return null;
 };
 
-const getHeaders = () => {
+const getHeaders = (method?: string) => {
   const token = getAuthToken();
-  const usingServiceKey = Boolean(SUPABASE_SERVICE_ROLE_KEY);
-  console.log('[SupabaseSync] Auth token:', token ? `present (${token.substring(0, 20)}...)` : (usingServiceKey ? 'NOT FOUND - using service role key' : 'NOT FOUND - using public key'));
+  const hasServiceKey = Boolean(SUPABASE_SERVICE_ROLE_KEY && SUPABASE_SERVICE_ROLE_KEY.length > 10);
+  
+  // Se tem JWT, usa ele. Se não tem JWT mas tem service role key, usa service role key.
+  // Para writes (POST/PATCH/DELETE), tenta usar service key se disponível.
+  let apiKey: string;
+  let authHeader: string;
+  
+  if (token) {
+    apiKey = SUPABASE_KEY;
+    authHeader = token;
+    console.log('[SupabaseSync] Auth: JWT do usuário');
+  } else if (hasServiceKey) {
+    apiKey = SUPABASE_SERVICE_ROLE_KEY;
+    authHeader = SUPABASE_SERVICE_ROLE_KEY;
+    console.log('[SupabaseSync] Auth: Service Role Key');
+  } else {
+    apiKey = SUPABASE_KEY;
+    authHeader = SUPABASE_KEY;
+    console.log('[SupabaseSync] Auth: PublIc Key (sem JWT)');
+  }
+  
   return {
     'Content-Type': 'application/json',
-    'apikey': SUPABASE_KEY,
-    'Authorization': token ? `Bearer ${token}` : `Bearer ${SUPABASE_KEY}`,
+    'apikey': apiKey,
+    'Authorization': `Bearer ${authHeader}`,
     'Prefer': 'return=representation',
   };
 };
