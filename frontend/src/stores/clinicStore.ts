@@ -1545,18 +1545,11 @@ export const useClinicStore = create<ClinicStore>()(
                 systemWhatsApp: state.systemWhatsApp,
             }),
             merge: (persistedState, currentState) => {
-                // Em modo REAL, sempre priorizar dados do Supabase (que foram carregados depois do login)
-                // Só usar localStorage se não tem dados no banco
+                // Usar dados do localStorage se existirem, caso contrário usar dados iniciais
                 const next = {
                     ...currentState,
                     ...(persistedState as Partial<ClinicStore>),
                 } as ClinicStore;
-                
-                // Se está em modo real e tem dados carregados do Supabase, usar esses (ignorar localStorage)
-                if (useRealData && currentState.patients?.length > 0) {
-                    console.log('[ClinicStore] Usando dados do Supabase (ignorando cache local)');
-                    return currentState;
-                }
                 
                 // Se não tem dados persistidos e está em modo real, vai carregar do banco
                 if (!persistedState) {
