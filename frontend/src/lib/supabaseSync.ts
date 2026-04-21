@@ -28,22 +28,30 @@ const ensureSupabaseConfigured = (operation: string) => {
 // Obter token JWT do usuário logado - múltiplas tentativas
 const getAuthToken = (): string | null => {
   try {
-    // Tentar 1: Zustand store format
-    const authData = localStorage.getItem('luminaflow-auth');
-    if (authData) {
-      const parsed = JSON.parse(authData);
-      // access_token dentro de state.user
-      if (parsed?.state?.user?.access_token) {
-        return parsed.state.user.access_token;
+    // Tentar 1: clinxia_supabase_session (criado pelo supabase.ts)
+    const clinxiaSession = localStorage.getItem('clinxia_supabase_session');
+    if (clinxiaSession) {
+      const parsed = JSON.parse(clinxiaSession);
+      if (parsed?.access_token) {
+        return parsed.access_token;
       }
     }
     
-    // Tentar 2: supabase session
+    // Tentar 2: supabase.auth.token (padrão @supabase/supabase-js)
     const supabaseSession = localStorage.getItem('supabase.auth.token');
     if (supabaseSession) {
       const parsed = JSON.parse(supabaseSession);
       if (parsed?.access_token) {
         return parsed.access_token;
+      }
+    }
+    
+    // Tentar 3: Zustand store (luminaflow-auth)
+    const authData = localStorage.getItem('luminaflow-auth');
+    if (authData) {
+      const parsed = JSON.parse(authData);
+      if (parsed?.state?.user?.access_token) {
+        return parsed.state.user.access_token;
       }
     }
   } catch (e) {
