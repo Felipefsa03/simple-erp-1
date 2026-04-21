@@ -456,6 +456,8 @@ export const useAuth = create<AuthState>()(
           await supabase!.auth.signOut();
         }
         set({ user: null, clinic: null, loading: false });
+        // Reset clinic store for fresh login
+        import("../stores/clinicStore").then(({ resetClinicSyncState }) => resetClinicSyncState());
       },
 
       confirm2FALogin: async (code: string) => {
@@ -519,6 +521,17 @@ export const useAuth = create<AuthState>()(
             twoFARequired: false,
             twoFAPendingUserId: null,
           });
+
+          if (user.clinic_id) {
+            let clinicId = user.clinic_id;
+            if (!user.clinic_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+              clinicId = "00000000-0000-0000-0000-000000000001";
+            }
+            import("../stores/clinicStore").then(({ useClinicStore }) => {
+              useClinicStore.getState().syncWithSupabase();
+            });
+          }
+
           return true;
         } catch (_e) {
           return false;
