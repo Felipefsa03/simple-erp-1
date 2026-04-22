@@ -427,7 +427,7 @@ export async function createAuthUser(userData: {
   commission_pct?: number;
   clinic_id?: string;
 }): Promise<{ success?: boolean; user_id?: string; error?: string }> {
-  if (!supabase) return { error: 'Supabase não configurado' };
+  if (!isSupabaseConfigured()) return { error: 'Supabase não configurado' };
   
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/create-auth-user`, {
@@ -435,15 +435,16 @@ export async function createAuthUser(userData: {
       headers: {
         'Content-Type': 'application/json',
         'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${currentSession?.access_token || supabaseAnonKey}`,
+        'Authorization': `Bearer ${supabaseAnonKey}`,
       },
       body: JSON.stringify(userData),
     });
     
+    console.log('[createAuthUser] Status:', response.status);
     const result = await response.json();
+    console.log('[createAuthUser] Result:', result);
     
     if (!response.ok) {
-      console.error('[createAuthUser] Erro:', result.error);
       return { error: result.error || 'Erro ao criar usuário' };
     }
     
