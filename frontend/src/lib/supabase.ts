@@ -417,3 +417,40 @@ export async function deleteFromTable(
   const { error } = await supabase.from(table).delete().eq('id', id);
   return { error };
 }
+
+export async function createAuthUser(userData: {
+  email: string;
+  password: string;
+  name: string;
+  phone?: string;
+  role?: string;
+  commission_pct?: number;
+  clinic_id?: string;
+}): Promise<{ success?: boolean; user_id?: string; error?: string }> {
+  if (!supabase) return { error: 'Supabase não configurado' };
+  
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/create-auth-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${currentSession?.access_token || supabaseAnonKey}`,
+      },
+      body: JSON.stringify(userData),
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      console.error('[createAuthUser] Erro:', result.error);
+      return { error: result.error || 'Erro ao criar usuário' };
+    }
+    
+    return { success: true, user_id: result.user_id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro desconhecido';
+    console.error('[createAuthUser] Exception:', message);
+    return { error: message };
+  }
+}

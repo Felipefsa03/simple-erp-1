@@ -1327,22 +1327,25 @@ export const useClinicStore = create<ClinicStore>()(
                 set(s => ({ professionals: [professional, ...s.professionals] }));
                 saveToSupabase('professional', professional, true).catch(e => console.error('[ClinicStore] Erro ao salvar profissional:', e));
                 
-                // Criar usuário no Supabase Auth (opcional, com senha definida)
+                // Criar usuário no Supabase Auth via Edge Function (server-side)
                 if (email && p.password) {
-                    const { supabase: supabaseClient } = require('@/lib/supabase');
-                    if (supabaseClient) {
-                        supabaseClient.auth.signUp({
+                    import('@/lib/supabase').then(({ createAuthUser }) => {
+                        createAuthUser({
                             email,
                             password: p.password,
-                            options: {
-                                data: {
-                                    name: p.name,
-                                    role: p.role,
-                                    clinic_id: clinic_id === 'clinic-1' ? '00000000-0000-0000-0000-000000000001' : clinic_id,
-                                }
+                            name: p.name,
+                            phone: p.phone,
+                            role: p.role,
+                            commission_pct: p.commission_pct,
+                            clinic_id: clinic_id === 'clinic-1' ? '00000000-0000-0000-0000-000000000001' : clinic_id,
+                        }).then(result => {
+                            if (result.error) {
+                                console.error('[ClinicStore] Erro ao criar usuário no Auth:', result.error);
+                            } else {
+                                console.log('[ClinicStore] Usuário Auth criado:', result.user_id);
                             }
-                        }).catch(e => console.error('[ClinicStore] Erro signup:', e));
-                    }
+                        });
+                    }).catch(e => console.error('[ClinicStore] Erro ao importar createAuthUser:', e));
                 }
                 
                 return professional;
