@@ -1,8 +1,8 @@
+import { getSupabaseSession } from '@/lib/supabase';
 type Json = Record<string, any>;
 
 async function request<T = Json>(path: string, init?: RequestInit): Promise<T> {
-  const authData = typeof window !== 'undefined' ? localStorage.getItem('luminaflow-auth') : null;
-  const token = authData ? JSON.parse(authData)?.token : null;
+  const token = getSupabaseSession()?.access_token || null;
   
   const response = await fetch(path, {
     headers: {

@@ -290,16 +290,9 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   useEffect(() => {
     setAsaasConfig((prev) => ({
       ...prev,
-      api_key:
-        prev.api_key || localStorage.getItem("luminaflow-asaas-api-key") || "",
-      wallet_id:
-        prev.wallet_id ||
-        localStorage.getItem("luminaflow-asaas-wallet-id") ||
-        "",
-      webhook_url:
-        prev.webhook_url ||
-        localStorage.getItem("luminaflow-asaas-webhook-url") ||
-        "",
+      api_key: prev.api_key || "",
+      wallet_id: prev.wallet_id || "",
+      webhook_url: prev.webhook_url || "",
     }));
   }, []);
 
@@ -690,16 +683,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       toast("Preencha a API Key antes de salvar.", "error");
       return;
     }
-    localStorage.setItem("luminaflow-asaas-api-key", asaasConfig.api_key);
-    localStorage.setItem(
-      "luminaflow-asaas-wallet-id",
-      asaasConfig.wallet_id || "",
-    );
-    localStorage.setItem(
-      "luminaflow-asaas-webhook-url",
-      asaasConfig.webhook_url || "",
-    );
-    toast("Credenciais Asaas salvas com sucesso!");
+    toast("Credenciais Asaas aplicadas nesta sessao.", "success");
   };
 
   const handleChangePassword = async () => {
@@ -727,8 +711,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     setPasswordLoading(true);
 
     try {
-      const stored = localStorage.getItem("luminaflow-session");
-      const session = stored ? JSON.parse(stored) : null;
+      const { getSupabaseSession } = await import("@/lib/supabase");
+      const session = getSupabaseSession ? getSupabaseSession() : null;
       if (!session?.access_token) {
         toast("Sessão expirada. Faça login novamente.", "error");
         setPasswordLoading(false);

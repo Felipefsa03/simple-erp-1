@@ -376,7 +376,6 @@ let providerService: FocusNFeService | NFeIOService | null = null;
 
 export function configureNFe(config: NFeConfig) {
   currentConfig = config;
-  localStorage.setItem('luminaflow-nfe-config', JSON.stringify(config));
 
   switch (config.provider) {
     case 'focus_nfe':
@@ -395,16 +394,6 @@ export function configureNFe(config: NFeConfig) {
 
 export function loadNFeConfig(): NFeConfig | null {
   if (currentConfig) return currentConfig;
-  const stored = localStorage.getItem('luminaflow-nfe-config');
-  if (stored) {
-    try {
-      const config = JSON.parse(stored) as NFeConfig;
-      configureNFe(config);
-      return config;
-    } catch {
-      return null;
-    }
-  }
   return null;
 }
 

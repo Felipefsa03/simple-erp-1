@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CalendarCheck2, Clock3, UserCircle2, Stethoscope, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { useClinicStore } from '@/stores/clinicStore';
@@ -14,7 +14,6 @@ export function OnlineBookingPage({ clinicId = 'clinic-1', onBack }: OnlineBooki
   const storeProfessionals = useClinicStore(state => state.professionals);
   const storeServices = useClinicStore(state => state.services);
   const { addPatient, addAppointment, queueAppointmentConfirmation } = useClinicStore();
-  const [isHydrated, setIsHydrated] = useState(false);
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -27,17 +26,9 @@ export function OnlineBookingPage({ clinicId = 'clinic-1', onBack }: OnlineBooki
   });
   const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => {
-    const hydrate = async () => {
-      await useClinicStore.persist.hasHydrated();
-      setIsHydrated(true);
-    };
-    hydrate();
-  }, []);
-
-  const patients = isHydrated ? storePatients : [];
-  const professionals = isHydrated ? storeProfessionals : [];
-  const services = isHydrated ? storeServices : [];
+  const patients = storePatients;
+  const professionals = storeProfessionals;
+  const services = storeServices;
 
   const clinicServices = useMemo(
     () => (services || []).filter(item => item.clinic_id === clinicId && item.active),
@@ -100,17 +91,6 @@ export function OnlineBookingPage({ clinicId = 'clinic-1', onBack }: OnlineBooki
     );
     setSubmitted(true);
   };
-
-  if (!isHydrated) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 max-w-md text-center">
-          <div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-lg font-bold text-slate-900">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">

@@ -27,52 +27,17 @@ if (!isConfigured) {
 }
 
 // Headers padrão para requisições - agora inclui o token da sessão
-const getHeaders = () => ({
+const getHeaders = (_token?: string) => ({
   'Content-Type': 'application/json',
   'apikey': supabaseAnonKey,
-  'Authorization': currentSession ? `Bearer ${currentSession.access_token}` : `Bearer ${supabaseAnonKey}`,
+  ...(currentSession ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
   'Prefer': 'return=representation',
 });
 
-// ============================================
-// Session Storage (localStorage)
-// ============================================
+// Sessao em memoria (sem persistencia local)
+const saveSessionToStorage = (_session: { access_token: string; user: Record<string, unknown> } | null) => {};
 
-const SESSION_STORAGE_KEY = 'clinxia_supabase_session';
-
-const saveSessionToStorage = (session: { access_token: string; user: Record<string, unknown> } | null) => {
-  try {
-    if (typeof window !== 'undefined') {
-      if (session) {
-        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-        console.log('[Supabase] Sessão salva em localStorage');
-      } else {
-        localStorage.removeItem(SESSION_STORAGE_KEY);
-        console.log('[Supabase] Sessão removida do localStorage');
-      }
-    }
-  } catch (e) {
-    console.warn('[Supabase] Falha ao salvar sessão em localStorage:', e);
-  }
-};
-
-const restoreSessionFromStorage = () => {
-  try {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(SESSION_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        console.log('[Supabase] Sessão restaurada do localStorage');
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('[Supabase] Falha ao restaurar sessão do localStorage:', e);
-  }
-  return null;
-};
-
-// Função para obter o token da sessão atual
+// Funcao para obter o token da sessao atual
 export const getSupabaseSession = () => currentSession;
 
 // ============================================
@@ -81,10 +46,6 @@ export const getSupabaseSession = () => currentSession;
 
 let currentSession: { access_token: string; user: Record<string, unknown> } | null = null;
 
-// Restaurar sessão do localStorage ao carregar o módulo
-if (typeof window !== 'undefined') {
-  currentSession = restoreSessionFromStorage();
-}
 
 export const supabase = isConfigured ? {
   auth: {
@@ -427,27 +388,35 @@ export async function createAuthUser(userData: {
   commission_pct?: number;
   clinic_id?: string;
 }): Promise<{ success?: boolean; user_id?: string; error?: string }> {
-  if (!isSupabaseConfigured()) return { error: 'Supabase não configurado' };
-  
+  if (!isSupabaseConfigured()) return { error: 'Supabase nao configurado' };
+
   try {
+    // Edge Functions with verify_jwt=true require a valid session JWT.
+    let accessToken = currentSession?.access_token || '';
+
+    if (!accessToken) {
+      return { error: 'Sessao invalida. Faca login novamente para criar usuarios.' };
+    }
+
     const response = await fetch(`${supabaseUrl}/functions/v1/create-auth-user`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${supabaseAnonKey}`,
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(userData),
     });
-    
+
     console.log('[createAuthUser] Status:', response.status);
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     console.log('[createAuthUser] Result:', result);
-    
+
     if (!response.ok) {
-      return { error: result.error || 'Erro ao criar usuário' };
+      const message = result?.error || result?.message || result?.code || 'Erro ao criar usuario';
+      return { error: message };
     }
-    
+
     return { success: true, user_id: result.user_id };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro desconhecido';

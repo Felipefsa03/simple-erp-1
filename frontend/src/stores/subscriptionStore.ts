@@ -2,7 +2,6 @@
 // LuminaFlow ERP — Subscription Store (Zustand)
 // ============================================
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { 
   ClinicSubscription, 
   SubscriptionPlan, 
@@ -42,9 +41,7 @@ interface SubscriptionStore {
 
 const TRIAL_DAYS = 30;
 
-export const useSubscriptionStore = create<SubscriptionStore>()(
-  persist(
-    (set, get) => ({
+export const useSubscriptionStore = create<SubscriptionStore>()((set, get) => ({
       subscription: null,
       paymentHistory: [],
       availablePlans: SUBSCRIPTION_PLANS,
@@ -314,9 +311,4 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
         if (!current?.next_billing_date) return null;
         return new Date(current.next_billing_date);
       },
-    }),
-    {
-      name: 'luminaflow-subscription',
-    }
-  )
-);
+    }));

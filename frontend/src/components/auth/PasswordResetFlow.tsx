@@ -332,8 +332,8 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
     await new Promise(r => setTimeout(r, 500));
 
     try {
-      const stored = localStorage.getItem('luminaflow-session');
-      const session = stored ? JSON.parse(stored) : null;
+      const { getSupabaseSession } = await import('@/lib/supabase');
+      const session = getSupabaseSession ? getSupabaseSession() : null;
       
       if (!session?.access_token) {
         setError('Sessão expirada. Faça login novamente.');

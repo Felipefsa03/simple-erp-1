@@ -9,6 +9,7 @@ import {
   isProductionBuild,
   isSupabaseEnvConfigured,
 } from '@/lib/supabaseConfig';
+import { getSupabaseSession } from '@/lib/supabase';
 
 const SUPABASE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
@@ -25,39 +26,10 @@ const ensureSupabaseConfigured = (operation: string) => {
   console.warn(message);
 };
 
-// Obter token JWT do usuário logado - múltiplas tentativas
+// Obter token JWT do usuario logado (sessao em memoria)
 const getAuthToken = (): string | null => {
-  try {
-    // Tentar 1: clinxia_supabase_session (criado pelo supabase.ts)
-    const clinxiaSession = localStorage.getItem('clinxia_supabase_session');
-    if (clinxiaSession) {
-      const parsed = JSON.parse(clinxiaSession);
-      if (parsed?.access_token) {
-        return parsed.access_token;
-      }
-    }
-    
-    // Tentar 2: supabase.auth.token (padrão @supabase/supabase-js)
-    const supabaseSession = localStorage.getItem('supabase.auth.token');
-    if (supabaseSession) {
-      const parsed = JSON.parse(supabaseSession);
-      if (parsed?.access_token) {
-        return parsed.access_token;
-      }
-    }
-    
-    // Tentar 3: Zustand store (luminaflow-auth)
-    const authData = localStorage.getItem('luminaflow-auth');
-    if (authData) {
-      const parsed = JSON.parse(authData);
-      if (parsed?.state?.user?.access_token) {
-        return parsed.state.user.access_token;
-      }
-    }
-  } catch (e) {
-    console.log('[SupabaseSync] Error getting auth token:', e);
-  }
-  return null;
+  const session = getSupabaseSession();
+  return session?.access_token || null;
 };
 
 const getHeaders = (method?: string) => {

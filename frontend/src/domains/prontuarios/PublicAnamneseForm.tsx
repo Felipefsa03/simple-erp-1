@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ArrowLeft, ClipboardCheck } from 'lucide-react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { toast } from '@/hooks/useShared';
@@ -9,8 +9,8 @@ interface PublicAnamneseFormProps {
 }
 
 export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
-  const storeAnamneseLinks = useClinicStore(state => state.anamneseLinks);
-  const storePatients = useClinicStore(state => state.patients);
+  const anamneseLinks = useClinicStore(state => state.anamneseLinks);
+  const patients = useClinicStore(state => state.patients);
   const { submitAnamneseByToken } = useClinicStore();
   const [form, setForm] = useState({
     medical_history: '',
@@ -21,19 +21,6 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
     observations: '',
   });
   const [submitted, setSubmitted] = useState(false);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    const hydrate = async () => {
-      await useClinicStore.persist.hasHydrated();
-      setIsHydrated(true);
-    };
-    hydrate();
-  }, []);
-
-  const anamneseLinks = isHydrated ? storeAnamneseLinks : [];
-  const patients = isHydrated ? storePatients : [];
-
   const decodedLink = useMemo(() => {
     try {
       const json = atob(token.replace(/-/g, '+').replace(/_/g, '/'));
@@ -53,14 +40,14 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
 
   // Fallback to store if stateless fails or for legacy links
   const storeLink = useMemo(() => {
-    return isHydrated ? storeAnamneseLinks.find(item => item.token === token) : null;
-  }, [storeAnamneseLinks, token, isHydrated]);
+    return anamneseLinks.find(item => item.token === token) || null;
+  }, [anamneseLinks, token]);
 
   const link = decodedLink || storeLink;
 
   const patient = useMemo(() => {
-    return isHydrated ? storePatients.find(item => item.id === link?.patient_id) : null;
-  }, [storePatients, link?.patient_id, isHydrated]);
+    return patients.find(item => item.id === link?.patient_id) || null;
+  }, [patients, link?.patient_id]);
 
   const handleSubmit = async () => {
     if (!link) return;
@@ -96,17 +83,6 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
       toast('Erro ao enviar anamnese. Tente novamente.', 'error');
     }
   };
-
-  if (!isHydrated) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 max-w-md text-center">
-          <div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-lg font-bold text-slate-900">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!link) {
     return (

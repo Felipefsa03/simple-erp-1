@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { User, UserRole, Clinic, PlanType } from "@/types";
 import { PLAN_LIMITS } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -276,9 +275,7 @@ const DEMO_USERS: {
   },
 ];
 
-export const useAuth = create<AuthState>()(
-  persist(
-    (set, get) => ({
+export const useAuth = create<AuthState>()((set, get) => ({
       user: null,
       clinic: null,
       loading: true,
@@ -406,19 +403,7 @@ export const useAuth = create<AuthState>()(
 
         // Fallback para modo demo (somente desenvolvimento)
         const allUsers = [...DEMO_USERS, ...get().customUsers];
-        const updatedPasswords = localStorage.getItem(
-          "luminaflow-reset-passwords",
-        );
-        let passwords: Record<string, string> = {};
-        try {
-          passwords = updatedPasswords
-            ? (JSON.parse(updatedPasswords) as Record<string, string>)
-            : {};
-        } catch (_e: unknown) {
-          /* corrupted localStorage data — ignore */
-        }
-
-        const passwordToCheck = passwords[email.toLowerCase()] || password;
+        const passwordToCheck = password;
         const found = allUsers.find(
           (u) =>
             u.email.toLowerCase() === email.toLowerCase() &&
@@ -704,15 +689,4 @@ export const useAuth = create<AuthState>()(
         const limit = PLAN_LIMITS[plan]?.[type] ?? 0;
         return current < limit;
       },
-    }),
-    {
-      name: "luminaflow-auth",
-      partialize: (state) => ({
-        user: state.user,
-        clinic: state.clinic,
-        customUsers: state.customUsers,
-        permissions: state.permissions,
-      }),
-    },
-  ),
-);
+    }));

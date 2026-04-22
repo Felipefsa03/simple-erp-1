@@ -251,13 +251,6 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
     return () => clearPaymentPolling();
   }, []);
 
-  useEffect(() => {
-    const termsAcceptedStorage = localStorage.getItem('terms_accepted');
-    if (termsAcceptedStorage === 'true') {
-      setTermsAccepted(true);
-    }
-  }, []);
-
   const goToStep = (step: Step) => {
     setSignupError('');
     setSignupStep(step);
@@ -358,9 +351,6 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
       setSignupError('Você precisa aceitar os Termos de Uso e Política de Privacidade.');
       return;
     }
-    localStorage.setItem('terms_accepted', 'true');
-    localStorage.setItem('terms_accepted_at', new Date().toISOString());
-
     setSignupLoading(true);
     setSignupError('');
     setPaymentApproved(false);

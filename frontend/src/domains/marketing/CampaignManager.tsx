@@ -142,32 +142,23 @@ function settingsCacheKey(clinicId: string) {
 }
 
 function readCachedCampaigns(clinicId: string): CampaignRecord[] {
-  try {
-    const raw = localStorage.getItem(campaignCacheKey(clinicId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  void clinicId;
+  return [];
 }
 
 function writeCachedCampaigns(clinicId: string, campaigns: CampaignRecord[]) {
-  localStorage.setItem(campaignCacheKey(clinicId), JSON.stringify(campaigns));
+  void clinicId;
+  void campaigns;
 }
 
 function readCampaignDefaults(clinicId: string): CampaignDefaults {
-  try {
-    const raw = localStorage.getItem(settingsCacheKey(clinicId));
-    if (!raw) return DEFAULTS;
-    return { ...DEFAULTS, ...JSON.parse(raw) };
-  } catch {
-    return DEFAULTS;
-  }
+  void clinicId;
+  return DEFAULTS;
 }
 
 function writeCampaignDefaults(clinicId: string, settings: CampaignDefaults) {
-  localStorage.setItem(settingsCacheKey(clinicId), JSON.stringify(settings));
+  void clinicId;
+  void settings;
 }
 
 async function readApiResponse<T = any>(response: Response): Promise<T> {

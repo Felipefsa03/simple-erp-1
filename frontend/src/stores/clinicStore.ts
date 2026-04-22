@@ -1,8 +1,7 @@
 // ============================================
-// Clinxia ERP — Main Clinic Store (Zustand + localStorage)
+// Clinxia ERP — Main Clinic Store (Zustand)
 // ============================================
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type {
     Patient, Appointment, AppointmentStatus, MedicalRecord,
     StockItem, StockMovement, FinancialTransaction, TransactionStatus,
@@ -423,7 +422,7 @@ interface ClinicStore {
     deleteService: (id: string) => void;
 
     // Professional Actions
-    addProfessional: (p: Omit<User, 'id' | 'created_at'>) => User | null;
+    addProfessional: (p: Omit<User, 'id' | 'created_at'> & { password?: string }) => User | null;
     updateProfessional: (id: string, data: Partial<User>) => void;
     deleteProfessional: (id: string) => void;
     getProfessionalCommissions: (professionalId: string, month?: string) => { total_produced: number; commission_amount: number; appointment_count: number };
@@ -525,20 +524,7 @@ console.log(
     useRealData ? 'vai carregar do banco' : INITIAL_DATA.patients.length
 );
 
-// Monitor localStorage usage and warn if approaching limit
-if (typeof window !== 'undefined') {
-  try {
-    const totalSize = new Blob(Object.values(window.localStorage)).size;
-    if (totalSize > 4 * 1024 * 1024) {
-      console.warn('[ClinicStore] ⚠️ localStorage acima de 4MB. Considere limpar dados antigos.');
-    }
-  } catch (e) {
-    // localStorage not available
-  }
-}
-
 export const useClinicStore = create<ClinicStore>()(
-    persist(
         (set, get) => {
             // A sincronização é chamada via syncWithSupabase() após login bem-sucedido
             
@@ -1329,10 +1315,11 @@ export const useClinicStore = create<ClinicStore>()(
                 
                 // Criar usuário no Supabase Auth via Edge Function (server-side)
                 if (email && p.password) {
+                    const password = p.password;
                     import('@/lib/supabase').then(({ createAuthUser }) => {
                         createAuthUser({
                             email,
-                            password: p.password,
+                            password,
                             name: p.name,
                             phone: p.phone,
                             role: p.role,
@@ -1363,12 +1350,16 @@ export const useClinicStore = create<ClinicStore>()(
                 SupabaseSync.deleteProfessional(id).then(result => {
                     if (result.error) {
                         console.error('[ClinicStore] Erro ao deletar profissional:', result.error);
-                        set(s => ({ professionals: [...s.professionals, toDelete] }));
+                        if (toDelete) {
+                            set(s => ({ professionals: [...s.professionals, toDelete] }));
+                        }
                         alert('Erro ao excluir: ' + (result.error?.message || result.error));
                     }
                 }).catch(e => {
                     console.error('[ClinicStore] Erro ao deletar profissional:', e);
-                    set(s => ({ professionals: [...s.professionals, toDelete] }));
+                    if (toDelete) {
+                        set(s => ({ professionals: [...s.professionals, toDelete] }));
+                    }
                     alert('Erro ao excluir profissional');
                 });
             },
@@ -1532,53 +1523,5 @@ export const useClinicStore = create<ClinicStore>()(
                 }));
             },
             };
-        },
-        {
-            name: 'luminaflow-clinic-store',
-            partialize: (state) => ({
-                patients: state.patients,
-                appointments: state.appointments,
-                services: state.services,
-                stockItems: state.stockItems,
-                stockMovements: state.stockMovements,
-                transactions: state.transactions,
-                medicalRecords: state.medicalRecords,
-                odontogramData: state.odontogramData,
-                anamneseData: state.anamneseData,
-                treatmentPlans: state.treatmentPlans,
-                professionals: state.professionals,
-                appointmentMaterials: state.appointmentMaterials,
-                notificationPrefs: state.notificationPrefs,
-                patientPhotos: state.patientPhotos,
-                auditLogs: state.auditLogs,
-                waitingList: state.waitingList,
-                recurrences: state.recurrences,
-                appointmentConfirmations: state.appointmentConfirmations,
-                anamneseLinks: state.anamneseLinks,
-                signatures: state.signatures,
-                clinicalDocuments: state.clinicalDocuments,
-                automationRules: state.automationRules,
-                automationRuns: state.automationRuns,
-                leads: state.leads,
-                funnelStages: state.funnelStages,
-                insurances: state.insurances,
-                branches: state.branches,
-                whatsappIntegrations: state.whatsappIntegrations,
-                systemWhatsApp: state.systemWhatsApp,
-            }),
-            merge: (persistedState, currentState) => {
-                // Usar dados do localStorage se existirem, caso contrário usar dados iniciais
-                const next = {
-                    ...currentState,
-                    ...(persistedState as Partial<ClinicStore>),
-                } as ClinicStore;
-                
-                // Se não tem dados persistidos e está em modo real, vai carregar do banco
-                if (!persistedState) {
-                    console.log('[ClinicStore] Sem dados salvos, usando dados iniciais');
-                }
-                return next;
-            },
         }
-    )
 );

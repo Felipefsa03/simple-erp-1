@@ -40,15 +40,10 @@ export function NFePanel({ clinicId }: NFePanelProps) {
 
   useEffect(() => {
     setNfeConfigured(isNFeConfigured());
-    const stored = localStorage.getItem('luminaflow-nfes');
-    if (stored) {
-      try { setInvoices(JSON.parse(stored)); } catch {}
-    }
   }, []);
 
   const saveNfes = (nfes: NFe[]) => {
     setInvoices(nfes);
-    localStorage.setItem('luminaflow-nfes', JSON.stringify(nfes));
   };
 
   const filtered = useMemo(() => {

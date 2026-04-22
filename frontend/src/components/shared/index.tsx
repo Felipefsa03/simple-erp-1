@@ -265,8 +265,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     };
 
     private handleClearAndReload = () => {
-        localStorage.removeItem('luminaflow-auth');
-        localStorage.removeItem('luminaflow-clinic-store');
+        // Estado persistente fica no Supabase; basta recarregar a aplicacao.
         window.location.reload();
     };
 
