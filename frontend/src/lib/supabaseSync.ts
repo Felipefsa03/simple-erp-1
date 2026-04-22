@@ -460,10 +460,6 @@ export const SupabaseSync = {
       id: professional.id,
       clinic_id: getClinicId(professional.clinic_id),
       user_id: professional.user_id || null,
-      name: professional.name || null,
-      email: professional.email || null,
-      phone: professional.phone || null,
-      role: professional.role || null,
       cro: professional.cro || null,
       specialty: professional.specialty || null,
       commission: professional.commission_pct || 0,
@@ -475,10 +471,6 @@ export const SupabaseSync = {
   async updateProfessional(id: string, professional: any) {
     const body = {
       user_id: professional.user_id || null,
-      name: professional.name || null,
-      email: professional.email || null,
-      phone: professional.phone || null,
-      role: professional.role || null,
       cro: professional.cro || null,
       specialty: professional.specialty || null,
       commission: professional.commission_pct || 0,
