@@ -583,31 +583,13 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       role: newUserForm.role,
       commission_pct: Number(newUserForm.commission_pct || 0),
       clinic_id: clinicId,
+      password: pwd,
     });
     if (!created) {
       toast("Este email já está em uso.", "error");
       return;
     }
-    const createdAuth = createClinicUser(
-      {
-        name: newUserForm.name.trim(),
-        email: newUserForm.email.trim(),
-        phone: newUserForm.phone.trim() || undefined,
-        role: newUserForm.role,
-        commission_pct: Number(newUserForm.commission_pct || 0),
-        clinic_id: clinicId,
-      },
-      pwd,
-      clinic || null,
-    );
-    if (!createdAuth) {
-      toast(
-        "Usuário criado na equipe, mas não foi possível criar login.",
-        "warning",
-      );
-    } else {
-      toast(`Usuário criado! Senha: ${pwd}`);
-    }
+    toast(`Usuário criado!${newUserForm.password ? '' : ' Senha: ' + pwd}`, "success");
     setShowUserModal(false);
     setNewUserForm({
       name: "",

@@ -1326,6 +1326,25 @@ export const useClinicStore = create<ClinicStore>()(
                 const professional: User = { ...p, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ professionals: [professional, ...s.professionals] }));
                 saveToSupabase('professional', professional, true).catch(e => console.error('[ClinicStore] Erro ao salvar profissional:', e));
+                
+                // Criar usuário no Supabase Auth (opcional, com senha definida)
+                if (email && p.password) {
+                    const { supabase: supabaseClient } = require('@/lib/supabase');
+                    if (supabaseClient) {
+                        supabaseClient.auth.signUp({
+                            email,
+                            password: p.password,
+                            options: {
+                                data: {
+                                    name: p.name,
+                                    role: p.role,
+                                    clinic_id: clinic_id === 'clinic-1' ? '00000000-0000-0000-0000-000000000001' : clinic_id,
+                                }
+                            }
+                        }).catch(e => console.error('[ClinicStore] Erro signup:', e));
+                    }
+                }
+                
                 return professional;
             },
             updateProfessional: (id, data) => {
