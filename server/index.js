@@ -194,7 +194,8 @@ setInterval(clearExpiredVerificationSessions, 5 * 60 * 1000).unref();
 
 const getSupabaseAdminHeaders = (token) => ({
   "Content-Type": "application/json",
-  apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+  // Supabase Auth Admin expects a project API key on `apikey` (anon/publishable).
+  apikey: SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY,
   Authorization: `Bearer ${token || SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
   Prefer: "return=representation",
 });
@@ -433,6 +434,37 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
     throw new Error(fallbackMessage);
   }
 
+  const updateExistingAuthUser = async (userId) => {
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+      method: "PUT",
+      headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY),
+      body: JSON.stringify({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name },
+      }),
+    });
+    const payload = await safeJson(response);
+    if (!response.ok) {
+      const message = String(
+        payload?.msg ||
+          payload?.message ||
+          payload?.error_description ||
+          payload?.error ||
+          "Erro ao atualizar usuário auth",
+      );
+      throw new Error(message);
+    }
+    return { userId, created: false };
+  };
+
+  // First, try to reuse existing auth user by email.
+  const existingId = await findAuthUserIdByEmail(email);
+  if (existingId) {
+    return updateExistingAuthUser(existingId);
+  }
+
   const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
     method: "POST",
     headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY),
@@ -456,9 +488,9 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
       "Erro ao criar usuário auth",
   );
   if (/already|registered|exists|duplicat/i.test(message)) {
-    const existingId = await findAuthUserIdByEmail(email);
-    if (existingId) {
-      return { userId: existingId, created: false };
+    const duplicateId = await findAuthUserIdByEmail(email);
+    if (duplicateId) {
+      return updateExistingAuthUser(duplicateId);
     }
   }
 
