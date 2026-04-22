@@ -569,6 +569,67 @@ const upsertClinicAdminUser = async ({
   return { created: true, userId };
 };
 
+const upsertClinicTeamUser = async ({
+  userId,
+  clinicId,
+  name,
+  email,
+  phone,
+  role,
+  commissionPct,
+}) => {
+  const normalizedRole = String(role || "receptionist").trim() || "receptionist";
+  const normalizedCommission = Number.isFinite(Number(commissionPct))
+    ? Number(commissionPct)
+    : 0;
+  const existingByEmail = await fetchUserByEmail(email);
+
+  if (existingByEmail?.clinic_id && existingByEmail.clinic_id !== clinicId) {
+    throw new Error("Este email já está vinculado a outra clínica.");
+  }
+
+  const payload = {
+    id: userId,
+    clinic_id: clinicId,
+    name,
+    email,
+    phone,
+    role: normalizedRole,
+    commission: normalizedCommission,
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existingByEmail?.id) {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${existingByEmail.id}`,
+      {
+        method: "PATCH",
+        headers: getSupabaseAdminHeaders(),
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!response.ok) {
+      const err = await safeJson(response);
+      throw new Error(err?.message || "Erro ao atualizar usuário da equipe");
+    }
+    return { created: false, userId: existingByEmail.id };
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    method: "POST",
+    headers: getSupabaseWriteHeaders(),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const err = await safeJson(response);
+    throw new Error(err?.message || "Erro ao criar usuário da equipe");
+  }
+
+  return { created: true, userId };
+};
+
 const assertPhoneVerificationValid = ({ signupId, phone }) => {
   const session = getVerificationSession(signupId);
   if (!session) {
@@ -992,6 +1053,80 @@ app.get("/api/stats", (req, res) => {
     },
     uptime_seconds: Math.floor((Date.now() - runtimeMetrics.startedAt) / 1000),
   });
+});
+
+app.post("/api/clinic/users", requireAuth, async (req, res) => {
+  try {
+    const actor = req.user || {};
+    const actorRole = String(actor.role || "").toLowerCase();
+    const canManageUsers =
+      actorRole === "admin" || actorRole === "super_admin" || actorRole === "owner";
+
+    if (!canManageUsers) {
+      return res
+        .status(403)
+        .json({ ok: false, error: "Sem permissão para criar usuários" });
+    }
+
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
+    const name = String(req.body?.name || "").trim();
+    const phone = String(req.body?.phone || "").trim();
+    const role = String(req.body?.role || "receptionist").trim();
+    const commissionPct = Number(req.body?.commission_pct || 0);
+    const requestedClinicId = String(req.body?.clinic_id || "").trim();
+
+    if (!email || !password || !name) {
+      return res.status(400).json({
+        ok: false,
+        error: "email, password e name são obrigatórios",
+      });
+    }
+
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Senha deve ter ao menos 6 caracteres." });
+    }
+
+    const clinicId =
+      actorRole === "super_admin" && isUuid(requestedClinicId)
+        ? requestedClinicId
+        : isUuid(actor.clinic_id)
+          ? actor.clinic_id
+          : isUuid(requestedClinicId)
+            ? requestedClinicId
+            : GLOBAL_CLINIC_ID;
+
+    const authResult = await createSupabaseAuthUser({
+      email,
+      password,
+      name,
+    });
+
+    const userResult = await upsertClinicTeamUser({
+      userId: authResult.userId,
+      clinicId,
+      name,
+      email,
+      phone,
+      role,
+      commissionPct,
+    });
+
+    return res.json({
+      ok: true,
+      user_id: userResult.userId,
+      auth_created: authResult.created,
+      profile_created: userResult.created,
+      clinic_id: clinicId,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Erro ao criar usuário",
+    });
+  }
 });
 
 const campaignsByClinic = new Map();
