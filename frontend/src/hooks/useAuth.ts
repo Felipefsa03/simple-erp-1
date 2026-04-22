@@ -52,9 +52,7 @@ const isValidUuid = (id: string): boolean =>
 
 const getNormalizedClinicId = (clinicId: string | undefined): string => {
   if (!clinicId) {
-    console.error(
-      "[Auth] clinic_id inválido ou ausente - usando fallback para global",
-    );
+    // Usuário deslogado/inicialização: usar fallback sem poluir o console.
     return GLOBAL_CLINIC_ID;
   }
   if (isValidUuid(clinicId)) {

@@ -396,11 +396,11 @@ export async function createAuthUser(userData: {
       return { error: 'Sessao invalida. Faca login novamente para criar usuarios.' };
     }
 
-    // Prioridade: backend no Render (evita falhas de JWT/algoritmo em Edge Function externa)
+    // Prioriza backend do Render para provisionar Auth + perfil de usuário.
     const API_BASE = import.meta.env.DEV
       ? ''
       : import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com';
-    const backendResponse = await fetch(`${API_BASE}/api/clinic/users`, {
+    const response = await fetch(`${API_BASE}/api/clinic/users`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -409,34 +409,14 @@ export async function createAuthUser(userData: {
       body: JSON.stringify(userData),
     });
 
-    const backendResult = await backendResponse.json().catch(() => ({}));
-    if (backendResponse.ok && backendResult?.user_id) {
-      return { success: true, user_id: backendResult.user_id };
-    }
+    const result = await response.json().catch(() => ({}));
 
-    // Fallback: Edge Function (compatibilidade com ambientes sem backend)
-    const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/create-auth-user`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(userData),
-    });
-    const edgeResult = await edgeResponse.json().catch(() => ({}));
-    if (!edgeResponse.ok) {
-      const message =
-        backendResult?.error ||
-        backendResult?.message ||
-        edgeResult?.error ||
-        edgeResult?.message ||
-        edgeResult?.code ||
-        'Erro ao criar usuario';
+    if (!response.ok) {
+      const message = result?.error || result?.message || result?.code || 'Erro ao criar usuario';
       return { error: message };
     }
 
-    return { success: true, user_id: edgeResult.user_id };
+    return { success: true, user_id: result.user_id };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro desconhecido';
     console.error('[createAuthUser] Exception:', message);

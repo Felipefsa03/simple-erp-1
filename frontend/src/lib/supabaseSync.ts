@@ -290,23 +290,30 @@ export const SupabaseSync = {
     
     // Batch-fetch all users at once to avoid N+1 queries
     const userIds = data.map((p: any) => p.user_id).filter(Boolean);
-    let usersMap: Record<string, string> = {};
+    let usersMap: Record<string, { name?: string; email?: string; phone?: string; role?: string }> = {};
     if (userIds.length > 0) {
       const { data: users } = await supabaseFetch('users', {
-        filters: `?id=in.(${userIds.join(',')})&select=id,name`,
+        filters: `?id=in.(${userIds.join(',')})&select=id,name,email,phone,role`,
       });
       if (users) {
-        users.forEach((u: any) => { usersMap[u.id] = u.name; });
+        users.forEach((u: any) => {
+          usersMap[u.id] = {
+            name: u.name,
+            email: u.email,
+            phone: u.phone,
+            role: u.role,
+          };
+        });
       }
     }
     
     return data.map((p: any) => ({
       id: p.id,
       clinic_id: p.clinic_id,
-      name: p.user_id ? (usersMap[p.user_id] || 'Profissional') : 'Profissional',
-      email: '',
-      phone: '',
-      role: 'dentist',
+      name: usersMap[p.user_id]?.name || p.name || 'Profissional',
+      email: usersMap[p.user_id]?.email || p.email || 'email@clinica.com',
+      phone: usersMap[p.user_id]?.phone || p.phone || '(11) 99999-9999',
+      role: usersMap[p.user_id]?.role || p.role || 'dentist',
       cro: p.cro || '',
       specialty: p.specialty || '',
       commission_pct: Number(p.commission) || 0,
@@ -452,6 +459,11 @@ export const SupabaseSync = {
     const body = {
       id: professional.id,
       clinic_id: getClinicId(professional.clinic_id),
+      user_id: professional.user_id || null,
+      name: professional.name || null,
+      email: professional.email || null,
+      phone: professional.phone || null,
+      role: professional.role || null,
       cro: professional.cro || null,
       specialty: professional.specialty || null,
       commission: professional.commission_pct || 0,
@@ -462,10 +474,15 @@ export const SupabaseSync = {
 
   async updateProfessional(id: string, professional: any) {
     const body = {
+      user_id: professional.user_id || null,
+      name: professional.name || null,
+      email: professional.email || null,
+      phone: professional.phone || null,
+      role: professional.role || null,
       cro: professional.cro || null,
       specialty: professional.specialty || null,
       commission: professional.commission_pct || 0,
-      active: professional.active,
+      active: professional.active !== false,
     };
     return supabaseFetch(`professionals?id=eq.${id}`, { method: 'PATCH', body });
   },

@@ -1309,11 +1309,11 @@ export const useClinicStore = create<ClinicStore>()(
                 if (email && get().professionals.some(prof => prof.email.toLowerCase() === email)) {
                     return null;
                 }
-                const professional: User = { ...p, clinic_id, id: uid(), created_at: now() };
+                const professional: User & { user_id?: string } = { ...p, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ professionals: [professional, ...s.professionals] }));
                 saveToSupabase('professional', professional, true).catch(e => console.error('[ClinicStore] Erro ao salvar profissional:', e));
                 
-                // Criar usuário no Supabase Auth via Edge Function (server-side)
+                // Criar usuário no Supabase Auth e vincular ao profissional no banco.
                 if (email && p.password) {
                     const password = p.password;
                     import('@/lib/supabase').then(({ createAuthUser }) => {
@@ -1330,6 +1330,23 @@ export const useClinicStore = create<ClinicStore>()(
                                 console.error('[ClinicStore] Erro ao criar usuário no Auth:', result.error);
                             } else {
                                 console.log('[ClinicStore] Usuário Auth criado:', result.user_id);
+                                if (result.user_id) {
+                                    set(s => ({
+                                        professionals: s.professionals.map(prof =>
+                                            prof.id === professional.id
+                                                ? { ...prof, user_id: result.user_id, email, phone: p.phone, role: p.role, name: p.name }
+                                                : prof
+                                        ),
+                                    }));
+                                    SupabaseSync.updateProfessional(professional.id, {
+                                        ...professional,
+                                        user_id: result.user_id,
+                                        email,
+                                        phone: p.phone,
+                                        role: p.role,
+                                        name: p.name,
+                                    }).catch(e => console.error('[ClinicStore] Erro ao vincular profissional ao usuário Auth:', e));
+                                }
                             }
                         });
                     }).catch(e => console.error('[ClinicStore] Erro ao importar createAuthUser:', e));
