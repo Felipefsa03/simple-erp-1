@@ -433,9 +433,15 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
     );
   }
 
+  if (SUPABASE_SERVICE_ROLE_KEY && !SUPABASE_SERVICE_ROLE_KEY.includes(".")) {
+    throw new Error(
+      "Para criar usuários, a API Auth do Supabase exige a chave 'service_role' no formato JWT antigo. Vá em 'Project Settings -> API -> Legacy anon, service_role API keys' no Supabase, copie a chave 'service_role' (começa com eyJhb...) e atualize a variável SUPABASE_SERVICE_ROLE_KEY no Render."
+    );
+  }
+
   if (SUPABASE_SERVICE_ROLE_KEY_RAW && !isValidSupabaseKey(SUPABASE_SERVICE_ROLE_KEY_RAW)) {
     throw new Error(
-      "A chave SUPABASE_SERVICE_ROLE_KEY no backend (Render) é inválida. Por favor, copie a nova chave (sb_secret_...) do painel do Supabase (Project Settings -> API).",
+      "A chave SUPABASE_SERVICE_ROLE_KEY no backend (Render) é inválida. Verifique se copiou corretamente."
     );
   }
 
@@ -549,7 +555,7 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
   }
 
   if (message.includes("invalid JWT") || message.includes("unable to parse or verify signature")) {
-    message = "A chave SUPABASE_SERVICE_ROLE_KEY no backend (Render) está corrompida. O formato parece um JWT, mas a assinatura é inválida. Copie a chave inteira novamente do painel do Supabase.";
+    message = "A chave SUPABASE_SERVICE_ROLE_KEY no Render está com assinatura inválida. Vá em 'Project Settings -> API -> Legacy anon, service_role API keys' no Supabase e copie a chave ATUAL (começa com eyJhb...). Não use chaves antigas se o JWT secret foi alterado.";
   }
 
   throw new Error(message);
