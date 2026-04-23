@@ -392,7 +392,16 @@ export async function createAuthUser(userData: {
 
   try {
     const accessToken = currentSession?.access_token || '';
-    if (!accessToken) {
+    
+    // Validate JWT format before sending
+    const isValidJwt = (token: string) => {
+      if (!token || typeof token !== 'string') return false;
+      const parts = token.split('.');
+      return parts.length === 3 && parts.every(p => p.length > 0);
+    };
+    
+    if (!accessToken || !isValidJwt(accessToken)) {
+      console.error('[createAuthUser] Invalid token:', accessToken ? accessToken.substring(0, 50) + '...' : 'empty');
       return { error: 'Sessao invalida. Faca login novamente para criar usuarios.' };
     }
 
