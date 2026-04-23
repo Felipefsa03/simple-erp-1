@@ -400,16 +400,7 @@ export async function createAuthUser(userData: {
 
   try {
     const accessToken = currentSession?.access_token || '';
-    
-    // Validate JWT format before sending
-    const isValidJwt = (token: string) => {
-      if (!token || typeof token !== 'string') return false;
-      const parts = token.split('.');
-      return parts.length === 3 && parts.every(p => p.length > 0);
-    };
-    
-    if (!accessToken || !isValidJwt(accessToken)) {
-      console.error('[createAuthUser] Invalid token:', accessToken ? accessToken.substring(0, 50) + '...' : 'empty');
+    if (!accessToken) {
       return { error: 'Sessao invalida. Faca login novamente para criar usuarios.' };
     }
 
@@ -417,6 +408,9 @@ export async function createAuthUser(userData: {
     const API_BASE = import.meta.env.DEV
       ? ''
       : import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com';
+    
+    console.log('[createAuthUser] Calling backend:', API_BASE, 'with email:', userData.email);
+    
     const response = await fetch(`${API_BASE}/api/clinic/users`, {
       method: 'POST',
       headers: {
@@ -427,6 +421,8 @@ export async function createAuthUser(userData: {
     });
 
     const result = await response.json().catch(() => ({}));
+    
+    console.log('[createAuthUser] Backend response:', response.status, result);
 
     if (!response.ok) {
       const message = result?.error || result?.message || result?.code || 'Erro ao criar usuario';
