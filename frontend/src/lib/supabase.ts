@@ -400,7 +400,30 @@ export async function createAuthUser(userData: {
 
   try {
     const accessToken = currentSession?.access_token || '';
-    if (!accessToken) {
+    
+    // More rigorous JWT validation
+    const isValidJwt = (token: string): boolean => {
+      if (!token || typeof token !== 'string') {
+        console.error('[createAuthUser] Token is not a string:', typeof token);
+        return false;
+      }
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        console.error('[createAuthUser] Token has', parts.length, 'parts (expected 3):', token.substring(0, 80));
+        return false;
+      }
+      // Check each part is valid base64url
+      const validBase64Url = /^[A-Za-z0-9_-]+$/;
+      for (let i = 0; i < 3; i++) {
+        if (!validBase64Url.test(parts[i])) {
+          console.error('[createAuthUser] Part', i, 'invalid:', parts[i].substring(0, 20));
+          return false;
+        }
+      }
+      return true;
+    };
+    
+    if (!accessToken || !isValidJwt(accessToken)) {
       return { error: 'Sessao invalida. Faca login novamente para criar usuarios.' };
     }
 
