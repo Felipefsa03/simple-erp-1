@@ -219,8 +219,7 @@ setInterval(clearExpiredVerificationSessions, 5 * 60 * 1000).unref();
 
 const getSupabaseAdminHeaders = (token) => ({
   "Content-Type": "application/json",
-  // Supabase Auth Admin expects a project API key on `apikey` (anon/publishable).
-  apikey: SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY,
+  apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
   Authorization: `Bearer ${token || SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
   Prefer: "return=representation",
 });
