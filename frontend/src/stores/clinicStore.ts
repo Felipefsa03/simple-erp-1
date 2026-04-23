@@ -684,7 +684,7 @@ export const useClinicStore = create<ClinicStore>()(
             },
 
             // ---- Appointments ----
-            addAppointment: (a) => {
+            addAppointment: async (a) => {
                 const state = get();
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const newStart = new Date(a.scheduled_at).getTime();
@@ -700,6 +700,12 @@ export const useClinicStore = create<ClinicStore>()(
 
                 const appointment: Appointment = { ...a, clinic_id, source: a.source || 'internal', id: uid(), created_at: now() };
                 set(s => ({ appointments: [...s.appointments, appointment] }));
+                
+                // Sync to Supabase
+                if (isSupabaseConfigured()) {
+                    await SupabaseSync.saveAppointment(appointment);
+                }
+                
                 emitEvent('APPOINTMENT_CREATED', {
                     appointment_id: appointment.id,
                     clinic_id: appointment.clinic_id,

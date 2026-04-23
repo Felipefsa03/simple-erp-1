@@ -475,6 +475,7 @@ export const SupabaseSync = {
   },
 
   async saveAppointment(appointment: any) {
+    console.log('[SupabaseSync] saveAppointment called with:', appointment);
     const body = {
       id: appointment.id,
       clinic_id: getClinicId(appointment.clinic_id),
@@ -486,7 +487,10 @@ export const SupabaseSync = {
       status: appointment.status || 'scheduled',
       notes: appointment.notes || null,
     };
-    return supabaseFetch('appointments', { method: 'POST', body });
+    console.log('[SupabaseSync] saveAppointment body:', body);
+    const result = await supabaseFetch('appointments', { method: 'POST', body });
+    console.log('[SupabaseSync] saveAppointment result:', result);
+    return result;
   },
 
   async updateAppointment(id: string, appointment: any) {

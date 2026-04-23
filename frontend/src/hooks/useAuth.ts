@@ -243,11 +243,12 @@ export const useAuth = create<AuthState>()(
                     .eq('id', userData.clinic_id)
                     .single();
                   clinic = clinicData;
-                  
-                  // DEBUG: Log do plano carregado
-                  console.log('[Auth] Clinic loaded:', clinic?.name, 'plan:', clinic?.plan, 'status:', clinic?.status);
                 }
-
+                
+                // Load permissions from clinic or use default
+                const clinicPerms = clinic?.permissions || null;
+                console.log('[Auth] Clinic loaded:', clinic?.name, 'plan:', clinic?.plan, 'status:', clinic?.status, 'permissions:', clinicPerms ? 'from DB' : 'default');
+                
                 const user: User = {
                   id: userData.id,
                   name: userData.name,
@@ -261,7 +262,7 @@ export const useAuth = create<AuthState>()(
                   created_at: userData.created_at,
                 };
 
-                set({ user, clinic, loading: false });
+                set({ user, clinic, loading: false, permissions: clinicPerms || clonePermissions() });
                 
                 // Sincronizar dados após login bem-sucedido
                 if (user?.clinic_id) {
@@ -338,12 +339,24 @@ export const useAuth = create<AuthState>()(
         return allowed.includes(state.user.role);
       },
 
-      setPermission: (action: string, role: UserRole, allowed: boolean) => {
+      setPermission: async (action: string, role: UserRole, allowed: boolean) => {
         set(state => {
           const perms = { ...state.permissions };
           const roles = new Set(perms[action] || []);
           if (allowed) roles.add(role); else roles.delete(role);
           perms[action] = [...roles] as UserRole[];
+          
+          // Sync to Supabase if configured
+          if (isSupabaseConfigured() && state.clinic?.id) {
+            supabase!.from('clinics')
+              .update({ permissions: perms, updated_at: new Date().toISOString() })
+              .eq('id', state.clinic.id)
+              .then(({ error }) => {
+                if (error) console.error('[Auth] Failed to sync permissions:', error);
+                else console.log('[Auth] Permissions synced to clinic:', state.clinic?.id);
+              });
+          }
+          
           return { permissions: perms };
         });
       },
@@ -390,6 +403,9 @@ export const useAuth = create<AuthState>()(
                   clinic = clinicData;
                 }
 
+                // Load permissions from clinic or use default
+                const clinicPerms = clinic?.permissions || null;
+
                 set({
                   user: {
                     id: userData.id,
@@ -403,6 +419,7 @@ export const useAuth = create<AuthState>()(
                   },
                   clinic,
                   loading: false,
+                  permissions: clinicPerms || clonePermissions(),
                 });
                 
                 // Sync ClinicStore after session restore
