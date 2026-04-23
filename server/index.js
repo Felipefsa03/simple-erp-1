@@ -159,7 +159,12 @@ const phoneVerificationSessions = new Map();
 
 const safeJson = async (response) => {
   try {
-    return await response.json();
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      return { error: "Not JSON", raw_text: text };
+    }
   } catch (_e) {
     return null;
   }
@@ -225,7 +230,9 @@ const getSupabaseAdminHeaders = (token) => ({
 });
 
 const getSupabaseWriteHeaders = (token) => ({
-  ...getSupabaseAdminHeaders(token),
+  "Content-Type": "application/json",
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
   Prefer: "resolution=merge-duplicates,return=representation",
 });
 
@@ -465,9 +472,10 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
     const signupPayload = await safeJson(signupResponse);
     console.log('[createSupabaseAuthUser] Signup response:', signupResponse.status, signupPayload);
 
-    if (signupResponse.ok && signupPayload?.user?.id) {
-      console.log('[createSupabaseAuthUser] Public signup success:', signupPayload.user.id);
-      return { userId: signupPayload.user.id, created: true };
+    if (signupResponse.ok && (signupPayload?.user?.id || signupPayload?.id)) {
+      const newUserId = signupPayload?.user?.id || signupPayload?.id;
+      console.log('[createSupabaseAuthUser] Public signup success:', newUserId);
+      return { userId: newUserId, created: true };
     }
 
     const fallbackMessage = String(
@@ -534,9 +542,10 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
   const payload = await safeJson(response);
   console.log('[createSupabaseAuthUser] Admin API response:', response.status, payload);
 
-  if (response.ok && payload?.user?.id) {
-    console.log('[createSupabaseAuthUser] Admin user creation success:', payload.user.id);
-    return { userId: payload.user.id, created: true };
+  if (response.ok && (payload?.user?.id || payload?.id)) {
+    const newUserId = payload?.user?.id || payload?.id;
+    console.log('[createSupabaseAuthUser] Admin user creation success:', newUserId);
+    return { userId: newUserId, created: true };
   }
 
   let message = String(
@@ -545,6 +554,9 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
       payload?.error ||
       "Erro ao criar usuário auth",
   );
+  if (payload?.raw_text) {
+    message += ` | RAW: ${payload.raw_text.substring(0, 100)}`;
+  }
   console.log('[createSupabaseAuthUser] Error message:', message);
   if (/already|registered|exists|duplicat/i.test(message)) {
     const duplicateId = await findAuthUserIdByEmail(email);
@@ -701,13 +713,14 @@ const upsertClinicTeamUser = async ({
       `${SUPABASE_URL}/rest/v1/users?id=eq.${existingByEmail.id}`,
       {
         method: "PATCH",
-        headers: getSupabaseAdminHeaders(),
+        headers: getSupabaseWriteHeaders(),
         body: JSON.stringify(payload),
       },
     );
     if (!response.ok) {
       const err = await safeJson(response);
-      throw new Error(err?.message || "Erro ao atualizar usuário da equipe");
+      console.error("[upsertClinicTeamUser] Failed to patch user. Response status:", response.status, "Payload:", err);
+      throw new Error(err?.message || err?.error || err?.raw_text || "Erro ao atualizar usuário da equipe");
     }
     return { created: false, userId: existingByEmail.id };
   }
@@ -719,7 +732,8 @@ const upsertClinicTeamUser = async ({
   });
   if (!response.ok) {
     const err = await safeJson(response);
-    throw new Error(err?.message || "Erro ao criar usuário da equipe");
+    console.error("[upsertClinicTeamUser] Failed to insert user. Response status:", response.status, "Payload:", err);
+    throw new Error(err?.message || err?.error || err?.raw_text || "Erro ao criar usuário da equipe");
   }
 
   return { created: true, userId };
