@@ -396,7 +396,13 @@ const findAuthUserIdByEmail = async (email) => {
 };
 
 const createSupabaseAuthUser = async ({ email, password, name }) => {
+  console.log('[createSupabaseAuthUser] Starting with email:', email);
+  console.log('[createSupabaseAuthUser] SUPABASE_URL:', SUPABASE_URL ? 'SET' : 'MISSING');
+  console.log('[createSupabaseAuthUser] SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? 'SET' : 'MISSING');
+  console.log('[createSupabaseAuthUser] SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING');
+
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('[createSupabaseAuthUser] Missing SUPABASE_URL or SUPABASE_ANON_KEY');
     throw new Error(
       "SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY ausentes para provisionamento.",
     );
@@ -404,6 +410,7 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
 
   // Preferred path: admin API with service role.
   if (!SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('[createSupabaseAuthUser] No service role key, trying public signup...');
     const signupResponse = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
       method: "POST",
       headers: getSupabaseAdminHeaders(SUPABASE_ANON_KEY),
@@ -414,7 +421,10 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
       }),
     });
     const signupPayload = await safeJson(signupResponse);
+    console.log('[createSupabaseAuthUser] Signup response:', signupResponse.status, signupPayload);
+
     if (signupResponse.ok && signupPayload?.user?.id) {
+      console.log('[createSupabaseAuthUser] Public signup success:', signupPayload.user.id);
       return { userId: signupPayload.user.id, created: true };
     }
 
@@ -426,6 +436,7 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
         "Erro ao criar usuario auth",
     );
     if (/already|registered|exists|duplicat/i.test(fallbackMessage)) {
+      console.log('[createSupabaseAuthUser] User already exists, finding by email...');
       const existingUser = await fetchUserByEmail(email);
       if (existingUser?.id) {
         return { userId: existingUser.id, created: false };
@@ -462,9 +473,11 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
   // First, try to reuse existing auth user by email.
   const existingId = await findAuthUserIdByEmail(email);
   if (existingId) {
+    console.log('[createSupabaseAuthUser] Found existing user by email:', existingId);
     return updateExistingAuthUser(existingId);
   }
 
+  console.log('[createSupabaseAuthUser] Creating new user via admin API...');
   const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
     method: "POST",
     headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY),
@@ -477,7 +490,10 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
   });
 
   const payload = await safeJson(response);
+  console.log('[createSupabaseAuthUser] Admin API response:', response.status, payload);
+
   if (response.ok && payload?.user?.id) {
+    console.log('[createSupabaseAuthUser] Admin user creation success:', payload.user.id);
     return { userId: payload.user.id, created: true };
   }
 
@@ -487,6 +503,7 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
       payload?.error ||
       "Erro ao criar usuário auth",
   );
+  console.log('[createSupabaseAuthUser] Error message:', message);
   if (/already|registered|exists|duplicat/i.test(message)) {
     const duplicateId = await findAuthUserIdByEmail(email);
     if (duplicateId) {
@@ -1088,13 +1105,18 @@ app.get("/api/stats", (req, res) => {
 });
 
 app.post("/api/clinic/users", requireAuth, async (req, res) => {
+  console.log('[POST /api/clinic/users] Request received');
+  console.log('[POST /api/clinic/users] req.user:', JSON.stringify(req.user));
   try {
     const actor = req.user || {};
     const actorRole = String(actor.role || "").toLowerCase();
     const canManageUsers =
       actorRole === "admin" || actorRole === "super_admin" || actorRole === "owner";
 
+    console.log('[POST /api/clinic/users] actorRole:', actorRole, 'canManageUsers:', canManageUsers);
+
     if (!canManageUsers) {
+      console.log('[POST /api/clinic/users] Forbidden - insufficient permissions');
       return res
         .status(403)
         .json({ ok: false, error: "Sem permissão para criar usuários" });
@@ -1108,7 +1130,10 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
     const commissionPct = Number(req.body?.commission_pct || 0);
     const requestedClinicId = String(req.body?.clinic_id || "").trim();
 
+    console.log('[POST /api/clinic/users] email:', email, 'name:', name);
+
     if (!email || !password || !name) {
+      console.log('[POST /api/clinic/users] Validation failed - missing required fields');
       return res.status(400).json({
         ok: false,
         error: "email, password e name são obrigatórios",
@@ -1116,6 +1141,7 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
     }
 
     if (password.length < 6) {
+      console.log('[POST /api/clinic/users] Validation failed - password too short');
       return res
         .status(400)
         .json({ ok: false, error: "Senha deve ter ao menos 6 caracteres." });
@@ -1130,12 +1156,17 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
             ? requestedClinicId
             : GLOBAL_CLINIC_ID;
 
+    console.log('[POST /api/clinic/users] clinicId:', clinicId);
+
+    console.log('[POST /api/clinic/users] Calling createSupabaseAuthUser...');
     const authResult = await createSupabaseAuthUser({
       email,
       password,
       name,
     });
+    console.log('[POST /api/clinic/users] authResult:', JSON.stringify(authResult));
 
+    console.log('[POST /api/clinic/users] Calling upsertClinicTeamUser...');
     const userResult = await upsertClinicTeamUser({
       userId: authResult.userId,
       clinicId,
@@ -1145,6 +1176,7 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
       role,
       commissionPct,
     });
+    console.log('[POST /api/clinic/users] userResult:', JSON.stringify(userResult));
 
     return res.json({
       ok: true,
@@ -1154,6 +1186,7 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
       clinic_id: clinicId,
     });
   } catch (error) {
+    console.log('[POST /api/clinic/users] Error:', error.message);
     return res.status(500).json({
       ok: false,
       error: error instanceof Error ? error.message : "Erro ao criar usuário",

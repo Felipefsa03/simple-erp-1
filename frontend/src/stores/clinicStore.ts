@@ -1311,9 +1311,16 @@ export const useClinicStore = create<ClinicStore>()(
                 }
                 const professional: User & { user_id?: string } = { ...p, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ professionals: [professional, ...s.professionals] }));
-                saveToSupabase('professional', professional, true).catch(e => console.error('[ClinicStore] Erro ao salvar profissional:', e));
-                
-                // Criar usuário no Supabase Auth e vincular ao profissional no banco.
+
+                const persistProfessional = async (userId?: string) => {
+                    const toSave = { ...professional, user_id: userId || null };
+                    const saveResult = await SupabaseSync.saveProfessional(toSave);
+                    if (saveResult?.error) {
+                        // Se já existir, tenta atualizar.
+                        await SupabaseSync.updateProfessional(professional.id, toSave);
+                    }
+                };
+
                 if (email && p.password) {
                     const password = p.password;
                     import('@/lib/supabase').then(({ createAuthUser }) => {
@@ -1325,31 +1332,29 @@ export const useClinicStore = create<ClinicStore>()(
                             role: p.role,
                             commission_pct: p.commission_pct,
                             clinic_id: clinic_id === 'clinic-1' ? '00000000-0000-0000-0000-000000000001' : clinic_id,
-                        }).then(result => {
+                        }).then(async (result) => {
                             if (result.error) {
                                 console.error('[ClinicStore] Erro ao criar usuário no Auth:', result.error);
-                            } else {
-                                console.log('[ClinicStore] Usuário Auth criado:', result.user_id);
-                                if (result.user_id) {
-                                    set(s => ({
-                                        professionals: s.professionals.map(prof =>
-                                            prof.id === professional.id
-                                                ? { ...prof, user_id: result.user_id, email, phone: p.phone, role: p.role, name: p.name }
-                                                : prof
-                                        ),
-                                    }));
-                                    SupabaseSync.updateProfessional(professional.id, {
-                                        ...professional,
-                                        user_id: result.user_id,
-                                        email,
-                                        phone: p.phone,
-                                        role: p.role,
-                                        name: p.name,
-                                    }).catch(e => console.error('[ClinicStore] Erro ao vincular profissional ao usuário Auth:', e));
-                                }
+                                await persistProfessional();
+                                return;
                             }
+                            if (result.user_id) {
+                                set(s => ({
+                                    professionals: s.professionals.map(prof =>
+                                        prof.id === professional.id
+                                            ? { ...prof, user_id: result.user_id, email, phone: p.phone, role: p.role, name: p.name }
+                                            : prof
+                                    ),
+                                }));
+                            }
+                            await persistProfessional(result.user_id);
                         });
-                    }).catch(e => console.error('[ClinicStore] Erro ao importar createAuthUser:', e));
+                    }).catch(async (e) => {
+                        console.error('[ClinicStore] Erro ao importar createAuthUser:', e);
+                        await persistProfessional();
+                    });
+                } else {
+                    persistProfessional().catch(e => console.error('[ClinicStore] Erro ao salvar profissional:', e));
                 }
                 
                 return professional;
