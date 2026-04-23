@@ -533,7 +533,7 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
     return { userId: payload.user.id, created: true };
   }
 
-  const message = String(
+  let message = String(
     payload?.msg ||
       payload?.message ||
       payload?.error ||
@@ -545,6 +545,10 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
     if (duplicateId) {
       return updateExistingAuthUser(duplicateId);
     }
+  }
+
+  if (message.includes("invalid JWT") || message.includes("unable to parse or verify signature")) {
+    message = "A chave SUPABASE_SERVICE_ROLE_KEY no backend (Render) está corrompida. O formato parece um JWT, mas a assinatura é inválida. Copie a chave inteira novamente do painel do Supabase.";
   }
 
   throw new Error(message);
