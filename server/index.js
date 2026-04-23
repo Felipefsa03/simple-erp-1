@@ -43,7 +43,13 @@ const bumpMetric = (metricMap, key) => {
 const mapToObject = (metricMap) => Object.fromEntries(metricMap.entries());
 
 // Supabase configuration (supports legacy and new key names)
-const cleanEnv = (value) => String(value || "").trim();
+const cleanEnv = (value) => {
+  let cleaned = String(value || "").trim();
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1);
+  }
+  return cleaned;
+};
 const pickEnv = (...values) => {
   for (const value of values) {
     const cleaned = cleanEnv(value);
@@ -53,7 +59,9 @@ const pickEnv = (...values) => {
 };
 const isJwtToken = (value) => {
   const token = cleanEnv(value);
-  return token.split(".").length === 3;
+  if (!token) return false;
+  const parts = token.split(".");
+  return parts.length === 3 && parts.every(p => /^[A-Za-z0-9\-_]+$/.test(p));
 };
 
 const SUPABASE_URL = pickEnv(
@@ -98,14 +106,18 @@ if (missingEnvs.length > 0) {
   );
 }
 
+if (SUPABASE_ANON_KEY && !isJwtToken(SUPABASE_ANON_KEY)) {
+  console.error("[FATAL] SUPABASE_ANON_KEY configurada não é um JWT válido (verifique se copiou a chave certa).");
+}
+
 if (!SUPABASE_SERVICE_ROLE_KEY && process.env.NODE_ENV !== "development") {
   console.warn(
-    "[WARN] SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY ausente. Operações de backend podem falhar por RLS.",
+    "[WARN] SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY ausente ou não é um JWT válido. Operações de backend podem falhar por RLS.",
   );
 }
 if (SUPABASE_SERVICE_ROLE_KEY_RAW && !SUPABASE_SERVICE_ROLE_KEY) {
   console.warn(
-    "[WARN] SUPABASE_SERVICE_ROLE_KEY inválida para Auth Admin (esperado JWT com 3 partes).",
+    "[WARN] SUPABASE_SERVICE_ROLE_KEY inválida para Auth Admin (esperado JWT com 3 partes contendo apenas caracteres válidos).",
   );
 }
 
@@ -417,6 +429,18 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
     console.error('[createSupabaseAuthUser] Missing SUPABASE_URL or SUPABASE_ANON_KEY');
     throw new Error(
       "SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY ausentes para provisionamento.",
+    );
+  }
+
+  if (SUPABASE_SERVICE_ROLE_KEY_RAW && !isJwtToken(SUPABASE_SERVICE_ROLE_KEY_RAW)) {
+    throw new Error(
+      "A chave SUPABASE_SERVICE_ROLE_KEY no backend (Render) é inválida. Por favor, copie a chave correta (service_role secret) do painel do Supabase (Project Settings -> API). Ela deve ser um JWT muito longo.",
+    );
+  }
+
+  if (SUPABASE_ANON_KEY && !isJwtToken(SUPABASE_ANON_KEY)) {
+    throw new Error(
+      "A chave SUPABASE_ANON_KEY no backend (Render) é inválida. Por favor, verifique as variáveis de ambiente.",
     );
   }
 
