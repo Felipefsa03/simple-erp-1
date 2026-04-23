@@ -849,11 +849,22 @@ app.use("/api", (req, res, next) => {
 // Auth Middleware (validates Supabase JWT)
 // ============================================
 const requireAuth = async (req, res, next) => {
-  const token = req.headers.authorization?.replace("Bearer ", "");
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.replace("Bearer ", "").trim();
+  
   if (!token) {
     return res
       .status(401)
       .json({ ok: false, error: "Token de autenticação ausente" });
+  }
+
+  // Validate JWT format before calling Supabase
+  const jwtParts = token.split(".");
+  if (jwtParts.length !== 3) {
+    console.error("[Auth] Invalid JWT format:", jwtParts.length, "parts");
+    return res
+      .status(401)
+      .json({ ok: false, error: "Token mal formado" });
   }
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -862,14 +873,19 @@ const requireAuth = async (req, res, next) => {
   }
 
   try {
+    console.log("[Auth] Calling Supabase /auth/v1/user with token:", token.substring(0, 50) + "...");
     const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
       headers: {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${token}`,
       },
     });
+    
+    console.log("[Auth] Supabase /auth/v1/user response status:", userRes.status);
 
     if (!userRes.ok) {
+      const errorData = await userRes.json().catch(() => ({}));
+      console.error("[Auth] Supabase error:", errorData);
       return res
         .status(401)
         .json({ ok: false, error: "Token inválido ou expirado" });
