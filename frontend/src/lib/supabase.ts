@@ -93,6 +93,14 @@ export const supabase = isConfigured ? {
         if (!response.ok) {
           return { data: null, error: { message: data.error_description || 'Login failed' } };
         }
+        
+        // Log token info for debugging
+        console.log('[Auth] Login response:', {
+          hasToken: !!data.access_token,
+          tokenLength: data.access_token?.length || 0,
+          tokenParts: data.access_token?.split('.')?.length || 0,
+          userId: data.user?.id
+        });
 
         currentSession = {
           access_token: data.access_token,
