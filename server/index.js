@@ -51,6 +51,10 @@ const pickEnv = (...values) => {
   }
   return "";
 };
+const isJwtToken = (value) => {
+  const token = cleanEnv(value);
+  return token.split(".").length === 3;
+};
 
 const SUPABASE_URL = pickEnv(
   process.env.SUPABASE_URL,
@@ -61,10 +65,13 @@ const SUPABASE_ANON_KEY = pickEnv(
   process.env.SUPABASE_ANON_KEY,
   process.env.SUPABASE_ANON_KEY_PROD,
 );
-const SUPABASE_SERVICE_ROLE_KEY = pickEnv(
-  process.env.SUPABASE_SECRET_KEY,
+const SUPABASE_SERVICE_ROLE_KEY_RAW = pickEnv(
   process.env.SUPABASE_SERVICE_ROLE_KEY,
+  process.env.SUPABASE_SECRET_KEY,
 );
+const SUPABASE_SERVICE_ROLE_KEY = isJwtToken(SUPABASE_SERVICE_ROLE_KEY_RAW)
+  ? SUPABASE_SERVICE_ROLE_KEY_RAW
+  : "";
 
 // ============================================
 // Startup: validate required environment variables
@@ -94,6 +101,11 @@ if (missingEnvs.length > 0) {
 if (!SUPABASE_SERVICE_ROLE_KEY && process.env.NODE_ENV !== "development") {
   console.warn(
     "[WARN] SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY ausente. Operações de backend podem falhar por RLS.",
+  );
+}
+if (SUPABASE_SERVICE_ROLE_KEY_RAW && !SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn(
+    "[WARN] SUPABASE_SERVICE_ROLE_KEY inválida para Auth Admin (esperado JWT com 3 partes).",
   );
 }
 
