@@ -229,12 +229,26 @@ const getSupabaseAdminHeaders = (token) => ({
   Prefer: "return=representation",
 });
 
-const getSupabaseWriteHeaders = (token) => ({
-  "Content-Type": "application/json",
-  apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || token || SUPABASE_ANON_KEY}`,
-  Prefer: "resolution=merge-duplicates,return=representation",
-});
+const getSupabaseWriteHeaders = (token) => {
+  const isServiceRole = Boolean(SUPABASE_SERVICE_ROLE_KEY);
+  console.log(`[getSupabaseWriteHeaders] Using Service Role Key: ${isServiceRole}`);
+  
+  if (SUPABASE_SERVICE_ROLE_KEY) {
+    return {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      Prefer: "resolution=merge-duplicates,return=representation",
+    };
+  }
+
+  return {
+    "Content-Type": "application/json",
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
+    Prefer: "resolution=merge-duplicates,return=representation",
+  };
+};
 
 const encodeFilterValue = (value) => encodeURIComponent(String(value).trim());
 
@@ -684,6 +698,7 @@ const upsertClinicTeamUser = async ({
   phone,
   role,
   commissionPct,
+  token,
 }) => {
   const normalizedRole = String(role || "receptionist").trim() || "receptionist";
   const normalizedCommission = Number.isFinite(Number(commissionPct))
@@ -713,7 +728,7 @@ const upsertClinicTeamUser = async ({
       `${SUPABASE_URL}/rest/v1/users?id=eq.${existingByEmail.id}`,
       {
         method: "PATCH",
-        headers: getSupabaseWriteHeaders(),
+        headers: getSupabaseWriteHeaders(token),
         body: JSON.stringify(payload),
       },
     );
@@ -727,7 +742,7 @@ const upsertClinicTeamUser = async ({
 
   const response = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
     method: "POST",
-    headers: getSupabaseWriteHeaders(),
+    headers: getSupabaseWriteHeaders(token),
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
@@ -976,6 +991,7 @@ const requireAuth = async (req, res, next) => {
       req.user = { id: userData.id, role: "receptionist" };
     }
 
+    req.token = token;
     req.clinicId = req.user.clinic_id;
     next();
   } catch (error) {
@@ -1257,6 +1273,7 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
       phone,
       role,
       commissionPct,
+      token: req.token,
     });
     console.log('[POST /api/clinic/users] userResult:', JSON.stringify(userResult));
 

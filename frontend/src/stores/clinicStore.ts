@@ -1343,7 +1343,8 @@ export const useClinicStore = create<ClinicStore>()(
                             if (result.error) {
                                 console.error('[ClinicStore] Erro ao criar usuário no Auth:', result.error);
                                 toast(`Erro ao criar usuário: ${result.error}`, 'error');
-                                await persistProfessional();
+                                // Removemos o profissional da lista local pois a criação falhou
+                                set(s => ({ professionals: s.professionals.filter(p => p.id !== professional.id) }));
                                 return;
                             }
                             if (result.user_id) {
@@ -1359,7 +1360,9 @@ export const useClinicStore = create<ClinicStore>()(
                         });
                     }).catch(async (e) => {
                         console.error('[ClinicStore] Erro ao importar createAuthUser:', e);
-                        await persistProfessional();
+                        toast(`Erro ao criar usuário: erro de conexão`, 'error');
+                        // Removemos o profissional da lista local pois a criação falhou
+                        set(s => ({ professionals: s.professionals.filter(p => p.id !== professional.id) }));
                     });
                 } else {
                     persistProfessional().catch(e => console.error('[ClinicStore] Erro ao salvar profissional:', e));
