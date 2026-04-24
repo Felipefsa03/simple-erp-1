@@ -455,6 +455,10 @@ export const SupabaseSync = {
     return supabaseFetch(`patients?id=eq.${id}`, { method: 'PATCH', body });
   },
 
+  async deletePatient(id: string) {
+    return supabaseFetch(`patients?id=eq.${id}`, { method: 'DELETE' });
+  },
+
   async saveProfessional(professional: any) {
     const body = {
       id: professional.id,

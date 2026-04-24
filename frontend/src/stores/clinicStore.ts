@@ -164,11 +164,13 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 };
 
 // Wrapper para salvar no Supabase e atualizar estado local
-const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction', data: any, isNew: boolean = true) => {
+const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction', data: any, isNew: boolean = true, isDelete: boolean = false) => {
     try {
         let result: { error?: unknown } | undefined;
         if (type === 'patient') {
-            if (isNew) {
+            if (isDelete) {
+                result = await SupabaseSync.deletePatient(data.id);
+            } else if (isNew) {
                 result = await SupabaseSync.savePatient(data);
             } else {
                 result = await SupabaseSync.updatePatient(data.id, data);
@@ -359,6 +361,7 @@ interface ClinicStore {
     // Patient Actions
     addPatient: (p: Omit<Patient, 'id' | 'created_at'>) => Patient;
     updatePatient: (id: string, data: Partial<Patient>) => void;
+    deletePatient: (id: string) => void;
     importPatients: (patients: Omit<Patient, 'id' | 'created_at'>[]) => number;
     getPatient: (id: string) => Patient | undefined;
 
@@ -649,6 +652,12 @@ export const useClinicStore = create<ClinicStore>()(
                 if (patient) {
                     saveToSupabase('patient', { ...patient, ...updatedData }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar paciente:', e));
                 }
+            },
+            deletePatient: (id) => {
+                set(s => ({ patients: s.patients.filter(p => p.id !== id) }));
+                
+                // Fire-and-forget Supabase delete
+                saveToSupabase('patient', { id }, false, true).catch(e => console.error('[ClinicStore] Erro ao excluir paciente:', e));
             },
             importPatients: (patients) => {
                 const newPatients = patients.map(p => ({ ...p, id: uid(), created_at: now(), phone: formatPhoneForWhatsApp(p.phone) }));

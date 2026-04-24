@@ -89,7 +89,7 @@ interface PatientListProps {
 
 export function PatientList({ onNavigate }: PatientListProps) {
   const { user, hasPermission } = useAuth();
-  const { patients, addPatient, importPatients, updatePatient } = useClinicStore();
+  const { patients, addPatient, importPatients, updatePatient, deletePatient } = useClinicStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -386,6 +386,13 @@ export function PatientList({ onNavigate }: PatientListProps) {
 
   const handleEditPatient = handleEditSubmit((data) => handleEditPatientInner(data));
 
+  const { submit: handleDeletePatient, loading: deletePatientLoading } = useSubmitOnce(async () => {
+    if (!deleteConfirm || !canManage) return;
+    deletePatient(deleteConfirm.id);
+    setDeleteConfirm(null);
+    toast('Paciente excluído com sucesso!');
+  });
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -393,21 +400,23 @@ export function PatientList({ onNavigate }: PatientListProps) {
           <h1 className="text-2xl font-bold text-slate-900">Pacientes</h1>
           <p className="text-slate-500">Gerencie sua base de {filteredPatients.length} pacientes.</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          disabled={!canManage}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Paciente
-        </button>
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-200 transition-all"
-        >
-          <Download className="w-4 h-4" />
-          Exportar CSV
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-200 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            Exportar CSV
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            disabled={!canManage}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Paciente
+          </button>
+        </div>
       </header>
 
       {/* New Patient Modal */}
@@ -684,13 +693,22 @@ export function PatientList({ onNavigate }: PatientListProps) {
                           <FileText className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => onNavigate?.('agenda', { patientId: patient.id })}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                          title="Ver agenda"
+                        onClick={() => onNavigate?.('agenda', { patientId: patient.id })}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        title="Ver agenda"
+                      >
+                        <CalendarIcon className="w-4 h-4" />
+                      </button>
+                      {canManage && (
+                        <button
+                          onClick={() => setDeleteConfirm(patient)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          title="Excluir paciente"
                         >
-                          <CalendarIcon className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
-                      </div>
+                      )}
+                    </div>
                     </td>
                   </motion.tr>
                 ))}
@@ -720,6 +738,16 @@ export function PatientList({ onNavigate }: PatientListProps) {
           )}
         </div>
       )}
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deleteConfirm}
+        title="Excluir Paciente"
+        message={`Tem certeza que deseja excluir o paciente ${deleteConfirm?.name}? Esta ação não pode ser desfeita.`}
+        confirmLabel={deletePatientLoading ? "Excluindo..." : "Excluir"}
+        onConfirm={handleDeletePatient}
+        onClose={() => setDeleteConfirm(null)}
+        variant="danger"
+      />
     </div>
   );
 }
