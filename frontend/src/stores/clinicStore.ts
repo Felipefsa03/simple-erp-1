@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { uid, now } from '@/lib/utils';
 import { SupabaseSync } from '@/lib/supabaseSync';
 import { isSupabaseEnvConfigured } from '@/lib/supabaseConfig';
+import { toast } from '@/hooks/useShared';
 
 // Proxy handles routing: Vite dev proxy in dev, Vercel rewrites in production
 const CLINIC_API_BASE = import.meta.env.VITE_URL_BASE_API_VITE || '';
@@ -1335,6 +1336,7 @@ export const useClinicStore = create<ClinicStore>()(
                         }).then(async (result) => {
                             if (result.error) {
                                 console.error('[ClinicStore] Erro ao criar usuário no Auth:', result.error);
+                                toast(`Erro ao criar usuário: ${result.error}`, 'error');
                                 await persistProfessional();
                                 return;
                             }

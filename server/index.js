@@ -731,8 +731,14 @@ const upsertClinicTeamUser = async ({
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    const err = await safeJson(response);
-    console.error("[upsertClinicTeamUser] Failed to insert user. Response status:", response.status, "Payload:", err);
+    const errText = await response.text();
+    let err;
+    try {
+      err = JSON.parse(errText);
+    } catch(e) {
+      err = { raw_text: errText };
+    }
+    console.error("[upsertClinicTeamUser] Failed to insert user. Response status:", response.status, "Payload:", errText);
     throw new Error(err?.message || err?.error || err?.raw_text || "Erro ao criar usuário da equipe");
   }
 
