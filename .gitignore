@@ -27,6 +27,10 @@ server/data/
 .vscode/
 .idea/
 
+# Vercel
+.vercel/
+
+
 # Docker
 .docker/
 
