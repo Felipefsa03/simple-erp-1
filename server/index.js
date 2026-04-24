@@ -1893,6 +1893,45 @@ const createWhatsAppSocket = async (clinicId) => {
       return sock;
     } catch (err) {
       addLog(`[Baileys] Erro: ${err.message}`);
+      
+      // Se for erro de MAC (sessão corrompida), limpa a sessão para poder gerar novo QR
+      if (err.message && (err.message.includes('MAC') || err.message.includes('mac'))) {
+        addLog(`[Baileys] Sessão corrompida (Bad MAC). Limpando sessão do clinicId ${clinicId}...`);
+        hasFailed401 = true;
+        
+        if (whatsappSockets[clinicId]) {
+          try { whatsappSockets[clinicId].end(undefined); } catch (e) {}
+          delete whatsappSockets[clinicId];
+        }
+        
+        whatsappConnections[clinicId] = {
+          status: "disconnected",
+          qr: null,
+          qrBase64: null,
+        };
+        
+        try {
+          await fetch(
+            `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`,
+            {
+              method: "DELETE",
+              headers: {
+                apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
+              },
+            }
+          );
+        } catch (e) {}
+        
+        try {
+          const authDir = ensureClinicStatus(clinicId);
+          if (fs.existsSync(authDir)) {
+            fs.rmSync(authDir, { recursive: true, force: true });
+            fs.mkdirSync(authDir, { recursive: true });
+          }
+        } catch (e) {}
+      }
+
       setTimeout(connect, 10000);
     }
   };
