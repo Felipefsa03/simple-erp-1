@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { User, UserRole, Clinic, PlanType } from "@/types";
 import { PLAN_LIMITS } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -273,7 +274,9 @@ const DEMO_USERS: {
   },
 ];
 
-export const useAuth = create<AuthState>()((set, get) => ({
+export const useAuth = create<AuthState>()(
+  persist(
+    (set, get) => ({
       user: null,
       clinic: null,
       loading: true,
@@ -715,4 +718,10 @@ export const useAuth = create<AuthState>()((set, get) => ({
         const limit = PLAN_LIMITS[plan]?.[type] ?? 0;
         return current < limit;
       },
-    }));
+    }),
+    {
+      name: "auth-permissions",
+      partialize: (state) => ({ permissions: state.permissions }),
+    }
+  )
+);
