@@ -40,8 +40,18 @@ CREATE POLICY "transactions_delete" ON transactions FOR DELETE USING (is_super_a
 
 -- Usuários
 CREATE POLICY "users_select" ON users FOR SELECT USING (deleted_at IS NULL AND (id = auth.uid() OR is_super_admin() OR (clinic_id IS NOT NULL AND clinic_id = get_user_clinic_id())));
-CREATE POLICY "users_insert" ON users FOR INSERT WITH CHECK (is_super_admin() OR id = auth.uid() OR (clinic_id IS NOT NULL AND clinic_id = get_user_clinic_id() AND (SELECT role FROM users WHERE id = auth.uid()) IN ('admin', 'owner', 'super_admin')));
-CREATE POLICY "users_update" ON users FOR UPDATE USING (deleted_at IS NULL AND (id = auth.uid() OR is_super_admin() OR (clinic_id IS NOT NULL AND clinic_id = get_user_clinic_id() AND (SELECT role FROM users WHERE id = auth.uid()) IN ('admin', 'owner', 'super_admin'))));
+CREATE POLICY "users_insert" ON users FOR INSERT WITH CHECK (
+  is_super_admin() 
+  OR id = auth.uid() 
+  OR (clinic_id IS NOT NULL AND clinic_id = get_user_clinic_id())
+);
+CREATE POLICY "users_update" ON users FOR UPDATE USING (
+  deleted_at IS NULL AND (
+    id = auth.uid() 
+    OR is_super_admin() 
+    OR (clinic_id IS NOT NULL AND clinic_id = get_user_clinic_id())
+  )
+);
 
 -- Clínicas
 CREATE POLICY "clinics_select" ON clinics FOR SELECT USING (deleted_at IS NULL AND (is_super_admin() OR id = get_user_clinic_id()));
