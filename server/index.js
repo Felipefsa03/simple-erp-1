@@ -242,6 +242,8 @@ const getSupabaseWriteHeaders = (token) => {
     };
   }
 
+  // IMPORTANTE: Mesmo sem SERVICE_ROLE, enviar a ANON_KEY com token do user
+  // evita erro de missing API KEY
   return {
     "Content-Type": "application/json",
     apikey: SUPABASE_ANON_KEY,

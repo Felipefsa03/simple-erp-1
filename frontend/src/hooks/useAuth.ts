@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { User, UserRole, Clinic, PlanType } from "@/types";
 import { PLAN_LIMITS } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -273,7 +274,9 @@ const DEMO_USERS: {
   },
 ];
 
-export const useAuth = create<AuthState>()((set, get) => ({
+export const useAuth = create<AuthState>()(
+  persist(
+    (set, get) => ({
       user: null,
       clinic: null,
       loading: true,
@@ -322,6 +325,11 @@ export const useAuth = create<AuthState>()((set, get) => ({
                     "status:",
                     clinic?.status,
                   );
+
+                  if (clinic?.permissions && Object.keys(clinic.permissions).length > 0) {
+                    const defaultPerms = clonePermissions();
+                    set({ permissions: { ...defaultPerms, ...clinic.permissions } });
+                  }
                 }
 
                 const user: User = {
@@ -528,11 +536,36 @@ export const useAuth = create<AuthState>()((set, get) => ({
           if (allowed) roles.add(role);
           else roles.delete(role);
           perms[action] = [...roles] as UserRole[];
+
+          // Sync to Supabase
+          if (isSupabaseConfigured() && state.clinic?.id) {
+            supabase?.from('clinics')
+              .update({ permissions: perms })
+              .eq('id', state.clinic.id)
+              .then(({ error }) => {
+                if (error) console.error('[Auth] Failed to sync permissions:', error.message);
+                else console.log('[Auth] Permissions synced to Supabase successfully');
+              });
+          }
+
           return { permissions: perms };
         });
       },
 
-      resetPermissions: () => set({ permissions: clonePermissions() }),
+      resetPermissions: () => {
+        const defaultPerms = clonePermissions();
+        set({ permissions: defaultPerms });
+        const state = get();
+        if (isSupabaseConfigured() && state.clinic?.id) {
+          supabase?.from('clinics')
+            .update({ permissions: defaultPerms })
+            .eq('id', state.clinic.id)
+            .then(({ error }) => {
+              if (error) console.error('[Auth] Failed to reset permissions in DB:', error.message);
+              else console.log('[Auth] Permissions reset successfully in DB');
+            });
+        }
+      },
 
       createClinicUser: (data, password, clinic) => {
         const id = "user-" + Date.now();
@@ -585,6 +618,11 @@ export const useAuth = create<AuthState>()((set, get) => ({
                     .eq("id", userData.clinic_id)
                     .single();
                   clinic = clinicData;
+
+                  if (clinic?.permissions && Object.keys(clinic.permissions).length > 0) {
+                    const defaultPerms = clonePermissions();
+                    set({ permissions: { ...defaultPerms, ...clinic.permissions } });
+                  }
                 }
 
                 set({
@@ -683,8 +721,18 @@ export const useAuth = create<AuthState>()((set, get) => ({
         return hasIt;
       },
       checkLimit: (type, current) => {
-        const plan = (get().clinic?.plan as PlanType) || "basico";
-        const limit = PLAN_LIMITS[plan]?.[type] ?? 0;
-        return current < limit;
-      },
-    }));
+      const plan = (get().clinic?.plan as PlanType) || "basico";
+      const limit = PLAN_LIMITS[plan]?.[type] ?? 0;
+      return current < limit;
+    },
+  }),
+  {
+    name: "auth-storage",
+    partialize: (state) => ({
+      user: state.user,
+      clinic: state.clinic,
+      permissions: state.permissions,
+      customUsers: state.customUsers,
+    }),
+  }
+));

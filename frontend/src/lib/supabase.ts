@@ -34,8 +34,32 @@ const getHeaders = (_token?: string) => ({
   'Prefer': 'return=representation',
 });
 
-// Sessao em memoria (sem persistencia local)
-const saveSessionToStorage = (_session: { access_token: string; user: Record<string, unknown> } | null) => {};
+// Sessao em memoria e persistencia local
+const STORAGE_KEY = 'luminaflow_supabase_session';
+
+const saveSessionToStorage = (session: { access_token: string; user: Record<string, unknown> } | null) => {
+  if (typeof window !== 'undefined') {
+    if (session) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+};
+
+const loadSessionFromStorage = () => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+};
 
 // Funcao para obter o token da sessao atual
 export const getSupabaseSession = () => currentSession;
@@ -44,7 +68,7 @@ export const getSupabaseSession = () => currentSession;
 // Cliente Supabase Simplificado (sem pacote)
 // ============================================
 
-let currentSession: { access_token: string; user: Record<string, unknown> } | null = null;
+let currentSession: { access_token: string; user: Record<string, unknown> } | null = loadSessionFromStorage();
 
 
 export const supabase = isConfigured ? {
@@ -273,7 +297,12 @@ export const supabase = isConfigured ? {
             return resolve({ data: null, error: { message: errorText, status: response.status } });
           }
 
-          let data = await response.json();
+          if (response.status === 204) {
+            return resolve({ data: null, error: null });
+          }
+
+          const text = await response.text();
+          let data = text ? JSON.parse(text) : null;
 
           if (singleResult && Array.isArray(data)) {
             data = data[0] || null;
