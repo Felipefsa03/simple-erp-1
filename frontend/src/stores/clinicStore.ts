@@ -695,7 +695,15 @@ export const useClinicStore = create<ClinicStore>()(
                 });
                 if (conflict) return null;
 
-                const appointment: Appointment = { ...a, clinic_id, source: a.source || 'internal', id: uid(), created_at: now() };
+                const scheduled_at = new Date(a.scheduled_at).toISOString();
+                const appointment: Appointment = { 
+                  ...a, 
+                  scheduled_at,
+                  clinic_id, 
+                  source: a.source || 'internal', 
+                  id: uid(), 
+                  created_at: now() 
+                };
                 set(s => ({ appointments: [...s.appointments, appointment] }));
                 
                 // Sync to Supabase

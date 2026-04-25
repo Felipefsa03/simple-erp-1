@@ -17,7 +17,7 @@ import {
   Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion } from 'motion/react';
 import { useClinicStore } from '@/stores/clinicStore';
@@ -159,17 +159,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const incomeGrowth = lastMonthIncome > 0 
     ? (((monthlyIncome - lastMonthIncome) / lastMonthIncome) * 100).toFixed(1)
     : '0';
-  const today = new Date().toISOString().split('T')[0];
   const newPatientsThisMonth = useMemo(() => {
     const thisMonth = new Date().toISOString().slice(0, 7);
     return clinicPatients.filter(p => p.created_at.startsWith(thisMonth)).length;
   }, [clinicPatients]);
 
-  const todayAppointments = useMemo(() =>
-    clinicAppointments.filter(a => a.scheduled_at.startsWith(today) && a.status !== 'cancelled')
-      .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at)),
-    [clinicAppointments, today]
-  );
+  const todayAppointments = useMemo(() => {
+    const today = new Date();
+    return (clinicAppointments || [])
+      .filter(a => isSameDay(parseISO(a.scheduled_at), today) && a.status !== 'cancelled')
+      .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+  }, [clinicAppointments]);
 
   const attendanceRate = useMemo(() => {
     const total = clinicAppointments.filter(a => a.status === 'done' || a.status === 'no_show').length;

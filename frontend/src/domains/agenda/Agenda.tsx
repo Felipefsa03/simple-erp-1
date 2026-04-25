@@ -129,8 +129,10 @@ export function Agenda({ onNavigate }: AgendaProps) {
   };
 
   const getAppointmentsForDay = (day: Date) => {
-    const dayStr = format(day, 'yyyy-MM-dd');
-    return clinicAppointments.filter(a => a.scheduled_at.startsWith(dayStr) && a.status !== 'cancelled');
+    return clinicAppointments.filter(a => 
+      isSameDay(parseISO(a.scheduled_at), day) && 
+      a.status !== 'cancelled'
+    );
   };
 
   const { submit: handleAddAppointmentInner, loading: addLoading } = useSubmitOnce(async (data: AgendamentoFormData) => {
