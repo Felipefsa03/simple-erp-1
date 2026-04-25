@@ -805,10 +805,10 @@ export function Agenda({ onNavigate }: AgendaProps) {
           setIsWhatsAppOpen(false);
           setWhatsappAppointment(null);
         }}
+        clinicId={user?.clinic_id}
         patientPhone={whatsappAppointment ? clinicPatients.find(p => p.id === whatsappAppointment.patient_id)?.phone || '' : ''}
         patientName={whatsappAppointment?.patient_name || ''}
         appointmentId={whatsappAppointment?.id}
-        clinicId={clinicId}
         autoOpenChat={true}
         onScheduleNew={() => {
           // Minimiza WhatsApp em vez de fechar

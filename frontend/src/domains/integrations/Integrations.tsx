@@ -55,9 +55,10 @@ export function Integrations() {
   };
   
   // Estado para clínica selecionada (Super Admin pode trocar)
-  const [selectedClinicId, setSelectedClinicId] = useState<string>('clinic-1');
+  const [selectedClinicId, setSelectedClinicId] = useState<string>('');
   
-  const clinicId = selectedClinicId;
+  // O clinicId resolvido: ou o selecionado manualmente pelo SuperAdmin, ou do usuário logado, ou um fallback seguro
+  const clinicId = selectedClinicId || user?.clinic_id || 'clinic-1';
 
   // Auto-sync WhatsApp on mount
   useWhatsAppSync(clinicId);
