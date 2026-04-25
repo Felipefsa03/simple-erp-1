@@ -284,9 +284,27 @@ const mapTransaction = (t: any) => ({
   reference: t.reference || '',
   pix_code: t.pix || '',
   asaas_payment_id: t.asaas_id || '',
+  asaas_status: t.asaas_status || '',
+  material_cost: Number(t.material_cost) || 0,
+  idempotency_key: t.idempotency_key || '',
   due_date: t.due || '',
   paid_at: t.paid_at || '',
   created_at: t.created_at,
+});
+
+const mapMedicalRecord = (r: any) => ({
+  id: r.id,
+  appointment_id: r.appointment_id,
+  clinic_id: r.clinic_id,
+  patient_id: r.patient_id,
+  professional_id: r.professional_id,
+  content: r.content || '',
+  anamnese: r.anamnese || null,
+  odontogram: r.odontogram || null,
+  locked: r.locked === true,
+  locked_at: r.locked_at,
+  created_at: r.created_at,
+  updated_at: r.updated_at,
 });
 
 export const SupabaseSync = {
@@ -418,13 +436,13 @@ export const SupabaseSync = {
     return data[0];
   },
 
-  async loadMedicalRecords() {
-    const clinicId = getClinicId('00000000-0000-0000-0000-000000000001');
-    const { data, error } = await supabaseFetch('medical_records', {
-      filters: `?clinic_id=eq.${clinicId}&select=patient_id,clinic_id,anamnese,updated_at&limit=100`,
+  async loadMedicalRecords(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data } = await supabaseFetch('medical_records', {
+      filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
     });
-    if (error || !data) return { data: null, error };
-    return { data, error: null };
+    if (!Array.isArray(data)) return [];
+    return data.map(mapMedicalRecord);
   },
 
   async saveIntegrationConfig(config: any) {
@@ -635,6 +653,10 @@ export const SupabaseSync = {
       method: transaction.payment_method || null,
       reference: transaction.reference || null,
       pix: transaction.pix_code || null,
+      asaas_id: transaction.asaas_payment_id || null,
+      asaas_status: transaction.asaas_status || null,
+      material_cost: transaction.material_cost || 0,
+      idempotency_key: transaction.idempotency_key || null,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
     };
@@ -646,10 +668,46 @@ export const SupabaseSync = {
       status: transaction.status || 'pending',
       method: transaction.payment_method || null,
       reference: transaction.reference || null,
+      pix: transaction.pix_code || null,
+      asaas_id: transaction.asaas_payment_id || null,
+      asaas_status: transaction.asaas_status || null,
+      material_cost: transaction.material_cost || 0,
+      idempotency_key: transaction.idempotency_key || null,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
+      updated_at: new Date().toISOString(),
     };
     return supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body });
+  },
+
+  async saveMedicalRecord(record: any) {
+    const body = {
+      id: record.id,
+      appointment_id: record.appointment_id || null,
+      clinic_id: getClinicId(record.clinic_id),
+      patient_id: record.patient_id,
+      professional_id: record.professional_id || null,
+      content: record.content || null,
+      anamnese: record.anamnese || null,
+      odontogram: record.odontogram || null,
+      locked: record.locked || false,
+      locked_at: record.locked_at || null,
+      updated_at: new Date().toISOString(),
+    };
+    return supabaseFetch('medical_records', { method: 'POST', body });
+  },
+
+  async updateMedicalRecord(id: string, record: any) {
+    const body: any = {
+      updated_at: new Date().toISOString(),
+    };
+    if (record.content !== undefined) body.content = record.content;
+    if (record.anamnese !== undefined) body.anamnese = record.anamnese;
+    if (record.odontogram !== undefined) body.odontogram = record.odontogram;
+    if (record.locked !== undefined) body.locked = record.locked;
+    if (record.locked_at !== undefined) body.locked_at = record.locked_at;
+    
+    return supabaseFetch(`medical_records?id=eq.${id}`, { method: 'PATCH', body });
   },
 };
 

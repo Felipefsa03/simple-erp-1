@@ -146,10 +146,25 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         set({ stockItems });
         console.log('[ClinicStore] ✅ Estoque carregado:', stockItems.length);
 
-        // Carregar transações - SEMPRE sobrescrever
+        // Carregar transações
         const transactions = await SupabaseSync.loadTransactions(clinicId);
         set({ transactions });
         console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
+
+        // Carregar prontuários
+        const medicalRecords = await SupabaseSync.loadMedicalRecords(clinicId);
+        set({ medicalRecords });
+        
+        // Mapear dados específicos de prontuário para o estado local
+        const anamneseData: Record<string, any> = {};
+        const odontogramData: Record<string, any> = {};
+        medicalRecords.forEach(r => {
+            if (r.anamnese) anamneseData[r.patient_id] = r.anamnese;
+            if (r.odontogram) odontogramData[r.patient_id] = r.odontogram;
+        });
+        set({ anamneseData, odontogramData });
+        
+        console.log('[ClinicStore] ✅ Prontuários carregados:', medicalRecords.length);
 
         // Carregar integração config
         const integrationConfig = await SupabaseSync.loadIntegrationConfig(clinicId);
@@ -165,7 +180,7 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 };
 
 // Wrapper para salvar no Supabase e atualizar estado local
-const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction', data: any, isNew: boolean = true, isDelete: boolean = false) => {
+const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record', data: any, isNew: boolean = true, isDelete: boolean = false) => {
     try {
         let result: { error?: unknown } | undefined;
         if (type === 'patient') {
@@ -205,6 +220,12 @@ const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' |
                 result = await SupabaseSync.saveTransaction(data);
             } else {
                 result = await SupabaseSync.updateTransaction(data.id, data);
+            }
+        } else if (type === 'medical_record') {
+            if (isNew) {
+                result = await SupabaseSync.saveMedicalRecord(data);
+            } else {
+                result = await SupabaseSync.updateMedicalRecord(data.id, data);
             }
         }
         if (result?.error) {
@@ -726,6 +747,10 @@ export const useClinicStore = create<ClinicStore>()(
             },
             updateAppointmentStatus: (id, status) => {
                 set(s => ({ appointments: s.appointments.map(a => a.id === id ? { ...a, status } : a) }));
+                const apt = get().appointments.find(a => a.id === id);
+                if (apt) {
+                    saveToSupabase('appointment', apt, false).catch(e => console.error('[ClinicStore] Erro ao atualizar status:', e));
+                }
             },
             startAppointment: (id) => {
                 const state = get();
@@ -738,6 +763,10 @@ export const useClinicStore = create<ClinicStore>()(
                         a.id === id ? { ...a, status: 'in_progress' as AppointmentStatus, started_at: now() } : a
                     ),
                 }));
+                const updated = get().appointments.find(a => a.id === id);
+                if (updated) {
+                    saveToSupabase('appointment', updated, false).catch(e => console.error('[ClinicStore] Erro ao iniciar agendamento:', e));
+                }
                 emitEvent('APPOINTMENT_STARTED', {
                     appointment_id: id,
                     clinic_id: appointment.clinic_id,
@@ -766,6 +795,10 @@ export const useClinicStore = create<ClinicStore>()(
                         a.id === id ? { ...a, status: 'done' as AppointmentStatus, finished_at: now(), service_time_min: serviceTimeMin } : a
                     ),
                 }));
+                const finalApt = get().appointments.find(a => a.id === id);
+                if (finalApt) {
+                    saveToSupabase('appointment', finalApt, false).catch(e => console.error('[ClinicStore] Erro ao finalizar agendamento:', e));
+                }
 
                 // 2. Lock medical records for this appointment
                 set(s => ({
@@ -773,6 +806,10 @@ export const useClinicStore = create<ClinicStore>()(
                         r.appointment_id === id ? { ...r, locked: true, locked_at: now() } : r
                     ),
                 }));
+                const affectedRecord = get().medicalRecords.find(r => r.appointment_id === id);
+                if (affectedRecord) {
+                    saveToSupabase('medical_record', affectedRecord, false).catch(e => console.error('[ClinicStore] Erro ao bloquear prontuário:', e));
+                }
                 emitEvent('RECORD_LOCKED', { appointment_id: id, clinic_id: appointment.clinic_id });
 
                 // 3. Consume stock if service has materials
@@ -1021,50 +1058,85 @@ export const useClinicStore = create<ClinicStore>()(
                                 r.appointment_id === appointmentId ? { ...r, content, updated_at: now() } : r
                             ),
                         }));
+                        const updated = get().medicalRecords.find(r => r.appointment_id === appointmentId);
+                        if (updated) {
+                            saveToSupabase('medical_record', updated, false).catch(e => console.error('[ClinicStore] Erro ao atualizar prontuário:', e));
+                        }
                         return;
                     }
                 }
                 // Create new record (standalone or appointment-linked)
-                set(s => ({
-                    medicalRecords: [...s.medicalRecords, {
+                set(s => {
+                    const newRecord = {
                         id: uid(), appointment_id: appointmentId || undefined, clinic_id: clinicId,
                         patient_id: patientId, professional_id: professionalId,
                         content, locked: false, created_at: now(), updated_at: now(),
-                    }],
-                }));
+                    };
+                    saveToSupabase('medical_record', newRecord, true).catch(e => console.error('[ClinicStore] Erro ao salvar novo prontuário:', e));
+                    return { medicalRecords: [...s.medicalRecords, newRecord] };
+                });
             },
             getRecordsForPatient: (patientId) => get().medicalRecords.filter(r => r.patient_id === patientId),
             setOdontogramEntry: (patientId, entry) => {
                 set(s => {
                     const existing = s.odontogramData[patientId] || [];
                     const filtered = existing.filter(e => e.tooth_number !== entry.tooth_number);
-                    return { odontogramData: { ...s.odontogramData, [patientId]: [...filtered, entry] } };
+                    const next = [...filtered, entry];
+                    
+                    // Persistir no Supabase
+                    const existingRec = s.medicalRecords.find(r => r.patient_id === patientId && r.odontogram);
+                    if (existingRec) {
+                        saveToSupabase('medical_record', { ...existingRec, odontogram: next }, false);
+                    } else {
+                        const newRec = {
+                            id: uid(), clinic_id: s.user?.clinic_id || 'clinic-1', patient_id: patientId, professional_id: s.user?.id,
+                            odontogram: next, content: null, locked: false, created_at: now(), updated_at: now()
+                        };
+                        saveToSupabase('medical_record', newRec, true);
+                        s.medicalRecords.push(newRec as any);
+                    }
+                    
+                    return { odontogramData: { ...s.odontogramData, [patientId]: next } };
                 });
             },
             getOdontogramData: (patientId) => get().odontogramData[patientId] || [],
             saveAnamnese: (data) => {
                 set(s => ({ anamneseData: { ...s.anamneseData, [data.patient_id]: data } }));
+                const existing = get().medicalRecords.find(r => r.patient_id === data.patient_id && r.anamnese);
+                if (existing) {
+                    saveToSupabase('medical_record', { ...existing, anamnese: data }, false);
+                } else {
+                    const newRec = {
+                        id: uid(), clinic_id: data.clinic_id, patient_id: data.patient_id, professional_id: useAuth.getState().user?.id,
+                        anamnese: data, content: null, locked: false, created_at: now(), updated_at: now()
+                    };
+                    saveToSupabase('medical_record', newRec, true);
+                    set(s => ({ medicalRecords: [...s.medicalRecords, newRec as any] }));
+                }
             },
             getAnamnese: (patientId) => get().anamneseData[patientId],
             // ---- Anamnese Links & Public Forms ----
             syncAnamneseWithServer: async () => {
                 try {
-                    // Directly fetch from Supabase instead of backend
-                    const { data, error } = await SupabaseSync.loadMedicalRecords();
-                    if (error || !data) return false;
+                    const clinicId = useAuth.getState().user?.clinic_id || 'clinic-1';
+                    const records = await SupabaseSync.loadMedicalRecords(clinicId);
                     
-                    if (Array.isArray(data) && data.length > 0) {
-                        data.forEach((item: any) => {
-                            get().saveAnamnese({
-                                ...item.anamnese,
-                                patient_id: item.patient_id,
-                                clinic_id: item.clinic_id,
-                                updated_at: item.updated_at,
-                            });
+                    if (Array.isArray(records) && records.length > 0) {
+                        records.forEach((item: any) => {
+                            if (item.anamnese) {
+                                set(s => ({ 
+                                    anamneseData: { ...s.anamneseData, [item.patient_id]: item.anamnese } 
+                                }));
+                            }
                         });
                         return true;
                     }
                     return false;
+                } catch (e) {
+                    console.error('[ClinicStore] Erro ao sincronizar anamnese:', e);
+                    return false;
+                }
+            },
                 } catch (error) {
                     // Silent catch to prevent spamming the console on network errors
                 }
@@ -1260,6 +1332,10 @@ export const useClinicStore = create<ClinicStore>()(
                 set(s => ({
                     transactions: s.transactions.map(t => t.id === id ? { ...t, ...data } : t),
                 }));
+                const updatedTxn = get().transactions.find(t => t.id === id);
+                if (updatedTxn) {
+                    saveToSupabase('transaction', updatedTxn, false).catch(e => console.error('[ClinicStore] Erro ao atualizar dados Asaas:', e));
+                }
             },
             reconcileTransaction: (id, nextStatus, payload) => {
                 const txn = get().transactions.find(t => t.id === id);
@@ -1276,6 +1352,10 @@ export const useClinicStore = create<ClinicStore>()(
                             : t
                     ),
                 }));
+                const updatedTxn = get().transactions.find(t => t.id === id);
+                if (updatedTxn) {
+                    saveToSupabase('transaction', updatedTxn, false).catch(e => console.error('[ClinicStore] Erro ao reconciliar transação:', e));
+                }
                 emitEvent('ASAAS_RECONCILED', { transaction_id: id, clinic_id: txn.clinic_id, status: nextStatus });
             },
             getMonthlyIncome: (clinicId) => {

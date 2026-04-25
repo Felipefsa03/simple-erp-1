@@ -79,9 +79,22 @@ export function Agenda({ onNavigate }: AgendaProps) {
     [patients, clinicId]
   );
   const clinicProfessionals = useMemo(
-    () => (professionals || []).filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'),
+    () => (professionals || []).filter(p => (p.role === 'dentist' || p.role === 'aesthetician') && p.clinic_id === clinicId),
     [professionals, clinicId]
   );
+
+  const handleSlotClick = (day: Date, hour: number) => {
+    if (!canCreate) return;
+    resetAptForm({
+      patient_id: '',
+      professional_id: clinicProfessionals[0]?.id || '',
+      service_id: '',
+      date: format(day, 'yyyy-MM-dd'),
+      time: `${hour.toString().padStart(2, '0')}:00`
+    });
+    setIsModalOpen(true);
+  };
+
   const clinicServices = useMemo(
     () => (services || []).filter(s => s.clinic_id === clinicId && s.active),
     [services, clinicId]
@@ -318,7 +331,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
     return (
       <div
         key={apt.id}
-        onClick={() => setSelectedApt(apt)}
+        onClick={(e) => { e.stopPropagation(); setSelectedApt(apt); }}
         className={cn(
           "rounded-lg p-2 shadow-sm cursor-pointer transition-all hover:shadow-md border-l-4 overflow-hidden",
           colors.bg, colors.border
@@ -760,7 +773,10 @@ export function Agenda({ onNavigate }: AgendaProps) {
                     <div className="w-20 p-4 border-r border-slate-100 text-right flex-shrink-0">
                       <span className="text-xs font-bold text-slate-400">{hour}:00</span>
                     </div>
-                    <div className="flex-1 p-2 space-y-1">
+                    <div 
+                      className="flex-1 p-2 space-y-1 cursor-pointer hover:bg-slate-50/50"
+                      onClick={() => handleSlotClick(currentDate, hour)}
+                    >
                       {hourApts.map(apt => renderAppointmentCard(apt))}
                     </div>
                   </div>
@@ -788,7 +804,11 @@ export function Agenda({ onNavigate }: AgendaProps) {
                   {weekDays.map(day => {
                     const hourApts = getAppointmentsForDay(day).filter(a => getHours(parseISO(a.scheduled_at)) === hour);
                     return (
-                      <div key={day.toString()} className={cn("border-r border-slate-100 min-h-[80px] p-1 hover:bg-slate-50/50 transition-colors cursor-pointer space-y-1", isSameDay(day, new Date()) && "bg-cyan-50/10")}>
+                      <div 
+                        key={day.toString()} 
+                        className={cn("border-r border-slate-100 min-h-[80px] p-1 hover:bg-slate-50/50 transition-colors cursor-pointer space-y-1", isSameDay(day, new Date()) && "bg-cyan-50/10")}
+                        onClick={() => handleSlotClick(day, hour)}
+                      >
                         {hourApts.map(apt => renderAppointmentCard(apt, true))}
                       </div>
                     );
