@@ -284,7 +284,7 @@ const mapTransaction = (t: any) => ({
   reference: t.reference || '',
   pix_code: t.pix || '',
   asaas_payment_id: t.asaas_id || '',
-  asaas_status: t.asaas_status || '',
+  // asaas_status removido pois não existe na tabela e causa erro 400
   material_cost: Number(t.material_cost) || 0,
   idempotency_key: t.idempotency_key || '',
   due_date: t.due || '',
@@ -298,13 +298,24 @@ const mapMedicalRecord = (r: any) => ({
   clinic_id: r.clinic_id,
   patient_id: r.patient_id,
   professional_id: r.professional_id,
-  content: r.content || '',
+  content: r.evolution || '', // Mapeado de evolution (DB) para content (App)
   anamnese: r.anamnese || null,
   odontogram: r.odontogram || null,
   locked: r.locked === true,
   locked_at: r.locked_at,
   created_at: r.created_at,
   updated_at: r.updated_at,
+});
+
+const mapTreatmentPlan = (p: any) => ({
+  id: p.id,
+  patient_id: p.patient_id,
+  clinic_id: p.clinic_id,
+  title: p.title || 'Plano de Tratamento',
+  items: p.items || [],
+  status: p.status || 'active',
+  total_estimated: Number(p.total_estimated) || 0,
+  created_at: p.created_at,
 });
 
 export const SupabaseSync = {
@@ -319,7 +330,7 @@ export const SupabaseSync = {
       filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
     });
     
-    // Se 返回 0，试 sem filtro de deleted_at
+    // Se retorna 0, tenta sem filtro de deleted_at
     if (!data || data.length === 0) {
       ({ data, error } = await supabaseFetch('patients', {
         filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
@@ -443,6 +454,15 @@ export const SupabaseSync = {
     });
     if (!Array.isArray(data)) return [];
     return data.map(mapMedicalRecord);
+  },
+
+  async loadTreatmentPlans(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data } = await supabaseFetch('treatment_plans', {
+      filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
+    });
+    if (!Array.isArray(data)) return [];
+    return data.map(mapTreatmentPlan);
   },
 
   async saveIntegrationConfig(config: any) {
@@ -654,7 +674,7 @@ export const SupabaseSync = {
       reference: transaction.reference || null,
       pix: transaction.pix_code || null,
       asaas_id: transaction.asaas_payment_id || null,
-      asaas_status: transaction.asaas_status || null,
+      // asaas_status removido para evitar erro 400
       material_cost: transaction.material_cost || 0,
       idempotency_key: transaction.idempotency_key || null,
       due: transaction.due_date || null,
@@ -670,7 +690,7 @@ export const SupabaseSync = {
       reference: transaction.reference || null,
       pix: transaction.pix_code || null,
       asaas_id: transaction.asaas_payment_id || null,
-      asaas_status: transaction.asaas_status || null,
+      // asaas_status removido para evitar erro 400
       material_cost: transaction.material_cost || 0,
       idempotency_key: transaction.idempotency_key || null,
       due: transaction.due_date || null,
@@ -687,7 +707,7 @@ export const SupabaseSync = {
       clinic_id: getClinicId(record.clinic_id),
       patient_id: record.patient_id,
       professional_id: record.professional_id || null,
-      content: record.content || null,
+      evolution: record.content || null, // Mapeado de content (App) para evolution (DB)
       anamnese: record.anamnese || null,
       odontogram: record.odontogram || null,
       locked: record.locked || false,
@@ -701,13 +721,42 @@ export const SupabaseSync = {
     const body: any = {
       updated_at: new Date().toISOString(),
     };
-    if (record.content !== undefined) body.content = record.content;
+    if (record.content !== undefined) body.evolution = record.content; // Mapeado de content para evolution
     if (record.anamnese !== undefined) body.anamnese = record.anamnese;
     if (record.odontogram !== undefined) body.odontogram = record.odontogram;
     if (record.locked !== undefined) body.locked = record.locked;
     if (record.locked_at !== undefined) body.locked_at = record.locked_at;
     
     return supabaseFetch(`medical_records?id=eq.${id}`, { method: 'PATCH', body });
+  },
+
+  async saveTreatmentPlan(plan: any) {
+    const body = {
+      id: plan.id,
+      patient_id: plan.patient_id,
+      clinic_id: getClinicId(plan.clinic_id),
+      title: plan.title,
+      items: plan.items,
+      status: plan.status,
+      total_estimated: plan.total_estimated,
+      created_at: plan.created_at,
+    };
+    return supabaseFetch('treatment_plans', { method: 'POST', body });
+  },
+
+  async updateTreatmentPlan(id: string, plan: any) {
+    const body: any = {
+      title: plan.title,
+      items: plan.items,
+      status: plan.status,
+      total_estimated: plan.total_estimated,
+      updated_at: new Date().toISOString(),
+    };
+    return supabaseFetch(`treatment_plans?id=eq.${id}`, { method: 'PATCH', body });
+  },
+
+  async deleteTreatmentPlan(id: string) {
+    return supabaseFetch(`treatment_plans?id=eq.${id}`, { method: 'DELETE' });
   },
 };
 

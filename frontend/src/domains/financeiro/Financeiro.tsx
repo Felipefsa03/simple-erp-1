@@ -429,12 +429,12 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-2">
                             {t.status !== 'paid' && (
                               <button
                                 onClick={() => handleProcessPayment(t.id)}
-                                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
-                                title="Confirmar Pagamento"
+                                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100 bg-emerald-50/30"
+                                title="Confirmar Pagamento Manul"
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                               </button>
@@ -442,8 +442,8 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                             {t.status === 'pending' && t.type === 'income' && (
                               <button
                                 onClick={() => { setChargeTarget(t); setChargeModalOpen(true); }}
-                                className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-colors"
-                                title="Gerar Cobrança"
+                                className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all border border-cyan-100 bg-cyan-50/30"
+                                title="Gerar Cobrança (Asaas/Link)"
                               >
                                 <CreditCard className="w-4 h-4" />
                               </button>
@@ -451,7 +451,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                             {t.status === 'paid' && t.type === 'income' && (
                               <button
                                 onClick={() => handleOpenNfeModal(t)}
-                                className="p-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-colors"
+                                className="p-2 text-purple-600 hover:bg-purple-50 rounded-xl transition-all border border-purple-100 bg-purple-50/30"
                                 title="Emitir NFe"
                               >
                                 <Receipt className="w-4 h-4" />
@@ -499,9 +499,12 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                       <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Produzido</p>
                       <p className="text-sm font-bold text-slate-900">{formatCurrency(p.stats.total_produced)}</p>
                     </div>
-                    <div className="bg-cyan-50/50 p-3 rounded-2xl">
-                      <p className="text-[9px] font-bold text-cyan-600 uppercase mb-1">A Receber</p>
-                      <p className="text-sm font-bold text-cyan-700">{formatCurrency(p.stats.commission_amount)}</p>
+                    <div className="bg-slate-50 p-3 rounded-2xl">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">Comissão</p>
+                      <p className="text-sm font-bold text-emerald-600">{formatCurrency(p.stats.commission_amount)}</p>
+                      {p.stats.pending_commission > 0 && (
+                        <p className="text-[10px] text-amber-600 font-medium">A receber: {formatCurrency(p.stats.pending_commission)}</p>
+                      )}
                     </div>
                   </div>
 

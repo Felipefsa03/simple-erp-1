@@ -731,18 +731,29 @@ export function Agenda({ onNavigate }: AgendaProps) {
                 ))}
                 {eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) }).map((day) => {
                   const dayApts = getAppointmentsForDay(day);
-                  return (
-                    <div
-                      key={day.toString()}
-                      onClick={() => { setCurrentDate(day); setView('day'); }}
-                      className={cn(
-                        "min-h-[100px] p-2 border-r border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer",
-                        isSameDay(day, new Date()) && "bg-cyan-50/20"
-                      )}
-                    >
-                      <p className={cn("text-xs font-bold mb-2", isSameDay(day, new Date()) ? "text-cyan-600" : "text-slate-900")}>
-                        {format(day, 'd')}
-                      </p>
+                    return (
+                      <div
+                        key={day.toString()}
+                        onClick={() => {
+                          if (dayApts.length === 0 && canCreate) {
+                             handleSlotClick(day, 9);
+                          } else {
+                             setCurrentDate(day); setView('day');
+                          }
+                        }}
+                        className={cn(
+                          "min-h-[100px] p-2 border-r border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer group",
+                          isSameDay(day, new Date()) && "bg-cyan-50/20"
+                        )}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <p className={cn("text-xs font-bold", isSameDay(day, new Date()) ? "text-cyan-600" : "text-slate-900")}>
+                            {format(day, 'd')}
+                          </p>
+                          {dayApts.length === 0 && canCreate && (
+                            <Plus className="w-3 h-3 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
                       {dayApts.slice(0, 2).map(apt => (
                         <div key={apt.id} className={cn("text-[8px] p-1 rounded mb-1 truncate font-bold text-white", statusColors[apt.status]?.border.replace('border', 'bg') || 'bg-cyan-500')}>
                           {format(parseISO(apt.scheduled_at), 'HH:mm')} {apt.patient_name.split(' ')[0]}
@@ -774,9 +785,16 @@ export function Agenda({ onNavigate }: AgendaProps) {
                       <span className="text-xs font-bold text-slate-400">{hour}:00</span>
                     </div>
                     <div 
-                      className="flex-1 p-2 space-y-1 cursor-pointer hover:bg-slate-50/50"
+                      className="flex-1 p-2 space-y-1 cursor-pointer hover:bg-slate-50/50 group relative"
                       onClick={() => handleSlotClick(currentDate, hour)}
                     >
+                      {hourApts.length === 0 && canCreate && (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-1 rounded-lg border border-cyan-100">
+                            <Plus className="w-3 h-3" /> AGENDAR
+                          </div>
+                        </div>
+                      )}
                       {hourApts.map(apt => renderAppointmentCard(apt))}
                     </div>
                   </div>
@@ -806,9 +824,14 @@ export function Agenda({ onNavigate }: AgendaProps) {
                     return (
                       <div 
                         key={day.toString()} 
-                        className={cn("border-r border-slate-100 min-h-[80px] p-1 hover:bg-slate-50/50 transition-colors cursor-pointer space-y-1", isSameDay(day, new Date()) && "bg-cyan-50/10")}
+                        className={cn("border-r border-slate-100 min-h-[80px] p-1 hover:bg-slate-50/50 transition-colors cursor-pointer space-y-1 group relative", isSameDay(day, new Date()) && "bg-cyan-50/10")}
                         onClick={() => handleSlotClick(day, hour)}
                       >
+                        {hourApts.length === 0 && canCreate && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Plus className="w-4 h-4 text-cyan-400" />
+                          </div>
+                        )}
                         {hourApts.map(apt => renderAppointmentCard(apt, true))}
                       </div>
                     );

@@ -180,59 +180,39 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 };
 
 // Wrapper para salvar no Supabase e atualizar estado local
-const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record', data: any, isNew: boolean = true, isDelete: boolean = false) => {
+const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan', data: any, isNew: boolean = true, isDelete: boolean = false) => {
     try {
-        let result: { error?: unknown } | undefined;
-        if (type === 'patient') {
-            if (isDelete) {
-                result = await SupabaseSync.deletePatient(data.id);
-            } else if (isNew) {
-                result = await SupabaseSync.savePatient(data);
-            } else {
-                result = await SupabaseSync.updatePatient(data.id, data);
-            }
-        } else if (type === 'professional') {
-            if (isNew) {
-                result = await SupabaseSync.saveProfessional(data);
-            } else {
-                result = await SupabaseSync.updateProfessional(data.id, data);
-            }
-        } else if (type === 'appointment') {
-            if (isNew) {
-                result = await SupabaseSync.saveAppointment(data);
-            } else {
-                result = await SupabaseSync.updateAppointment(data.id, data);
-            }
-        } else if (type === 'service') {
-            if (isNew) {
-                result = await SupabaseSync.saveService(data);
-            } else {
-                result = await SupabaseSync.updateService(data.id, data);
-            }
-        } else if (type === 'stock') {
-            if (isNew) {
-                result = await SupabaseSync.saveStockItem(data);
-            } else {
-                result = await SupabaseSync.updateStockItem(data.id, data);
-            }
-        } else if (type === 'transaction') {
-            if (isNew) {
-                result = await SupabaseSync.saveTransaction(data);
-            } else {
-                result = await SupabaseSync.updateTransaction(data.id, data);
-            }
-        } else if (type === 'medical_record') {
-            if (isNew) {
-                result = await SupabaseSync.saveMedicalRecord(data);
-            } else {
-                result = await SupabaseSync.updateMedicalRecord(data.id, data);
-            }
-        }
-        if (result?.error) {
-            throw new Error(String(result.error));
+        switch (type) {
+            case 'patient':
+                if (isDelete) return await SupabaseSync.deletePatient(data.id);
+                return isNew ? await SupabaseSync.savePatient(data) : await SupabaseSync.updatePatient(data.id, data);
+            case 'professional':
+                if (isDelete) return await SupabaseSync.deleteProfessional(data.id);
+                return isNew ? await SupabaseSync.saveProfessional(data) : await SupabaseSync.updateProfessional(data.id, data);
+            case 'appointment':
+                if (isDelete) return await SupabaseSync.deleteAppointment(data.id);
+                return isNew ? await SupabaseSync.saveAppointment(data) : await SupabaseSync.updateAppointment(data.id, data);
+            case 'service':
+                if (isDelete) return await SupabaseSync.deleteService(data.id);
+                return isNew ? await SupabaseSync.saveService(data) : await SupabaseSync.updateService(data.id, data);
+            case 'stock':
+                if (isDelete) return await SupabaseSync.deleteStockItem(data.id);
+                return isNew ? await SupabaseSync.saveStockItem(data) : await SupabaseSync.updateStockItem(data.id, data);
+            case 'transaction':
+                if (isDelete) return await SupabaseSync.deleteTransaction(data.id);
+                return isNew ? await SupabaseSync.saveTransaction(data) : await SupabaseSync.updateTransaction(data.id, data);
+            case 'medical_record':
+                if (isDelete) return await SupabaseSync.deleteMedicalRecord(data.id);
+                return isNew ? await SupabaseSync.saveMedicalRecord(data) : await SupabaseSync.updateMedicalRecord(data.id, data);
+            case 'treatment_plan':
+                if (isDelete) return await SupabaseSync.deleteTreatmentPlan(data.id);
+                return isNew ? await SupabaseSync.saveTreatmentPlan(data) : await SupabaseSync.updateTreatmentPlan(data.id, data);
+            default:
+                return null;
         }
     } catch (error) {
         console.error(`[ClinicStore] Erro ao salvar ${type} no Supabase:`, error);
+        return { error };
     }
 };
 
@@ -389,12 +369,13 @@ interface ClinicStore {
 
     // Sync Actions
     syncWithSupabase: () => void;
+    loadAllData: () => Promise<void>;
 
     // Appointment Actions
     addAppointment: (a: Omit<Appointment, 'id' | 'created_at'>) => Appointment | null;
     updateAppointmentStatus: (id: string, status: AppointmentStatus) => void;
     startAppointment: (id: string) => void;
-    finalizeAppointment: (id: string, userId: string, userName: string) => boolean;
+    finalizeAppointment: (id: string, userId: string, userName: string, treatmentItems?: TreatmentPlanItem[]) => boolean;
     createRecurringAppointments: (input: {
         base: Omit<Appointment, 'id' | 'created_at' | 'scheduled_at'>;
         startDateTime: string;
@@ -700,6 +681,42 @@ export const useClinicStore = create<ClinicStore>()(
                 console.log('[ClinicStore] 🔄 Sincronização chamada manualmente para:', clinicId);
                 syncWithSupabaseInternal(clinicId, set, get);
             },
+            loadAllData: async () => {
+                const clinicId = useAuth.getState().user?.clinic_id || 'clinic-1';
+                if (!isSupabaseConfigured()) {
+                    console.log('[ClinicStore] Supabase NOT configured. Using demo data.');
+                    return;
+                }
+                
+                try {
+                    console.log('[ClinicStore] 🔄 Loading all data from Supabase for clinic:', clinicId);
+                    
+                    const [patients, professionals, appointments, services, stock, medicalRecords, treatmentPlans, transactions] = await Promise.all([
+                        SupabaseSync.loadPatients(clinicId),
+                        SupabaseSync.loadProfessionals(clinicId),
+                        SupabaseSync.loadAppointments(clinicId),
+                        SupabaseSync.loadServices(clinicId),
+                        SupabaseSync.loadStock(clinicId),
+                        SupabaseSync.loadMedicalRecords(clinicId),
+                        SupabaseSync.loadTreatmentPlans(clinicId),
+                        SupabaseSync.loadTransactions(clinicId)
+                    ]);
+
+                    set({
+                        patients,
+                        professionals,
+                        appointments,
+                        services,
+                        stockItems: stock,
+                        medicalRecords,
+                        treatmentPlans,
+                        transactions
+                    });
+                    console.log('[ClinicStore] ✅ Data loaded successfully');
+                } catch (error) {
+                    console.error('[ClinicStore] ❌ Error loading data:', error);
+                }
+            },
 
             // ---- Appointments ----
             addAppointment: async (a) => {
@@ -774,7 +791,7 @@ export const useClinicStore = create<ClinicStore>()(
                     professional_id: appointment.professional_id,
                 });
             },
-            finalizeAppointment: (id, userId, userName) => {
+            finalizeAppointment: (id, userId, userName, treatmentItems = []) => {
                 const state = get();
                 const appointment = state.appointments.find(a => a.id === id);
                 if (!appointment || appointment.status === 'done') return false;
@@ -812,6 +829,18 @@ export const useClinicStore = create<ClinicStore>()(
                 }
                 emitEvent('RECORD_LOCKED', { appointment_id: id, clinic_id: appointment.clinic_id });
 
+                // 2.5 Mark treatment items as done if provided
+                if (treatmentItems.length > 0) {
+                    treatmentItems.forEach(item => {
+                        // Find which plan this item belongs to
+                        const plan = state.treatmentPlans.find(p => p.items.some(i => i.id === item.id));
+                        if (plan) {
+                            const newItems = plan.items.map(i => i.id === item.id ? { ...i, status: 'done' as const } : i);
+                            get().updateTreatmentPlan(plan.id, newItems);
+                        }
+                    });
+                }
+
                 // 3. Consume stock if service has materials
                 const service = state.services.find(svc => svc.id === appointment.service_id);
                 const appointmentMaterials = state.appointmentMaterials[id] || [];
@@ -837,13 +866,17 @@ export const useClinicStore = create<ClinicStore>()(
                     }, 0);
 
                     // Check for professional-specific pricing
-                    let chargeAmount = appointment.base_value;
+                    let chargeAmount = appointment.base_value || 0;
                     if (service?.professional_prices && appointment.professional_id) {
                         const profPrice = service.professional_prices[appointment.professional_id];
                         if (profPrice !== undefined && profPrice > 0) {
                             chargeAmount = profPrice;
                         }
                     }
+
+                    // ADD treatment items value
+                    const treatmentValue = treatmentItems.reduce((sum, i) => sum + i.estimated_price, 0);
+                    chargeAmount += treatmentValue;
 
                     get().addTransaction({
                         clinic_id: appointment.clinic_id,
@@ -1225,14 +1258,27 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Treatment Plans ----
             addTreatmentPlan: (plan) => {
-                set(s => ({ treatmentPlans: [...s.treatmentPlans, { ...plan, id: uid(), created_at: now() }] }));
+                const newPlan = { ...plan, id: uid(), created_at: now() };
+                set(s => ({ treatmentPlans: [...s.treatmentPlans, newPlan] }));
+                saveToSupabase('treatment_plan', newPlan, true).catch(e => console.error('[ClinicStore] Erro ao salvar plano de tratamento:', e));
             },
             updateTreatmentPlan: (planId, items) => {
-                set(s => ({
-                    treatmentPlans: s.treatmentPlans.map(p =>
-                        p.id === planId ? { ...p, items, total_estimated: items.reduce((sum, i) => sum + i.estimated_price, 0) } : p
-                    ),
-                }));
+                set(s => {
+                    const plan = s.treatmentPlans.find(p => p.id === planId);
+                    if (!plan) return s;
+                    
+                    const updated = { 
+                        ...plan, 
+                        items, 
+                        total_estimated: items.reduce((sum, i) => sum + i.estimated_price, 0) 
+                    };
+                    
+                    saveToSupabase('treatment_plan', updated, false).catch(e => console.error('[ClinicStore] Erro ao atualizar plano de tratamento:', e));
+                    
+                    return {
+                        treatmentPlans: s.treatmentPlans.map(p => p.id === planId ? updated : p),
+                    };
+                });
             },
             getPlansForPatient: (patientId) => get().treatmentPlans.filter(p => p.patient_id === patientId),
 
@@ -1539,7 +1585,7 @@ export const useClinicStore = create<ClinicStore>()(
             getProfessionalCommissions: (professionalId, month) => {
                 const state = get();
                 const prof = state.professionals.find(p => p.id === professionalId);
-                if (!prof) return { total_produced: 0, commission_amount: 0, appointment_count: 0 };
+                if (!prof) return { total_produced: 0, commission_amount: 0, appointment_count: 0, pending_commission: 0 };
 
                 const txns = state.transactions.filter(t =>
                     t.professional_id === professionalId &&
@@ -1554,12 +1600,17 @@ export const useClinicStore = create<ClinicStore>()(
                 ).length;
 
                 const paid_txns = txns.filter(t => t.status === 'paid');
+                const pending_txns = txns.filter(t => t.status !== 'paid' && t.status !== 'cancelled');
+                
+                const pct = (prof.commission_pct || 0) / 100;
                 const total_produced = txns.reduce((sum, t) => sum + t.amount, 0);
-                const commission_amount = paid_txns.reduce((sum, t) => sum + (t.amount * (prof.commission_pct / 100)), 0);
+                const commission_amount = paid_txns.reduce((sum, t) => sum + (t.amount * pct), 0);
+                const pending_commission = pending_txns.reduce((sum, t) => sum + (t.amount * pct), 0);
 
                 return {
                     total_produced,
                     commission_amount,
+                    pending_commission,
                     appointment_count: aptsCount
                 };
             },

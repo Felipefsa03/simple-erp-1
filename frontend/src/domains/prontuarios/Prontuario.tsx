@@ -143,6 +143,9 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
   // Finalization logs
   const [finalizationLogs, setFinalizationLogs] = useState<string[]>([]);
 
+  // Performed items from treatment plan
+  const [performedItems, setPerformedItems] = useState<TreatmentPlanItem[]>([]);
+
   // Load existing data
   useEffect(() => {
     if (patientId) {
@@ -197,12 +200,13 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
     return storeData;
   }, [patientId, getOdontogramData, localOdontogram]);
 
-  // Get treatment plan
-  const treatmentPlan = useMemo(() => {
-    if (!patientId) return null;
-    const plans = getPlansForPatient(patientId);
-    return plans.length > 0 ? plans[0] : null;
+  // Get all treatment plans for the patient
+  const patientPlans = useMemo(() => {
+    if (!patientId) return [];
+    return getPlansForPatient(patientId);
   }, [plansState, patientId, getPlansForPatient]);
+
+  const treatmentPlan = patientPlans.length > 0 ? patientPlans[0] : null;
 
   // Get appointment transactions
   const appointmentTransactions = useMemo(() => {
@@ -213,20 +217,23 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
   // Calculate totals for summary
   const appointmentTotals = useMemo(() => {
     const serviceValue = appointment?.base_value || 0;
+    const treatmentValue = performedItems.reduce((sum, i) => sum + i.estimated_price, 0);
+    const totalGeral = serviceValue + treatmentValue;
+
     const materialsCost = consumptionItems.reduce((total, item) => {
       const stockItem = clinicStockItems.find(s => s.id === item.stock_item_id);
       return total + (stockItem ? stockItem.unit_cost * item.qty : 0);
     }, 0);
     
-    // Buscar comissão real do profissional (não hardcoded)
+    // Buscar comissão real do profissional
     const professional = clinicProfessionals.find(p => p.id === appointment?.professional_id);
     const commissionPct = (professional?.commission_pct || 0) / 100;
-    const professionalCommission = serviceValue * commissionPct;
+    const professionalCommission = totalGeral * commissionPct;
     
-    const netRevenue = serviceValue - materialsCost - professionalCommission;
+    const netRevenue = totalGeral - materialsCost - professionalCommission;
     
-    return { serviceValue, materialsCost, professionalCommission, netRevenue, totalRevenue: serviceValue };
-  }, [appointment, consumptionItems, clinicStockItems]);
+    return { serviceValue, treatmentValue, totalGeral, materialsCost, professionalCommission, netRevenue, totalRevenue: totalGeral };
+  }, [appointment, consumptionItems, clinicStockItems, performedItems, clinicProfessionals]);
 
   const addFinalizationLog = (message: string) => {
     setFinalizationLogs(prev => [`[${new Date().toLocaleTimeString('pt-BR')}] ${message}`, ...prev]);
@@ -274,7 +281,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
     await new Promise(r => setTimeout(r, 200));
     addFinalizationLog('Gerando transação financeira...');
 
-    const ok = finalizeAppointment(appointmentId, user.id, user.name);
+    const ok = finalizeAppointment(appointmentId, user.id, user.name, performedItems);
     
     if (!ok) {
       toast('Inicie o atendimento antes de finalizar.', 'warning');
@@ -599,10 +606,11 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div><strong>Paciente:</strong> {patient?.name}</div>
             <div><strong>Profissional:</strong> {appointment?.professional_name}</div>
-            <div><strong>Serviço:</strong> {appointment?.service_name}</div>
-            <div><strong>Valor Base:</strong> {formatCurrency(appointmentTotals.serviceValue)}</div>
-            <div><strong>Materiais:</strong> {formatCurrency(appointmentTotals.materialsCost)}</div>
-            <div><strong>Comissão:</strong> {formatCurrency(appointmentTotals.professionalCommission)}</div>
+            <div><strong>Serviço Base:</strong> {formatCurrency(appointmentTotals.serviceValue)}</div>
+            <div><strong>Procedimentos Plano:</strong> {formatCurrency(appointmentTotals.treatmentValue)}</div>
+            <div className="col-span-2 text-sm font-bold pt-1 border-t border-blue-100">
+              Total: {formatCurrency(appointmentTotals.totalGeral)}
+            </div>
           </div>
         </div>
 
@@ -1053,10 +1061,12 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
             <TreatmentPlanSection
               patientId={patientId}
               appointmentId={appointmentId || ''}
-              treatmentPlan={treatmentPlan}
+              patientPlans={patientPlans}
               canEdit={canEdit}
               clinicId={clinicId}
               userId={user?.id || ''}
+              performedItems={performedItems}
+              setPerformedItems={setPerformedItems}
             />
           )}
 
@@ -1224,30 +1234,42 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
 function TreatmentPlanSection({
   patientId,
   appointmentId,
-  treatmentPlan,
+  patientPlans,
   canEdit,
   clinicId,
   userId,
+  performedItems,
+  setPerformedItems,
 }: {
   patientId: string;
   appointmentId: string;
-  treatmentPlan: any;
+  patientPlans: any[];
   canEdit: boolean;
   clinicId: string;
   userId: string;
+  performedItems: TreatmentPlanItem[];
+  setPerformedItems: (items: TreatmentPlanItem[]) => void;
 }) {
-  const { services, addTreatmentPlan } = useClinicStore();
+  const { services, addTreatmentPlan, updateTreatmentPlan } = useClinicStore();
   const clinicServices = useMemo(() => services.filter(s => s.clinic_id === clinicId), [services, clinicId]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedService, setSelectedService] = useState<string>('');
   const [selectedTooth, setSelectedTooth] = useState<string>('');
   const [planNotes, setPlanNotes] = useState('');
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(patientPlans[0]?.id || '');
+
+  // Reset selected plan if patient changes
+  useEffect(() => {
+    if (patientPlans.length > 0 && !selectedPlanId) {
+      setSelectedPlanId(patientPlans[0].id);
+    }
+  }, [patientPlans, selectedPlanId]);
+
+  const activePlan = useMemo(() => 
+    patientPlans.find(p => p.id === selectedPlanId) || patientPlans[0]
+  , [patientPlans, selectedPlanId]);
   
-  const UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11];
-  const UPPER_LEFT = [21, 22, 23, 24, 25, 26, 27, 28];
-  const LOWER_LEFT = [31, 32, 33, 34, 35, 36, 37, 38];
-  const LOWER_RIGHT = [41, 42, 43, 44, 45, 46, 47, 48];
-  const allTeeth = [...UPPER_RIGHT, ...UPPER_LEFT, ...LOWER_LEFT, ...LOWER_RIGHT];
+  const allTeeth = [...Array(32)].map((_, i) => i + 1); // Simplificado para o seletor
   
   const handleAddItem = () => {
     if (!selectedService) {
@@ -1257,27 +1279,30 @@ function TreatmentPlanSection({
     
     const service = clinicServices.find(s => s.id === selectedService);
     if (!service) return;
+
+    const newItem: TreatmentPlanItem = {
+      id: `item_${Date.now()}`,
+      service_name: service.name,
+      tooth: selectedTooth ? Number(selectedTooth) : undefined,
+      notes: planNotes,
+      status: 'pending',
+      estimated_price: service.base_price || 0,
+    };
     
-    // Create or update treatment plan
-    if (treatmentPlan) {
-      // Add item to existing plan - this would need a store method
+    if (activePlan) {
+      // Add to existing plan
+      const nextItems = [...activePlan.items, newItem];
+      updateTreatmentPlan(activePlan.id, nextItems);
       toast('Item adicionado ao plano!', 'success');
     } else {
-      // Create new plan
+      // Create first plan
       addTreatmentPlan({
         clinic_id: clinicId,
         patient_id: patientId,
-        title: `Plano - ${new Date().toLocaleDateString('pt-BR')}`,
-        items: [{
-          id: `item_${Date.now()}`,
-          service_name: service.name,
-          tooth: selectedTooth ? Number(selectedTooth) : undefined,
-          notes: planNotes,
-          status: 'pending',
-          estimated_price: service.base_price || 0,
-        }],
+        title: `Plano de Tratamento - ${new Date().toLocaleDateString('pt-BR')}`,
+        items: [newItem],
         status: 'active',
-        total_estimated: service.base_price || 0,
+        total_estimated: newItem.estimated_price,
       });
       toast('Plano de tratamento criado!', 'success');
     }
@@ -1287,48 +1312,132 @@ function TreatmentPlanSection({
     setSelectedTooth('');
     setPlanNotes('');
   };
+
+  const toggleItemPerformed = (item: TreatmentPlanItem) => {
+    if (item.status === 'done') return; // Já concluído em outro atendimento
+
+    const isPerformed = performedItems.some(i => i.id === item.id);
+    if (isPerformed) {
+      setPerformedItems(performedItems.filter(i => i.id !== item.id));
+    } else {
+      setPerformedItems([...performedItems, item]);
+    }
+  };
   
   return (
     <div className="bg-white rounded-3xl border border-slate-100 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-slate-900">Plano de Tratamento</h3>
-        {canEdit && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-green-600 text-white font-bold rounded-xl text-sm hover:bg-green-700 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" /> Adicionar Serviço
-          </button>
-        )}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+          <h3 className="font-bold text-slate-900">Planos de Tratamento</h3>
+          {patientPlans.length > 1 && (
+            <select 
+              value={selectedPlanId} 
+              onChange={(e) => setSelectedPlanId(e.target.value)}
+              className="mt-1 text-xs bg-slate-50 border-none rounded-lg py-1 px-2 outline-none focus:ring-1 focus:ring-cyan-500"
+            >
+              {patientPlans.map(p => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        
+        <div className="flex gap-2">
+          {canEdit && (
+            <button
+              onClick={() => {
+                // Forçar criação de novo plano
+                addTreatmentPlan({
+                  clinic_id: clinicId,
+                  patient_id: patientId,
+                  title: `Novo Plano - ${new Date().toLocaleDateString('pt-BR')} ${patientPlans.length + 1}`,
+                  items: [],
+                  status: 'active',
+                  total_estimated: 0,
+                });
+              }}
+              className="px-3 py-1.5 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200"
+            >
+              Novo Plano
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> Adicionar Serviço
+            </button>
+          )}
+        </div>
       </div>
       
-      {treatmentPlan ? (
+      {activePlan ? (
         <div className="space-y-3">
-          {treatmentPlan.items.map((item: any, idx: number) => (
-            <div key={idx} className="p-4 bg-slate-50 rounded-xl flex items-center justify-between">
-              <div>
-                <p className="font-medium text-slate-900">{item.service_name}</p>
-                <p className="text-xs text-slate-500">
-                  Dente: {item.tooth || '-'} 
-                  {item.estimated_value && ` • Valor: R$ ${item.estimated_value.toFixed(2)}`}
-                </p>
-              </div>
-              <span className={cn("text-xs font-bold px-2 py-1 rounded-full", 
-                item.status === 'done' ? "bg-emerald-100 text-emerald-700" : 
-                item.status === 'in_progress' ? "bg-blue-100 text-blue-700" : 
-                "bg-amber-100 text-amber-700"
+          <div className="flex justify-between items-center px-4 mb-2">
+            <span className="text-xs font-bold text-slate-400">Procedimento</span>
+            <span className="text-xs font-bold text-slate-400">Realizar Hoje</span>
+          </div>
+
+          {activePlan.items.length === 0 && (
+              <p className="text-center py-4 text-slate-400 text-sm">Este plano não possui itens ainda.</p>
+          )}
+
+          {activePlan.items.map((item: any, idx: number) => {
+            const isPerformedToday = performedItems.some(i => i.id === item.id);
+            const isDone = item.status === 'done';
+
+            return (
+              <div key={idx} className={cn(
+                "p-4 rounded-xl flex items-center justify-between transition-all",
+                isPerformedToday ? "bg-cyan-50 border border-cyan-100" : "bg-slate-50 border border-transparent"
               )}>
-                {item.status === 'done' ? 'Concluído' : item.status === 'in_progress' ? 'Em andamento' : 'Pendente'}
-              </span>
-            </div>
-          ))}
+                <div className="flex-1">
+                  <p className="font-medium text-slate-900">{item.service_name}</p>
+                  <div className="flex gap-2 items-center mt-0.5">
+                    {item.tooth && <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 rounded">Dente {item.tooth}</span>}
+                    <span className="text-xs font-bold text-emerald-600">{formatCurrency(item.estimated_price)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                   <div className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", 
+                    isDone ? "bg-emerald-100 text-emerald-700" : 
+                    item.status === 'in_progress' ? "bg-blue-100 text-blue-700" : 
+                    "bg-amber-100 text-amber-700"
+                  )}>
+                    {isDone ? 'Concluído' : item.status === 'in_progress' ? 'Em andamento' : 'Pendente'}
+                  </div>
+
+                  {!isDone && (
+                    <input 
+                      type="checkbox" 
+                      checked={isPerformedToday}
+                      onChange={() => toggleItemPerformed(item)}
+                      className="w-5 h-5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
+            <span className="text-sm text-slate-500 font-medium">Total do Plano</span>
+            <span className="text-lg font-bold text-slate-900">{formatCurrency(activePlan.total_estimated || 0)}</span>
+          </div>
         </div>
       ) : (
-        <div className="text-center py-8">
+        <div className="text-center py-12 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
           <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <p className="text-slate-500 mb-4">Nenhum plano de tratamento cadastrado.</p>
+          <p className="text-slate-500 mb-4 font-medium">Nenhum plano de tratamento.</p>
           {canEdit && (
-            <p className="text-xs text-slate-400">Clique em "Adicionar Serviço" para criar um plano de tratamento usando os serviços configurados.</p>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-6 py-2 bg-white text-cyan-600 border border-cyan-200 font-bold rounded-xl text-sm hover:bg-cyan-50"
+            >
+              Criar Primeiro Plano
+            </button>
           )}
         </div>
       )}
@@ -1336,80 +1445,87 @@ function TreatmentPlanSection({
       {/* Add Service Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-xl max-w-md w-full">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-xl max-w-md w-full overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0">
               <h2 className="text-lg font-bold text-slate-900">Adicionar ao Plano</h2>
-              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
                 <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
-              {/* Service Selection */}
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Serviço</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Serviço/Procedimento</label>
                 <select
                   value={selectedService}
                   onChange={(e) => setSelectedService(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm font-medium"
                 >
                   <option value="">Selecione um serviço...</option>
                   {clinicServices.map(service => (
                     <option key={service.id} value={service.id}>
-                      {service.name} - R$ {service.base_price?.toFixed(2) || '0.00'}
+                      {service.name} ({formatCurrency(service.base_price || 0)})
                     </option>
                   ))}
                 </select>
               </div>
               
-              {/* Tooth Selection */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Dente (opcional)</label>
-                <select
-                  value={selectedTooth}
-                  onChange={(e) => setSelectedTooth(e.target.value)}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">Nenhum / Geral</option>
-                  {allTeeth.map(tooth => (
-                    <option key={tooth} value={tooth}>{tooth}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Dente (Opcional)</label>
+                <div className="grid grid-cols-8 gap-1.5">
+                  {[...Array(32)].map((_, i) => {
+                    const tooth = i + 1;
+                    const isSelected = selectedTooth === String(tooth);
+                    return (
+                      <button
+                        key={tooth}
+                        onClick={() => setSelectedTooth(isSelected ? '' : String(tooth))}
+                        className={cn(
+                          "h-8 flex items-center justify-center text-[10px] font-bold rounded-md transition-all",
+                          isSelected ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        )}
+                      >
+                        {tooth}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               
-              {/* Notes */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Observações</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Notas do Procedimento</label>
                 <textarea
                   value={planNotes}
                   onChange={(e) => setPlanNotes(e.target.value)}
-                  placeholder="Observações sobre o tratamento..."
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl h-24 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Ex: Utilizar resina Z350..."
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl h-24 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm resize-none"
                 />
               </div>
               
-              {/* Selected service preview */}
               {selectedService && (
-                <div className="bg-green-50 rounded-xl p-4">
-                  <p className="text-sm font-bold text-green-800">Serviço selecionado:</p>
-                  <p className="text-green-700">{services.find(s => s.id === selectedService)?.name}</p>
-                  <p className="text-xs text-green-600">R$ {services.find(s => s.id === selectedService)?.base_price?.toFixed(2) || '0.00'}</p>
+                <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-emerald-800 uppercase">Resumo</span>
+                    <span className="text-sm font-bold text-emerald-600">
+                      {formatCurrency(clinicServices.find(s => s.id === selectedService)?.base_price || 0)}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
             
-            <div className="p-4 border-t border-slate-100 flex gap-2">
+            <div className="p-4 border-t border-slate-100 flex gap-3 bg-slate-50">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl"
+                className="flex-1 py-3 text-slate-600 font-bold rounded-xl text-sm"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleAddItem}
-                className="flex-1 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 shadow-md shadow-cyan-200 transition-all flex items-center justify-center gap-2"
               >
-                <Plus className="w-4 h-4" /> Adicionar
+                <Save className="w-4 h-4" /> Salvar Item
               </button>
             </div>
           </div>
