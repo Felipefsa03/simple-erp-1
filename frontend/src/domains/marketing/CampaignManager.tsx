@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { Modal, LoadingButton, EmptyState } from '@/components/shared';
 import { formatDateBR, toast } from '@/hooks/useShared';
 import { integrationsApi } from '@/lib/integrationsApi';
+import { supabase } from '@/lib/supabase';
 
 interface CampaignManagerProps {
   clinicId: string;
@@ -129,8 +130,23 @@ const CHANNEL_META: Record<
   },
 };
 
+const isDev = import.meta.env.DEV;
+
 function apiBase() {
-  return '';
+  return isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+}
+
+async function apiFetch(url: string, options: RequestInit = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {
+    ...((options.headers as Record<string, string>) || {}),
+  };
+  
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
+  }
+  
+  return fetch(url, { ...options, headers });
 }
 
 function campaignCacheKey(clinicId: string) {
@@ -355,7 +371,7 @@ export function CampaignManager({
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const response = await fetch(`${apiBase()}/api/campaigns/clinic/${clinicId}?t=${Date.now()}`, {
+        const response = await apiFetch(`${apiBase()}/api/campaigns/clinic/${clinicId}?t=${Date.now()}`, {
           cache: 'no-store',
         });
         const data = await readApiResponse<{ campaigns?: any[]; ok?: boolean }>(response);
@@ -473,7 +489,7 @@ export function CampaignManager({
 
     setIsSubmitting(true);
     try {
-      const createResponse = await fetch(`${apiBase()}/api/campaigns/create`, {
+      const createResponse = await apiFetch(`${apiBase()}/api/campaigns/create`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -521,7 +537,7 @@ export function CampaignManager({
 
       if (channel !== 'whatsapp') {
         const finishedAt = new Date().toISOString();
-        const updateResponse = await fetch(`${apiBase()}/api/campaigns/${persistedCampaign.id}`, {
+        const updateResponse = await apiFetch(`${apiBase()}/api/campaigns/${persistedCampaign.id}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -568,7 +584,7 @@ export function CampaignManager({
         action === 'delete'
           ? `${apiBase()}/api/campaigns/${campaignId}`
           : `${apiBase()}/api/campaigns/${campaignId}/${action}`;
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         method: action === 'delete' ? 'DELETE' : 'POST',
         headers: { 'content-type': 'application/json' },
       });
