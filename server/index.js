@@ -157,6 +157,19 @@ const SIGNUP_MAX_SENDS_PER_WINDOW = 3;
 const SIGNUP_SEND_WINDOW_MS = 10 * 60 * 1000;
 const phoneVerificationSessions = new Map();
 
+// Password Reset Sessions (in-memory, same as signup)
+const PASSWORD_RESET_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const PASSWORD_RESET_MAX_ATTEMPTS = 5;
+const PASSWORD_RESET_BLOCK_MS = 15 * 60 * 1000;
+const passwordResetSessions = new Map();
+
+const getPasswordResetSession = (email) => passwordResetSessions.get(String(email).toLowerCase());
+const setPasswordResetSession = (email, data) => passwordResetSessions.set(String(email).toLowerCase(), data);
+const deletePasswordResetSession = (email) => passwordResetSessions.delete(String(email).toLowerCase());
+
+const hashPasswordResetCode = (email, code) =>
+  crypto.createHash("sha256").update(`${email}:${code}`).digest("hex");
+
 const safeJson = async (response) => {
   try {
     const text = await response.text();
@@ -1331,7 +1344,7 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
 });
 
 // ============================================
-// Password Reset Flow (Real Implementation)
+// Password Reset Flow (In-Memory, no database needed)
 // ============================================
 
 app.post("/api/auth/password/reset-request", async (req, res) => {
@@ -1340,18 +1353,119 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
 
   if (!email) return res.status(400).json({ ok: false, error: "Email é obrigatório" });
 
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const systemConnected =
+    whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected";
+  if (!systemConnected) {
+    return res.status(503).json({
+      ok: false,
+      error:
+        "WhatsApp global não conectado. Solicite ao super admin para conectar em Sistema (Global).",
+    });
+  }
+
   try {
-    // 1. Buscar usuário para verificar existência e obter telefone
-    const user = await fetchUserByEmail(email);
+    const user = await fetchUserByEmail(normalizedEmail);
     
     if (!user) {
-      console.log(`[PasswordReset] Email não encontrado na base de dados: ${email}`);
-      // Segurança: Não confirmar se o email existe para evitar enumeração
+      console.log(`[PasswordReset] Email não encontrado na base de dados: ${normalizedEmail}`);
       return res.json({ 
         ok: true, 
         message: "Se este email estiver cadastrado, você receberá um código.",
         mock: true 
       });
+    }
+
+    const rawPhone = user.phone;
+    const cleanPhone = String(rawPhone || "").replace(/\D/g, "");
+    
+    if (!cleanPhone || cleanPhone.length < 10) {
+      console.log(`[PasswordReset] Usuário encontrado mas sem telefone válido: ${normalizedEmail}, fone: ${rawPhone}`);
+      return res.status(400).json({ 
+        ok: false, 
+        error: "Este usuário não possui um telefone celular cadastrado para recuperação via WhatsApp. Entre em contato com o suporte." 
+      });
+    }
+
+    const now = Date.now();
+    const existing = getPasswordResetSession(normalizedEmail);
+    const session = existing || {
+      email: normalizedEmail,
+      phone: cleanPhone,
+      sendTimestamps: [],
+      attempts: 0,
+      blockedUntil: 0,
+      verifiedAt: 0,
+      expiresAt: 0,
+      codeHash: "",
+    };
+
+    if (session.blockedUntil && now < session.blockedUntil) {
+      return res.status(429).json({
+        ok: false,
+        error: "Muitas tentativas. Aguarde para solicitar novo código.",
+        retry_after_seconds: Math.ceil((session.blockedUntil - now) / 1000),
+      });
+    }
+
+    const recentSends = (session.sendTimestamps || []).filter(
+      (timestamp) => now - timestamp < PASSWORD_RESET_TTL_MS
+    );
+    if (recentSends.length >= 3) {
+      return res.status(429).json({
+        ok: false,
+        error: "Limite de envios atingido. Aguarde 15 minutos para tentar novamente.",
+      });
+    }
+
+    const code = generateNumericCode();
+    session.codeHash = hashPasswordResetCode(normalizedEmail, code);
+    session.expiresAt = now + PASSWORD_RESET_TTL_MS;
+    session.verifiedAt = 0;
+    session.attempts = 0;
+    session.blockedUntil = 0;
+    session.sendTimestamps = [...recentSends, now];
+    session.phone = cleanPhone;
+    setPasswordResetSession(normalizedEmail, session);
+
+    const message = `🔐 *Clinxia - Segurança*\n\nSeu código de recuperação de senha é: *${code}*\n\nUse este código no portal para definir sua nova senha. Se você não solicitou isso, ignore esta mensagem.`;
+    
+    try {
+      await sendWhatsAppMessage({
+        clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
+        to: user.phone,
+        message
+      });
+    } catch (waError) {
+      console.error("[ResetRequest] Erro ao enviar WhatsApp:", waError.message);
+      if (user.clinic_id && user.clinic_id !== GLOBAL_CLINIC_ID) {
+        try {
+          await sendWhatsAppMessage({
+            clinicId: user.clinic_id,
+            to: user.phone,
+            message
+          });
+        } catch (innerError) {
+          deletePasswordResetSession(normalizedEmail);
+          throw new Error("Serviço de WhatsApp temporariamente indisponível. Tente novamente em instantes.");
+        }
+      } else {
+        deletePasswordResetSession(normalizedEmail);
+        throw new Error("Serviço de WhatsApp temporariamente indisponível.");
+      }
+    }
+
+    return res.json({ 
+      ok: true, 
+      message: "Código enviado com sucesso!",
+      masked_phone: maskPhone(user.phone)
+    });
+
+  } catch (error) {
+    console.error("[ResetRequest] Erro Fatal:", error.message);
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
     }
 
     const rawPhone = user.phone;
