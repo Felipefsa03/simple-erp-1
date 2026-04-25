@@ -15,6 +15,7 @@ import { useEventBus } from '@/stores/eventBus';
 import { useAuth } from '@/hooks/useAuth';
 import { uid, now } from '@/lib/utils';
 import { SupabaseSync } from '@/lib/supabaseSync';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import { isSupabaseEnvConfigured } from '@/lib/supabaseConfig';
 import { toast } from '@/hooks/useShared';
 
