@@ -3311,6 +3311,9 @@ app.get("/api/2fa/test", async (req, res) => {
       error: error instanceof Error ? error.message : "Test failed",
       stack: error instanceof Error ? error.stack : "",
     });
+  }
+});
+
 // Processador de campanhas em background
 setInterval(async () => {
   for (const [clinicId, campaigns] of campaignsByClinic.entries()) {
