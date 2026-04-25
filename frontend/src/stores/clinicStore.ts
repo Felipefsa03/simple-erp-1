@@ -1083,35 +1083,48 @@ export const useClinicStore = create<ClinicStore>()(
                     const filtered = existing.filter(e => e.tooth_number !== entry.tooth_number);
                     const next = [...filtered, entry];
                     
-                    // Persistir no Supabase
                     const existingRec = s.medicalRecords.find(r => r.patient_id === patientId && r.odontogram);
+                    let newRec = null;
+                    
                     if (existingRec) {
                         saveToSupabase('medical_record', { ...existingRec, odontogram: next }, false);
                     } else {
-                        const newRec = {
+                        newRec = {
                             id: uid(), clinic_id: s.user?.clinic_id || 'clinic-1', patient_id: patientId, professional_id: s.user?.id,
                             odontogram: next, content: null, locked: false, created_at: now(), updated_at: now()
                         };
                         saveToSupabase('medical_record', newRec, true);
-                        s.medicalRecords.push(newRec as any);
                     }
                     
-                    return { odontogramData: { ...s.odontogramData, [patientId]: next } };
+                    const medicalRecords = existingRec 
+                        ? s.medicalRecords.map(r => r.id === existingRec.id ? { ...r, odontogram: next } : r)
+                        : [...s.medicalRecords, newRec];
+                    
+                    return { 
+                        odontogramData: { ...s.odontogramData, [patientId]: next },
+                        medicalRecords: medicalRecords as any
+                    };
                 });
             },
             getOdontogramData: (patientId) => get().odontogramData[patientId] || [],
             saveAnamnese: (data) => {
-                set(s => ({ anamneseData: { ...s.anamneseData, [data.patient_id]: data } }));
                 const existing = get().medicalRecords.find(r => r.patient_id === data.patient_id && r.anamnese);
                 if (existing) {
                     saveToSupabase('medical_record', { ...existing, anamnese: data }, false);
+                    set(s => ({ 
+                        anamneseData: { ...s.anamneseData, [data.patient_id]: data },
+                        medicalRecords: s.medicalRecords.map(r => r.id === existing.id ? { ...r, anamnese: data } : r)
+                    }));
                 } else {
                     const newRec = {
                         id: uid(), clinic_id: data.clinic_id, patient_id: data.patient_id, professional_id: useAuth.getState().user?.id,
                         anamnese: data, content: null, locked: false, created_at: now(), updated_at: now()
                     };
                     saveToSupabase('medical_record', newRec, true);
-                    set(s => ({ medicalRecords: [...s.medicalRecords, newRec as any] }));
+                    set(s => ({ 
+                        anamneseData: { ...s.anamneseData, [data.patient_id]: data },
+                        medicalRecords: [...s.medicalRecords, newRec as any] 
+                    }));
                 }
             },
             getAnamnese: (patientId) => get().anamneseData[patientId],
