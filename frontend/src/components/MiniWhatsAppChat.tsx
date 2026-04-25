@@ -137,7 +137,8 @@ export function MiniWhatsAppChat({
 
   // Manual sync function for button click
   const handleManualSync = useCallback(() => {
-    syncStatus();
+    setConnectionStatus('checking');
+    syncStatus(true);
   }, [syncStatus]);
 
   const sendTextToWhatsApp = useCallback(async (

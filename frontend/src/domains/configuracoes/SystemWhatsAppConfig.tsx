@@ -104,8 +104,10 @@ export function SystemWhatsAppConfig() {
           setErrorMsg(data.error || 'Erro no servidor');
           return;
         }
-      } catch (err) {
-        console.error('[WhatsApp Sistema] poll error:', err);
+      } catch (err: any) {
+        if (err.message !== 'Failed to fetch' && !err.message?.includes('NetworkError')) {
+          console.warn('[WhatsApp Sistema] poll error:', err.message);
+        }
       }
     };
 

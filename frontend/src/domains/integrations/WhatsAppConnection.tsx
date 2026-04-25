@@ -144,8 +144,10 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
            return;
         }
 
-      } catch (err) {
-        console.error('[WhatsApp] poll error:', err);
+      } catch (err: any) {
+        if (err.message !== 'Failed to fetch' && !err.message?.includes('NetworkError')) {
+          console.warn('[WhatsApp] poll error:', err.message);
+        }
       }
     };
 
@@ -569,7 +571,7 @@ export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: {
       });
       const data = await res.json();
       
-      const connected = data.status === 'connected';
+      const connected = data.status === 'connected' || data.status === 'conectado' || data.status === 'Connected';
       setIsConnected(connected);
       setWhatsAppConnected(clinicId, connected);
       
@@ -584,8 +586,10 @@ export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: {
       }
       
       if (onStatusChange) onStatusChange(connected);
-    } catch (err) {
-      console.error('[WhatsApp] Status check failed:', err);
+    } catch (err: any) {
+      if (err.message !== 'Failed to fetch' && !err.message?.includes('NetworkError')) {
+        console.warn('[WhatsApp] Status check failed:', err.message);
+      }
     } finally {
       setIsChecking(false);
     }

@@ -27,14 +27,14 @@ export function useWhatsAppSync(
     // If already synced recently and not forced, skip
     if (!force && globalSyncStatus === 'synced' && globalLastStatus && Date.now() - lastSyncTime < 30000) {
       if (onStatusChange) {
-        onStatusChange(globalLastStatus.status === 'connected', globalLastStatus);
+        onStatusChange(globalLastStatus.status === 'connected' || globalLastStatus.status === 'conectado' || globalLastStatus.status === 'Connected', globalLastStatus);
       }
       return globalLastStatus;
     }
     
     if (globalSyncStatus === 'syncing') {
       if (onStatusChange && globalLastStatus) {
-        onStatusChange(globalLastStatus.status === 'connected', globalLastStatus);
+        onStatusChange(globalLastStatus.status === 'connected' || globalLastStatus.status === 'conectado' || globalLastStatus.status === 'Connected', globalLastStatus);
       }
       return globalLastStatus;
     }
@@ -48,7 +48,7 @@ export function useWhatsAppSync(
       });
       const data: WhatsAppStatus = await res.json();
       
-      const connected = data.status === 'connected';
+      const connected = data.status === 'connected' || data.status === 'conectado' || data.status === 'Connected';
       globalSyncStatus = connected ? 'synced' : 'not_synced';
       lastSyncTime = Date.now();
       globalLastStatus = data;
@@ -59,8 +59,10 @@ export function useWhatsAppSync(
       }
       
       return data;
-    } catch (err) {
-      console.error('[WhatsAppSync] Error:', err);
+    } catch (err: any) {
+      if (err.message !== 'Failed to fetch' && !err.message?.includes('NetworkError')) {
+        console.warn('[WhatsAppSync] Error:', err.message);
+      }
       globalSyncStatus = 'not_synced';
       return null;
     } finally {
@@ -75,7 +77,7 @@ export function useWhatsAppSync(
       syncStatus();
     } else if (globalLastStatus && onStatusChange) {
       // Just notify with last known status
-      onStatusChange(globalLastStatus.status === 'connected', globalLastStatus);
+      onStatusChange(globalLastStatus.status === 'connected' || globalLastStatus.status === 'conectado' || globalLastStatus.status === 'Connected', globalLastStatus);
     }
   }, [syncStatus, onStatusChange]);
 
@@ -94,10 +96,12 @@ export function useWhatsAppStatus() {
       });
       const data: WhatsAppStatus = await res.json();
       setStatus(data);
-      setIsConnected(data.status === 'connected');
+      setIsConnected(data.status === 'connected' || data.status === 'conectado' || data.status === 'Connected');
       return data;
-    } catch (err) {
-      console.error('[WhatsAppStatus] Error:', err);
+    } catch (err: any) {
+      if (err.message !== 'Failed to fetch' && !err.message?.includes('NetworkError')) {
+        console.warn('[WhatsAppStatus] Error:', err.message);
+      }
       return null;
     }
   }, []);
