@@ -1137,11 +1137,7 @@ export const useClinicStore = create<ClinicStore>()(
                     return false;
                 }
             },
-                } catch (error) {
-                    // Silent catch to prevent spamming the console on network errors
-                }
-                return false;
-            },
+
 
             generateAnamneseLink: (patientId, createdBy, hoursValid = 72) => {
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
