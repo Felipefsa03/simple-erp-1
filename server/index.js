@@ -1718,6 +1718,7 @@ const createWhatsAppSocket = async (clinicId) => {
       const logger = pino({ level: "silent" }); // Completely silent to avoid session errors
       addLog(`[Baileys] Iniciando conexão para ${clinicId}...`);
 
+      // Sempre inicializa como 'connecting' ao criar novo socket
       whatsappConnections[clinicId] = { status: "connecting" };
 
       const sock = makeWASocket({
@@ -2110,7 +2111,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   }
 
   if (whatsappConnections[clinicId]?.status !== "connected") {
-    throw new Error("Dispositivo não conectado");
+    throw new Error('Dispositivo não conectado. Status atual: ' + (whatsappConnections[clinicId]?.status || 'desconhecido'));
   }
 
   const jid = await resolveWhatsAppJID(sock, to);
@@ -2187,6 +2188,7 @@ app.post("/api/whatsapp/send", async (req, res) => {
   }
 
   try {
+<<<<<<< HEAD
     const sock = await ensureSocketConnected(clinicId);
 
     // Wait up to 15 seconds if it's connecting
@@ -2202,11 +2204,13 @@ app.post("/api/whatsapp/send", async (req, res) => {
         .json({ ok: false, error: "Dispositivo não conectado" });
     }
 
+=======
+>>>>>>> 878f3c9 (fix: corrige persistencia de agendamentos e conexao WhatsApp (aguarda status connected antes de enviar))
     const quickResult = await sendWhatsAppMessage({ clinicId, to, message });
     return res.json({ ok: true, messageId: quickResult.messageId });
   } catch (error) {
     addLog(`[API] Erro ao enviar: ${error.message}`);
-    res.status(500).json({ ok: false, error: error.message });
+    res.status(400).json({ ok: false, error: error.message });
   }
 });
 

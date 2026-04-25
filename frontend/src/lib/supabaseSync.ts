@@ -28,8 +28,43 @@ const ensureSupabaseConfigured = (operation: string) => {
 
 // Obter token JWT do usuario logado (sessao em memoria)
 const getAuthToken = (): string | null => {
-  const session = getSupabaseSession();
-  return session?.access_token || null;
+  try {
+    // Tentar 1: getSupabaseSession() - fonte principal (em memória)
+    const session = getSupabaseSession();
+    if (session?.access_token) {
+      return session.access_token;
+    }
+
+    // Tentar 2: clinxia_supabase_session (Custom Supabase Client no localStorage)
+    const clinxiaSession = localStorage.getItem('clinxia_supabase_session');
+    if (clinxiaSession) {
+      const parsed = JSON.parse(clinxiaSession);
+      if (parsed?.access_token) {
+        return parsed.access_token;
+      }
+    }
+
+    // Tentar 3: Zustand store format (Legacy)
+    const authData = localStorage.getItem('luminaflow-auth');
+    if (authData) {
+      const parsed = JSON.parse(authData);
+      if (parsed?.state?.user?.access_token) {
+        return parsed.state.user.access_token;
+      }
+    }
+
+    // Tentar 4: supabase session padrão (@supabase/supabase-js)
+    const supabaseSession = localStorage.getItem('supabase.auth.token');
+    if (supabaseSession) {
+      const parsed = JSON.parse(supabaseSession);
+      if (parsed?.access_token) {
+        return parsed.access_token;
+      }
+    }
+  } catch (e) {
+    console.log('[SupabaseSync] Error getting auth token:', e);
+  }
+  return null;
 };
 
 const getHeaders = (method?: string) => {
