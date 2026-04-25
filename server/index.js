@@ -2188,24 +2188,6 @@ app.post("/api/whatsapp/send", async (req, res) => {
   }
 
   try {
-<<<<<<< HEAD
-    const sock = await ensureSocketConnected(clinicId);
-
-    // Wait up to 15 seconds if it's connecting
-    let waitCount = 0;
-    while (whatsappConnections[clinicId]?.status === "connecting" && waitCount < 30) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      waitCount++;
-    }
-
-    if (whatsappConnections[clinicId]?.status !== "connected") {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Dispositivo não conectado" });
-    }
-
-=======
->>>>>>> 878f3c9 (fix: corrige persistencia de agendamentos e conexao WhatsApp (aguarda status connected antes de enviar))
     const quickResult = await sendWhatsAppMessage({ clinicId, to, message });
     return res.json({ ok: true, messageId: quickResult.messageId });
   } catch (error) {
