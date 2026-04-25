@@ -3311,8 +3311,66 @@ app.get("/api/2fa/test", async (req, res) => {
       error: error instanceof Error ? error.message : "Test failed",
       stack: error instanceof Error ? error.stack : "",
     });
+// Processador de campanhas em background
+setInterval(async () => {
+  for (const [clinicId, campaigns] of campaignsByClinic.entries()) {
+    const runningCampaigns = campaigns.filter(c => c.status === 'running' && c.channel === 'whatsapp');
+    
+    for (const campaign of runningCampaigns) {
+      if (!campaign.stats) {
+        campaign.stats = { totalContacts: campaign.contacts?.length || 0, sent: 0, delivered: 0, failed: 0, pending: campaign.contacts?.length || 0, skipped: 0 };
+      }
+      
+      if (!campaign.contacts || campaign.contacts.length === 0) {
+        campaign.status = 'completed';
+        campaign.completedAt = new Date().toISOString();
+        continue;
+      }
+      
+      const sent = campaign.stats.sent || 0;
+      const failed = campaign.stats.failed || 0;
+      const currentIndex = sent + failed;
+      
+      if (currentIndex >= campaign.contacts.length) {
+        campaign.status = 'completed';
+        campaign.completedAt = new Date().toISOString();
+        continue;
+      }
+      
+      const contact = campaign.contacts[currentIndex];
+      const sock = whatsappSockets[clinicId];
+      
+      if (!sock) {
+        addLog(`[Campaign] WhatsApp não conectado para clínica ${clinicId}. Falha ao enviar para ${contact.name}`);
+        campaign.stats.failed += 1;
+      } else {
+        try {
+          const number = String(contact.phone).replace(/\D/g, "");
+          const jid = (number.startsWith("55") && number.length === 13)
+            ? `${number.slice(0, 4)}${number.slice(5)}@s.whatsapp.net` 
+            : `${number}@s.whatsapp.net`;
+            
+          let finalMessage = campaign.message || "";
+          finalMessage = finalMessage.replace(/\{nome\}/g, contact.name || "Cliente");
+          
+          await sock.sendMessage(jid, { text: finalMessage });
+          addLog(`[Campaign] Mensagem enviada para ${jid}`);
+          campaign.stats.sent += 1;
+        } catch (e) {
+          addLog(`[Campaign] Erro ao enviar mensagem para ${contact.phone}: ${e.message}`);
+          campaign.stats.failed += 1;
+        }
+      }
+      
+      campaign.stats.pending = campaign.contacts.length - (campaign.stats.sent + campaign.stats.failed);
+      campaign.progress = Math.round(((campaign.stats.sent + campaign.stats.failed) / campaign.contacts.length) * 100);
+      campaign.updated_at = new Date().toISOString();
+      
+      campaignsByClinic.set(clinicId, campaigns);
+    }
   }
-});
+}, 5000).unref(); // roda a cada 5 segundos para processar 1 mensagem por vez
+
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
