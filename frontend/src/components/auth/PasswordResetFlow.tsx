@@ -88,106 +88,54 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
     }
   }, [blockedUntil]);
 
-  const sendWhatsAppMessage = async (phone: string, message: string): Promise<boolean> => {
-    
+  // Helper para chamadas ao backend
+  const apiCall = async (endpoint: string, body: any) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
     try {
-      const phoneDigits = formatPhoneForWhatsApp(phone);
-
-      const requestBody = {
-        clinicId: SYSTEM_CLINIC_ID,
-        to: phoneDigits,
-        message: message,
-      };
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-      const response = await fetch(`${API_BASE}/api/whatsapp/send`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
-
-      const data = await response.json();
-
-      if (data.ok) {
-        if (data.warning) {
-          toast(data.warning, 'info');
-        }
-        return true;
-      } else {
-        console.error('[PasswordReset] Erro ao enviar:', data.error || data.message);
-        toast(`Erro: ${data.error || data.message || 'Não foi possível enviar'}`, 'error');
-        return false;
-      }
+      return await response.json();
     } catch (err: any) {
-      console.error('[PasswordReset] Erro de rede:', err);
-      if (err.name === 'AbortError') {
-        toast('Timeout: O envio demorou muito. Tente novamente.', 'error');
-      } else {
-        toast(`Erro de rede: ${err.message}. Verifique se o servidor está rodando.`, 'error');
-      }
-      return false;
+      clearTimeout(timeoutId);
+      throw err;
     }
   };
 
   const sendCode = async (targetEmail: string): Promise<boolean> => {
-    
-    // Rate limiting
-    const rateKey = `rate:${targetEmail}`;
-    const rate = rateLimits.get(rateKey);
-    const now = Date.now();
-    const tenMinutes = 10 * 60 * 1000;
-
-    if (rate && now < rate.resetAt) {
-      if (rate.count >= 3) {
-        setError('Muitas solicitações. Aguarde 10 minutos antes de tentar novamente.');
+    try {
+      const result = await apiCall('/api/auth/password/reset-request', { email: targetEmail });
+      
+      if (result.ok) {
+        if (result.mock) {
+          // Usuário não encontrado, mas mostramos sucesso por segurança/privacidade
+          toast('Se este email estiver cadastrado, você receberá um código.', 'info');
+        } else {
+          toast('Código enviado com sucesso!', 'success');
+          setMaskedPhone(result.masked_phone || 'no seu WhatsApp');
+        }
+        
+        setCurrentUserEmail(targetEmail);
+        setStep('code');
+        setTimer(30);
+        setError('');
+        return true;
+      } else {
+        setError(result.error || 'Erro ao solicitar recuperação.');
         return false;
       }
-      rate.count++;
-    } else {
-      rateLimits.set(rateKey, { count: 1, resetAt: now + tenMinutes });
-    }
-
-    // Verificar se usuário existe
-    const user = demoUsers[targetEmail.toLowerCase()];
-    if (!user) {
-      // Não revelar se o email existe (segurança)
-      toast('Se este email estiver cadastrado, você receberá um código.', 'info');
-      setStep('code');
-      setTimer(30);
-      return true;
-    }
-
-    // Gerar código
-    const codeGenerated = generateCode();
-    resetCodes.set(user.id, { code: codeGenerated, expiresAt: now + 30000, attempts: 0 });
-
-    // Mensagem para enviar
-    const message = `🔐 *Clinxia - Recuperação de Senha*\n\nSeu código de recuperação de senha é:\n\n*${codeGenerated}*\n\nEste código expira em 30 segundos.\n\nSe você não solicitou esta alteração, ignore esta mensagem.`;
-
-    // Enviar via WhatsApp
-    const sent = await sendWhatsAppMessage(user.phone, message);
-
-    if (!sent) {
-      setError('Não foi possível enviar o código via WhatsApp. Verifique a conexão e tente novamente.');
+    } catch (err: any) {
+      console.error('[PasswordReset] Erro ao solicitar código:', err);
+      setError('Erro de conexão com o servidor. Tente novamente.');
       return false;
     }
-
-    setCurrentUserId(user.id);
-    setCurrentUserEmail(targetEmail);
-    setMaskedPhone(maskPhone(user.phone));
-    setStep('code');
-    setTimer(30);
-    setCodeAttempts(0);
-    setBlockedUntil(0);
-    setError('');
-
-    toast(`Código enviado para ${maskPhone(user.phone)}`, 'success');
-    return true;
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -239,44 +187,31 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
   };
 
   const verifyCode = async (codeStr: string) => {
-    // Verificar bloqueio
-    if (blockedUntil > 0 && Date.now() < blockedUntil) {
-      const secondsLeft = Math.ceil((blockedUntil - Date.now()) / 1000);
-      setError(`Bloqueado. Aguarde ${secondsLeft} segundos.`);
-      return;
-    }
-
-    const resetCode = resetCodes.get(currentUserId);
-    if (!resetCode) {
-      setError('Código não encontrado. Solicite um novo código.');
-      return;
-    }
-
-    // Verificar expiração
-    if (Date.now() > resetCode.expiresAt) {
-      setError('Código expirado. Clique em "Reenviar código".');
-      return;
-    }
-
-    // Verificar código
-    if (codeStr !== resetCode.code) {
-      const newAttempts = codeAttempts + 1;
-      setCodeAttempts(newAttempts);
-
-      if (newAttempts >= 3) {
-        setBlockedUntil(Date.now() + 60000); // 1 minuto
-        setError('Muitas tentativas incorretas. Bloqueado por 60 segundos.');
-      } else {
-        setError(`Código incorreto. ${3 - newAttempts} tentativa(s) restante(s).`);
-      }
-      return;
-    }
-
-    // Código correto
-    resetCode.attempts = 0;
-    setStep('new-password');
     setError('');
-    toast('Código verificado com sucesso!', 'success');
+    
+    try {
+      const result = await apiCall('/api/auth/password/reset-verify', { 
+        email: currentUserEmail, 
+        code: codeStr 
+      });
+
+      if (result.ok) {
+        setStep('new-password');
+        toast('Código verificado com sucesso!', 'success');
+      } else {
+        const newAttempts = codeAttempts + 1;
+        setCodeAttempts(newAttempts);
+        
+        if (newAttempts >= 5) {
+          setBlockedUntil(Date.now() + 300000); // 5 min
+          setError('Muitas tentativas. Bloqueado por 5 minutos.');
+        } else {
+          setError(result.error || 'Código incorreto. Tente novamente.');
+        }
+      }
+    } catch (err) {
+      setError('Erro ao validar código. Tente novamente.');
+    }
   };
 
   const handleVerifyCode = async (e: React.FormEvent) => {
@@ -329,45 +264,26 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
     }
 
     setLoading(true);
-    await new Promise(r => setTimeout(r, 500));
 
     try {
-      const { getSupabaseSession } = await import('@/lib/supabase');
-      const session = getSupabaseSession ? getSupabaseSession() : null;
-      
-      if (!session?.access_token) {
-        setError('Sessão expirada. Faça login novamente.');
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://example.supabase.co'}/auth/v1/admin/users/${currentUserId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || '',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ password: newPassword }),
+      const result = await apiCall('/api/auth/password/reset-confirm', {
+        email: currentUserEmail,
+        code: code.join(''),
+        password: newPassword
       });
 
-      if (!response.ok) {
-        const err = await response.json();
-        setError(err.error_description || err.msg || 'Erro ao atualizar senha');
-        setLoading(false);
-        return;
+      if (result.ok) {
+        toast('Senha alterada com sucesso!', 'success');
+        setStep('success');
+      } else {
+        setError(result.error || 'Não foi possível atualizar a senha.');
       }
     } catch (err) {
-      console.error('[PasswordReset] Erro ao atualizar senha:', err);
-      setError('Erro ao processar recuperação de senha.');
+      console.error('[PasswordReset] Erro:', err);
+      setError('Erro ao processar alteração de senha.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    resetCodes.delete(currentUserId);
-
-    setLoading(false);
-    setStep('success');
   };
 
   const formatTime = (seconds: number) => {

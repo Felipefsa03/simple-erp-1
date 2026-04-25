@@ -1295,6 +1295,182 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
   }
 });
 
+// ============================================
+// Password Reset Flow (Real Implementation)
+// ============================================
+
+app.post("/api/auth/password/reset-request", async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  
+  if (!email) {
+    return res.status(400).json({ ok: false, error: "Email é obrigatório" });
+  }
+
+  try {
+    // 1. Buscar usuário para verificar existência e obter telefone
+    const user = await fetchUserByEmail(email);
+    
+    if (!user) {
+      // Segurança: Não confirmar se o email existe para evitar enumeração
+      return res.json({ 
+        ok: true, 
+        message: "Se este email estiver cadastrado, você receberá um código.",
+        mock: true 
+      });
+    }
+
+    if (!user.phone) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: "Este usuário não possui um telefone celular cadastrado para recuperação via WhatsApp. Entre em contato com o suporte." 
+      });
+    }
+
+    // 2. Gerar código de 6 dígitos
+    const code = generateNumericCode();
+    // Expiração curta na tabela (o frontend pode ter uma expiração menor visualmente)
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); 
+
+    // 3. Salvar código no banco (tabela password_codes)
+    // Usamos SERVICE ROLE via fetch interno para ignorar RLS nesta etapa
+    const codeRecord = {
+      user_id: user.id,
+      code: code,
+      expires: expiresAt,
+      used: false
+    };
+
+    const saveRes = await fetch(`${SUPABASE_URL}/rest/v1/password_codes`, {
+      method: "POST",
+      headers: getSupabaseWriteHeaders(),
+      body: JSON.stringify(codeRecord)
+    });
+
+    if (!saveRes.ok) {
+      const errData = await saveRes.json().catch(() => ({}));
+      console.error("[ResetRequest] Erro ao salvar código:", errData);
+      throw new Error("Falha ao gerar código de segurança");
+    }
+
+    // 4. Enviar mensagem via WhatsApp (Usa o WhatsApp Global do Sistema)
+    const message = `🔐 *Clinxia - Segurança*\n\nSeu código de recuperação de senha é: *${code}*\n\nUse este código no portal para definir sua nova senha. Se você não solicitou isso, ignore esta mensagem.`;
+    
+    try {
+      await sendWhatsAppMessage({
+        clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
+        to: user.phone,
+        message
+      });
+    } catch (waError) {
+      console.error("[ResetRequest] Erro ao enviar WhatsApp:", waError.message);
+      // Fallback: Se o global falhar, tenta usar o da própria clínica se disponível
+      if (user.clinic_id && user.clinic_id !== GLOBAL_CLINIC_ID) {
+        try {
+          await sendWhatsAppMessage({
+            clinicId: user.clinic_id,
+            to: user.phone,
+            message
+          });
+        } catch (innerError) {
+          throw new Error("Serviço de WhatsApp temporariamente indisponível. Tente novamente em instantes.");
+        }
+      } else {
+        throw new Error("Serviço de WhatsApp temporariamente indisponível.");
+      }
+    }
+
+    return res.json({ 
+      ok: true, 
+      message: "Código enviado com sucesso!",
+      masked_phone: maskPhone(user.phone),
+      user_id: user.id // Útil para o frontend referenciar
+    });
+
+  } catch (error) {
+    console.error("[ResetRequest] Erro Fatal:", error.message);
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post("/api/auth/password/reset-confirm", async (req, res) => {
+  const { email, code, password } = req.body;
+
+  if (!email || !code || !password) {
+    return res.status(400).json({ ok: false, error: "Dados incompletos para redefinição" });
+  }
+
+  try {
+    // 1. Validar Usuário
+    const user = await fetchUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ ok: false, error: "Usuário não encontrado" });
+    }
+
+    // 2. Validar Código (mais recente, não usado e não expirado)
+    const url = `${SUPABASE_URL}/rest/v1/password_codes?user_id=eq.${user.id}&code=eq.${code}&used=eq.false&expires=gt.now()&order=created_at.desc&limit=1`;
+    const codesRes = await fetch(url, { headers: getSupabaseAdminHeaders() });
+    const codes = await codesRes.json();
+
+    if (!Array.isArray(codes) || codes.length === 0) {
+      return res.status(400).json({ ok: false, error: "Código inválido, expirado ou já utilizado." });
+    }
+
+    const record = codes[0];
+
+    // 3. Atualizar Senha no Supabase Auth (Admin API)
+    if (!SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Configuração de segurança do servidor incompleta (service_role missing)");
+    }
+
+    const authRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${user.id}`, {
+      method: "PUT",
+      headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY),
+      body: JSON.stringify({ password: password })
+    });
+
+    if (!authRes.ok) {
+      const authErr = await authRes.json().catch(() => ({}));
+      console.error("[ResetConfirm] Erro no Auth Supabase:", authErr);
+      throw new Error("Não foi possível atualizar a senha. Tente uma senha mais forte.");
+    }
+
+    // 4. Invalidar o código (marcar como usado)
+    await fetch(`${SUPABASE_URL}/rest/v1/password_codes?id=eq.${record.id}`, {
+      method: "PATCH",
+      headers: getSupabaseAdminHeaders(),
+      body: JSON.stringify({ used: true, updated_at: new Date().toISOString() })
+    });
+
+    return res.json({ ok: true, message: "Sua senha foi alterada com sucesso! Você já pode fazer login." });
+
+  } catch (error) {
+    console.error("[ResetConfirm] Erro Fatal:", error.message);
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post("/api/auth/password/reset-verify", async (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) return res.status(400).json({ ok: false, error: "Email e código são obrigatórios" });
+
+  try {
+    const user = await fetchUserByEmail(email);
+    if (!user) return res.status(404).json({ ok: false, error: "Usuário não encontrado" });
+
+    const url = `${SUPABASE_URL}/rest/v1/password_codes?user_id=eq.${user.id}&code=eq.${code}&used=eq.false&expires=gt.now()&order=created_at.desc&limit=1`;
+    const codesRes = await fetch(url, { headers: getSupabaseAdminHeaders() });
+    const codes = await codesRes.json();
+
+    if (!Array.isArray(codes) || codes.length === 0) {
+      return res.status(400).json({ ok: false, error: "Código inválido ou expirado" });
+    }
+
+    return res.json({ ok: true, message: "Código validado com sucesso!" });
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 const campaignsByClinic = new Map();
 const antiSpamStatsByNumber = new Map();
 
