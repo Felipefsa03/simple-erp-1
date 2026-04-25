@@ -408,12 +408,47 @@ const isPaymentApproved = (payment) =>
   String(payment?.status || "").toLowerCase() === "approved";
 
 const fetchUserByEmail = async (email) => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !email) return null;
-  const url = `${SUPABASE_URL}/rest/v1/users?email=eq.${encodeFilterValue(email)}&select=id,clinic_id,email,name,role&limit=1`;
-  const response = await fetch(url, { headers: getSupabaseAdminHeaders() });
-  if (!response.ok) return null;
-  const rows = await safeJson(response);
-  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+  if (!email) return null;
+  const normalizedEmail = String(email).trim().toLowerCase();
+  
+  try {
+    // 1. Tentar primeiro na tabela 'users' (Principal)
+    const urlUsers = `${SUPABASE_URL}/rest/v1/users?email=eq.${encodeFilterValue(normalizedEmail)}&select=id,clinic_id,email,name,role,phone&limit=1`;
+    const resUsers = await fetch(urlUsers, { headers: getSupabaseAdminHeaders() });
+    
+    if (resUsers.ok) {
+      const users = await resUsers.json();
+      if (Array.isArray(users) && users.length > 0) {
+        console.log(`[fetchUserByEmail] Encontrado em 'users': ${normalizedEmail}`);
+        return users[0];
+      }
+    }
+    
+    // 2. Fallback: Tentar na tabela 'professionals'
+    const urlProfs = `${SUPABASE_URL}/rest/v1/professionals?email=eq.${encodeFilterValue(normalizedEmail)}&select=id,user_id,clinic_id,name,phone,email&limit=1`;
+    const resProfs = await fetch(urlProfs, { headers: getSupabaseAdminHeaders() });
+    
+    if (resProfs.ok) {
+      const profs = await resProfs.json();
+      if (Array.isArray(profs) && profs.length > 0) {
+        const p = profs[0];
+        console.log(`[fetchUserByEmail] Encontrado em 'professionals': ${normalizedEmail}`);
+        return {
+          id: p.user_id || p.id,
+          clinic_id: p.clinic_id,
+          email: p.email || normalizedEmail,
+          name: p.name,
+          phone: p.phone,
+          role: 'dentist'
+        };
+      }
+    }
+  } catch (error) {
+    console.error(`[fetchUserByEmail] Erro ao buscar usuário ${email}:`, error);
+  }
+  
+  console.log(`[fetchUserByEmail] Usuário não encontrado em nenhuma tabela: ${normalizedEmail}`);
+  return null;
 };
 
 const fetchClinicById = async (clinicId) => {
@@ -1300,17 +1335,17 @@ app.post("/api/clinic/users", requireAuth, async (req, res) => {
 // ============================================
 
 app.post("/api/auth/password/reset-request", async (req, res) => {
-  const email = String(req.body?.email || "").trim().toLowerCase();
-  
-  if (!email) {
-    return res.status(400).json({ ok: false, error: "Email é obrigatório" });
-  }
+  const { email } = req.body;
+  console.log(`[PasswordReset] Solicitação recebida para: ${email}`);
+
+  if (!email) return res.status(400).json({ ok: false, error: "Email é obrigatório" });
 
   try {
     // 1. Buscar usuário para verificar existência e obter telefone
     const user = await fetchUserByEmail(email);
     
     if (!user) {
+      console.log(`[PasswordReset] Email não encontrado na base de dados: ${email}`);
       // Segurança: Não confirmar se o email existe para evitar enumeração
       return res.json({ 
         ok: true, 
@@ -1319,7 +1354,11 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
       });
     }
 
-    if (!user.phone) {
+    const rawPhone = user.phone;
+    const cleanPhone = String(rawPhone || "").replace(/\D/g, "");
+    
+    if (!cleanPhone || cleanPhone.length < 10) {
+      console.log(`[PasswordReset] Usuário encontrado mas sem telefone válido: ${email}, fone: ${rawPhone}`);
       return res.status(400).json({ 
         ok: false, 
         error: "Este usuário não possui um telefone celular cadastrado para recuperação via WhatsApp. Entre em contato com o suporte." 
