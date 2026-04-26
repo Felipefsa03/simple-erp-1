@@ -83,7 +83,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     console.log('[Dashboard] clinicAppointments:', filtered.length, 'from', appointments?.length);
     return filtered;
   }, [appointments, clinicId]);
-  const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId), [patients, clinicId]);
+  const clinicPatients = useMemo(() => {
+    const matrixId = user?.clinic_id;
+    return (patients || []).filter(p => p.clinic_id === clinicId || p.clinic_id === matrixId);
+  }, [patients, clinicId, user]);
   const clinicTransactions = useMemo(() => (transactions || []).filter(t => t.clinic_id === clinicId), [transactions, clinicId]);
   const clinicProfessionals = useMemo(() => (professionals || []).filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'), [professionals, clinicId]);
   const clinicServices = useMemo(() => (services || []).filter(s => s.clinic_id === clinicId && s.active), [services, clinicId]);

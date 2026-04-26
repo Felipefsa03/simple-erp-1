@@ -75,8 +75,11 @@ export function Agenda({ onNavigate }: AgendaProps) {
     [appointments, clinicId]
   );
   const clinicPatients = useMemo(
-    () => (patients || []).filter(p => p.clinic_id === clinicId),
-    [patients, clinicId]
+    () => {
+      const matrixId = user?.clinic_id;
+      return (patients || []).filter(p => p.clinic_id === clinicId || p.clinic_id === matrixId);
+    },
+    [patients, clinicId, user]
   );
   const clinicProfessionals = useMemo(
     () => (professionals || []).filter(p => (p.role === 'dentist' || p.role === 'aesthetician') && p.clinic_id === clinicId),

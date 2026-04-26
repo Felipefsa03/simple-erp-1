@@ -221,7 +221,9 @@ export function PatientList({ onNavigate }: PatientListProps) {
   }
 
   const filteredPatients = useMemo(() => {
-    let result = (patients || []).filter(p => p.clinic_id === clinicId);
+    const matrixId = user?.clinic_id;
+    let result = (patients || []).filter(p => p.clinic_id === clinicId || p.clinic_id === matrixId);
+    
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase();
       result = result.filter(p =>
@@ -235,7 +237,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
       result = result.filter(p => p.status === statusFilter);
     }
     return result;
-  }, [patients, debouncedSearch, statusFilter, user]);
+  }, [patients, debouncedSearch, statusFilter, clinicId, user]);
 
   const paginatedPatients = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;

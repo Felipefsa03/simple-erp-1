@@ -93,13 +93,16 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
   const addStockMovement = useClinicStore.getState().addStockMovement;
 
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
-  const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId), [patients, clinicId]);
+  const clinicPatients = useMemo(() => {
+    const matrixId = user?.clinic_id;
+    return (patients || []).filter(p => p.clinic_id === clinicId || p.clinic_id === matrixId);
+  }, [patients, clinicId, user]);
   const clinicAppointments = useMemo(() => (appointments || []).filter(a => a.clinic_id === clinicId), [appointments, clinicId]);
   const clinicProfessionals = useMemo(() => (professionals || []).filter(p => p.clinic_id === clinicId && p.role !== 'receptionist'), [professionals, clinicId]);
   const clinicServices = useMemo(() => (services || []).filter(s => s.clinic_id === clinicId), [services, clinicId]);
   const clinicStockItems = useMemo(() => (stockItems || []).filter(s => s.clinic_id === clinicId), [stockItems, clinicId]);
 
-  const patientId = navigationContext.patientId || (patients.filter(p => p.clinic_id === clinicId)[0]?.id);
+  const patientId = navigationContext.patientId || (clinicPatients[0]?.id);
   const appointmentId = navigationContext.appointmentId;
   const patient = getPatient(patientId);
   const appointment = appointmentId ? clinicAppointments.find(a => a.id === appointmentId) : undefined;
