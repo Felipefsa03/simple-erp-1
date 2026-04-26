@@ -121,10 +121,23 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
     console.log('[ClinicStore] 🔄 Iniciando sincronização com Supabase para:', clinicId);
     
     try {
-        // Carregar pacientes - SEMPRE sobrescrever dados locais
-        const patients = await SupabaseSync.loadPatients(clinicId);
-        set({ patients });
-        console.log('[ClinicStore] ✅ Pacientes carregados:', patients.length);
+        // Carregar info da clínica para checar se é filial
+        const { data: clinicInfo } = await SupabaseSync.loadClinic(clinicId);
+        const parentId = clinicInfo?.parent_id;
+
+        // Carregar pacientes - Se for filial, carrega do pai
+        const patients = await SupabaseSync.loadPatients(clinicId, parentId);
+        set({ patients: normalizePatients(patients) });
+        console.log('[ClinicStore] ✅ Pacientes carregados:', patients.length, parentId ? '(compartilhados)' : '');
+
+        // Carregar filiais (apenas se for a matriz)
+        if (!parentId) {
+            const branches = await SupabaseSync.loadBranches(clinicId);
+            set({ branches });
+            console.log('[ClinicStore] ✅ Filiais carregadas:', branches.length);
+        } else {
+            set({ branches: [] });
+        }
 
         // Carregar profissionais - SEMPRE sobrescrever
         const professionals = await SupabaseSync.loadProfessionals(clinicId);
@@ -654,13 +667,28 @@ export const useClinicStore = create<ClinicStore>()(
             addBranch: (data) => {
                 const branch: Branch = { ...data, id: uid(), created_at: now() };
                 set(s => ({ branches: [branch, ...s.branches] }));
+                
+                SupabaseSync.saveBranch(data).then(({ data: saved }) => {
+                    if (saved?.[0]) {
+                        set(s => ({ 
+                            branches: s.branches.map(b => b.id === branch.id ? { ...b, id: saved[0].id } : b) 
+                        }));
+                    }
+                }).catch(e => console.error('[ClinicStore] Error saving branch:', e));
+                
                 return branch;
             },
             updateBranch: (id, data) => {
                 set(s => ({ branches: s.branches.map(b => b.id === id ? { ...b, ...data } : b) }));
+                SupabaseSync.updateBranch(id, data).catch(e => 
+                    console.error('[ClinicStore] Error updating branch:', e)
+                );
             },
             deleteBranch: (id) => {
                 set(s => ({ branches: s.branches.filter(b => b.id !== id) }));
+                SupabaseSync.deleteBranch(id).catch(e => 
+                    console.error('[ClinicStore] Error deleting branch:', e)
+                );
             },
 
             // ---- WhatsApp Integrations (Multi-tenant) ----

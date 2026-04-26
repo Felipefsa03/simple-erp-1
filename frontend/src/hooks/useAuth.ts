@@ -43,6 +43,7 @@ interface AuthState {
   ) => boolean;
   confirm2FALogin: (code: string) => Promise<boolean>;
   cancelTwoFA: () => void;
+  switchClinic: (clinicId: string) => Promise<void>;
 }
 
 const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
@@ -640,6 +641,17 @@ export const useAuth = create<AuthState>()(
         });
       },
 
+      switchClinic: async (clinicId: string) => {
+        const { data: clinic } = await SupabaseSync.loadClinic(clinicId);
+        if (clinic) {
+          set({ clinic });
+          // Import dynamicamente para evitar circular dependencies e forçar sync
+          import("../stores/clinicStore").then(({ useClinicStore }) => {
+            useClinicStore.getState().syncWithSupabase();
+          });
+        }
+      },
+
       // Verificar sessão existente
       checkSession: async () => {
         if (isSupabaseConfigured()) {
@@ -713,8 +725,10 @@ export const useAuth = create<AuthState>()(
       },
 
       getClinicId: () => {
+        // Prioritizar a clínica atual no estado (para suportar troca de filial)
+        const currentClinicId = get().clinic?.id;
         const userClinicId = get().user?.clinic_id;
-        return getNormalizedClinicId(userClinicId);
+        return getNormalizedClinicId(currentClinicId || userClinicId);
       },
       getPlan: () => {
         // Tentar ler de múltiplas fontes para garantir o plano correto

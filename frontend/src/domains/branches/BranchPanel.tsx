@@ -18,7 +18,7 @@ export function BranchPanel({ clinicId }: BranchPanelProps) {
   const addBranch = useClinicStore(s => s.addBranch);
   const updateBranch = useClinicStore(s => s.updateBranch);
   const deleteBranch = useClinicStore(s => s.deleteBranch);
-  const { user } = useAuth();
+  const { user, clinic, switchClinic } = useAuth();
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -93,9 +93,24 @@ export function BranchPanel({ clinicId }: BranchPanelProps) {
           </h1>
           <p className="text-sm text-slate-500 mt-1">Gerencie as unidades e filiais da clínica</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors font-medium text-sm">
-          <Plus className="w-4 h-4" /> Nova Filial
-        </button>
+        <div className="flex items-center gap-3">
+          {clinic?.parent_id && (
+            <button 
+              onClick={() => {
+                switchClinic(clinic.parent_id!);
+                toast('Voltando para a Matriz', 'info');
+              }}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-colors font-medium text-sm"
+            >
+              Voltar para Matriz
+            </button>
+          )}
+          {!clinic?.parent_id && (
+            <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors font-medium text-sm">
+              <Plus className="w-4 h-4" /> Nova Filial
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -135,6 +150,27 @@ export function BranchPanel({ clinicId }: BranchPanelProps) {
               {branch.phone && <div className="flex items-center gap-2 text-slate-600"><Phone className="w-4 h-4 text-slate-400 shrink-0" /><span>{branch.phone}</span></div>}
               {branch.email && <div className="flex items-center gap-2 text-slate-600"><Mail className="w-4 h-4 text-slate-400 shrink-0" /><span className="truncate">{branch.email}</span></div>}
               {branch.responsible_name && <div className="flex items-center gap-2 text-slate-600"><Users className="w-4 h-4 text-slate-400 shrink-0" /><span>Resp: {branch.responsible_name}</span></div>}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-50 flex justify-end">
+              <button 
+                onClick={() => {
+                  switchClinic(branch.id);
+                  toast(`Acessando unidade: ${branch.name}`, 'success');
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                  user?.clinic_id === branch.id || clinic?.id === branch.id
+                    ? "bg-emerald-50 text-emerald-700 cursor-default"
+                    : "bg-slate-50 text-slate-600 hover:bg-cyan-50 hover:text-cyan-700"
+                )}
+              >
+                {user?.clinic_id === branch.id || clinic?.id === branch.id ? (
+                  <>Unidade Atual</>
+                ) : (
+                  <>Acessar Unidade</>
+                )}
+              </button>
             </div>
           </div>
         ))}

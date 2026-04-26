@@ -362,9 +362,9 @@ const mapTreatmentPlan = (p: any) => ({
 export const SupabaseSync = {
   getAuthToken,
   
-  async loadPatients(clinicId: string) {
-    const uuid = getClinicId(clinicId);
-    console.log('[SupabaseSync] loadPatients with clinicId:', clinicId, '-> uuid:', uuid);
+  async loadPatients(clinicId: string, parentId?: string) {
+    const uuid = getClinicId(parentId || clinicId);
+    console.log('[SupabaseSync] loadPatients with clinicId:', clinicId, '-> uuid:', uuid, parentId ? '(using parent)' : '');
     
     // Tentar primeiro com deleted_at, se não retornar, tentar sem
     let { data, error } = await supabaseFetch('patients', {
@@ -861,6 +861,44 @@ async saveTransaction(transaction: any) {
   async updateClinicSettings(clinicId: string, settings: any) {
     const uuid = getClinicId(clinicId);
     return supabaseFetch(`clinics?id=eq.${uuid}`, { method: 'PATCH', body: settings });
+  },
+
+  // ---- Branches ----
+  async loadBranches(parentClinicId: string) {
+    const uuid = getClinicId(parentClinicId);
+    const { data, error } = await supabaseFetch(`clinics?parent_id=eq.${uuid}`, { method: 'GET' });
+    return (data || []).map((b: any) => ({
+      id: b.id,
+      clinic_id: b.parent_id,
+      name: b.name,
+      address: b.address || '',
+      phone: b.phone || '',
+      email: b.email || '',
+      responsible_name: b.responsible_name || '',
+      is_active: b.is_active !== false,
+      created_at: b.created_at,
+    }));
+  },
+
+  async saveBranch(branch: any) {
+    const body = {
+      parent_id: getClinicId(branch.clinic_id),
+      name: branch.name,
+      address: branch.address,
+      phone: branch.phone,
+      email: branch.email,
+      responsible_name: branch.responsible_name,
+      is_active: branch.is_active,
+    };
+    return supabaseFetch('clinics', { method: 'POST', body });
+  },
+
+  async updateBranch(id: string, data: any) {
+    return supabaseFetch(`clinics?id=eq.${id}`, { method: 'PATCH', body: data });
+  },
+
+  async deleteBranch(id: string) {
+    return supabaseFetch(`clinics?id=eq.${id}`, { method: 'DELETE' });
   },
 };
 
