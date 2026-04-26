@@ -2037,7 +2037,14 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             </div>
           ))}
           <button
-            onClick={() => toast("Preferências de notificação salvas!")}
+            onClick={async () => {
+              try {
+                await store.saveNotificationPrefs();
+                toast("Preferências de notificação salvas!");
+              } catch (e) {
+                toast("Erro ao salvar preferências.");
+              }
+            }}
             disabled={!canManageSettings}
             className="px-6 py-2 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >

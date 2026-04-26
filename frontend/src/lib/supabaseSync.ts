@@ -851,6 +851,17 @@ async saveTransaction(transaction: any) {
     };
     return supabaseFetch('audit_logs', { method: 'POST', body });
   },
+
+  async loadClinic(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data, error } = await supabaseFetch(`clinics?id=eq.${uuid}`, { method: 'GET' });
+    return { data: data?.[0] || null, error };
+  },
+
+  async updateClinicSettings(clinicId: string, settings: any) {
+    const uuid = getClinicId(clinicId);
+    return supabaseFetch(`clinics?id=eq.${uuid}`, { method: 'PATCH', body: settings });
+  },
 };
 
 console.log('[SupabaseSync] Módulo carregado, isConfigured:', isConfigured);

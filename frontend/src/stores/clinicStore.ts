@@ -169,6 +169,17 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         const auditLogs = await SupabaseSync.loadAuditLogs(clinicId);
         set({ auditLogs });
         console.log('[ClinicStore] ✅ Logs de auditoria carregados:', auditLogs.length);
+
+        // Carregar dados da clínica (preferências de notificação)
+        try {
+            const { data: clinicData } = await SupabaseSync.loadClinic(clinicId);
+            if (clinicData?.notification_settings) {
+                set({ notificationPrefs: clinicData.notification_settings });
+                console.log('[ClinicStore] ✅ Preferências de notificação carregadas');
+            }
+        } catch (e) {
+            console.error('[ClinicStore] Erro ao carregar dados da clínica:', e);
+        }
         
         // Mapear dados específicos de prontuário para o estado local
         const anamneseData: Record<string, any> = {};
@@ -520,6 +531,7 @@ interface ClinicStore {
     // Notifications
     setNotificationPrefs: (prefs: Record<string, boolean>) => void;
     setNotificationPref: (key: string, value: boolean) => void;
+    saveNotificationPrefs: () => Promise<void>;
     setIntegrationConfig: (config: Partial<IntegrationConfig>) => void;
 
     // Photos
@@ -1718,6 +1730,19 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Notifications ----
             setNotificationPrefs: (prefs) => set({ notificationPrefs: prefs }),
             setNotificationPref: (key, value) => set(s => ({ notificationPrefs: { ...s.notificationPrefs, [key]: value } })),
+            saveNotificationPrefs: async () => {
+                const clinicId = useAuth.getState().user?.clinic_id;
+                if (!clinicId) return;
+                
+                try {
+                    const prefs = get().notificationPrefs;
+                    await SupabaseSync.updateClinicSettings(clinicId, { notification_settings: prefs });
+                    console.log('[ClinicStore] ✅ Preferências de notificação salvas no Supabase');
+                } catch (e) {
+                    console.error('[ClinicStore] Erro ao salvar preferências de notificação:', e);
+                    throw e;
+                }
+            },
             setIntegrationConfig: (config) => set(s => ({ integrationConfig: { ...s.integrationConfig, ...config } })),
 
             // ---- Photos ----
