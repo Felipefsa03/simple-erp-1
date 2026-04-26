@@ -405,10 +405,12 @@ const fetchLatestMercadoPagoPaymentByClinic = async (clinicId, token) => {
     `?external_reference=${encodeURIComponent(clinicId)}` +
     "&sort=date_created&criteria=desc&limit=1";
 
+  console.log(`[MP Search] URL: ${searchUrl}`);
   const response = await fetch(searchUrl, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const payload = await safeJson(response);
+  console.log(`[MP Search] Results found: ${payload?.results?.length || 0}`);
   if (!response.ok) {
     const message =
       payload?.message || payload?.error || "Erro ao buscar pagamentos";
@@ -3006,6 +3008,8 @@ app.post("/api/mercadopago/create-preference", async (req, res) => {
 
 app.get("/api/mercadopago/payment-status/:clinicId", async (req, res) => {
   const clinicId = String(req.params?.clinicId || "").trim();
+  const email = String(req.query?.email || "").trim();
+  
   if (!clinicId || !isUuid(clinicId)) {
     return res.status(400).json({ ok: false, error: "clinicId invalido." });
   }
@@ -3013,17 +3017,15 @@ app.get("/api/mercadopago/payment-status/:clinicId", async (req, res) => {
   try {
     const { token } = await resolveMercadoPagoCredentials();
     if (!token) {
-      return res
-        .status(503)
-        .json({ ok: false, error: "Mercado Pago nao configurado." });
+      console.warn("[MP Status] Token não encontrado!");
+      return res.status(503).json({ ok: false, error: "Mercado Pago não configurado." });
     }
 
-    let payment = await fetchLatestMercadoPagoPaymentByClinic(
-      clinicId,
-      token,
-    );
+    console.log(`[MP Status] Verificando: Clinic=${clinicId}, Email=${email}, Token=${token.substring(0, 10)}...`);
 
-    // Fallback: Check local payments table if not found in MP Search API yet
+    let payment = await fetchLatestMercadoPagoPaymentByClinic(clinicId, token);
+
+    // Fallback 1: Banco Local
     if (!payment && SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)) {
       try {
         const localRes = await fetch(
@@ -3041,23 +3043,18 @@ app.get("/api/mercadopago/payment-status/:clinicId", async (req, res) => {
               status_detail: "local_confirmed",
               metadata: { plan: lp.plan, clinic_id: lp.clinic_id }
             };
-            addLog(`[MP Status] Pagamento encontrado no banco local: ${lp.mp_payment_id}`);
+            console.log(`[MP Status] Encontrado no banco local: ${lp.mp_payment_id}`);
           }
         }
       } catch (dbError) {
-        addLog(`[MP Status] Erro ao buscar no banco local: ${dbError.message}`);
+        console.error(`[MP Status] Erro banco local: ${dbError.message}`);
       }
     }
 
-    // Fallback 2: Check by Email in MP API if clinic_id search failed
-    const email = String(req.query?.email || "").trim();
-    if (!payment && email && token) {
+    // Fallback 2: Busca por Email na API do MP
+    if (!payment && email) {
       try {
-        const searchUrl =
-          `https://api.mercadopago.com/v1/payments/search` +
-          `?payer.email=${encodeURIComponent(email)}` +
-          "&sort=date_created&criteria=desc&limit=1";
-
+        const searchUrl = `https://api.mercadopago.com/v1/payments/search?payer.email=${encodeURIComponent(email)}&sort=date_created&criteria=desc&limit=1`;
         const emailRes = await fetch(searchUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -3066,11 +3063,11 @@ app.get("/api/mercadopago/payment-status/:clinicId", async (req, res) => {
           const first = emailPayload?.results?.[0];
           if (first && isPaymentApproved(first)) {
             payment = first;
-            addLog(`[MP Status] Pagamento encontrado por email: ${email}`);
+            console.log(`[MP Status] Encontrado por email: ${email}`);
           }
         }
       } catch (emailError) {
-        addLog(`[MP Status] Erro ao buscar por email: ${emailError.message}`);
+        console.error(`[MP Status] Erro busca email: ${emailError.message}`);
       }
     }
 
