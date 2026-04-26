@@ -110,7 +110,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
 
   const checkPaymentStatus = async () => {
     const clinicId = idsRef.current.clinicId;
-    const response = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}`);
+    const email = signupForm.email;
+    const response = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(email)}`);
     const data = await response.json();
     if (!data.ok) {
       throw new Error(data.error || 'Erro ao verificar pagamento.');

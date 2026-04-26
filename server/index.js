@@ -3018,10 +3018,62 @@ app.get("/api/mercadopago/payment-status/:clinicId", async (req, res) => {
         .json({ ok: false, error: "Mercado Pago nao configurado." });
     }
 
-    const payment = await fetchLatestMercadoPagoPaymentByClinic(
+    let payment = await fetchLatestMercadoPagoPaymentByClinic(
       clinicId,
       token,
     );
+
+    // Fallback: Check local payments table if not found in MP Search API yet
+    if (!payment && SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)) {
+      try {
+        const localRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/payments?clinic_id=eq.${clinicId}&status=eq.approved&select=*&limit=1`,
+          { headers: getSupabaseAdminHeaders() }
+        );
+        if (localRes.ok) {
+          const localPayments = await localRes.json();
+          if (Array.isArray(localPayments) && localPayments.length > 0) {
+            const lp = localPayments[0];
+            payment = {
+              id: lp.mp_payment_id,
+              status: lp.status,
+              transaction_amount: lp.amount,
+              status_detail: "local_confirmed",
+              metadata: { plan: lp.plan, clinic_id: lp.clinic_id }
+            };
+            addLog(`[MP Status] Pagamento encontrado no banco local: ${lp.mp_payment_id}`);
+          }
+        }
+      } catch (dbError) {
+        addLog(`[MP Status] Erro ao buscar no banco local: ${dbError.message}`);
+      }
+    }
+
+    // Fallback 2: Check by Email in MP API if clinic_id search failed
+    const email = String(req.query?.email || "").trim();
+    if (!payment && email && token) {
+      try {
+        const searchUrl =
+          `https://api.mercadopago.com/v1/payments/search` +
+          `?payer.email=${encodeURIComponent(email)}` +
+          "&sort=date_created&criteria=desc&limit=1";
+
+        const emailRes = await fetch(searchUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (emailRes.ok) {
+          const emailPayload = await emailRes.json();
+          const first = emailPayload?.results?.[0];
+          if (first && isPaymentApproved(first)) {
+            payment = first;
+            addLog(`[MP Status] Pagamento encontrado por email: ${email}`);
+          }
+        }
+      } catch (emailError) {
+        addLog(`[MP Status] Erro ao buscar por email: ${emailError.message}`);
+      }
+    }
+
     if (!payment) {
       return res.json({
         ok: true,
@@ -3200,9 +3252,12 @@ app.post("/api/webhooks/mercadopago", async (req, res) => {
       webhookSecret &&
       !validateMercadoPagoWebhookSignature(req, webhookSecret)
     ) {
+      console.warn("[MP Webhook] Falha na validação da assinatura");
       addLog("[MP Webhook] Assinatura inválida - ignorando evento");
       return res.status(200).json({ ok: true });
     }
+
+    console.log("[MP Webhook] Recebido:", JSON.stringify(req.body));
 
     const webhookType = String(
       req.body?.type || req.body?.action || "",
