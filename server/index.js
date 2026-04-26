@@ -326,17 +326,19 @@ const fetchGlobalIntegrationConfig = async () => {
 const resolveMercadoPagoCredentials = async () => {
   let token = mpAccessToken || cleanEnv(process.env.MP_ACCESS_TOKEN);
   let publicKey = mpPublicKey || cleanEnv(process.env.MP_PUBLIC_KEY);
+  let webhookSecret = cleanEnv(process.env.MP_WEBHOOK_SECRET);
   let config = null;
 
   try {
     config = await fetchGlobalIntegrationConfig();
     if (config?.mp_access_token) token = config.mp_access_token;
     if (config?.mp_public_key) publicKey = config.mp_public_key;
+    if (config?.mp_webhook_secret) webhookSecret = config.mp_webhook_secret;
   } catch (error) {
     addLog(`[MP] Failed to resolve integration config: ${error.message}`);
   }
 
-  return { token, publicKey, config };
+  return { token, publicKey, webhookSecret, config };
 };
 
 const getPlanPricesFromConfig = (config) => ({
@@ -3243,7 +3245,7 @@ const validateMercadoPagoWebhookSignature = (req, secret) => {
 
 app.post("/api/webhooks/mercadopago", async (req, res) => {
   try {
-    const webhookSecret = process.env.MP_WEBHOOK_SECRET;
+    const { token, webhookSecret } = await resolveMercadoPagoCredentials();
 
     if (
       webhookSecret &&
@@ -3262,7 +3264,6 @@ app.post("/api/webhooks/mercadopago", async (req, res) => {
     const paymentId = req.body?.data?.id || req.body?.id;
 
     if (paymentId && webhookType.includes("payment")) {
-      const { token } = await resolveMercadoPagoCredentials();
       if (!token) {
         addLog("[MP Webhook] Token nao configurado. Ignorando evento.");
         return res.status(200).json({ ok: true });

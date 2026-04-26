@@ -169,6 +169,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     google_calendar_email: integrationConfig?.google_calendar_email || "",
     mp_access_token: integrationConfig?.mp_access_token || "",
     mp_public_key: integrationConfig?.mp_public_key || "",
+    mp_webhook_secret: integrationConfig?.mp_webhook_secret || "",
     plan_price_basico: String(integrationConfig?.plan_price_basico ?? ""),
     plan_price_profissional: String(
       integrationConfig?.plan_price_profissional ?? "",
@@ -313,6 +314,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       google_calendar_email: integrationConfig.google_calendar_email || "",
       mp_access_token: integrationConfig.mp_access_token || "",
       mp_public_key: integrationConfig.mp_public_key || "",
+      mp_webhook_secret: integrationConfig.mp_webhook_secret || "",
       plan_price_basico: String(integrationConfig.plan_price_basico ?? ""),
       plan_price_profissional: String(
         integrationConfig.plan_price_profissional ?? "",
@@ -352,7 +354,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           };
 
           const response = await fetch(
-            `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=mp_access_token,mp_public_key,plan_price_basico,plan_price_profissional,plan_price_premium`,
+            `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=mp_access_token,mp_public_key,mp_webhook_secret,plan_price_basico,plan_price_profissional,plan_price_premium`,
             { headers },
           );
 
@@ -372,6 +374,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               ...prev,
               mp_access_token: config.mp_access_token || "",
               mp_public_key: config.mp_public_key || "",
+              mp_webhook_secret: config.mp_webhook_secret || "",
               plan_price_basico: String(config.plan_price_basico ?? ""),
               plan_price_profissional: String(
                 config.plan_price_profissional ?? "",
@@ -3198,6 +3201,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     plan_price_premium: parsedPremium,
                     mp_access_token: integrationForm.mp_access_token,
                     mp_public_key: integrationForm.mp_public_key,
+                    mp_webhook_secret: integrationForm.mp_webhook_secret,
                   };
 
                   const upsertRes = await fetch(
@@ -3227,6 +3231,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     plan_price_premium: parsedPremium,
                     mp_access_token: integrationForm.mp_access_token,
                     mp_public_key: integrationForm.mp_public_key,
+                    mp_webhook_secret: integrationForm.mp_webhook_secret,
                   });
                   toast("Preços e credenciais salvos com sucesso!");
                 } catch (e: any) {
@@ -3283,6 +3288,23 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Webhook Secret
+                </label>
+                <input
+                  type="password"
+                  value={integrationForm.mp_webhook_secret || ""}
+                  onChange={(e) =>
+                    setIntegrationForm({
+                      ...integrationForm,
+                      mp_webhook_secret: e.target.value,
+                    })
+                  }
+                  placeholder="Webhook secret do Mercado Pago"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm"
+                />
+              </div>
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <p className="text-xs text-blue-700">
                   <strong>Como obter:</strong> Acesse{" "}
@@ -3317,6 +3339,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                           .update({
                             mp_access_token: integrationForm.mp_access_token,
                             mp_public_key: integrationForm.mp_public_key,
+                            mp_webhook_secret: integrationForm.mp_webhook_secret,
                           })
                           .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID));
                       } else {
@@ -3326,12 +3349,14 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                             clinic_id: SYSTEM_GLOBAL_CLINIC_ID,
                             mp_access_token: integrationForm.mp_access_token,
                             mp_public_key: integrationForm.mp_public_key,
+                            mp_webhook_secret: integrationForm.mp_webhook_secret,
                           }));
                       }
                       if (error) throw error;
                       setIntegrationConfig({
                         mp_access_token: integrationForm.mp_access_token,
                         mp_public_key: integrationForm.mp_public_key,
+                        mp_webhook_secret: integrationForm.mp_webhook_secret,
                       });
                       toast("Credenciais do Mercado Pago salvas!");
                     } catch (e: any) {
