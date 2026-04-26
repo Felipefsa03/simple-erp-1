@@ -439,6 +439,7 @@ interface ClinicStore {
 
     // Sync Actions
     syncWithSupabase: () => void;
+    clearSyncCache: () => void;
     loadAllData: () => Promise<void>;
 
     // Appointment Actions
@@ -759,17 +760,16 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Sync ----
             syncWithSupabase: () => {
-                const userClinicId = useAuth.getState().user?.clinic_id || 'clinic-1';
-                let clinicId = userClinicId;
-                // Converter para UUID se necessário
-                if (!userClinicId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-                    clinicId = '00000000-0000-0000-0000-000000000001';
-                }
-                console.log('[ClinicStore] 🔄 Sincronização chamada manualmente para:', clinicId);
+                const clinicId = useAuth.getState().getClinicId();
+                console.log('[ClinicStore] 🔄 Sincronização chamada para:', clinicId);
                 syncWithSupabaseInternal(clinicId, set, get);
             },
+            clearSyncCache: () => {
+                lastSyncedClinicId = '';
+                console.log('[ClinicStore] 🗑️ Cache de sincronização limpo');
+            },
             loadAllData: async () => {
-                const clinicId = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinicId = useAuth.getState().getClinicId();
                 if (!isSupabaseConfigured()) {
                     console.log('[ClinicStore] Supabase NOT configured. Using demo data.');
                     return;

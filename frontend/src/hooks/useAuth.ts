@@ -642,13 +642,17 @@ export const useAuth = create<AuthState>()(
       },
 
       switchClinic: async (clinicId: string) => {
-        const { data: clinic } = await SupabaseSync.loadClinic(clinicId);
+        const { data: clinic, error } = await SupabaseSync.loadClinic(clinicId);
         if (clinic) {
           set({ clinic });
           // Import dynamicamente para evitar circular dependencies e forçar sync
           import("../stores/clinicStore").then(({ useClinicStore }) => {
+            useClinicStore.getState().clearSyncCache();
             useClinicStore.getState().syncWithSupabase();
           });
+        } else {
+          console.error('[AuthStore] Error switching clinic:', error || 'Clinic not found');
+          // Tentar forçar o carregamento mesmo se falhar o GET (opcional, mas arriscado)
         }
       },
 
