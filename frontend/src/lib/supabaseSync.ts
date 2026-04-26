@@ -471,10 +471,10 @@ export const SupabaseSync = {
 
   async loadTreatmentPlans(clinicId: string) {
     const uuid = getClinicId(clinicId);
-    const { data } = await supabaseFetch('treatment_plans', {
+    const { data, error } = await supabaseFetch('treatment_plans', {
       filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
     });
-    if (!Array.isArray(data)) return [];
+    if (error || !Array.isArray(data)) return [];
     return data.map(mapTreatmentPlan);
   },
 
@@ -714,19 +714,21 @@ export const SupabaseSync = {
   },
 
   async saveMedicalRecord(record: any) {
-    const body = {
+    const body: any = {
       id: record.id,
       appointment_id: record.appointment_id || null,
       clinic_id: getClinicId(record.clinic_id),
       patient_id: record.patient_id,
       professional_id: record.professional_id || null,
-      evolution: record.content || null, // Mapeado de content (App) para evolution (DB)
+      evolution: record.content || null,
       anamnese: record.anamnese || null,
       odontogram: record.odontogram || null,
-      locked: record.locked || false,
-      locked_at: record.locked_at || null,
       updated_at: new Date().toISOString(),
     };
+    // Só inclui locked se existir no banco (evita erro PGRST204)
+    if (record.locked !== undefined) body.locked = Boolean(record.locked);
+    if (record.locked_at !== undefined) body.locked_at = record.locked_at || null;
+    
     return supabaseFetch('medical_records', { method: 'POST', body });
   },
 
@@ -734,11 +736,12 @@ export const SupabaseSync = {
     const body: any = {
       updated_at: new Date().toISOString(),
     };
-    if (record.content !== undefined) body.evolution = record.content; // Mapeado de content para evolution
+    if (record.content !== undefined) body.evolution = record.content;
     if (record.anamnese !== undefined) body.anamnese = record.anamnese;
     if (record.odontogram !== undefined) body.odontogram = record.odontogram;
-    if (record.locked !== undefined) body.locked = record.locked;
-    if (record.locked_at !== undefined) body.locked_at = record.locked_at;
+    // Só inclui locked se existir no banco (evita erro PGRST204)
+    if (record.locked !== undefined) body.locked = Boolean(record.locked);
+    if (record.locked_at !== undefined) body.locked_at = record.locked_at || null;
     
     return supabaseFetch(`medical_records?id=eq.${id}`, { method: 'PATCH', body });
   },
