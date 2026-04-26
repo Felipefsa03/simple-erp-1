@@ -363,20 +363,15 @@ export const SupabaseSync = {
   getAuthToken,
   
   async loadPatients(clinicId: string, parentId?: string) {
-    const uuid = getClinicId(parentId || clinicId);
-    console.log('[SupabaseSync] loadPatients with clinicId:', clinicId, '-> uuid:', uuid, parentId ? '(using parent)' : '');
+    const uuid = getClinicId(clinicId);
+    let filters = `?clinic_id=eq.${uuid}&select=*&order=name.asc`;
     
-    // Tentar primeiro com deleted_at, se não retornar, tentar sem
-    let { data, error } = await supabaseFetch('patients', {
-      filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
-    });
-    
-    // Se retorna 0, tenta sem filtro de deleted_at
-    if (!data || data.length === 0) {
-      ({ data, error } = await supabaseFetch('patients', {
-        filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.desc`,
-      }));
+    if (parentId && parentId !== clinicId) {
+      const parentUuid = getClinicId(parentId);
+      filters = `?or=(clinic_id.eq.${uuid},clinic_id.eq.${parentUuid})&select=*&order=name.asc`;
     }
+
+    const { data, error } = await supabaseFetch('patients', { filters });
     
     console.log('[SupabaseSync] patients loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
