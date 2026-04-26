@@ -744,14 +744,24 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
         setPasswordLoading(false);
         return;
       }
+
+      // Log de auditoria
+      store.addAuditLog({
+        user_id: user?.id,
+        clinic_id: clinic?.id,
+        action: "PASSWORD_CHANGE",
+        entity: "user",
+        entity_id: user?.id,
+      });
+
+      toast("Senha alterada com sucesso!", "success");
+      setPasswordForm({ current: "", new: "", confirm: "" });
     } catch (e) {
       console.error("Password update error:", e);
+      toast("Erro ao alterar senha. Verifique sua conexão.", "error");
+    } finally {
+      setPasswordLoading(false);
     }
-
-    await new Promise((r) => setTimeout(r, 1000));
-    setPasswordLoading(false);
-    setPasswordForm({ current: "", new: "", confirm: "" });
-    toast("Senha alterada com sucesso!", "success");
   };
 
   const handleToggle2FA = async () => {
@@ -775,6 +785,16 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
         const data = await res.json();
         if (data.ok) {
           setTwoFactorEnabled(false);
+
+          // Log de auditoria
+          store.addAuditLog({
+            user_id: user?.id,
+            clinic_id: clinic?.id,
+            action: "2FA_DISABLE",
+            entity: "user",
+            entity_id: user?.id,
+          });
+
           toast("2FA desativado com sucesso!", "success");
         } else {
           toast(data.error || "Erro ao desativar 2FA", "error");
@@ -845,6 +865,16 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
       if (data.ok) {
         setTwoFactorEnabled(true);
+
+        // Log de auditoria
+        store.addAuditLog({
+          user_id: user?.id,
+          clinic_id: clinic?.id,
+          action: "2FA_ENABLE",
+          entity: "user",
+          entity_id: user?.id,
+        });
+
         setShowTwoFAModal(false);
         setTwoFAQrCode("");
         setTwoFASecret("");
@@ -2945,62 +2975,95 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-slate-50">
-                    <td className="py-3 text-sm text-slate-600">
-                      24/03/2026 14:30
-                    </td>
-                    <td className="py-3">
-                      <span className="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">
-                        Login
-                      </span>
-                    </td>
-                    <td className="py-3 text-sm text-slate-500">192.168.1.1</td>
-                    <td className="py-3 text-sm text-slate-500">
-                      Chrome / Windows
-                    </td>
-                  </tr>
-                  <tr className="border-b border-slate-50">
-                    <td className="py-3 text-sm text-slate-600">
-                      24/03/2026 09:15
-                    </td>
-                    <td className="py-3">
-                      <span className="px-2 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-full">
-                        Alteração de senha
-                      </span>
-                    </td>
-                    <td className="py-3 text-sm text-slate-500">192.168.1.1</td>
-                    <td className="py-3 text-sm text-slate-500">
-                      Chrome / Windows
-                    </td>
-                  </tr>
-                  <tr className="border-b border-slate-50">
-                    <td className="py-3 text-sm text-slate-600">
-                      23/03/2026 16:45
-                    </td>
-                    <td className="py-3">
-                      <span className="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">
-                        Login
-                      </span>
-                    </td>
-                    <td className="py-3 text-sm text-slate-500">192.168.1.1</td>
-                    <td className="py-3 text-sm text-slate-500">
-                      Safari / macOS
-                    </td>
-                  </tr>
-                  <tr className="border-b border-slate-50">
-                    <td className="py-3 text-sm text-slate-600">
-                      22/03/2026 11:20
-                    </td>
-                    <td className="py-3">
-                      <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full">
-                        Configuração
-                      </span>
-                    </td>
-                    <td className="py-3 text-sm text-slate-500">192.168.1.1</td>
-                    <td className="py-3 text-sm text-slate-500">
-                      Chrome / Windows
-                    </td>
-                  </tr>
+                  {store.auditLogs
+                    .filter((log) => log.user_id === user?.id || user?.role === 'super_admin')
+                    .slice(0, 10)
+                    .map((log) => {
+                      const actionInfo = (() => {
+                        switch (log.action) {
+                          case "LOGIN":
+                            return {
+                              label: "Login",
+                              color: "bg-emerald-50 text-emerald-700",
+                            };
+                          case "LOGOUT":
+                            return {
+                              label: "Logout",
+                              color: "bg-slate-50 text-slate-700",
+                            };
+                          case "PASSWORD_CHANGE":
+                            return {
+                              label: "Alteração de senha",
+                              color: "bg-amber-50 text-amber-700",
+                            };
+                          case "2FA_ENABLE":
+                            return {
+                              label: "Ativação 2FA",
+                              color: "bg-emerald-50 text-emerald-700",
+                            };
+                          case "2FA_DISABLE":
+                            return {
+                              label: "Desativação 2FA",
+                              color: "bg-red-50 text-red-700",
+                            };
+                          case "UPDATE_PERMISSIONS":
+                            return {
+                              label: "Permissões",
+                              color: "bg-blue-50 text-blue-700",
+                            };
+                          default:
+                            return {
+                              label: log.action,
+                              color: "bg-slate-50 text-slate-700",
+                            };
+                        }
+                      })();
+
+                      const deviceData = log.new_data?.device_info;
+                      const deviceLabel = (() => {
+                        if (!deviceData?.ua) return "Sistema";
+                        const ua = deviceData.ua;
+                        if (ua.includes("Chrome")) return "Chrome / Windows";
+                        if (ua.includes("Safari")) return "Safari / macOS";
+                        if (ua.includes("iPhone")) return "iPhone / iOS";
+                        if (ua.includes("Android")) return "Android";
+                        return "Navegador Web";
+                      })();
+
+                      return (
+                        <tr key={log.id} className="border-b border-slate-50">
+                          <td className="py-3 text-sm text-slate-600">
+                            {new Date(log.created_at).toLocaleString("pt-BR")}
+                          </td>
+                          <td className="py-3">
+                            <span
+                              className={cn(
+                                "px-2 py-1 text-xs font-bold rounded-full",
+                                actionInfo.color,
+                              )}
+                            >
+                              {actionInfo.label}
+                            </span>
+                          </td>
+                          <td className="py-3 text-sm text-slate-500">
+                            {log.ip || "Local"}
+                          </td>
+                          <td className="py-3 text-sm text-slate-500">
+                            {deviceLabel}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {store.auditLogs.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="py-10 text-center text-slate-400"
+                      >
+                        Nenhum histórico disponível
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

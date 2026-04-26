@@ -1762,7 +1762,20 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Audit ----
             addAuditLog: (log) => {
-                const newLog = { ...log, id: uid(), created_at: now() };
+                const deviceInfo = typeof window !== 'undefined' ? {
+                    ua: navigator.userAgent,
+                    screen: `${window.screen.width}x${window.screen.height}`,
+                } : {};
+                
+                const newLog = { 
+                    ...log, 
+                    id: uid(), 
+                    created_at: now(),
+                    new_data: { 
+                        ...(log.new_data || {}), 
+                        device_info: deviceInfo 
+                    } 
+                };
                 set(s => ({ auditLogs: [newLog, ...s.auditLogs] }));
                 saveToSupabase('audit_log', newLog, true).catch(e => console.error('[ClinicStore] Erro ao salvar log de auditoria:', e));
             },
