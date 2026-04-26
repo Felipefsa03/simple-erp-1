@@ -1122,16 +1122,33 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                 </>
               )}
               {docType === 'prescription' && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Medicamentos / Receituário</label>
-                  <p className="text-xs text-slate-500 mb-2">Digite um medicamento por linha</p>
-                  <textarea
-                    value={prescriptionText}
-                    onChange={(e) => setPrescriptionText(e.target.value)}
-                    placeholder={"Ex:\nAmoxicilina 500mg - 1 capsula de 8/8h por 7 dias\nIbuprofeno 400mg - 1 comprimido de 6/6h se houver dor"}
-                    rows={6}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-emerald-400 resize-none font-mono"
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Medicamentos / Receituário</label>
+                    <p className="text-xs text-slate-500 mb-2">Digite um medicamento por linha</p>
+                    <textarea
+                      value={prescriptionText}
+                      onChange={(e) => setPrescriptionText(e.target.value)}
+                      placeholder={"Ex:\nAmoxicilina 500mg - 1 capsula de 8/8h por 7 dias\nIbuprofeno 400mg - 1 comprimido de 6/6h se houver dor"}
+                      rows={6}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-emerald-400 resize-none font-mono"
+                    />
+                  </div>
+                  
+                  <div className="bg-emerald-50 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border border-emerald-100">
+                    <div>
+                      <h4 className="font-bold text-emerald-900 text-sm">Integração Memed</h4>
+                      <p className="text-xs text-emerald-700 mt-1">
+                        Utilize a plataforma Memed para emitir prescrições com assinatura digital nativa, SMS e envio automático para farmácias.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => window.open('https://memed.com.br/', '_blank')}
+                      className="px-4 py-2 bg-white text-emerald-700 border border-emerald-200 rounded-xl text-sm font-bold hover:bg-emerald-50 transition-colors whitespace-nowrap"
+                    >
+                      Abrir Memed
+                    </button>
+                  </div>
                 </div>
               )}
               {docType === 'consent' && (

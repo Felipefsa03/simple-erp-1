@@ -1201,8 +1201,9 @@ const publicPaths = [
   "/system/signup-config",
   "/mercadopago/create-preference",
   "/mercadopago/payment-status/",
-  "/asaas/test",
-  "/integrations/rdstation/event",
+  "/asaas/",
+  "/integrations/",
+  "/facebook/",
   "/whatsapp/",
 ];
 
