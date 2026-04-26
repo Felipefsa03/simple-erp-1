@@ -771,7 +771,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                       <div className="flex gap-3">
                         <button onClick={() => goToStep(4)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl">Voltar</button>
                         <button onClick={handleGeneratePayment} disabled={signupLoading} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl disabled:opacity-70">
-                          {signupLoading ? 'Gerando...' : 'Gerar QR Code Pix'}
+                          {signupLoading ? 'Processando...' : 'Continuar para Pagamento'}
                         </button>
                       </div>
                     </>
