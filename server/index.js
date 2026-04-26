@@ -3731,6 +3731,24 @@ setInterval(async () => {
 }, 5000).unref(); // roda a cada 5 segundos para processar 1 mensagem por vez
 
 
+// Error handler middleware (must be at the end)
+app.use((err, req, res, next) => {
+  console.error("[Fatal Error]", err);
+  
+  // Ensure CORS headers are present on errors
+  const origin = req.headers.origin;
+  const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(",") || [];
+  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".vercel.app"))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+
+  res.status(500).json({
+    ok: false,
+    error: err.message || "Erro interno no servidor",
+  });
+});
+
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 WhatsApp API ready for connections`);
