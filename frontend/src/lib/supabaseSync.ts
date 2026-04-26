@@ -135,7 +135,21 @@ async function supabaseFetch(table: string, options: {
 
     if (!response.ok) {
       const errorText = await response.text();
+      let errorData: any = {};
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { message: errorText };
+      }
+
       console.error(`[SupabaseSync] Erro ${method} ${table}:`, errorText);
+      
+      // Caso a tabela não exista (erro 404 ou código PGRST205 do PostgREST)
+      // Retornamos array vazio para não quebrar a aplicação enquanto o usuário não roda o SQL
+      if (response.status === 404 || errorData.code === 'PGRST205') {
+        console.warn(`[SupabaseSync] Tabela ${table} não encontrada no banco de dados. Retornando array vazio.`);
+        return { data: [], error: null };
+      }
       
       // Se for um erro de rede temporário (502, 503, 504) e ainda houver retries, tentar novamente
       if (retries > 0 && [502, 503, 504].includes(response.status)) {
