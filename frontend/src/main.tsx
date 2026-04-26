@@ -24,7 +24,7 @@ registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter future={{ v7_relativeSiblingsStack: true }}>
+    <BrowserRouter>
       <App />
     </BrowserRouter>
   </StrictMode>,

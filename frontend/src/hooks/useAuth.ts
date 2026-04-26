@@ -542,7 +542,7 @@ export const useAuth = create<AuthState>()(
             supabase?.from('clinics')
               .update({ permissions: perms })
               .eq('id', state.clinic.id)
-              .then(({ error }) => {
+              .then(({ error }: { error: { message: string } | null }) => {
                 if (error) console.error('[Auth] Failed to sync permissions:', error.message);
                 else console.log('[Auth] Permissions synced to Supabase successfully');
               });
@@ -560,7 +560,7 @@ export const useAuth = create<AuthState>()(
           supabase?.from('clinics')
             .update({ permissions: defaultPerms })
             .eq('id', state.clinic.id)
-            .then(({ error }) => {
+            .then(({ error }: { error: { message: string } | null }) => {
               if (error) console.error('[Auth] Failed to reset permissions in DB:', error.message);
               else console.log('[Auth] Permissions reset successfully in DB');
             });

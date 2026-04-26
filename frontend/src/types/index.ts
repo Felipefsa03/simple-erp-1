@@ -115,6 +115,10 @@ export interface Clinic {
     address?: ClinicAddress;
     specialties?: string[];
     created_at: string;
+    // Campos opcionais vindos do banco de dados
+    subscription_plan?: PlanType;
+    subscription_status?: string;
+    permissions?: Record<string, string[]>;
 }
 
 // --- Patients ---

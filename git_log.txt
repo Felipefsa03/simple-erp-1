@@ -1,0 +1,1 @@
+﻿0561aa4 fix: resolve Bad MAC erro e adiciona SQL para grant DELETE

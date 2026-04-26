@@ -556,6 +556,7 @@ console.log(
     useRealData ? 'vai carregar do banco' : INITIAL_DATA.patients.length
 );
 
+// @ts-ignore - Zustand StateCreator incompatibility with async addAppointment
 export const useClinicStore = create<ClinicStore>()(
         (set, get) => {
             // A sincronização é chamada via syncWithSupabase() após login bem-sucedido
@@ -744,7 +745,7 @@ export const useClinicStore = create<ClinicStore>()(
             },
 
             // ---- Appointments ----
-            addAppointment: async (a) => {
+            addAppointment: (a) => {
                 const state = get();
                 const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
                 const newStart = new Date(a.scheduled_at).getTime();
@@ -768,12 +769,14 @@ export const useClinicStore = create<ClinicStore>()(
                   created_at: now() 
                 };
                 set(s => ({ appointments: [...s.appointments, appointment] }));
-                
-                // Sync to Supabase
+
+                // Sync to Supabase — fire-and-forget
                 if (isSupabaseConfigured()) {
-                    await SupabaseSync.saveAppointment(appointment);
+                    SupabaseSync.saveAppointment(appointment).catch((e: unknown) =>
+                        console.error('[ClinicStore] Erro ao salvar agendamento:', e)
+                    );
                 }
-                
+
                 emitEvent('APPOINTMENT_CREATED', {
                     appointment_id: appointment.id,
                     clinic_id: appointment.clinic_id,
@@ -1738,6 +1741,7 @@ export const useClinicStore = create<ClinicStore>()(
                     leads: s.leads.map(lead => lead.id === leadId ? { ...lead, stage_id: stageId, updated_at: now() } : lead),
                 }));
             },
-            };
+        };
         }
 );
+

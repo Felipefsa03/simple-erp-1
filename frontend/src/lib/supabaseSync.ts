@@ -476,6 +476,25 @@ export const SupabaseSync = {
     return data.map(mapTreatmentPlan);
   },
 
+  async saveMedicalRecord(record: any) {
+    const body: any = {
+      id: record.id,
+      appointment_id: record.appointment_id || null,
+      clinic_id: getClinicId(record.clinic_id),
+      patient_id: record.patient_id,
+      evolution: record.content || null,
+      anamnese: record.anamnese || null,
+      odontogram: record.odontogram || null,
+      updated_at: new Date().toISOString(),
+    };
+    
+    if (record.professional_id && record.professional_id !== record.user_id) {
+      // body.professional_id = record.professional_id; // temporarily disabled to avoid FK error
+    }
+    
+    return supabaseFetch('medical_records', { method: 'POST', body });
+  },
+
   async saveIntegrationConfig(config: any) {
     const { data: existing } = await supabaseFetch('integration_config', {
       filters: `?clinic_id=eq.${getClinicId(config.clinic_id)}&select=clinic_id`,

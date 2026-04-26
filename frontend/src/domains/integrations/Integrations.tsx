@@ -41,7 +41,7 @@ export function Integrations() {
   const isSuperAdmin = user?.role === 'super_admin';
   
   // Obter plano da clínica atual - do useAuth
-  const clinicPlan = getPlan() as 'basic' | 'professional' | 'premium';
+  const clinicPlan = getPlan() as 'basic' | 'profissional' | 'premium';
   console.log('[Integrations] user clinic_id:', user?.clinic_id, 'plan from getPlan():', clinicPlan);
   
   // Função para verificar se integração está liberada

@@ -446,7 +446,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
 
       let logged = false;
       for (let attempt = 0; attempt < 5; attempt++) {
-        logged = await login(signupForm.email, signupForm.password);
+        const result = await login(signupForm.email, signupForm.password);
+        logged = result === true;
         if (logged) break;
         await sleep(1200);
       }
