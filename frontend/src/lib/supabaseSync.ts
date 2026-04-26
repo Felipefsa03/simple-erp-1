@@ -889,6 +889,7 @@ async saveTransaction(transaction: any) {
       email: branch.email,
       responsible_name: branch.responsible_name,
       is_active: branch.is_active,
+      plan: branch.plan || 'basico',
     };
     return supabaseFetch('clinics', { method: 'POST', body });
   },

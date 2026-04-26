@@ -51,8 +51,9 @@ export function BranchPanel({ clinicId }: BranchPanelProps) {
     if (!form.address?.trim()) { toast('Endereço é obrigatório.', 'error'); return; }
 
     const data = {
-      clinic_id: clinicId || user?.clinic_id || 'clinic-1',
+      clinic_id: user?.clinic_id || 'clinic-1',
       name: form.name!,
+      plan: clinic?.plan || 'basico',
       address: form.address!,
       phone: form.phone || '',
       email: form.email || '',
