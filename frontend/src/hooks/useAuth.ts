@@ -386,7 +386,15 @@ export const useAuth = create<AuthState>()(
                     clinicId = "00000000-0000-0000-0000-000000000001";
                   }
                   import("../stores/clinicStore").then(({ useClinicStore }) => {
-                    useClinicStore.getState().syncWithSupabase();
+                    const store = useClinicStore.getState();
+                    store.syncWithSupabase();
+                    store.addAuditLog({
+                      clinic_id: clinicId,
+                      user_id: user.id,
+                      action: "LOGIN",
+                      entity: "auth",
+                      entity_id: user.id,
+                    });
                   });
                 }
 
@@ -443,6 +451,18 @@ export const useAuth = create<AuthState>()(
       },
 
       logout: async () => {
+        const { user, clinic } = get();
+        if (user) {
+          import("../stores/clinicStore").then(({ useClinicStore }) => {
+            useClinicStore.getState().addAuditLog({
+              clinic_id: clinic?.id || user.clinic_id || "00000000-0000-0000-0000-000000000001",
+              user_id: user.id,
+              action: "LOGOUT",
+              entity: "auth",
+              entity_id: user.id,
+            });
+          });
+        }
         if (isSupabaseConfigured()) {
           await supabase!.auth.signOut();
         }
@@ -544,7 +564,19 @@ export const useAuth = create<AuthState>()(
               .eq('id', state.clinic.id)
               .then(({ error }: { error: { message: string } | null }) => {
                 if (error) console.error('[Auth] Failed to sync permissions:', error.message);
-                else console.log('[Auth] Permissions synced to Supabase successfully');
+                else {
+                    console.log('[Auth] Permissions synced to Supabase successfully');
+                    import("../stores/clinicStore").then(({ useClinicStore }) => {
+                        useClinicStore.getState().addAuditLog({
+                            clinic_id: state.clinic!.id,
+                            user_id: state.user!.id,
+                            action: "UPDATE_PERMISSIONS",
+                            entity: "settings",
+                            entity_id: state.clinic!.id,
+                            new_data: { action, role, allowed }
+                        });
+                    });
+                }
               });
           }
 

@@ -796,6 +796,47 @@ async saveTransaction(transaction: any) {
   async deleteTreatmentPlan(id: string) {
     return supabaseFetch(`treatment_plans?id=eq.${id}`, { method: 'DELETE' });
   },
+
+  async loadStockMovements(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data } = await supabaseFetch(`stock_movements?clinic_id=eq.${uuid}&order=created_at.desc`, { method: 'GET' });
+    return data || [];
+  },
+
+  async saveStockMovement(movement: any) {
+    const body = {
+      id: movement.id,
+      clinic_id: getClinicId(movement.clinic_id),
+      stock_item_id: movement.stock_item_id,
+      qty: movement.qty,
+      type: movement.type,
+      description: movement.description,
+      created_at: movement.created_at,
+    };
+    return supabaseFetch('stock_movements', { method: 'POST', body });
+  },
+
+  async loadAuditLogs(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data } = await supabaseFetch(`audit_logs?clinic_id=eq.${uuid}&order=created_at.desc`, { method: 'GET' });
+    return data || [];
+  },
+
+  async saveAuditLog(log: any) {
+    const body = {
+      id: log.id,
+      clinic_id: getClinicId(log.clinic_id),
+      user_id: log.user_id,
+      action: log.action,
+      entity: log.entity,
+      entity_id: log.entity_id,
+      old_data: log.old_data,
+      new_data: log.new_data,
+      ip: log.ip,
+      created_at: log.created_at,
+    };
+    return supabaseFetch('audit_logs', { method: 'POST', body });
+  },
 };
 
 console.log('[SupabaseSync] Módulo carregado, isConfigured:', isConfigured);

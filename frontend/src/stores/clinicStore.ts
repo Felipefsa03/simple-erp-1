@@ -155,6 +155,21 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         const medicalRecords = await SupabaseSync.loadMedicalRecords(clinicId);
         set({ medicalRecords });
         
+        // Carregar planos de tratamento
+        const treatmentPlans = await SupabaseSync.loadTreatmentPlans(clinicId);
+        set({ treatmentPlans });
+        console.log('[ClinicStore] ✅ Planos de tratamento carregados:', treatmentPlans.length);
+
+        // Carregar movimentos de estoque
+        const stockMovements = await SupabaseSync.loadStockMovements(clinicId);
+        set({ stockMovements });
+        console.log('[ClinicStore] ✅ Movimentos de estoque carregados:', stockMovements.length);
+
+        // Carregar logs de auditoria
+        const auditLogs = await SupabaseSync.loadAuditLogs(clinicId);
+        set({ auditLogs });
+        console.log('[ClinicStore] ✅ Logs de auditoria carregados:', auditLogs.length);
+        
         // Mapear dados específicos de prontuário para o estado local
         const anamneseData: Record<string, any> = {};
         const odontogramData: Record<string, any> = {};
@@ -180,7 +195,7 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 };
 
 // Wrapper para salvar no Supabase e atualizar estado local
-const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan', data: any, isNew: boolean = true, isDelete: boolean = false) => {
+const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan' | 'stock_movement' | 'audit_log', data: any, isNew: boolean = true, isDelete: boolean = false) => {
     try {
         let result: any = null;
         
@@ -216,6 +231,12 @@ const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' |
             case 'treatment_plan':
                 if (isDelete) result = await SupabaseSync.deleteTreatmentPlan(data.id);
                 else result = isNew ? await SupabaseSync.saveTreatmentPlan(data) : await SupabaseSync.updateTreatmentPlan(data.id, data);
+                break;
+            case 'stock_movement':
+                result = await SupabaseSync.saveStockMovement(data);
+                break;
+            case 'audit_log':
+                result = await SupabaseSync.saveAuditLog(data);
                 break;
             default:
                 break;
@@ -1361,7 +1382,9 @@ export const useClinicStore = create<ClinicStore>()(
                 emitEvent('STOCK_CONSUMED', { appointment_id: appointmentId, clinic_id: appointment?.clinic_id, items, insufficient });
             },
             addStockMovement: (movement) => {
-                set(s => ({ stockMovements: [{ ...movement, id: uid(), created_at: now() }, ...s.stockMovements] }));
+                const newMovement = { ...movement, id: uid(), created_at: now() };
+                set(s => ({ stockMovements: [newMovement, ...s.stockMovements] }));
+                saveToSupabase('stock_movement', newMovement, true).catch(e => console.error('[ClinicStore] Erro ao salvar movimento de estoque:', e));
             },
 
             // ---- Financial ----
@@ -1714,7 +1737,9 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Audit ----
             addAuditLog: (log) => {
-                set(s => ({ auditLogs: [{ ...log, id: uid(), created_at: now() }, ...s.auditLogs] }));
+                const newLog = { ...log, id: uid(), created_at: now() };
+                set(s => ({ auditLogs: [newLog, ...s.auditLogs] }));
+                saveToSupabase('audit_log', newLog, true).catch(e => console.error('[ClinicStore] Erro ao salvar log de auditoria:', e));
             },
 
             // ---- CRM & Automation ----
