@@ -28,7 +28,19 @@ ALTER TABLE public.clinics ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE public.clinics ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE public.clinics ADD COLUMN IF NOT EXISTS email TEXT;
 
--- 4. Forçar recarregamento do cache do PostgREST (Supabase)
+-- 4. Garantir que a coluna active existe nas tabelas de usuários e profissionais
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='active') THEN
+        ALTER TABLE public.users ADD COLUMN active BOOLEAN DEFAULT true;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='professionals' AND column_name='active') THEN
+        ALTER TABLE public.professionals ADD COLUMN active BOOLEAN DEFAULT true;
+    END IF;
+END $$;
+
+-- 5. Forçar recarregamento do cache do PostgREST (Supabase)
 NOTIFY pgrst, 'reload schema';
 
-SELECT 'Colunas da tabela clinics ajustadas e schema recarregado!' as status;
+SELECT 'Schema de clinics, users e professionals ajustado e recarregado!' as status;
