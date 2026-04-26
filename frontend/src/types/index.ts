@@ -238,6 +238,8 @@ export interface MedicalRecord {
     locked_at?: string;
     created_at: string;
     updated_at: string;
+    odontogram?: any;
+    anamnese?: any;
 }
 
 export interface OdontogramEntry {
@@ -398,6 +400,7 @@ export interface AuditLog {
 
 // --- Events ---
 export type DomainEventType =
+    | 'SYNC_ERROR'
     | 'APPOINTMENT_CREATED'
     | 'APPOINTMENT_STARTED'
     | 'APPOINTMENT_FINISHED'

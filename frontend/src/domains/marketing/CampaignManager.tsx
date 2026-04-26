@@ -137,7 +137,8 @@ function apiBase() {
 }
 
 async function apiFetch(url: string, options: RequestInit = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
+  const sessionResponse = await supabase?.auth?.getSession();
+  const session = sessionResponse?.data?.session;
   const headers: Record<string, string> = {
     ...((options.headers as Record<string, string>) || {}),
   };

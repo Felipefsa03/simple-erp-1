@@ -457,7 +457,7 @@ interface ClinicStore {
     addProfessional: (p: Omit<User, 'id' | 'created_at'> & { password?: string }) => User | null;
     updateProfessional: (id: string, data: Partial<User>) => void;
     deleteProfessional: (id: string) => void;
-    getProfessionalCommissions: (professionalId: string, month?: string) => { total_produced: number; commission_amount: number; appointment_count: number };
+    getProfessionalCommissions: (professionalId: string, month?: string) => { total_produced: number; commission_amount: number; appointment_count: number; pending_commission: number };
     getClinicDRE: (clinicId: string, month: string) => {
         total_income: number;
         total_expenses: number;
@@ -1151,7 +1151,7 @@ export const useClinicStore = create<ClinicStore>()(
                         saveToSupabase('medical_record', { ...existingRec, odontogram: next }, false);
                     } else {
                         newRec = {
-                            id: uid(), clinic_id: s.user?.clinic_id || 'clinic-1', patient_id: patientId, professional_id: s.user?.id,
+                            id: uid(), clinic_id: 'clinic-1', patient_id: patientId, professional_id: 'prof-1',
                             odontogram: next, content: null, locked: false, created_at: now(), updated_at: now()
                         };
                         saveToSupabase('medical_record', newRec, true);

@@ -543,6 +543,18 @@ export const SupabaseSync = {
     return supabaseFetch(`patients?id=eq.${id}`, { method: 'DELETE' });
   },
 
+  async deleteAppointment(id: string) {
+    return supabaseFetch(`appointments?id=eq.${id}`, { method: 'DELETE' });
+  },
+
+  async deleteTransaction(id: string) {
+    return supabaseFetch(`transactions?id=eq.${id}`, { method: 'DELETE' });
+  },
+
+  async deleteMedicalRecord(id: string) {
+    return supabaseFetch(`medical_records?id=eq.${id}`, { method: 'DELETE' });
+  },
+
   async saveProfessional(professional: any) {
     const body = {
       id: professional.id,
