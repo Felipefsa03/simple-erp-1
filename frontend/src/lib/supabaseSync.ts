@@ -689,7 +689,7 @@ async saveTransaction(transaction: any) {
       paid_at: transaction.paid_at || null,
     };
     if (transaction.professional_id) body.professional_id = transaction.professional_id;
-    return supabaseFetch('transactions', { method: 'POST', body });
+return supabaseFetch('transactions', { method: 'POST', body });
   },
 
   async updateTransaction(id: string, transaction: any) {
@@ -700,22 +700,6 @@ async saveTransaction(transaction: any) {
       pix: transaction.pix_code || null,
       asaas_id: transaction.asaas_payment_id || null,
       material_cost: transaction.material_cost || 0,
-      due: transaction.due_date || null,
-      paid_at: transaction.paid_at || null,
-    };
-    return supabaseFetch('transactions', { method: 'POST', body });
-  },
-
-  async updateTransaction(id: string, transaction: any) {
-    const body: any = {
-      status: transaction.status || 'pending',
-      method: transaction.payment_method || null,
-      reference: transaction.reference || null,
-      pix: transaction.pix_code || null,
-      asaas_id: transaction.asaas_payment_id || null,
-      // asaas_status removido para evitar erro 400
-      material_cost: transaction.material_cost || 0,
-      idempotency_key: transaction.idempotency_key || null,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
       updated_at: new Date().toISOString(),
