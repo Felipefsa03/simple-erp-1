@@ -61,6 +61,7 @@ const isValidSupabaseKey = (value) => {
   const token = cleanEnv(value);
   if (!token) return false;
   if (token.startsWith("sb_publishable_") || token.startsWith("sb_secret_")) return true;
+  if (token.startsWith("eyJ")) return true; 
   const parts = token.split(".");
   return parts.length === 3 && parts.every(p => /^[A-Za-z0-9\-_]+$/.test(p));
 };
@@ -630,7 +631,7 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
   }
 
   if (message.includes("invalid JWT") || message.includes("unable to parse or verify signature")) {
-    message = "A chave SUPABASE_SERVICE_ROLE_KEY no Render está com assinatura inválida. Vá em 'Project Settings -> API -> Legacy anon, service_role API keys' no Supabase e copie a chave ATUAL (começa com eyJhb...). Não use chaves antigas se o JWT secret foi alterado.";
+    message = "Estado não suportado ou dados não puderam ser autenticados. A chave SUPABASE_SERVICE_ROLE_KEY no Render está com assinatura inválida. Vá em 'Project Settings -> API -> Legacy anon, service_role API keys' no Supabase e copie a chave ATUAL (começa com eyJhb...). Não use chaves antigas se o JWT secret foi alterado.";
   }
 
   throw new Error(message);
