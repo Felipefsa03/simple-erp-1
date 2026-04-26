@@ -182,36 +182,61 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 // Wrapper para salvar no Supabase e atualizar estado local
 const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan', data: any, isNew: boolean = true, isDelete: boolean = false) => {
     try {
+        let result: any = null;
+        
         switch (type) {
             case 'patient':
-                if (isDelete) return await SupabaseSync.deletePatient(data.id);
-                return isNew ? await SupabaseSync.savePatient(data) : await SupabaseSync.updatePatient(data.id, data);
+                if (isDelete) result = await SupabaseSync.deletePatient(data.id);
+                else result = isNew ? await SupabaseSync.savePatient(data) : await SupabaseSync.updatePatient(data.id, data);
+                break;
             case 'professional':
-                if (isDelete) return await SupabaseSync.deleteProfessional(data.id);
-                return isNew ? await SupabaseSync.saveProfessional(data) : await SupabaseSync.updateProfessional(data.id, data);
+                if (isDelete) result = await SupabaseSync.deleteProfessional(data.id);
+                else result = isNew ? await SupabaseSync.saveProfessional(data) : await SupabaseSync.updateProfessional(data.id, data);
+                break;
             case 'appointment':
-                if (isDelete) return await SupabaseSync.deleteAppointment(data.id);
-                return isNew ? await SupabaseSync.saveAppointment(data) : await SupabaseSync.updateAppointment(data.id, data);
+                if (isDelete) result = await SupabaseSync.deleteAppointment(data.id);
+                else result = isNew ? await SupabaseSync.saveAppointment(data) : await SupabaseSync.updateAppointment(data.id, data);
+                break;
             case 'service':
-                if (isDelete) return await SupabaseSync.deleteService(data.id);
-                return isNew ? await SupabaseSync.saveService(data) : await SupabaseSync.updateService(data.id, data);
+                if (isDelete) result = await SupabaseSync.deleteService(data.id);
+                else result = isNew ? await SupabaseSync.saveService(data) : await SupabaseSync.updateService(data.id, data);
+                break;
             case 'stock':
-                if (isDelete) return await SupabaseSync.deleteStockItem(data.id);
-                return isNew ? await SupabaseSync.saveStockItem(data) : await SupabaseSync.updateStockItem(data.id, data);
+                if (isDelete) result = await SupabaseSync.deleteStockItem(data.id);
+                else result = isNew ? await SupabaseSync.saveStockItem(data) : await SupabaseSync.updateStockItem(data.id, data);
+                break;
             case 'transaction':
-                if (isDelete) return await SupabaseSync.deleteTransaction(data.id);
-                return isNew ? await SupabaseSync.saveTransaction(data) : await SupabaseSync.updateTransaction(data.id, data);
+                if (isDelete) result = await SupabaseSync.deleteTransaction(data.id);
+                else result = isNew ? await SupabaseSync.saveTransaction(data) : await SupabaseSync.updateTransaction(data.id, data);
+                break;
             case 'medical_record':
-                if (isDelete) return await SupabaseSync.deleteMedicalRecord(data.id);
-                return isNew ? await SupabaseSync.saveMedicalRecord(data) : await SupabaseSync.updateMedicalRecord(data.id, data);
+                if (isDelete) result = await SupabaseSync.deleteMedicalRecord(data.id);
+                else result = isNew ? await SupabaseSync.saveMedicalRecord(data) : await SupabaseSync.updateMedicalRecord(data.id, data);
+                break;
             case 'treatment_plan':
-                if (isDelete) return await SupabaseSync.deleteTreatmentPlan(data.id);
-                return isNew ? await SupabaseSync.saveTreatmentPlan(data) : await SupabaseSync.updateTreatmentPlan(data.id, data);
+                if (isDelete) result = await SupabaseSync.deleteTreatmentPlan(data.id);
+                else result = isNew ? await SupabaseSync.saveTreatmentPlan(data) : await SupabaseSync.updateTreatmentPlan(data.id, data);
+                break;
             default:
-                return null;
+                break;
         }
+
+        if (result?.error) {
+            // Notificar usuário sobre a falha para não ocorrer erro silencioso
+            toast(`Erro de sincronização: Não foi possível salvar no servidor. Os dados podem estar inconsistentes.`, 'error');
+            console.error(`[ClinicStore] Erro retornado ao salvar ${type}:`, result.error);
+            // Aqui poderíamos disparar rollback de estado se fosse uma store centralizada com state history
+            return { error: result.error };
+        }
+        
+        return result;
     } catch (error) {
-        console.error(`[ClinicStore] Erro ao salvar ${type} no Supabase:`, error);
+        console.error(`[ClinicStore] Erro fatal ao salvar ${type} no Supabase:`, error);
+        toast(`Erro crítico ao conectar com o servidor. Verifique sua internet.`, 'error');
+        
+        // Disparar evento para uma fila de retry offline
+        useEventBus.getState().emit('SYNC_ERROR', { type, data, isNew, isDelete, error });
+        
         return { error };
     }
 };

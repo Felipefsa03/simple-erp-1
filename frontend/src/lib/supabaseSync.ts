@@ -105,8 +105,10 @@ async function supabaseFetch(table: string, options: {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: any;
   filters?: string;
+  retries?: number;
+  backoff?: number;
 } = {}) {
-  const { method = 'GET', body, filters } = options;
+  const { method = 'GET', body, filters, retries = 3, backoff = 500 } = options;
   ensureSupabaseConfigured(`${method} ${table}`);
   if (!isConfigured) {
     return { data: null, error: 'Not configured' };
@@ -117,25 +119,52 @@ async function supabaseFetch(table: string, options: {
   console.log('[SupabaseSync] Fetch URL:', url);
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
     const response = await fetch(url, {
       method,
       headers: getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     console.log('[SupabaseSync] Response status:', response.status);
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error(`[SupabaseSync] Erro ${method} ${table}:`, error);
-      return { data: null, error };
+      const errorText = await response.text();
+      console.error(`[SupabaseSync] Erro ${method} ${table}:`, errorText);
+      
+      // Se for um erro de rede temporário (502, 503, 504) e ainda houver retries, tentar novamente
+      if (retries > 0 && [502, 503, 504].includes(response.status)) {
+        console.log(`[SupabaseSync] Retry on HTTP ${response.status}. Retries left: ${retries}`);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+        return supabaseFetch(table, { ...options, retries: retries - 1, backoff: backoff * 2 });
+      }
+      
+      return { data: null, error: errorText };
     }
 
-    const data = await response.json();
+    // Se o body for vazio ou NO CONTENT (204)
+    if (response.status === 204) {
+      return { data: null, error: null };
+    }
+
+    const data = await response.json().catch(() => null);
     console.log('[SupabaseSync] Data received:', Array.isArray(data) ? data.length : data);
     return { data, error: null };
   } catch (err: any) {
     console.error(`[SupabaseSync] Exception ${method} ${table}:`, err.message);
+    
+    // Se for timeout ou erro de rede, tenta novamente com backoff
+    if (retries > 0 && (err.name === 'AbortError' || err.message.includes('Failed to fetch'))) {
+      console.log(`[SupabaseSync] Retry on Network/Timeout. Retries left: ${retries}`);
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return supabaseFetch(table, { ...options, retries: retries - 1, backoff: backoff * 2 });
+    }
+    
     return { data: null, error: err.message };
   }
 }
@@ -347,43 +376,27 @@ export const SupabaseSync = {
     console.log('[SupabaseSync] loadProfessionals with clinicId:', clinicId, '-> uuid:', uuid);
     
     const { data, error } = await supabaseFetch('professionals', {
-      filters: `?clinic_id=eq.${uuid}&select=*&order=created_at.asc`,
+      filters: `?clinic_id=eq.${uuid}&select=*,user:user_id(id,name,email,phone,role)&order=created_at.asc`,
     });
     console.log('[SupabaseSync] professionals loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
     
-    // Batch-fetch all users at once to avoid N+1 queries
-    const userIds = data.map((p: any) => p.user_id).filter(Boolean);
-    let usersMap: Record<string, { name?: string; email?: string; phone?: string; role?: string }> = {};
-    if (userIds.length > 0) {
-      const { data: users } = await supabaseFetch('users', {
-        filters: `?id=in.(${userIds.join(',')})&select=id,name,email,phone,role`,
-      });
-      if (users) {
-        users.forEach((u: any) => {
-          usersMap[u.id] = {
-            name: u.name,
-            email: u.email,
-            phone: u.phone,
-            role: u.role,
-          };
-        });
-      }
-    }
-    
-    return data.map((p: any) => ({
-      id: p.id,
-      clinic_id: p.clinic_id,
-      name: usersMap[p.user_id]?.name || p.name || 'Profissional',
-      email: usersMap[p.user_id]?.email || p.email || 'email@clinica.com',
-      phone: usersMap[p.user_id]?.phone || p.phone || '(11) 99999-9999',
-      role: usersMap[p.user_id]?.role || p.role || 'dentist',
-      cro: p.cro || '',
-      specialty: p.specialty || '',
-      commission_pct: Number(p.commission) || 0,
-      active: p.active !== false,
-      created_at: p.created_at,
-    }));
+    return data.map((p: any) => {
+      const user = Array.isArray(p.user) ? p.user[0] : p.user; // Supabase REST might return an array for relations depending on schema
+      return {
+        id: p.id,
+        clinic_id: p.clinic_id,
+        name: user?.name || p.name || 'Profissional',
+        email: user?.email || p.email || 'email@clinica.com',
+        phone: user?.phone || p.phone || '(11) 99999-9999',
+        role: user?.role || p.role || 'dentist',
+        cro: p.cro || '',
+        specialty: p.specialty || '',
+        commission_pct: Number(p.commission) || 0,
+        active: p.active !== false,
+        created_at: p.created_at,
+      };
+    });
   },
 
   async loadAppointments(clinicId: string) {
