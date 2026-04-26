@@ -894,7 +894,11 @@ async saveTransaction(transaction: any) {
   },
 
   async deleteBranch(id: string) {
-    return supabaseFetch(`clinics?id=eq.${id}`, { method: 'DELETE' });
+    console.log('[SupabaseSync] Deletando filial:', id);
+    return supabaseFetch('clinics', { 
+      method: 'DELETE',
+      filters: `?id=eq.${id}`
+    });
   },
 };
 

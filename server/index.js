@@ -1199,6 +1199,7 @@ const publicPaths = [
   "/signup/complete",
   "/signup/phone/send-code",
   "/signup/phone/verify-code",
+  "/signup/provision",
   "/system/signup-config",
   "/mercadopago/create-preference",
   "/mercadopago/payment-status/",
