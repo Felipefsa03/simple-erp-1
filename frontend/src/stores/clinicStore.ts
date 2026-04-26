@@ -1743,7 +1743,17 @@ export const useClinicStore = create<ClinicStore>()(
                     throw e;
                 }
             },
-            setIntegrationConfig: (config) => set(s => ({ integrationConfig: { ...s.integrationConfig, ...config } })),
+            setIntegrationConfig: (config) => {
+                set(s => {
+                    const next = { ...s.integrationConfig, ...config };
+                    const clinicId = useAuth.getState().user?.clinic_id;
+                    if (clinicId) {
+                        SupabaseSync.updateClinicSettings(clinicId, { integration_config: next })
+                            .catch(e => console.error('[ClinicStore] Error saving integration config:', e));
+                    }
+                    return { integrationConfig: next };
+                });
+            },
 
             // ---- Photos ----
             addPatientPhoto: (patientId, dataUrl) => {

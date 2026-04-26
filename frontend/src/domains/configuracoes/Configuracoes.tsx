@@ -437,6 +437,16 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
   const handleSaveClinic = () => {
     updateClinic(clinicForm);
+    
+    // Log de auditoria
+    store.addAuditLog({
+      user_id: user?.id,
+      clinic_id: clinic?.id,
+      action: "UPDATE_SETTINGS",
+      entity: "clinic",
+      entity_id: clinic?.id,
+    });
+
     toast("Configurações da clínica salvas com sucesso!");
   };
 

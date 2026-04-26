@@ -4,6 +4,7 @@ import type { User, UserRole, Clinic, PlanType } from "@/types";
 import { PLAN_LIMITS } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isSupabaseEnvConfigured } from "@/lib/supabaseConfig";
+import { SupabaseSync } from "@/lib/supabaseSync";
 
 const useRealData = isSupabaseEnvConfigured();
 
@@ -616,15 +617,27 @@ export const useAuth = create<AuthState>()(
       },
 
       updateClinic: (data) => {
-        set((state) => ({
-          clinic: state.clinic ? { ...state.clinic, ...data } : null,
-        }));
+        set((state) => {
+          const updated = state.clinic ? { ...state.clinic, ...data } : null;
+          if (updated && useRealData) {
+            SupabaseSync.updateClinicSettings(updated.id, data).catch(e => 
+              console.error('[AuthStore] Error updating clinic:', e)
+            );
+          }
+          return { clinic: updated };
+        });
       },
 
       updateUser: (data) => {
-        set((state) => ({
-          user: state.user ? { ...state.user, ...data } : null,
-        }));
+        set((state) => {
+          const updated = state.user ? { ...state.user, ...data } : null;
+          if (updated && useRealData) {
+            SupabaseSync.updateProfessional(updated.id, data).catch(e => 
+              console.error('[AuthStore] Error updating user:', e)
+            );
+          }
+          return { user: updated };
+        });
       },
 
       // Verificar sessão existente
