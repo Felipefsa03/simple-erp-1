@@ -368,7 +368,7 @@ export const SupabaseSync = {
     
     if (parentId && parentId !== clinicId) {
       const parentUuid = getClinicId(parentId);
-      filters = `?or=(clinic_id.eq.${uuid},clinic_id.eq.${parentUuid})&select=*&order=name.asc`;
+      filters = `?clinic_id=in.(${uuid},${parentUuid})&select=*&order=name.asc`;
     }
 
     const { data, error } = await supabaseFetch('patients', { filters });
