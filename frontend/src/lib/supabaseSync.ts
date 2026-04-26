@@ -313,9 +313,7 @@ const mapTransaction = (t: any) => ({
   reference: t.reference || '',
   pix_code: t.pix || '',
   asaas_payment_id: t.asaas_id || '',
-  // asaas_status removido pois não existe na tabela e causa erro 400
   material_cost: Number(t.material_cost) || 0,
-  idempotency_key: t.idempotency_key || '',
   due_date: t.due || '',
   paid_at: t.paid_at || '',
   created_at: t.created_at,
@@ -671,13 +669,12 @@ export const SupabaseSync = {
     return supabaseFetch(`stock_items?id=eq.${id}`, { method: 'DELETE' });
   },
 
-  async saveTransaction(transaction: any) {
-    const body = {
+async saveTransaction(transaction: any) {
+    const body: any = {
       id: transaction.id,
       clinic_id: getClinicId(transaction.clinic_id),
       appointment_id: transaction.appointment_id || null,
       patient_id: transaction.patient_id || null,
-      professional_id: transaction.professional_id || null,
       type: transaction.type || 'income',
       category: transaction.category || null,
       description: transaction.description || null,
@@ -687,9 +684,22 @@ export const SupabaseSync = {
       reference: transaction.reference || null,
       pix: transaction.pix_code || null,
       asaas_id: transaction.asaas_payment_id || null,
-      // asaas_status removido para evitar erro 400
       material_cost: transaction.material_cost || 0,
-      idempotency_key: transaction.idempotency_key || null,
+      due: transaction.due_date || null,
+      paid_at: transaction.paid_at || null,
+    };
+    if (transaction.professional_id) body.professional_id = transaction.professional_id;
+    return supabaseFetch('transactions', { method: 'POST', body });
+  },
+
+  async updateTransaction(id: string, transaction: any) {
+    const body: any = {
+      status: transaction.status || 'pending',
+      method: transaction.payment_method || null,
+      reference: transaction.reference || null,
+      pix: transaction.pix_code || null,
+      asaas_id: transaction.asaas_payment_id || null,
+      material_cost: transaction.material_cost || 0,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
     };
@@ -719,13 +729,12 @@ export const SupabaseSync = {
       appointment_id: record.appointment_id || null,
       clinic_id: getClinicId(record.clinic_id),
       patient_id: record.patient_id,
-      professional_id: record.professional_id || null,
       evolution: record.content || null,
       anamnese: record.anamnese || null,
       odontogram: record.odontogram || null,
       updated_at: new Date().toISOString(),
     };
-    // Só inclui locked se existir no banco (evita erro PGRST204)
+    if (record.professional_id) body.professional_id = record.professional_id;
     if (record.locked !== undefined) body.locked = Boolean(record.locked);
     if (record.locked_at !== undefined) body.locked_at = record.locked_at || null;
     
