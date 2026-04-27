@@ -2254,10 +2254,12 @@ const createWhatsAppSocket = async (clinicId) => {
 
       // Listen for incoming messages - captures ALL message types
       sock.ev.on("messages.upsert", async ({ messages: incomingMsgs, type }) => {
-        if (type !== "notify") return;
+        try {
+          if (type !== "notify") return;
+          console.log(`[Baileys] messages.upsert (type: ${type}, count: ${incomingMsgs?.length})`);
 
-        for (const msg of incomingMsgs) {
-          const from = msg.key.remoteJid;
+          for (const msg of incomingMsgs) {
+            const from = msg.key.remoteJid;
 
           // Skip group messages, broadcasts, and status updates
           if (
@@ -2337,8 +2339,13 @@ const createWhatsAppSocket = async (clinicId) => {
               addLog(
                 `[Baileys] Erro ao salvar mensagem no Supabase: ${e.message}`,
               );
+              console.error("[Baileys Error in messages.upsert Supabase save]", e);
             }
           }
+        } // closes for loop
+        } catch (fatalErr) {
+          addLog(`[Baileys Error] Erro fatal no messages.upsert: ${fatalErr.message}`);
+          console.error("[Baileys Error in messages.upsert]", fatalErr);
         }
       });
 
