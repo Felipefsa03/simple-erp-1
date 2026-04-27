@@ -2212,11 +2212,51 @@ const createWhatsAppSocket = async (clinicId) => {
         }
       });
 
-      // Listen for incoming messages
-      sock.ev.on("messages.upsert", async ({ messages, type }) => {
+      // Extract text from any WhatsApp message type
+      const extractMessageText = (message) => {
+        if (!message) return null;
+        // 1. Texto simples
+        if (message.conversation) return message.conversation;
+        // 2. Texto estendido (respostas, links, citações)
+        if (message.extendedTextMessage?.text) return message.extendedTextMessage.text;
+        // 3. Imagem com legenda
+        if (message.imageMessage?.caption) return `📷 ${message.imageMessage.caption}`;
+        if (message.imageMessage) return "📷 Imagem";
+        // 4. Vídeo com legenda
+        if (message.videoMessage?.caption) return `🎥 ${message.videoMessage.caption}`;
+        if (message.videoMessage) return "🎥 Vídeo";
+        // 5. Documento
+        if (message.documentMessage?.fileName) return `📄 ${message.documentMessage.fileName}`;
+        if (message.documentMessage) return "📄 Documento";
+        // 6. Áudio
+        if (message.audioMessage) return "🎵 Áudio";
+        // 7. Sticker
+        if (message.stickerMessage) return "🏷️ Figurinha";
+        // 8. Contato
+        if (message.contactMessage?.displayName) return `👤 Contato: ${message.contactMessage.displayName}`;
+        if (message.contactMessage) return "👤 Contato";
+        // 9. Localização
+        if (message.locationMessage) return `📍 Localização: ${message.locationMessage.degreesLatitude}, ${message.locationMessage.degreesLongitude}`;
+        // 10. Respostas de botões/listas
+        if (message.buttonsResponseMessage?.selectedDisplayText) return message.buttonsResponseMessage.selectedDisplayText;
+        if (message.listResponseMessage?.title) return message.listResponseMessage.title;
+        // 11. Template button reply
+        if (message.templateButtonReplyMessage?.selectedDisplayText) return message.templateButtonReplyMessage.selectedDisplayText;
+        // 12. Reação (emoji)
+        if (message.reactionMessage?.text) return `${message.reactionMessage.text} (reação)`;
+        // 13. Mensagem editada
+        if (message.protocolMessage?.editedMessage) return extractMessageText(message.protocolMessage.editedMessage);
+        // 14. Mensagem efêmera (viewOnce)
+        if (message.viewOnceMessage?.message) return extractMessageText(message.viewOnceMessage.message);
+        if (message.viewOnceMessageV2?.message) return extractMessageText(message.viewOnceMessageV2.message);
+        return null;
+      };
+
+      // Listen for incoming messages - captures ALL message types
+      sock.ev.on("messages.upsert", async ({ messages: incomingMsgs, type }) => {
         if (type !== "notify") return;
 
-        for (const msg of messages) {
+        for (const msg of incomingMsgs) {
           const from = msg.key.remoteJid;
 
           // Skip group messages, broadcasts, and status updates
@@ -2229,39 +2269,51 @@ const createWhatsAppSocket = async (clinicId) => {
             continue;
           }
 
-          if (!msg.key.fromMe && msg.message?.conversation) {
-            const text = msg.message.conversation;
-            const cleanPhone = from
-              .replace("@s.whatsapp.net", "")
-              .replace("@c.us", "");
+          // Skip messages sent by us (already tracked via sendWhatsAppMessage)
+          if (msg.key.fromMe) continue;
 
-            addLog(
-              `[Baileys] Mensagem recebida de ${from}: ${text.substring(0, 30)}...`,
-            );
+          const text = extractMessageText(msg.message);
+          if (!text) {
+            addLog(`[Baileys] Mensagem recebida sem texto extraível de ${from}. Tipo: ${Object.keys(msg.message || {}).join(', ')}`);
+            continue;
+          }
 
-            const msgData = {
-              id: msg.key.id,
-              key: from,
-              phone: cleanPhone,
-              text: text,
-              fromMe: false,
-              timestamp: msg.messageTimestamp * 1000,
-            };
+          const cleanPhone = from
+            .replace("@s.whatsapp.net", "")
+            .replace("@c.us", "");
 
-            // Store in memory
-            if (!whatsappConnections[clinicId].messages) {
-              whatsappConnections[clinicId].messages = [];
-            }
-            whatsappConnections[clinicId].messages.push(msgData);
+          addLog(
+            `[Baileys] Mensagem recebida de ${from}: ${text.substring(0, 50)}...`,
+          );
 
-            // Persist to Supabase
+          const msgData = {
+            id: msg.key.id,
+            key: from,
+            phone: cleanPhone,
+            text: text,
+            fromMe: false,
+            timestamp: (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
+          };
+
+          // Store in memory
+          if (!whatsappConnections[clinicId]) {
+            whatsappConnections[clinicId] = { status: "connected", messages: [] };
+          }
+          if (!whatsappConnections[clinicId].messages) {
+            whatsappConnections[clinicId].messages = [];
+          }
+          whatsappConnections[clinicId].messages.push(msgData);
+
+          // Persist to Supabase (use SERVICE_ROLE_KEY when available)
+          const persistKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+          if (SUPABASE_URL && persistKey) {
             try {
-              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
+              const persistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  apikey: SUPABASE_ANON_KEY,
-                  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                  apikey: persistKey,
+                  Authorization: `Bearer ${persistKey}`,
                   Prefer: "resolution=merge-duplicates",
                 },
                 body: JSON.stringify({
@@ -2271,10 +2323,16 @@ const createWhatsAppSocket = async (clinicId) => {
                   text: text,
                   from_me: false,
                   timestamp: new Date(
-                    msg.messageTimestamp * 1000,
+                    (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
                   ).toISOString(),
                 }),
               });
+              if (!persistRes.ok) {
+                const errBody = await persistRes.text().catch(() => "");
+                addLog(
+                  `[Baileys] Supabase INSERT falhou (${persistRes.status}): ${errBody.substring(0, 200)}`,
+                );
+              }
             } catch (e) {
               addLog(
                 `[Baileys] Erro ao salvar mensagem no Supabase: ${e.message}`,
@@ -2524,26 +2582,34 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   }
   whatsappConnections[clinicId].messages.push(msgData);
 
-  try {
-    await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        Prefer: "resolution=merge-duplicates",
-      },
-      body: JSON.stringify({
-        clinic_id: clinicId,
-        phone: cleanPhone,
-        message_id: result.key.id,
-        text: message,
-        from_me: true,
-        timestamp: new Date().toISOString(),
-      }),
-    });
-  } catch (e) {
-    addLog(`[API] Erro ao salvar mensagem no Supabase: ${e.message}`);
+  // Persist sent message to Supabase (use SERVICE_ROLE_KEY when available)
+  const sendPersistKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+  if (SUPABASE_URL && sendPersistKey) {
+    try {
+      const sendPersistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: sendPersistKey,
+          Authorization: `Bearer ${sendPersistKey}`,
+          Prefer: "resolution=merge-duplicates",
+        },
+        body: JSON.stringify({
+          clinic_id: clinicId,
+          phone: cleanPhone,
+          message_id: result.key.id,
+          text: message,
+          from_me: true,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      if (!sendPersistRes.ok) {
+        const errBody = await sendPersistRes.text().catch(() => "");
+        addLog(`[API] Supabase INSERT (sent) falhou (${sendPersistRes.status}): ${errBody.substring(0, 200)}`);
+      }
+    } catch (e) {
+      addLog(`[API] Erro ao salvar mensagem no Supabase: ${e.message}`);
+    }
   }
 
   return { messageId: result.key.id, jid };
@@ -2606,33 +2672,53 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
   const { clinicId, phone } = req.params;
 
   try {
-    const cleanPhone = phone.replace(/\D/g, "");
+    // Normalizar telefone para 13 dígitos (remover 9 duplicado se existir)
+    let cleanPhone = phone.replace(/\D/g, "");
+    
+    // Se tem 14 dígitos e começa com 55, normalizar para 13 dígitos
+    if (cleanPhone.length === 14 && cleanPhone.startsWith('55')) {
+      // 55119999999999 -> 5511999999999 (remover o 9 extra)
+      const ddd = cleanPhone.slice(2, 4);
+      const number = cleanPhone.slice(4);
+      // Se o número começa com 9 depois do DDD, pode ter 9 duplicado
+      if (number.startsWith('9') && number.length === 9) {
+        cleanPhone = '55' + ddd + number;
+      }
+    }
+    
     let messages = [];
 
-    // Load from Supabase first
-    try {
-      const supaRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/whatsapp_messages?phone=eq.${cleanPhone}&order=timestamp.asc`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    // Load from Supabase first (filter by clinic_id AND phone)
+    const queryKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    if (SUPABASE_URL && queryKey) {
+      try {
+        const supaRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&phone=eq.${cleanPhone}&order=timestamp.asc&limit=100`,
+          {
+            headers: {
+              apikey: queryKey,
+              Authorization: `Bearer ${queryKey}`,
+            },
           },
-        },
-      );
-      if (supaRes.ok) {
-        const supaData = await supaRes.json();
-        messages = supaData.map((m) => ({
-          id: m.message_id,
-          key: `${cleanPhone}@s.whatsapp.net`,
-          phone: m.phone,
-          text: m.text,
-          fromMe: m.from_me,
-          timestamp: new Date(m.timestamp).getTime(),
-        }));
+        );
+        if (supaRes.ok) {
+          const supaData = await supaRes.json();
+          messages = supaData.map((m) => ({
+            id: m.message_id,
+            key: `${cleanPhone}@s.whatsapp.net`,
+            phone: m.phone,
+            text: m.text,
+            fromMe: m.from_me,
+            timestamp: new Date(m.timestamp).getTime(),
+          }));
+          addLog(`[API] ${supaData.length} mensagens carregadas do Supabase para ${cleanPhone}`);
+        } else {
+          const errBody = await supaRes.text().catch(() => "");
+          addLog(`[API] Supabase SELECT falhou (${supaRes.status}): ${errBody.substring(0, 200)}`);
+        }
+      } catch (e) {
+        addLog(`[API] Erro ao carregar mensagens do Supabase: ${e.message}`);
       }
-    } catch (e) {
-      addLog(`[API] Erro ao carregar mensagens do Supabase: ${e.message}`);
     }
 
     // Merge with in-memory messages (avoid duplicates)
@@ -2641,13 +2727,35 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
       const existingIds = new Set(messages.map((m) => m.id));
       const memMessages = conn.messages.filter((m) => {
         const msgKey = m.key || "";
-        const normalizedKey = msgKey
+        // Normalizar a chave da mensagem para 13 dígitos
+        let normalizedKey = msgKey
           .replace("@s.whatsapp.net", "")
-          .replace("@c.us", "");
+          .replace("@c.us", "")
+          .replace(/\D/g, "");
+        
+        // Normalizar para 13 dígitos se for 14
+        if (normalizedKey.length === 14 && normalizedKey.startsWith('55')) {
+          const ddd = normalizedKey.slice(2, 4);
+          const number = normalizedKey.slice(4);
+          if (number.startsWith('9') && number.length === 9) {
+            normalizedKey = '55' + ddd + number;
+          }
+        }
+        
+        // Também normalizar cleanPhone para 13 dígitos
+        let normalizedCleanPhone = cleanPhone;
+        if (normalizedCleanPhone.length === 14 && normalizedCleanPhone.startsWith('55')) {
+          const ddd = normalizedCleanPhone.slice(2, 4);
+          const number = normalizedCleanPhone.slice(4);
+          if (number.startsWith('9') && number.length === 9) {
+            normalizedCleanPhone = '55' + ddd + number;
+          }
+        }
+        
         return (
-          (normalizedKey === cleanPhone ||
-            normalizedKey.includes(cleanPhone) ||
-            cleanPhone.includes(normalizedKey)) &&
+          (normalizedKey === normalizedCleanPhone ||
+            normalizedKey.includes(normalizedCleanPhone) ||
+            normalizedCleanPhone.includes(normalizedKey)) &&
           !existingIds.has(m.id)
         );
       });

@@ -240,7 +240,7 @@ export function MiniWhatsAppChat({
     }
   };
 
-  // Fetch messages
+  // Fetch messages from backend
   const fetchMessages = useCallback(async () => {
     try {
       const phoneForApi = formatPhoneForWhatsApp(patientPhone);
@@ -251,19 +251,24 @@ export function MiniWhatsAppChat({
         setMessages(prev => {
           const existingIds = new Set(prev.map(m => m.id));
           const newMessages = data.messages
-            .filter((m: Message) => !existingIds.has(m.id))
-            .map((m: Message) => ({
-              ...m,
+            .filter((m: any) => !existingIds.has(m.id))
+            .map((m: any) => ({
+              id: m.id,
+              text: m.text,
+              fromMe: m.fromMe,
               timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp)
             }));
           if (newMessages.length > 0) {
-            return [...prev, ...newMessages];
+            const allMessages = [...prev, ...newMessages];
+            // Sort by timestamp to ensure correct order
+            allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            return allMessages;
           }
           return prev;
         });
       }
     } catch (error) {
-      console.error('[WhatsApp] Fetch messages error:', error);
+      // Silently ignore fetch errors (API may be unavailable)
     }
   }, [clinicId, patientPhone]);
 
@@ -273,10 +278,10 @@ export function MiniWhatsAppChat({
       fetchMessages();
       inputRef.current?.focus();
       
-      // Fetch messages periodically
+      // Fetch messages every 3 seconds for faster response visibility
       pollingRef.current = setInterval(() => {
         fetchMessages();
-      }, 5000);
+      }, 3000);
     }
     
     return () => {
