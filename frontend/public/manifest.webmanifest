@@ -1,24 +1,38 @@
 {
-  "name": "Clinxia ERP",
+  "name": "Clinxia - Sistema de Gestão",
   "short_name": "Clinxia",
-  "description": "ERP para clinicas de odonto e estetica com agenda, prontuario e financeiro integrado.",
+  "description": "Sistema completo de gestão para clínicas odontológicas e estética. Gerencie pacientes, agenda, prontuário e financeiro.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0d9488",
   "lang": "pt-BR",
+  "categories": ["business", "productivity", "medical"],
+  "scope": "/",
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
     {
       "src": "/icons/icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ]
 }
