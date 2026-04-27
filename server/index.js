@@ -2258,6 +2258,10 @@ const createWhatsAppSocket = async (clinicId) => {
         // 14. Mensagem efêmera (viewOnce)
         if (message.viewOnceMessage?.message) return extractMessageText(message.viewOnceMessage.message);
         if (message.viewOnceMessageV2?.message) return extractMessageText(message.viewOnceMessageV2.message);
+        // 15. Mensagem temporária (ephemeral)
+        if (message.ephemeralMessage?.message) return extractMessageText(message.ephemeralMessage.message);
+        // 16. Documento com legenda
+        if (message.documentWithCaptionMessage?.message) return extractMessageText(message.documentWithCaptionMessage.message);
         return null;
       };
 
