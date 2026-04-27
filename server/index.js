@@ -2265,7 +2265,7 @@ const createWhatsAppSocket = async (clinicId) => {
       sock.ev.on("messages.upsert", async ({ messages: incomingMsgs, type }) => {
         try {
           if (type !== "notify") return;
-          console.log(`[Baileys] messages.upsert (type: ${type}, count: ${incomingMsgs?.length})`);
+          addLog(`[Baileys] messages.upsert (type: ${type}, count: ${incomingMsgs?.length})`);
 
           for (const msg of incomingMsgs) {
             const from = msg.key.remoteJid;
