@@ -323,17 +323,40 @@ const fetchGlobalIntegrationConfig = async () => {
   return Array.isArray(data) && data.length > 0 ? data[0] : null;
 };
 
+// Buscar secrets da tabela segura (system_secrets)
+const fetchSystemSecret = async (key) => {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/system_secrets?key=eq.${key}&select=value&limit=1`;
+    const headers = getSupabaseAdminHeaders();
+    const response = await fetch(url, { headers });
+    if (!response.ok) return null;
+    const data = await safeJson(response);
+    return Array.isArray(data) && data.length > 0 ? data[0].value : null;
+  } catch (error) {
+    console.log(`[Config] Failed to fetch secret ${key}:`, error.message);
+    return null;
+  }
+};
+
 const resolveMercadoPagoCredentials = async () => {
   let token = mpAccessToken || cleanEnv(process.env.MP_ACCESS_TOKEN);
   let publicKey = mpPublicKey || cleanEnv(process.env.MP_PUBLIC_KEY);
   let webhookSecret = cleanEnv(process.env.MP_WEBHOOK_SECRET);
   let config = null;
 
+  // Tentar buscar da tabela segura system_secrets primeiro
+  const secretToken = await fetchSystemSecret('mp_access_token');
+  const secretWebhook = await fetchSystemSecret('mp_webhook_secret');
+  if (secretToken) token = secretToken;
+  if (secretWebhook) webhookSecret = secretWebhook;
+
+  // Fallback: buscar do integration_config (para compatibilidade)
   try {
     config = await fetchGlobalIntegrationConfig();
     if (config?.mp_access_token) token = config.mp_access_token;
     if (config?.mp_public_key) publicKey = config.mp_public_key;
-    if (config?.mp_webhook_secret) webhookSecret = config.mp_webhook_secret;
+    if (config?.mp_webhook_secret && !webhookSecret) webhookSecret = config.mp_webhook_secret;
   } catch (error) {
     addLog(`[MP] Failed to resolve integration config: ${error.message}`);
   }
@@ -1752,13 +1775,17 @@ app.post("/api/campaigns/:id/:action", (req, res) => {
   return res.status(404).json({ ok: false, error: "Campanha nao encontrada" });
 });
 
-app.post("/api/asaas/test", (req, res) => {
+app.post("/api/asaas/test", async (req, res) => {
   const apiKey = String(req.body?.apiKey || "").trim();
   if (!apiKey) {
     return res.status(400).json({ ok: false, error: "apiKey obrigatoria." });
   }
 
-  const expectedApiKey = String(process.env.ASAAS_API_KEY || "").trim();
+  // Buscar da tabela segura primeiro, fallback para env
+  let expectedApiKey = cleanEnv(process.env.ASAAS_API_KEY || "");
+  const serverApiKey = await fetchSystemSecret('asaas_api_key');
+  if (serverApiKey) expectedApiKey = serverApiKey;
+  
   const acceptedByPattern = /^aact_|^asaas_|^test_/.test(apiKey);
   const valid = expectedApiKey ? apiKey === expectedApiKey : acceptedByPattern;
 
