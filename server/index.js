@@ -2155,10 +2155,16 @@ const createWhatsAppSocket = async (clinicId) => {
 
           const isLoggedOut =
             statusCode === DisconnectReason.loggedOut || statusCode === 401;
+          const isStreamConflict = statusCode === 440;
           const shouldReconnect = !isLoggedOut;
-          addLog(`[Baileys] Conexão FECHADA: ${statusCode}`);
+          addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
 
-          if (shouldReconnect) {
+          // Stop reconnecting after repeated 440 errors (dual-socket conflict)
+          if (isStreamConflict && retryCount >= 2) {
+            addLog(`[Baileys] ⚠️ Erro 440 repetido para ${clinicId} - parando reconexão (conflito de stream/dispositivo duplicado)`);
+            delete whatsappSockets[clinicId];
+            whatsappConnections[clinicId] = { status: "disconnected", qr: null, qrBase64: null };
+          } else if (shouldReconnect) {
             retryCount++;
             const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
             setTimeout(connect, delay);
@@ -3901,10 +3907,14 @@ app.listen(PORT, async () => {
       if (res.ok) {
         const credentials = await res.json();
         if (Array.isArray(credentials) && credentials.length > 0) {
+          // Filter out system-global to avoid dual-socket conflict (error 440)
+          // When system-global and a clinic use the same phone number,
+          // WhatsApp disconnects both every ~5 seconds, preventing message reception
+          const clinicCreds = credentials.filter(c => c.clinic_id !== SYSTEM_WHATSAPP_CLINIC_ID);
           console.log(
-            `🔄 Auto-reconnecting ${credentials.length} WhatsApp session(s)...`,
+            `🔄 Auto-reconnecting ${clinicCreds.length} WhatsApp session(s) (skipped system-global to avoid 440 conflict)...`,
           );
-          for (const cred of credentials) {
+          for (const cred of clinicCreds) {
             try {
               whatsappConnections[cred.clinic_id] = { status: "connecting" };
               const sock = await ensureSocketConnected(cred.clinic_id);
