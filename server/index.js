@@ -2302,11 +2302,14 @@ const createWhatsAppSocket = async (clinicId) => {
           }
 
           // Skip messages sent by us (already tracked via sendWhatsAppMessage)
-          if (msg.key.fromMe) continue;
+          if (msg.key.fromMe) {
+            addLog(`[Baileys] SKIP fromMe=true de ${from}`);
+            continue;
+          }
 
           const text = extractMessageText(msg.message);
           if (!text) {
-            addLog(`[Baileys] Mensagem recebida sem texto extraível de ${from}. Tipo: ${Object.keys(msg.message || {}).join(', ')}`);
+            addLog(`[Baileys] SKIP texto=null de ${from}. Keys: ${Object.keys(msg.message || {}).join(', ')}`);
             continue;
           }
 
