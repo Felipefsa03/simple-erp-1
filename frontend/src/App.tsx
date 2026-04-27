@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useClinicStore } from './stores/clinicStore';
 import { ToastProvider, ErrorBoundary } from './components/shared';
+import { PWAInstallButton } from './components/PWAInstallButton';
 
 // Lazy-loaded page shells for code splitting
 const AuthenticatedApp = React.lazy(() => import('./pages/AuthenticatedApp').then(m => ({ default: m.AuthenticatedApp })));
@@ -79,6 +80,7 @@ export default function App() {
 
   return (
     <Suspense fallback={<FullPageLoader />}>
+      <PWAInstallButton />
       <Routes>
         {/* Public routes - redirect to login if authenticated */}
         <Route path="/login" element={<LoginPageWrapper />} />

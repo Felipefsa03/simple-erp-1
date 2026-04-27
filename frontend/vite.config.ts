@@ -18,35 +18,36 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'icons/*.svg'],
+        includeAssets: ['icons/*.svg', 'favicon.ico'],
         manifest: {
           name: 'Clinxia - Sistema de Gestão',
           short_name: 'Clinxia',
-          description: 'Sistema completo de gestão para clínicas odontológicas',
+          description: 'Sistema completo de gestão para clínicas odontológicas e estética.',
           theme_color: '#0d9488',
           background_color: '#ffffff',
           display: 'standalone',
           orientation: 'portrait',
           scope: '/',
           start_url: '/',
+          categories: ['business', 'productivity', 'medical'],
           icons: [
             {
               src: '/icons/icon-192.svg',
               sizes: '192x192',
-              type: 'image/svg+xml'
-            },
-            {
-              src: '/icons/icon-512.svg',
-              sizes: '512x512',
-              type: 'image/svg+xml'
+              type: 'image/svg+xml',
             },
             {
               src: '/icons/icon-512.svg',
               sizes: '512x512',
               type: 'image/svg+xml',
-              purpose: 'any maskable'
-            }
-          ]
+            },
+            {
+              src: '/icons/icon-512.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+              purpose: 'any maskable',
+            },
+          ],
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
@@ -58,12 +59,12 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'google-fonts-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
                 },
                 cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
+                  statuses: [0, 200],
+                },
+              },
             },
             {
               urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
@@ -72,12 +73,12 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'gstatic-fonts-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
                 },
                 cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
+                  statuses: [0, 200],
+                },
+              },
             },
             {
               urlPattern: /\/api\/.*/i,
@@ -86,14 +87,17 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'api-cache',
                 expiration: {
                   maxEntries: 50,
-                  maxAgeSeconds: 60 * 5
+                  maxAgeSeconds: 60 * 5,
                 },
-                networkTimeoutSeconds: 10
-              }
-            }
-          ]
-        }
-      })
+                networkTimeoutSeconds: 10,
+              },
+            },
+          ],
+        },
+        devOptions: {
+          enabled: false,
+        },
+      }),
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
@@ -102,7 +106,7 @@ export default defineConfig(({ mode }) => {
       alias: [
         { find: '@', replacement: path.resolve(__dirname, 'src') },
       ],
-      dedupe: ['react', 'react-dom']
+      dedupe: ['react', 'react-dom'],
     },
     server: {
       hmr: enableHmr
