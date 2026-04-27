@@ -2304,8 +2304,8 @@ const createWhatsAppSocket = async (clinicId) => {
           }
           whatsappConnections[clinicId].messages.push(msgData);
 
-          // Persist to Supabase (use SERVICE_ROLE_KEY when available)
-          const persistKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+          // Persist to Supabase
+          const persistKey = SUPABASE_ANON_KEY;
           if (SUPABASE_URL && persistKey) {
             try {
               const persistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
@@ -2582,8 +2582,8 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   }
   whatsappConnections[clinicId].messages.push(msgData);
 
-  // Persist sent message to Supabase (use SERVICE_ROLE_KEY when available)
-  const sendPersistKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+  // Persist sent message to Supabase
+  const sendPersistKey = SUPABASE_ANON_KEY;
   if (SUPABASE_URL && sendPersistKey) {
     try {
       const sendPersistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
@@ -2672,28 +2672,28 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
   const { clinicId, phone } = req.params;
 
   try {
-    // Normalizar telefone para 13 dígitos (remover 9 duplicado se existir)
-    let cleanPhone = phone.replace(/\D/g, "");
-    
-    // Se tem 14 dígitos e começa com 55, normalizar para 13 dígitos
-    if (cleanPhone.length === 14 && cleanPhone.startsWith('55')) {
-      // 55119999999999 -> 5511999999999 (remover o 9 extra)
-      const ddd = cleanPhone.slice(2, 4);
-      const number = cleanPhone.slice(4);
-      // Se o número começa com 9 depois do DDD, pode ter 9 duplicado
-      if (number.startsWith('9') && number.length === 9) {
-        cleanPhone = '55' + ddd + number;
+    // Generate phone candidates (with and without the 9th digit for Brazilian numbers)
+    let cleanPhone = String(phone).replace(/\D/g, "");
+    let phoneCandidates = [cleanPhone];
+    if (cleanPhone.startsWith('55')) {
+      if (cleanPhone.length === 12) {
+        // Add 9th digit: 55 + DDD + 9 + number
+        phoneCandidates.push(cleanPhone.slice(0, 4) + '9' + cleanPhone.slice(4));
+      } else if (cleanPhone.length === 13 && cleanPhone[4] === '9') {
+        // Remove 9th digit
+        phoneCandidates.push(cleanPhone.slice(0, 4) + cleanPhone.slice(5));
       }
     }
+    const phoneFilter = phoneCandidates.join(',');
     
     let messages = [];
 
     // Load from Supabase first (filter by clinic_id AND phone)
-    const queryKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    const queryKey = SUPABASE_ANON_KEY;
     if (SUPABASE_URL && queryKey) {
       try {
         const supaRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&phone=eq.${cleanPhone}&order=timestamp.asc&limit=100`,
+          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&phone=in.(${phoneFilter})&order=timestamp.asc&limit=100`,
           {
             headers: {
               apikey: queryKey,
@@ -2727,36 +2727,13 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
       const existingIds = new Set(messages.map((m) => m.id));
       const memMessages = conn.messages.filter((m) => {
         const msgKey = m.key || "";
-        // Normalizar a chave da mensagem para 13 dígitos
         let normalizedKey = msgKey
           .replace("@s.whatsapp.net", "")
           .replace("@c.us", "")
           .replace(/\D/g, "");
         
-        // Normalizar para 13 dígitos se for 14
-        if (normalizedKey.length === 14 && normalizedKey.startsWith('55')) {
-          const ddd = normalizedKey.slice(2, 4);
-          const number = normalizedKey.slice(4);
-          if (number.startsWith('9') && number.length === 9) {
-            normalizedKey = '55' + ddd + number;
-          }
-        }
-        
-        // Também normalizar cleanPhone para 13 dígitos
-        let normalizedCleanPhone = cleanPhone;
-        if (normalizedCleanPhone.length === 14 && normalizedCleanPhone.startsWith('55')) {
-          const ddd = normalizedCleanPhone.slice(2, 4);
-          const number = normalizedCleanPhone.slice(4);
-          if (number.startsWith('9') && number.length === 9) {
-            normalizedCleanPhone = '55' + ddd + number;
-          }
-        }
-        
         return (
-          (normalizedKey === normalizedCleanPhone ||
-            normalizedKey.includes(normalizedCleanPhone) ||
-            normalizedCleanPhone.includes(normalizedKey)) &&
-          !existingIds.has(m.id)
+          phoneCandidates.includes(normalizedKey) && !existingIds.has(m.id)
         );
       });
       messages = [...messages, ...memMessages];
