@@ -2267,6 +2267,7 @@ const createWhatsAppSocket = async (clinicId) => {
         // 4. Vídeo com legenda
         if (message.videoMessage?.caption) return `🎥 ${message.videoMessage.caption}`;
         if (message.videoMessage) return "🎥 Vídeo";
+        if (message.ptvMessage) return "🎥 Vídeo de Voz";
         // 5. Documento
         if (message.documentMessage?.fileName) return `📄 ${message.documentMessage.fileName}`;
         if (message.documentMessage) return "📄 Documento";
@@ -2307,14 +2308,18 @@ const createWhatsAppSocket = async (clinicId) => {
           for (const msg of incomingMsgs) {
             const from = msg.key.remoteJid;
 
-          // Skip group messages, broadcasts, and status updates
+          // Skip group messages, broadcasts, and status updates silently
           if (
             from?.endsWith("@g.us") ||
             from?.endsWith("@broadcast") ||
-            from?.includes("@status") ||
-            from?.includes("@lid")
+            from?.includes("@status")
           ) {
             continue;
+          }
+
+          if (from?.includes("@lid")) {
+             addLog(`[Baileys] WARNING: Received message from @lid: ${from}`);
+             // Don't skip, let's see what happens!
           }
 
           // Skip messages sent by us (already tracked via sendWhatsAppMessage)
