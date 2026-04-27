@@ -1236,6 +1236,7 @@ const publicPaths = [
   "/integrations/",
   "/facebook/",
   "/whatsapp/",
+  "/debug/tail",
 ];
 
 app.use("/api", (req, res, next) => {
