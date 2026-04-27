@@ -2076,9 +2076,16 @@ const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
 // Status cache for quick retrieval
 const whatsappConnections = {};
 const whatsappSockets = {};
+const whatsapp440Tracker = {}; // Global tracker for 440 errors per clinicId
 
 // Singleton socket manager
 const ensureSocketConnected = async (clinicId) => {
+  // Block new connections if we're in a 440 cooldown
+  const tracker = whatsapp440Tracker[clinicId];
+  if (tracker && tracker.blocked) {
+    addLog(`[Baileys] BLOCKED: ${clinicId} está em cooldown de erro 440. Reconecte via QR.`);
+    return null;
+  }
   if (whatsappSockets[clinicId]) return whatsappSockets[clinicId];
   return await createWhatsAppSocket(clinicId);
 };
@@ -2157,15 +2164,24 @@ const createWhatsAppSocket = async (clinicId) => {
             statusCode === DisconnectReason.loggedOut || statusCode === 401;
           const isStreamConflict = statusCode === 440;
           const shouldReconnect = !isLoggedOut;
+          // Use global 440 tracker instead of local retryCount
+          if (!whatsapp440Tracker[clinicId]) whatsapp440Tracker[clinicId] = { count: 0, blocked: false };
+          if (isStreamConflict) {
+            whatsapp440Tracker[clinicId].count++;
+          } else {
+            whatsapp440Tracker[clinicId].count = 0; // Reset on non-440 errors
+          }
+          const globalRetry = whatsapp440Tracker[clinicId].count;
           retryCount++;
-          addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
+          addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount}, global440: ${globalRetry})`);
 
-          // Stop reconnecting after repeated 440 errors (corrupted session / device conflict)
-          if (isStreamConflict && retryCount >= 3) {
-            addLog(`[Baileys] ⚠️ Erro 440 repetido ${retryCount}x para ${clinicId} - sessão corrompida, limpando para novo QR`);
+          // Stop reconnecting after 3 consecutive 440 errors
+          if (isStreamConflict && globalRetry >= 3) {
+            addLog(`[Baileys] ⚠️ BLOQUEADO: ${globalRetry}x erro 440 para ${clinicId} - sessão corrompida, limpando`);
+            whatsapp440Tracker[clinicId].blocked = true;
             delete whatsappSockets[clinicId];
             whatsappConnections[clinicId] = { status: "disconnected", qr: null, qrBase64: null };
-            // Clear corrupted credentials from Supabase so next connect gets fresh QR
+            // Clear corrupted credentials
             try {
               const clearKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
               await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
