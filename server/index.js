@@ -2157,15 +2157,26 @@ const createWhatsAppSocket = async (clinicId) => {
             statusCode === DisconnectReason.loggedOut || statusCode === 401;
           const isStreamConflict = statusCode === 440;
           const shouldReconnect = !isLoggedOut;
+          retryCount++;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
 
-          // Stop reconnecting after repeated 440 errors (dual-socket conflict)
-          if (isStreamConflict && retryCount >= 2) {
-            addLog(`[Baileys] ⚠️ Erro 440 repetido para ${clinicId} - parando reconexão (conflito de stream/dispositivo duplicado)`);
+          // Stop reconnecting after repeated 440 errors (corrupted session / device conflict)
+          if (isStreamConflict && retryCount >= 3) {
+            addLog(`[Baileys] ⚠️ Erro 440 repetido ${retryCount}x para ${clinicId} - sessão corrompida, limpando para novo QR`);
             delete whatsappSockets[clinicId];
             whatsappConnections[clinicId] = { status: "disconnected", qr: null, qrBase64: null };
+            // Clear corrupted credentials from Supabase so next connect gets fresh QR
+            try {
+              const clearKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
+                method: "DELETE",
+                headers: { apikey: clearKey, Authorization: `Bearer ${clearKey}` },
+              });
+              addLog(`[Baileys] Credenciais corrompidas removidas para ${clinicId}`);
+            } catch (e) {
+              addLog(`[Baileys] Erro ao limpar credenciais: ${e.message}`);
+            }
           } else if (shouldReconnect) {
-            retryCount++;
             const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
             setTimeout(connect, delay);
           } else {
