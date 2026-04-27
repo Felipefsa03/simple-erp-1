@@ -1853,10 +1853,18 @@ app.get("/", (req, res) => {
 });
 
 // Helper for logs
+const debugLogs = [];
 const addLog = (msg) => {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${msg}`);
+  const formatted = `[${timestamp}] ${msg}`;
+  console.log(formatted);
+  debugLogs.push(formatted);
+  if (debugLogs.length > 500) debugLogs.shift();
 };
+
+app.get("/api/debug/tail", (req, res) => {
+  res.json({ logs: debugLogs });
+});
 
 // Brazilian phone number validation - robust normalization
 function brazilianPhoneCandidates(rawPhone) {
