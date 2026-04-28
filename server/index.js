@@ -1131,20 +1131,26 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
 
   try {
     // Fetch Clinic info
+    console.log(`[Public API] Fetching clinic ${clinicId} from ${SUPABASE_URL}`);
     const { data: clinic, error: clinicError } = await supabaseAdmin
       .from('clinics')
       .select('name')
       .eq('id', clinicId)
-      .single();
+      .maybeSingle(); // maybeSingle doesn't throw on 404
     
     if (clinicError || !clinic) {
-      console.error("[Public API] Clinic not found:", clinicError);
+      console.error("[Public API] Clinic not found error:", clinicError);
       return res.status(404).json({ 
         ok: false, 
-        error: "Clínica não encontrada",
-        debug: clinicError
+        error: `Clínica não encontrada. Detalhes: ${JSON.stringify(clinicError || 'ID não existe no banco')}`,
+        debug: {
+          url: SUPABASE_URL.substring(0, 20),
+          id: clinicId,
+          error: clinicError
+        }
       });
     }
+
 
     // Fetch active services
     const { data: services, error: servicesError } = await supabaseAdmin
