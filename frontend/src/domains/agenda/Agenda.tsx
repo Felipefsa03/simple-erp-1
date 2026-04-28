@@ -108,7 +108,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
   );
   const onlineBookingLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
-    return `${window.location.origin}/#book-online?clinic=${clinicId}`;
+    return `${window.location.origin}/book/${clinicId}`;
   }, [clinicId]);
 
   useEffect(() => {

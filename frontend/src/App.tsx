@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useClinicStore } from './stores/clinicStore';
 import { ToastProvider, ErrorBoundary } from './components/shared';
@@ -68,6 +68,17 @@ function PasswordResetFlowWrapper() {
   );
 }
 
+function OnlineBookingPageWrapper() {
+  const { clinicId } = useParams();
+  const navigate = useNavigate();
+  
+  return (
+    <ToastProvider>
+      <OnlineBookingPage clinicId={clinicId} onBack={() => navigate('/')} />
+    </ToastProvider>
+  );
+}
+
 export default function App() {
   const { user, loading, checkSession } = useAuth();
 
@@ -98,12 +109,9 @@ export default function App() {
         <Route path="/lgpd" element={<LGPDPage />} />
         <Route path="/cookies" element={<CookiesPage />} />
         
-        {/* Public booking and anamnese (via hash) */}
-        <Route path="/book" element={
-          <ToastProvider>
-            <OnlineBookingPage clinicId="clinic-1" onBack={() => window.location.href = '/'} />
-          </ToastProvider>
-        } />
+        {/* Public booking and anamnese */}
+        <Route path="/book/:clinicId" element={<OnlineBookingPageWrapper />} />
+        <Route path="/book" element={<OnlineBookingPageWrapper />} />
         
         {/* Root route - shows landing for visitors, app for authenticated users */}
         <Route path="/" element={

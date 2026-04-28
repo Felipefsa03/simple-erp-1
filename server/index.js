@@ -1097,6 +1097,159 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// ============================================
+// Public Booking Endpoints
+// ============================================
+
+app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
+  const { clinicId } = req.params;
+
+  if (!isUuid(clinicId)) {
+    return res.status(400).json({ ok: false, error: "ID de clínica inválido" });
+  }
+
+  try {
+    const headers = getSupabaseAdminHeaders();
+    
+    // Fetch Clinic info
+    const clinicRes = await fetch(`${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=name`, { headers });
+    const clinics = await clinicRes.json();
+    if (!clinics || clinics.length === 0) {
+      return res.status(404).json({ ok: false, error: "Clínica não encontrada" });
+    }
+
+    // Fetch active services
+    const servicesRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/services?clinic_id=eq.${clinicId}&active=eq.true&select=id,name,avg_duration_min,base_price`,
+      { headers }
+    );
+    const services = await servicesRes.json();
+
+    // Fetch professionals (excluding receptionists)
+    const profsRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/professionals?clinic_id=eq.${clinicId}&role=neq.receptionist&select=id,name`,
+      { headers }
+    );
+    const professionals = await profsRes.json();
+
+    res.json({
+      ok: true,
+      clinic: clinics[0],
+      services: Array.isArray(services) ? services : [],
+      professionals: Array.isArray(professionals) ? professionals : [],
+    });
+  } catch (error) {
+    console.error("[Public API] Error fetching booking info:", error.message);
+    res.status(500).json({ ok: false, error: "Erro ao buscar informações da clínica" });
+  }
+});
+
+app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
+  const { clinicId } = req.params;
+  const { name, phone, email, service_id, professional_id, date, time, notes } = req.body;
+
+  if (!isUuid(clinicId)) return res.status(400).json({ ok: false, error: "ID de clínica inválido" });
+  if (!name || !phone || !email || !date || !time) {
+    return res.status(400).json({ ok: false, error: "Campos obrigatórios ausentes" });
+  }
+
+  try {
+    const headers = getSupabaseAdminHeaders();
+
+    // 1. Find or create patient
+    let patientId;
+    const cleanPhone = phone.replace(/\D/g, "");
+    const patientRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/patients?clinic_id=eq.${clinicId}&or=(email.eq.${encodeURIComponent(email.toLowerCase())},phone.eq.${encodeURIComponent(cleanPhone)})&select=id`,
+      { headers }
+    );
+    const patients = await patientRes.json();
+
+    if (patients && patients.length > 0) {
+      patientId = patients[0].id;
+    } else {
+      const newPatientRes = await fetch(`${SUPABASE_URL}/rest/v1/patients`, {
+        method: "POST",
+        headers: { ...headers, Prefer: "return=representation" },
+        body: JSON.stringify({
+          clinic_id: clinicId,
+          name,
+          phone: cleanPhone,
+          email: email.toLowerCase(),
+          status: "active",
+          tags: ["Agendamento Online"],
+        }),
+      });
+      const newPatients = await newPatientRes.json();
+      patientId = newPatients[0]?.id;
+    }
+
+    if (!patientId) throw new Error("Falha ao identificar/criar paciente");
+
+    // 2. Fetch service and professional info for the record
+    const serviceRes = await fetch(`${SUPABASE_URL}/rest/v1/services?id=eq.${service_id}&select=name,avg_duration_min,base_price`, { headers });
+    const services = await serviceRes.json();
+    const service = services[0] || { name: "Consulta", avg_duration_min: 60, base_price: 0 };
+
+    const profRes = await fetch(`${SUPABASE_URL}/rest/v1/professionals?id=eq.${professional_id}&select=name`, { headers });
+    const profs = await profRes.json();
+    const professional = profs[0] || { name: "Profissional" };
+
+    // 3. Create appointment
+    const scheduledAt = `${date}T${time}:00`;
+    const appointmentBody = {
+      clinic_id: clinicId,
+      patient_id: patientId,
+      patient_name: name,
+      professional_id: professional_id,
+      professional_name: professional.name,
+      service_id: service_id,
+      service_name: service.name,
+      scheduled_at: scheduledAt,
+      duration_min: service.avg_duration_min,
+      status: "scheduled",
+      base_value: service.base_price,
+      notes: notes,
+      source: "online",
+    };
+
+    const appointRes = await fetch(`${SUPABASE_URL}/rest/v1/appointments`, {
+      method: "POST",
+      headers: { ...headers, Prefer: "return=representation" },
+      body: JSON.stringify(appointmentBody),
+    });
+
+    if (!appointRes.ok) {
+      const errText = await appointRes.text();
+      throw new Error(`Falha ao criar agendamento: ${errText}`);
+    }
+
+    const newAppoint = await appointRes.json();
+    const appointmentId = newAppoint[0]?.id;
+
+    // 4. Send WhatsApp confirmation
+    const waMessage = `Olá ${name}, recebemos seu agendamento online para ${new Date(scheduledAt).toLocaleString('pt-BR')}.`;
+    
+    let waClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
+    if (whatsappConnections[clinicId]?.status === "connected") {
+      waClinicId = clinicId;
+    }
+
+    if (whatsappConnections[waClinicId]?.status === "connected") {
+       sendWhatsAppMessage({
+         clinicId: waClinicId,
+         to: cleanPhone,
+         message: waMessage
+       }).catch(e => console.error("[Booking WA] Failed to send:", e.message));
+    }
+
+    res.json({ ok: true, appointmentId });
+  } catch (error) {
+    console.error("[Public API] Error creating booking:", error.message);
+    res.status(500).json({ ok: false, error: "Erro ao processar agendamento" });
+  }
+});
+
 // OAuth v2.3 - deploy 2026-04-06 - Google OAuth (obrigatório em produção)
 const GOOGLE_REDIRECT_URI_FALLBACK =
   "https://clinxia-backend.onrender.com/api/auth/google/callback";
@@ -1240,6 +1393,7 @@ const publicPaths = [
   "/facebook/",
   "/whatsapp/",
   "/debug/tail",
+  "/public/",
 ];
 
 app.use("/api", (req, res, next) => {
