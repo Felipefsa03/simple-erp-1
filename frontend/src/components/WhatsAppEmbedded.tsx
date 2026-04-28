@@ -237,8 +237,24 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
                     // Tenta achar o paciente que tenha esse telefone ou similar
                     const matchedPatient = patients.find(p => {
                       if (!p.phone) return false;
-                      const pPhone = p.phone.replace(/\D/g, '');
-                      return cleanPhone.includes(pPhone) || pPhone.includes(cleanPhone);
+                      let pPhone = p.phone.replace(/\D/g, '');
+                      let cPhone = cleanPhone;
+                      
+                      // Normalize patient phone (get DDD + last 8 digits)
+                      if (pPhone.startsWith('55') && pPhone.length >= 12) {
+                        pPhone = pPhone.slice(2, 4) + pPhone.slice(-8);
+                      } else if (pPhone.length >= 10) {
+                        pPhone = pPhone.slice(0, 2) + pPhone.slice(-8);
+                      }
+                      
+                      // Normalize chat phone (get DDD + last 8 digits)
+                      if (cPhone.startsWith('55') && cPhone.length >= 12) {
+                        cPhone = cPhone.slice(2, 4) + cPhone.slice(-8);
+                      } else if (cPhone.length >= 10) {
+                        cPhone = cPhone.slice(0, 2) + cPhone.slice(-8);
+                      }
+                      
+                      return pPhone === cPhone;
                     });
                     
                     const name = matchedPatient ? matchedPatient.name : chat.pushName || formatPhoneDisplay(chat.phone);

@@ -2945,6 +2945,9 @@ app.post("/api/whatsapp/send", async (req, res) => {
             // Normalize phone for comparison (remove formatting, just digits)
             const cleanPhone = msg.phone.replace(/\D/g, "");
             
+            // Ignore group messages, broadcast lists or shortcodes
+            if (cleanPhone.length < 10 || cleanPhone.length > 15) continue;
+            
             // To handle cases with or without the 9th digit for the same person
             let phoneKey = cleanPhone;
             if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
