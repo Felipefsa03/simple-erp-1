@@ -12,6 +12,7 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
   BufferJSON,
 } from "baileys";
 
@@ -2128,8 +2129,22 @@ const createWhatsAppSocket = async (clinicId) => {
       // Sempre inicializa como 'connecting' ao criar novo socket
       whatsappConnections[clinicId] = { status: "connecting" };
 
+      // Cache de retries para descriptografia - permite re-solicitar mensagens com erro de criptografia
+      if (!global.msgRetryCounterMap) global.msgRetryCounterMap = {};
+      const msgRetryCounterCache = {
+        get: (id) => global.msgRetryCounterMap[id],
+        set: (id, val) => { global.msgRetryCounterMap[id] = val; },
+        del: (id) => { delete global.msgRetryCounterMap[id]; },
+      };
+
+      // Cache de chaves Signal para performance e confiabilidade criptográfica
+      const cachedKeys = makeCacheableSignalKeyStore(state.keys, logger);
+
       const sock = makeWASocket({
-        auth: state,
+        auth: {
+          creds: state.creds,
+          keys: cachedKeys,
+        },
         version: version,
         printQRInTerminal: false,
         browser: ["Clinxia", "Chrome", "122.0.0.0"],
@@ -2137,7 +2152,12 @@ const createWhatsAppSocket = async (clinicId) => {
         keepAliveIntervalMs: 60000,
         logger: logger,
         options: { family: 4 },
-        getMessage: async (key) => ({ conversation: "placeholder" }),
+        msgRetryCounterCache,
+        retryRequestDelayMs: 350,
+        getMessage: async (key) => {
+          // Retornar undefined faz o Baileys solicitar reenvio da mensagem ao remetente
+          return undefined;
+        },
       });
 
       whatsappSockets[clinicId] = sock;
@@ -2319,8 +2339,15 @@ const createWhatsAppSocket = async (clinicId) => {
 
           if (from?.includes("@lid")) {
              const strMsg = JSON.stringify(msg);
-             addLog(`[Baileys] WARNING: Received message from @lid: ${from}. FULL: ${strMsg.substring(0, 800)}`);
-             // Don't skip, let's see what happens!
+             addLog(`[Baileys] @lid recebido: ${from}. stubType=${msg.messageStubType}, hasMessage=${!!msg.message}`);
+          }
+
+          // Se messageStubType === 2 significa erro de descriptografia (Invalid PreKey / No session)
+          // O Baileys vai automaticamente solicitar reenvio via msgRetryCounterCache
+          // Não salvar essas mensagens, apenas logar
+          if (msg.messageStubType === 2) {
+            addLog(`[Baileys] ⚠️ Descriptografia falhou para msg de ${from} (${msg.messageStubParameters?.[0] || 'unknown'}). Baileys solicitará reenvio automático.`);
+            continue;
           }
 
           // Skip messages sent by us (already tracked via sendWhatsAppMessage)
@@ -4009,3 +4036,4 @@ const shutdown = () => {
 
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
+
