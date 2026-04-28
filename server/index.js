@@ -2318,7 +2318,8 @@ const createWhatsAppSocket = async (clinicId) => {
           }
 
           if (from?.includes("@lid")) {
-             addLog(`[Baileys] WARNING: Received message from @lid: ${from}`);
+             const strMsg = JSON.stringify(msg);
+             addLog(`[Baileys] WARNING: Received message from @lid: ${from}. FULL: ${strMsg.substring(0, 800)}`);
              // Don't skip, let's see what happens!
           }
 
@@ -2334,12 +2335,25 @@ const createWhatsAppSocket = async (clinicId) => {
             continue;
           }
 
-          const cleanPhone = from
+          let cleanPhone = from
             .replace("@s.whatsapp.net", "")
             .replace("@c.us", "");
 
+          // If the message came from an @lid, try to extract the real phone number
+          if (from.includes("@lid")) {
+             const realJid = msg.senderPn || msg.participantPn || msg.key?.participantPn || msg.message?.senderPn || msg.message?.participantPn;
+             if (realJid && realJid.includes("@s.whatsapp.net")) {
+                cleanPhone = realJid.replace("@s.whatsapp.net", "").replace("@c.us", "");
+                addLog(`[Baileys] Mapeado @lid para número real: ${cleanPhone}`);
+             } else {
+                addLog(`[Baileys] ALERTA: @lid recebido sem número real associado! (${from})`);
+                // For now, we'll still save it with the @lid as the phone to not lose data
+                cleanPhone = from.replace("@lid", "");
+             }
+          }
+
           addLog(
-            `[Baileys] Mensagem recebida de ${from}: ${text.substring(0, 50)}...`,
+            `[Baileys] Mensagem recebida de ${cleanPhone}: ${text.substring(0, 50)}...`,
           );
 
           const msgData = {
