@@ -1282,14 +1282,9 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
     });
   }
 });
-o ao processar agendamento", 
-      message: error.message 
-    });
-  }
-});
-
 
 // Helper for UUID validation
+
 // (Note: Using the existing definition found elsewhere in the file)
 
 // OAuth v2.3 - deploy 2026-04-06 - Google OAuth (obrigatório em produção)
