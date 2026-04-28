@@ -2,9 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import axios from "axios";
-
 import fs from "fs";
+
 import path from "path";
 import pino from "pino";
 import crypto from "crypto";
@@ -1266,12 +1265,17 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
       
       const waClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
       if (waClinicId) {
-        await axios.post(`${process.env.WHATSAPP_API_URL}/send-message`, {
-          clinicId: waClinicId,
-          to: phone.replace(/\D/g, ""),
-          message: waMessage
-        }, { timeout: 5000 }).catch(e => console.log("WA notification failed (non-critical):", e.message));
+        fetch(`${process.env.WHATSAPP_API_URL}/send-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clinicId: waClinicId,
+            to: phone.replace(/\D/g, ""),
+            message: waMessage
+          })
+        }).catch(e => console.log("WA notification failed (non-critical):", e.message));
       }
+
     } catch (waErr) {
       console.log("WA Notification error (non-critical):", waErr.message);
     }
