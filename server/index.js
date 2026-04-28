@@ -8,6 +8,7 @@ import pino from "pino";
 import crypto from "crypto";
 import { Boom } from "@hapi/boom";
 import QRCode from "qrcode";
+import sharp from "sharp";
 import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
@@ -2430,7 +2431,26 @@ const createWhatsAppSocket = async (clinicId) => {
                 if (buffer.length > maxSize) {
                   addLog(`[Baileys] ⚠️ Mídia ${mediaType} muito grande (${fileSizeKB}KB > ${Math.round(maxSize/1024)}KB). Salvando apenas texto.`);
                 } else {
-                  addLog(`[Baileys] Mídia ${mediaType}: ${fileSizeKB}KB (limite: ${Math.round(maxSize/1024)}KB)`);
+                  let finalBuffer = buffer;
+                  let finalSizeKB = fileSizeKB;
+
+                  // Compressão e Redimensionamento de Imagens
+                  if (mediaType === 'image') {
+                    try {
+                      addLog(`[Baileys] Comprimindo imagem (${fileSizeKB}KB)...`);
+                      finalBuffer = await sharp(buffer)
+                        .resize(1280, 1280, { fit: 'inside', withoutEnlargement: true }) // Limita a 1280px mantendo proporção
+                        .jpeg({ quality: 80, mozjpeg: true }) // Converte/Comprime para JPEG otimizado
+                        .toBuffer();
+                      
+                      finalSizeKB = Math.round(finalBuffer.length / 1024);
+                      addLog(`[Baileys] Imagem comprimida: ${fileSizeKB}KB -> ${finalSizeKB}KB`);
+                    } catch (sharpErr) {
+                      addLog(`[Baileys] Erro ao comprimir imagem: ${sharpErr.message}. Enviando original.`);
+                    }
+                  } else {
+                    addLog(`[Baileys] Mídia ${mediaType}: ${fileSizeKB}KB (limite: ${Math.round(maxSize/1024)}KB)`);
+                  }
 
                   // Determine file extension and mime type
                   const extMap = { audio: 'ogg', image: 'jpg', video: 'mp4', sticker: 'webp', document: 'bin' };
@@ -2468,13 +2488,13 @@ const createWhatsAppSocket = async (clinicId) => {
                         Authorization: `Bearer ${uploadKey}`,
                         'x-upsert': 'true',
                       },
-                      body: buffer,
+                      body: finalBuffer,
                     }
                   );
 
                   if (uploadRes.ok) {
                     mediaUrl = `${SUPABASE_URL}/storage/v1/object/public/whatsapp-media/${fileName}`;
-                    addLog(`[Baileys] Mídia ${mediaType} enviada ao Storage (${fileSizeKB}KB)`);
+                    addLog(`[Baileys] Mídia ${mediaType} enviada ao Storage (${finalSizeKB}KB)`);
                   } else {
                     const errText = await uploadRes.text().catch(() => '');
                     addLog(`[Baileys] Falha no upload de mídia (${uploadRes.status}): ${errText.substring(0, 200)}`);
