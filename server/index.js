@@ -2915,6 +2915,61 @@ app.post("/api/whatsapp/send", async (req, res) => {
   }
 });
 
+  // Get recent chats for a clinic
+  app.get("/api/whatsapp/recent/:clinicId", async (req, res) => {
+    const { clinicId } = req.params;
+  
+    try {
+      const queryKey = SUPABASE_ANON_KEY;
+      if (SUPABASE_URL && queryKey) {
+        // Since Supabase doesn't support SELECT DISTINCT ON natively via REST easily without RPC,
+        // we'll fetch the last 200 messages ordered by timestamp DESC and distinct by phone in memory.
+        const supaRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&order=timestamp.desc&limit=200`,
+          {
+            headers: {
+              apikey: queryKey,
+              Authorization: `Bearer ${queryKey}`,
+            },
+          }
+        );
+        
+        if (supaRes.ok) {
+          const rawMessages = await supaRes.json();
+          
+          // Deduplicate by phone, taking the first (latest) message for each
+          const seenPhones = new Set();
+          const recentChats = [];
+          
+          for (const msg of rawMessages) {
+            // Normalize phone for comparison (remove formatting, just digits)
+            const cleanPhone = msg.phone.replace(/\D/g, "");
+            
+            // To handle cases with or without the 9th digit for the same person
+            let phoneKey = cleanPhone;
+            if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+              const ddd = cleanPhone.slice(2, 4);
+              const number = cleanPhone.slice(-8); // Get last 8 digits
+              phoneKey = `55${ddd}${number}`; // Ignore 9th digit for grouping
+            }
+            
+            if (!seenPhones.has(phoneKey)) {
+              seenPhones.add(phoneKey);
+              recentChats.push(msg);
+            }
+          }
+          
+          return res.json({ ok: true, data: recentChats });
+        }
+      }
+      
+      res.json({ ok: true, data: [] });
+    } catch (error) {
+      console.error("[WhatsApp] Error fetching recent chats:", error);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
 // Get messages for a specific phone
 app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
   const { clinicId, phone } = req.params;

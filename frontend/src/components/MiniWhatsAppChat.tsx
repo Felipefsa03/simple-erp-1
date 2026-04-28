@@ -409,6 +409,13 @@ export function MiniWhatsAppChat({
     };
   }, [isOpen, fetchMessages]);
 
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
   // Generate quick message templates
   const sendQuickMessage = async (type: 'confirm' | 'cancel' | 'reminder' | 'reschedule') => {
     const templates = {
@@ -433,12 +440,12 @@ export function MiniWhatsAppChat({
 
   return (
     <div className={cn(
-      "fixed bg-white shadow-2xl rounded-2xl overflow-hidden flex flex-col z-50 transition-all duration-300",
+      "fixed bg-white shadow-2xl rounded-2xl overflow-hidden flex flex-col transition-all duration-300",
       isFullscreen 
-        ? "inset-4" 
+        ? "inset-4 z-[9999]" 
         : isMinimized 
-          ? "bottom-4 right-4 w-80 h-14" 
-          : "bottom-4 right-4 w-[420px] h-[600px]"
+          ? "bottom-4 right-4 w-80 h-14 z-50" 
+          : "bottom-4 right-4 w-[420px] h-[600px] z-50"
     )}>
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">

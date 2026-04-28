@@ -4,6 +4,10 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 import { MiniWhatsAppChat } from './MiniWhatsAppChat';
 import { useClinicStore } from '@/stores/clinicStore';
+import { format } from 'date-fns';
+
+const isDev = import.meta.env.DEV;
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
 interface WhatsAppEmbeddedProps {
   isOpen: boolean;
@@ -34,6 +38,9 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
   const [isMinimized, setIsMinimized] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<{ phone: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'recent' | 'patients'>('recent');
+  const [recentChats, setRecentChats] = useState<any[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
 
   const patients = useClinicStore(s => s.patients);
   const clinicPatients = patients.filter(p => 
@@ -51,8 +58,34 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
       setIsMinimized(false);
       setSelectedPatient(null);
       setSearchQuery('');
+    } else {
+      if (activeTab === 'recent') {
+        fetchRecent();
+      }
     }
   }, [isOpen]);
+
+  const fetchRecent = useCallback(async () => {
+    setLoadingRecent(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/whatsapp/recent/${clinicId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok) {
+          setRecentChats(data.data || []);
+        }
+      }
+    } catch (e) {
+      console.error('[WhatsAppEmbedded] Erro ao buscar conversas recentes:', e);
+    }
+    setLoadingRecent(false);
+  }, [clinicId]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'recent') {
+      fetchRecent();
+    }
+  }, [activeTab, isOpen, fetchRecent]);
 
   useEffect(() => {
     if (patientPhone && patientName) {
@@ -145,57 +178,134 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
         isMinimized ? "h-0 overflow-hidden" : ""
       )}>
         <div className="absolute inset-0 flex flex-col bg-gradient-to-br from-green-50 to-emerald-50">
-          {/* Header da lista */}
-          <div className="p-4 border-b border-green-100 bg-white">
-            <div className="flex items-center gap-2 mb-3">
-              <Users className="w-5 h-5 text-green-600" />
-              <h3 className="font-bold text-slate-800">Pacientes</h3>
-              <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                {filteredPatients.length}
-              </span>
+          {/* Header da lista & Tabs */}
+          <div className="pt-2 border-b border-green-100 bg-white">
+            <div className="flex px-4 mb-2">
+              <button
+                onClick={() => setActiveTab('recent')}
+                className={cn(
+                  "flex-1 py-2 text-sm font-bold border-b-2 transition-colors",
+                  activeTab === 'recent' ? "border-green-600 text-green-700" : "border-transparent text-slate-500 hover:text-slate-700"
+                )}
+              >
+                Conversas
+              </button>
+              <button
+                onClick={() => setActiveTab('patients')}
+                className={cn(
+                  "flex-1 py-2 text-sm font-bold border-b-2 transition-colors",
+                  activeTab === 'patients' ? "border-green-600 text-green-700" : "border-transparent text-slate-500 hover:text-slate-700"
+                )}
+              >
+                Pacientes
+              </button>
             </div>
             
             {/* Busca */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar paciente..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-green-400 focus:ring-1 focus:ring-green-100 transition-all"
-              />
-            </div>
+            {activeTab === 'patients' && (
+              <div className="relative px-4 pb-3">
+                <Search className="absolute left-7 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar paciente..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-green-400 focus:ring-1 focus:ring-green-100 transition-all"
+                />
+              </div>
+            )}
           </div>
 
-          {/* Lista de pacientes */}
+          {/* Lista Content */}
           <div className="flex-1 overflow-y-auto">
-            {filteredPatients.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-                <Users className="w-12 h-12 text-slate-300 mb-3" />
-                <p className="text-sm text-slate-500">Nenhum paciente encontrado</p>
-              </div>
+            {activeTab === 'recent' ? (
+              // Conversas Recentes
+              loadingRecent ? (
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                  <p className="text-sm text-slate-500">Carregando conversas...</p>
+                </div>
+              ) : recentChats.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <MessageSquare className="w-12 h-12 text-slate-300 mb-3" />
+                  <p className="text-sm text-slate-500">Nenhuma conversa recente</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {recentChats.map((chat) => {
+                    const cleanPhone = chat.phone.replace(/\D/g, '');
+                    // Tenta achar o paciente que tenha esse telefone ou similar
+                    const matchedPatient = patients.find(p => {
+                      if (!p.phone) return false;
+                      const pPhone = p.phone.replace(/\D/g, '');
+                      return cleanPhone.includes(pPhone) || pPhone.includes(cleanPhone);
+                    });
+                    
+                    const name = matchedPatient ? matchedPatient.name : chat.pushName || formatPhoneDisplay(chat.phone);
+                    
+                    // Format message text snippet
+                    let snippet = chat.message || '';
+                    if (chat.media_type) {
+                      snippet = `[${chat.media_type === 'image' ? '📷 Foto' : chat.media_type === 'audio' ? '🎵 Áudio' : chat.media_type === 'video' ? '🎥 Vídeo' : 'Mídia'}] ${snippet}`;
+                    }
+                    
+                    return (
+                      <button
+                        key={chat.id}
+                        onClick={() => handlePatientSelect({ phone: chat.phone, name })}
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-green-50 transition-colors text-left"
+                      >
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 relative">
+                          <span className="text-green-700 font-bold text-sm">
+                            {name.charAt(0).toUpperCase()}
+                          </span>
+                          {!chat.from_me && chat.status !== 'read' && (
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-baseline mb-0.5">
+                            <p className="font-semibold text-slate-800 text-sm truncate">{name}</p>
+                            <p className="text-[10px] text-slate-400 flex-shrink-0">
+                              {format(new Date(chat.timestamp), 'HH:mm')}
+                            </p>
+                          </div>
+                          <p className="text-xs text-slate-500 truncate">{snippet}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )
             ) : (
-              <div className="divide-y divide-slate-100">
-                {filteredPatients.map((patient) => (
-                  <button
-                    key={patient.id}
-                    onClick={() => handlePatientSelect({ phone: patient.phone || '', name: patient.name })}
-                    className="w-full px-4 py-3 flex items-center gap-3 hover:bg-green-50 transition-colors text-left"
-                  >
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-green-700 font-bold text-sm">
-                        {patient.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 text-sm truncate">{patient.name}</p>
-                      <p className="text-xs text-slate-500">{formatPhoneDisplay(patient.phone || '')}</p>
-                    </div>
-                    <MessageSquare className="w-4 h-4 text-green-500 flex-shrink-0" />
-                  </button>
-                ))}
-              </div>
+              // Lista de Pacientes
+              filteredPatients.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <Users className="w-12 h-12 text-slate-300 mb-3" />
+                  <p className="text-sm text-slate-500">Nenhum paciente encontrado</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {filteredPatients.map((patient) => (
+                    <button
+                      key={patient.id}
+                      onClick={() => handlePatientSelect({ phone: patient.phone || '', name: patient.name })}
+                      className="w-full px-4 py-3 flex items-center gap-3 hover:bg-green-50 transition-colors text-left"
+                    >
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-green-700 font-bold text-sm">
+                          {patient.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 text-sm truncate">{patient.name}</p>
+                        <p className="text-xs text-slate-500">{formatPhoneDisplay(patient.phone || '')}</p>
+                      </div>
+                      <MessageSquare className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )
             )}
           </div>
         </div>
