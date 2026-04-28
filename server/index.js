@@ -2341,7 +2341,7 @@ const createWhatsAppSocket = async (clinicId) => {
 
           // If the message came from an @lid, try to extract the real phone number
           if (from.includes("@lid")) {
-             const realJid = msg.senderPn || msg.participantPn || msg.key?.participantPn || msg.message?.senderPn || msg.message?.participantPn;
+             const realJid = msg.key?.senderPn || msg.senderPn || msg.participantPn || msg.key?.participantPn || msg.message?.senderPn || msg.message?.participantPn;
              if (realJid && realJid.includes("@s.whatsapp.net")) {
                 cleanPhone = realJid.replace("@s.whatsapp.net", "").replace("@c.us", "");
                 addLog(`[Baileys] Mapeado @lid para número real: ${cleanPhone}`);
