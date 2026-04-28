@@ -1183,10 +1183,12 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
   const { clinicId } = req.params;
   const { name, phone, email, service_id, professional_id, date, time, notes } = req.body;
 
-  if (!isUuid(clinicId)) retu  console.log(`[Public Booking] Request received for clinic: ${clinicId}`);
+  if (!isUuid(clinicId)) {
+    return res.status(400).json({ ok: false, error: "ID de clínica inválido" });
+  }
+  console.log(`[Public Booking] Request received for clinic: ${clinicId}`);
   console.log(`[Public Booking] Body:`, JSON.stringify(req.body));
 
-  if (!isUuid(clinicId)) return res.status(400).json({ ok: false, error: "ID de clínica inválido" });
   
   const { name, phone, email, date, time, professional_id, service_id, notes } = req.body;
 
