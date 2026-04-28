@@ -1221,8 +1221,8 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
         p_name: name,
         p_phone: cleanPhone,
         p_email: email.toLowerCase(),
-        p_service_id: service_id || null,
-        p_professional_id: professional_id || null,
+        p_service_id: (service_id && service_id.trim() !== '') ? service_id : null,
+        p_professional_id: (professional_id && professional_id.trim() !== '') ? professional_id : null,
         p_date: date,
         p_time: time,
         p_notes: notes || 'Agendamento Online'
