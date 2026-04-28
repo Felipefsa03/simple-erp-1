@@ -1200,83 +1200,48 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
   }
 
   try {
-    // 1. Find or create patient (Direct Fetch with Service Key to bypass 42501)
-    let patientId;
     const cleanPhone = phone.replace(/\D/g, "");
-    const masterKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
     
-    console.log(`[Public Booking] Searching patient via Direct API...`);
-    const searchUrl = `${SUPABASE_URL}/rest/v1/patients?clinic_id=eq.${clinicId}&or=(email.eq.${email.toLowerCase()},phone.eq.${cleanPhone})&select=id`;
+    // ====================================================
+    // SOLUÇÃO DEFINITIVA: Usar RPC com SECURITY DEFINER
+    // Isso bypassa TODAS as travas RLS do banco de dados
+    // independente de qual chave (anon ou service) é usada
+    // ====================================================
+    console.log(`[Public Booking] Calling RPC public_create_booking...`);
     
-    const searchRes = await fetch(searchUrl, {
-      headers: { 'apikey': masterKey, 'Authorization': `Bearer ${masterKey}` }
-    });
-    
-    const existingPatients = await searchRes.json();
-
-    if (existingPatients && existingPatients.length > 0) {
-      patientId = existingPatients[0].id;
-      console.log(`[Public Booking] Found: ${patientId}`);
-    } else {
-      console.log(`[Public Booking] Creating patient via Direct API...`);
-      const createRes = await fetch(`${SUPABASE_URL}/rest/v1/patients`, {
-        method: 'POST',
-        headers: { 
-          'apikey': masterKey, 
-          'Authorization': `Bearer ${masterKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify({
-          clinic_id: clinicId,
-          name,
-          phone: cleanPhone,
-          email: email.toLowerCase()
-        })
-      });
-      
-      const newPatients = await createRes.json();
-      if (!newPatients || !newPatients[0]) {
-        throw new Error(`Erro ao criar paciente: ${JSON.stringify(newPatients)}`);
-      }
-      patientId = newPatients[0].id;
-      console.log(`[Public Booking] Created: ${patientId}`);
-    }
-
-    // 2. Create appointment (Direct API)
-    const scheduled = `${date}T${time}:00`;
-    console.log(`[Public Booking] Saving appointment via Direct API...`);
-    
-    const appointRes = await fetch(`${SUPABASE_URL}/rest/v1/appointments`, {
+    const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_create_booking`, {
       method: 'POST',
-      headers: { 
-        'apikey': masterKey, 
-        'Authorization': `Bearer ${masterKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        clinic_id: clinicId,
-        patient_id: patientId,
-        professional_id: professional_id || null,
-        service_id: service_id || null,
-        scheduled: scheduled,
-        notes: notes || "Agendamento Online"
+        p_clinic_id: clinicId,
+        p_name: name,
+        p_phone: cleanPhone,
+        p_email: email.toLowerCase(),
+        p_service_id: service_id || null,
+        p_professional_id: professional_id || null,
+        p_date: date,
+        p_time: time,
+        p_notes: notes || 'Agendamento Online'
       })
     });
 
-    const newAppoints = await appointRes.json();
-    if (!newAppoints || !newAppoints[0]) {
-      console.error("[Public Booking] Save Error:", newAppoints);
+    const result = await rpcRes.json();
+    console.log(`[Public Booking] RPC Response:`, JSON.stringify(result));
+
+    if (!result || result.ok === false) {
+      console.error("[Public Booking] RPC Error:", result);
       return res.status(400).json({ 
         ok: false, 
-        error: "Erro ao salvar agendamento", 
-        details: newAppoints
+        error: result?.error || "Erro ao processar agendamento",
+        details: result
       });
     }
 
-
-    // 3. WhatsApp Notification (Safe Fetch)
+    // WhatsApp Notification (Safe - fire and forget)
     const waUrl = process.env.WHATSAPP_API_URL;
     const waClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
     
@@ -1289,20 +1254,20 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
         body: JSON.stringify({ clinicId: waClinicId, to: cleanPhone, message: waMessage })
       }).catch(err => console.log("[Public Booking] WA Notify failed:", err.message));
     } else {
-      console.log(`[Public Booking] WA notification skipped (Missing URL or ClinicID)`);
+      console.log(`[Public Booking] WA notification skipped`);
     }
 
+    console.log(`[Public Booking] SUCCESS - Patient: ${result.patient_id}, Appointment: ${result.appointment_id}`);
     res.json({
       ok: true,
-      appointment: newAppoints[0]
+      appointment: { id: result.appointment_id, patient_id: result.patient_id, scheduled: result.scheduled }
     });
   } catch (error) {
     console.error("[Public Booking] CRITICAL ERROR:", error);
     res.status(500).json({ 
       ok: false, 
       error: "Falha interna no servidor", 
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     });
   }
 });
