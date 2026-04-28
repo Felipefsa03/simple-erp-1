@@ -419,7 +419,7 @@ export function Marketing() {
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-            <Target className="w-8 h-8 text-cyan-500 mb-4" />
+            <Target className="w-8 h-8 text-brand-500 mb-4" />
             <p className="text-sm text-slate-500">Pacientes em Risco</p>
             <p className="text-3xl font-bold text-slate-900">{atRiskPatients.length}</p>
             <p className="text-xs text-amber-600 mt-1">Precisam de atenção</p>
@@ -430,7 +430,7 @@ export function Marketing() {
             <p className="text-3xl font-bold text-slate-900">{formatCurrency(avgTicket)}</p>
           </div>
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-            <Users className="w-8 h-8 text-blue-500 mb-4" />
+            <Users className="w-8 h-8 text-brand-500 mb-4" />
             <p className="text-sm text-slate-500">Base Total</p>
             <p className="text-3xl font-bold text-slate-900">{(patients || []).length}</p>
             <p className="text-xs text-slate-400 mt-1">{(patients || []).filter(p => p.status === 'active').length} ativos</p>
@@ -449,7 +449,7 @@ export function Marketing() {
 
       {activeTab === 'insights' && (
         <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 text-white relative overflow-hidden">
-          <div className="absolute -right-20 -top-20 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl" />
+          <div className="absolute -right-20 -top-20 w-64 h-64 bg-brand-500/20 rounded-full blur-3xl" />
           <div className="flex items-center gap-2 mb-6 relative z-10">
             <Sparkles className="w-6 h-6 text-yellow-400" />
             <h2 className="text-xl font-bold">Insights da IA</h2>
@@ -499,7 +499,7 @@ export function Marketing() {
                 <option value="walk_in">Presencial</option>
                 <option value="other">Outro</option>
               </select>
-              <button onClick={handleAddLead} className="px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 inline-flex items-center gap-2">
+              <button onClick={handleAddLead} className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 inline-flex items-center gap-2">
                 <UserPlus2 className="w-4 h-4" />
                 Novo Lead
               </button>
@@ -524,7 +524,7 @@ export function Marketing() {
                         <p className="text-xs text-slate-500">{lead.source} • score {lead.score}</p>
                         <div className="flex gap-1 mt-2 flex-wrap">
                           {clinicStages.filter(s => s.order > stage.order).slice(0, 1).map(next => (
-                            <button key={next.id} onClick={() => moveLeadStage(lead.id, next.id)} className="text-[10px] font-bold text-cyan-700 bg-cyan-50 px-2 py-1 rounded-md">
+                            <button key={next.id} onClick={() => moveLeadStage(lead.id, next.id)} className="text-[10px] font-bold text-brand-700 bg-brand-50 px-2 py-1 rounded-md">
                               Mover para {next.name}
                             </button>
                           ))}
@@ -570,14 +570,14 @@ export function Marketing() {
             <p className="text-sm text-slate-500 mb-4">Onde você quer rodar esta campanha?</p>
             <div className="grid grid-cols-1 gap-3">
               {[
-                { id: 'facebook', name: 'Facebook & Instagram Ads', icon: Facebook, color: 'text-blue-600', bg: 'bg-blue-50' },
+                { id: 'facebook', name: 'Facebook & Instagram Ads', icon: Facebook, color: 'text-brand-600', bg: 'bg-brand-50' },
                 { id: 'email', name: 'E-mail Marketing', icon: Mail, color: 'text-purple-600', bg: 'bg-purple-50' },
                 { id: 'whatsapp', name: 'Automação WhatsApp', icon: MessageSquare, color: 'text-green-600', bg: 'bg-green-50' },
               ].map(c => (
                 <button
                   key={c.id}
                   onClick={() => { setCampaignType(c.id); setCampaignStep(2); }}
-                  className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200 hover:border-cyan-500 hover:shadow-md transition-all text-left"
+                  className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200 hover:border-brand-500 hover:shadow-md transition-all text-left"
                 >
                   <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", c.bg, c.color)}>
                     <c.icon className="w-6 h-6" />
@@ -601,7 +601,7 @@ export function Marketing() {
                 value={campaignName}
                 onChange={e => setCampaignName(e.target.value)}
                 placeholder="Ex: Recuperação de Inativos - 2026"
-                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/20"
+                className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/20"
               />
             </div>
             <div className="space-y-1">
@@ -614,18 +614,18 @@ export function Marketing() {
             </div>
 
             {campaignType === 'email' && (
-              <div className="p-4 bg-cyan-50 rounded-xl border border-cyan-100">
-                <p className="text-sm font-bold text-cyan-800 mb-2">Template "Aviso Importante"</p>
-                <p className="text-xs text-cyan-600 mb-4">Utilizaremos o template institucional para disparos focados em retorno preventivo e engajamento.</p>
-                <button onClick={handleOpenPreview} className="text-xs font-bold bg-white text-cyan-700 px-3 py-1.5 rounded-lg shadow-sm border border-cyan-200 hover:bg-cyan-50">
+              <div className="p-4 bg-brand-50 rounded-xl border border-brand-100">
+                <p className="text-sm font-bold text-brand-800 mb-2">Template "Aviso Importante"</p>
+                <p className="text-xs text-brand-600 mb-4">Utilizaremos o template institucional para disparos focados em retorno preventivo e engajamento.</p>
+                <button onClick={handleOpenPreview} className="text-xs font-bold bg-white text-brand-700 px-3 py-1.5 rounded-lg shadow-sm border border-brand-200 hover:bg-brand-50">
                   Pré-visualizar HTML
                 </button>
               </div>
             )}
             {campaignType === 'facebook' && (
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <p className="text-sm font-bold text-blue-800 mb-2">Público Semelhante (Lookalike)</p>
-                <p className="text-xs text-blue-600">O Clinxia enviará sua lista de pacientes rentáveis para o Facebook criar públicos altamente segmentados e gerar novos leads direto no seu funil.</p>
+              <div className="p-4 bg-brand-50 rounded-xl border border-brand-100">
+                <p className="text-sm font-bold text-brand-800 mb-2">Público Semelhante (Lookalike)</p>
+                <p className="text-xs text-brand-600">O Clinxia enviará sua lista de pacientes rentáveis para o Facebook criar públicos altamente segmentados e gerar novos leads direto no seu funil.</p>
               </div>
             )}
 
@@ -754,7 +754,7 @@ export function Marketing() {
                           <button
                             onClick={() => handleMarkWhatsAppSent(false)}
                             disabled={!whatsAppSessionActive || !currentWhatsApp}
-                            className="px-3 py-2 bg-cyan-600 text-white text-xs font-bold rounded-lg hover:bg-cyan-700 disabled:opacity-50"
+                            className="px-3 py-2 bg-brand-600 text-white text-xs font-bold rounded-lg hover:bg-brand-700 disabled:opacity-50"
                           >
                             Marcar enviado
                           </button>
@@ -793,7 +793,7 @@ export function Marketing() {
 
             <div className="flex gap-2 mt-6">
               <button onClick={() => setCampaignStep(1)} className="flex-1 py-3 text-slate-600 font-bold bg-slate-100 rounded-xl hover:bg-slate-200">Voltar</button>
-              <button onClick={handleCreateCampaign} disabled={!campaignName} className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50">Lançar Campanha</button>
+              <button onClick={handleCreateCampaign} disabled={!campaignName} className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50">Lançar Campanha</button>
             </div>
           </div>
         )}

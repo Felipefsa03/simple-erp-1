@@ -5,7 +5,7 @@ import { ArrowLeft, Shield, FileText, Mail, CheckCircle2 } from 'lucide-react';
 export function LGPDPage() {
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -63,7 +63,7 @@ export function LGPDPage() {
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-4">Encarregado de Dados (DPO)</h2>
           <div className="flex items-center gap-3">
-            <Mail className="w-5 h-5 text-cyan-600" />
+            <Mail className="w-5 h-5 text-brand-600" />
             <p className="text-slate-600">
               Nosso Encarregado de Proteção de Dados: <strong>privacidade@clinxia.com.br</strong>
             </p>
@@ -84,7 +84,7 @@ export function LGPDPage() {
               'Informação sobre compartilhamento',
             ].map(right => (
               <div key={right} className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg">
-                <Shield className="w-4 h-4 text-cyan-600" />
+                <Shield className="w-4 h-4 text-brand-600" />
                 <span className="text-sm text-slate-700">{right}</span>
               </div>
             ))}
@@ -127,10 +127,10 @@ export function LGPDPage() {
           </ul>
         </section>
 
-        <section className="bg-cyan-50 rounded-xl p-6">
+        <section className="bg-brand-50 rounded-xl p-6">
           <h3 className="font-bold text-slate-900 mb-2">Dúvidas sobre LGPD?</h3>
           <p className="text-slate-600 mb-4">Estamos disponíveis para esclarecer qualquer questão sobreprivacy.</p>
-          <Link to="/contato" className="text-cyan-600 font-semibold hover:underline">Fale conosco</Link>
+          <Link to="/contato" className="text-brand-600 font-semibold hover:underline">Fale conosco</Link>
         </section>
       </main>
     </div>

@@ -191,7 +191,7 @@ export function WhatsAppIntegration({ clinicId }: WhatsAppIntegrationProps) {
           <select
             value={selectedClinic}
             onChange={e => setSelectedClinic(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm"
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm"
           >
             {clinics.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
@@ -203,11 +203,11 @@ export function WhatsAppIntegration({ clinicId }: WhatsAppIntegrationProps) {
 
       {/* Informação para Admin da clínica */}
       {isAdmin && !isSuperAdmin && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-          <Building2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+        <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 flex items-start gap-3">
+          <Building2 className="w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-blue-800">Sua clínica</p>
-            <p className="text-xs text-blue-600 mt-1">Você está configurando a integração da sua clínica. Usuários comuns não têm acesso a esta área.</p>
+            <p className="text-sm font-semibold text-brand-800">Sua clínica</p>
+            <p className="text-xs text-brand-600 mt-1">Você está configurando a integração da sua clínica. Usuários comuns não têm acesso a esta área.</p>
           </div>
         </div>
       )}
@@ -226,7 +226,7 @@ export function WhatsAppIntegration({ clinicId }: WhatsAppIntegrationProps) {
                   type={showToken ? 'text' : 'password'}
                   value={form.api_token}
                   onChange={e => setForm(f => ({ ...f, api_token: e.target.value }))}
-                  className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm"
+                  className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm"
                   placeholder="Cole o token da API do WhatsApp Business"
                 />
                 <button type="button" onClick={() => setShowToken(!showToken)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -244,7 +244,7 @@ export function WhatsAppIntegration({ clinicId }: WhatsAppIntegrationProps) {
                   type="text"
                   value={form.phone_number}
                   onChange={e => setForm(f => ({ ...f, phone_number: formatPhone(e.target.value) }))}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm"
                   placeholder="(11) 99999-0000"
                   maxLength={15}
                 />
@@ -258,7 +258,7 @@ export function WhatsAppIntegration({ clinicId }: WhatsAppIntegrationProps) {
                 type="url"
                 value={form.webhook_url}
                 onChange={e => setForm(f => ({ ...f, webhook_url: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm"
                 placeholder="https://seu-dominio.com/api/whatsapp/webhook"
               />
               <p className="text-xs text-slate-400 mt-1">URL para receber respostas e mensagens recebidas.</p>

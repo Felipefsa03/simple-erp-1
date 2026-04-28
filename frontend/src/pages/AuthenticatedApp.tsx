@@ -30,7 +30,7 @@ const WhatsAppTest = lazy(() => import('@/domains/testes/WhatsAppTest').then(m =
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+      <div className="w-8 h-8 border-4 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
     </div>
   );
 }
@@ -254,7 +254,7 @@ export function AuthenticatedApp() {
         <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
           <AlertCircle className="w-12 h-12 opacity-20" />
           <p className="text-lg font-medium">Módulo em desenvolvimento</p>
-          <button onClick={() => setActiveTab(user?.role === 'super_admin' ? 'admin-dashboard' : 'dashboard')} className="text-cyan-600 font-bold hover:underline">
+          <button onClick={() => setActiveTab(user?.role === 'super_admin' ? 'admin-dashboard' : 'dashboard')} className="text-brand-600 font-bold hover:underline">
             Voltar ao Início
           </button>
         </div>
@@ -291,11 +291,11 @@ export function AuthenticatedApp() {
 
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             {!isInstalled && (canInstall || isIos) && (
-              <div className="bg-cyan-50 border-b border-cyan-100 px-4 py-2 flex items-center justify-between gap-3">
-                <p className="text-xs text-cyan-800 font-medium">
+              <div className="bg-brand-50 border-b border-brand-100 px-4 py-2 flex items-center justify-between gap-3">
+                <p className="text-xs text-brand-800 font-medium">
                   Instale o Clinxia no celular para acesso rápido e experiência de app.
                 </p>
-                <button onClick={handleInstallPwa} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 whitespace-nowrap">
+                <button onClick={handleInstallPwa} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-brand-600 text-white hover:bg-brand-700 whitespace-nowrap">
                   Instalar
                 </button>
               </div>
@@ -303,7 +303,7 @@ export function AuthenticatedApp() {
             {isMobile && (
               <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between z-30">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">L</div>
+                  <div className="w-8 h-8 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">L</div>
                   <span className="font-bold text-lg tracking-tight text-slate-900">Clinxia</span>
                 </div>
                 <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">

@@ -465,16 +465,16 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   return (
     <ToastProvider>
       <ErrorBoundary key="signup-page">
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 flex items-center justify-center p-4">
           <div className="w-full max-w-lg">
             <div className="text-center mb-6">
-              <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-cyan-200/50">
+              <div className="w-14 h-14 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-brand-200/50">
                 <span className="text-xl font-black">L</span>
               </div>
               <h1 className="text-xl font-black text-slate-900">Criar Conta - Clinxia</h1>
               <div className="flex items-center justify-center gap-2 mt-3">
                 {[1, 2, 3, 4, 5].map(step => (
-                  <div key={step} className={`w-7 h-1.5 rounded-full transition-all ${step <= signupStep ? 'bg-cyan-500' : 'bg-slate-200'}`} />
+                  <div key={step} className={`w-7 h-1.5 rounded-full transition-all ${step <= signupStep ? 'bg-brand-500' : 'bg-slate-200'}`} />
                 ))}
               </div>
               <p className="text-xs text-slate-500 mt-1">Etapa {signupStep} de 5</p>
@@ -500,7 +500,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   >
                     {googleLoading ? (
                       <>
-                        <div className="w-5 h-5 border-2 border-slate-300 border-t-cyan-600 rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-slate-300 border-t-brand-600 rounded-full animate-spin" />
                         Conectando ao Google...
                       </>
                     ) : (
@@ -550,7 +550,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                       if (!validateStep1()) return;
                       goToStep(2);
                     }}
-                    className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all"
+                    className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 transition-all"
                   >
                     Proximo
                   </button>
@@ -567,8 +567,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo de documento</label>
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => setSignupForm({ ...signupForm, docType: 'cpf' })} className={`flex-1 py-2.5 rounded-xl font-bold text-sm ${signupForm.docType === 'cpf' ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600'}`}>CPF</button>
-                      <button type="button" onClick={() => setSignupForm({ ...signupForm, docType: 'cnpj' })} className={`flex-1 py-2.5 rounded-xl font-bold text-sm ${signupForm.docType === 'cnpj' ? 'bg-cyan-600 text-white' : 'bg-slate-100 text-slate-600'}`}>CNPJ</button>
+                      <button type="button" onClick={() => setSignupForm({ ...signupForm, docType: 'cpf' })} className={`flex-1 py-2.5 rounded-xl font-bold text-sm ${signupForm.docType === 'cpf' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>CPF</button>
+                      <button type="button" onClick={() => setSignupForm({ ...signupForm, docType: 'cnpj' })} className={`flex-1 py-2.5 rounded-xl font-bold text-sm ${signupForm.docType === 'cnpj' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>CNPJ</button>
                     </div>
                   </div>
                   <div>
@@ -578,8 +578,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Modalidade</label>
                     <div className="grid grid-cols-2 gap-3">
-                      <button type="button" onClick={() => setSignupForm({ ...signupForm, modality: 'odonto' })} className={`p-4 rounded-xl border-2 transition-all ${signupForm.modality === 'odonto' ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200'}`}>Odontologia</button>
-                      <button type="button" onClick={() => setSignupForm({ ...signupForm, modality: 'estetica' })} className={`p-4 rounded-xl border-2 transition-all ${signupForm.modality === 'estetica' ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200'}`}>Estetica</button>
+                      <button type="button" onClick={() => setSignupForm({ ...signupForm, modality: 'odonto' })} className={`p-4 rounded-xl border-2 transition-all ${signupForm.modality === 'odonto' ? 'border-brand-500 bg-brand-50' : 'border-slate-200'}`}>Odontologia</button>
+                      <button type="button" onClick={() => setSignupForm({ ...signupForm, modality: 'estetica' })} className={`p-4 rounded-xl border-2 transition-all ${signupForm.modality === 'estetica' ? 'border-brand-500 bg-brand-50' : 'border-slate-200'}`}>Estetica</button>
                     </div>
                   </div>
                   <div className="flex gap-3">
@@ -589,7 +589,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                         if (!validateStep2()) return;
                         goToStep(3);
                       }}
-                      className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl"
+                      className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl"
                     >
                       Proximo
                     </button>
@@ -621,7 +621,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                     <button
                       onClick={handleSendPhoneCode}
                       disabled={signupLoading || !phoneVerificationEnabled}
-                      className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl disabled:opacity-60"
+                      className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl disabled:opacity-60"
                     >
                       {signupLoading ? 'Enviando...' : phoneCodeSent ? 'Reenviar codigo' : 'Enviar codigo'}
                     </button>
@@ -663,7 +663,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                         }
                         setSignupError('Valide o telefone antes de prosseguir.');
                       }}
-                      className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl"
+                      className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl"
                     >
                       Proximo
                     </button>
@@ -681,8 +681,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   )}
                   <div className="space-y-3">
                     {dynamicPlans.map(plan => (
-                      <button key={plan.id} type="button" onClick={() => setSignupForm({ ...signupForm, plan: plan.id })} className={`w-full p-4 rounded-xl border-2 text-left transition-all relative ${signupForm.plan === plan.id ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200'}`}>
-                        {plan.popular && <span className="absolute -top-2.5 right-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">Popular</span>}
+                      <button key={plan.id} type="button" onClick={() => setSignupForm({ ...signupForm, plan: plan.id })} className={`w-full p-4 rounded-xl border-2 text-left transition-all relative ${signupForm.plan === plan.id ? 'border-brand-500 bg-brand-50' : 'border-slate-200'}`}>
+                        {plan.popular && <span className="absolute -top-2.5 right-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">Popular</span>}
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-bold text-slate-900">{plan.name}</p>
@@ -698,7 +698,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => goToStep(3)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl">Voltar</button>
-                    <button onClick={() => { if (!termsAccepted) { setShowTermsModal(true); } else { goToStep(5); }}} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl">
+                    <button onClick={() => { if (!termsAccepted) { setShowTermsModal(true); } else { goToStep(5); }}} className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl">
                       {!termsAccepted ? 'Revisar (aceite termos)' : 'Revisar'}
                     </button>
                   </div>
@@ -711,7 +711,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <FileText className="w-6 h-6 text-cyan-600" />
+                        <FileText className="w-6 h-6 text-brand-600" />
                         Termos de Uso e Privacidade
                       </h3>
                       <button onClick={() => setShowTermsModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
@@ -740,15 +740,15 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                         <p>O sistema e todo conteúdo são de propriedade exclusiva da Clinxia. Reprodução não autorizada é proibida.</p>
                       </div>
                     </div>
-                    <div className="flex items-start gap-3 mb-4 p-3 bg-cyan-50 rounded-xl">
-                      <input type="checkbox" id="termsCheck" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-1 w-4 h-4 text-cyan-600 rounded" />
+                    <div className="flex items-start gap-3 mb-4 p-3 bg-brand-50 rounded-xl">
+                      <input type="checkbox" id="termsCheck" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-1 w-4 h-4 text-brand-600 rounded" />
                       <label htmlFor="termsCheck" className="text-sm text-slate-700">
-                        Li e aceito os <Link to="/termos" target="_blank" className="text-cyan-600 underline">Termos de Uso</Link> e <Link to="/privacidade" target="_blank" className="text-cyan-600 underline">Política de Privacidade</Link>
+                        Li e aceito os <Link to="/termos" target="_blank" className="text-brand-600 underline">Termos de Uso</Link> e <Link to="/privacidade" target="_blank" className="text-brand-600 underline">Política de Privacidade</Link>
                       </label>
                     </div>
                     <div className="flex gap-3">
                       <button onClick={() => setShowTermsModal(false)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl">Cancelar</button>
-                      <button onClick={() => { setShowTermsModal(false); goToStep(5); }} disabled={!termsAccepted} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl disabled:opacity-50">
+                      <button onClick={() => { setShowTermsModal(false); goToStep(5); }} disabled={!termsAccepted} className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl disabled:opacity-50">
                         Continuar
                       </button>
                     </div>
@@ -766,11 +766,11 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                         <div className="flex justify-between text-sm"><span className="text-slate-500">Email:</span><span className="font-semibold text-slate-800">{signupForm.email}</span></div>
                         <div className="flex justify-between text-sm"><span className="text-slate-500">Clinica:</span><span className="font-semibold text-slate-800">{signupForm.clinicName}</span></div>
                         <div className="flex justify-between text-sm"><span className="text-slate-500">Plano:</span><span className="font-semibold text-slate-800">{selectedPlan.name}</span></div>
-                        <div className="border-t border-slate-200 pt-2 flex justify-between"><span className="font-bold text-slate-800">Total:</span><span className="font-black text-lg text-cyan-600">R${selectedPlan.price}/mes</span></div>
+                        <div className="border-t border-slate-200 pt-2 flex justify-between"><span className="font-bold text-slate-800">Total:</span><span className="font-black text-lg text-brand-600">R${selectedPlan.price}/mes</span></div>
                       </div>
                       <div className="flex gap-3">
                         <button onClick={() => goToStep(4)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl">Voltar</button>
-                        <button onClick={handleGeneratePayment} disabled={signupLoading} className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl disabled:opacity-70">
+                        <button onClick={handleGeneratePayment} disabled={signupLoading} className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl disabled:opacity-70">
                           {signupLoading ? 'Processando...' : 'Continuar para Pagamento'}
                         </button>
                       </div>
@@ -778,25 +778,25 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   ) : (
                     <div className="text-center space-y-4">
                       <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 mb-4">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <svg className="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </div>
                         <p className="text-slate-600 font-medium mb-4">Realize o pagamento para ativar sua conta</p>
                         {mpPreference?.init_point && (
-                          <a href={mpPreference.init_point} target="_blank" rel="noopener noreferrer" className="w-full inline-block py-3 px-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
+                          <a href={mpPreference.init_point} target="_blank" rel="noopener noreferrer" className="w-full inline-block py-3 px-4 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200">
                             Pagar pelo Mercado Pago
                           </a>
                         )}
                       </div>
                       <div>
-                        <p className="font-bold text-slate-800">Valor: <span className="text-cyan-600">R${selectedPlan.price.toFixed(2)}</span></p>
+                        <p className="font-bold text-slate-800">Valor: <span className="text-brand-600">R${selectedPlan.price.toFixed(2)}</span></p>
                         <p className="text-xs text-slate-500 mt-1">A conta so sera ativada apos pagamento aprovado.</p>
                       </div>
                       {pollingPayment && (
-                        <div className="flex items-center justify-center gap-2 text-sm text-cyan-600">
-                          <div className="w-4 h-4 border-2 border-cyan-200 border-t-cyan-600 rounded-full animate-spin" />
+                        <div className="flex items-center justify-center gap-2 text-sm text-brand-600">
+                          <div className="w-4 h-4 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
                           Aguardando confirmacao do pagamento...
                         </div>
                       )}
@@ -818,7 +818,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
               )}
 
               <div className="mt-4 text-center">
-                <button onClick={onLoginClick} className="text-sm text-cyan-600 font-medium hover:underline">
+                <button onClick={onLoginClick} className="text-sm text-brand-600 font-medium hover:underline">
                   Ja tem uma conta? Faca login
                 </button>
               </div>

@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 export function TermsPage() {
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -85,7 +85,7 @@ export function TermsPage() {
             Ao utilizar nossos serviços, você concorda com a coleta e uso de informações conforme descrito em nossa 
             Política de Privacidade.
           </p>
-          <Link to="/privacidade" className="text-cyan-600 hover:underline">Ver Política de Privacidade</Link>
+          <Link to="/privacidade" className="text-brand-600 hover:underline">Ver Política de Privacidade</Link>
         </section>
 
         <section>

@@ -23,7 +23,7 @@ interface FinanceiroProps {
 
 export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   const { user, hasPermission } = useAuth();
-  const colors = ['bg-cyan-500', 'bg-blue-500', 'bg-indigo-500', 'bg-violet-500', 'bg-slate-300'];
+  const colors = ['bg-brand-500', 'bg-brand-500', 'bg-indigo-500', 'bg-violet-500', 'bg-slate-300'];
 
   // Triple Shielded Stable Selectors - Atomic Primitives
   const rawTransactions = useClinicStore(s => s.transactions);
@@ -328,7 +328,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
               <div className={cn(
                 "w-12 h-12 rounded-2xl flex items-center justify-center",
                 item.color === 'emerald' ? "bg-emerald-50 text-emerald-600" :
-                  item.color === 'red' ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
+                  item.color === 'red' ? "bg-red-50 text-red-600" : "bg-brand-50 text-brand-600"
               )}>
                 <item.icon className="w-6 h-6" />
               </div>
@@ -355,7 +355,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
               "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
-              activeTab === tab.id ? "bg-cyan-50 text-cyan-700 shadow-sm" : "text-slate-500 hover:text-slate-900"
+              activeTab === tab.id ? "bg-brand-50 text-brand-700 shadow-sm" : "text-slate-500 hover:text-slate-900"
             )}
           >
             <tab.icon className="w-4 h-4" />{tab.label}
@@ -370,8 +370,8 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <h2 className="font-bold text-slate-900">Histórico de Movimentações</h2>
               <div className="flex gap-2">
-                <input type="month" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-cyan-500/20" />
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-cyan-500/20">
+                <input type="month" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-500/20" />
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-500/20">
                   <option value="all">Todos os Status</option>
                   <option value="paid">Pago / Concluído</option>
                   <option value="pending">Aguardando Pagamento</option>
@@ -403,7 +403,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                         ref={highlightedTxnId === t.id ? highlightRef : null}
                         className={cn(
                           "border-b border-slate-50 hover:bg-slate-50/50 transition-colors group",
-                          highlightedTxnId === t.id && "bg-cyan-50 animate-pulse ring-2 ring-cyan-200 ring-inset"
+                          highlightedTxnId === t.id && "bg-brand-50 animate-pulse ring-2 ring-brand-200 ring-inset"
                         )}
                       >
                         <td className="px-6 py-4 text-xs text-slate-500">{new Date(t.created_at).toLocaleDateString('pt-BR')}</td>
@@ -421,7 +421,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                           <div className="flex items-center gap-1.5">
                             <div className={cn("w-1.5 h-1.5 rounded-full",
                               t.status === 'paid' ? 'bg-emerald-500' :
-                                t.status === 'pending' ? 'bg-amber-500' : 'bg-blue-500'
+                                t.status === 'pending' ? 'bg-amber-500' : 'bg-brand-500'
                             )} />
                             <span className="text-xs font-bold text-slate-600">
                               {t.status === 'paid' ? 'Pago' : t.status === 'pending' ? 'Pendente' : 'Aguardando'}
@@ -442,7 +442,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                             {t.status === 'pending' && t.type === 'income' && (
                               <button
                                 onClick={() => { setChargeTarget(t); setChargeModalOpen(true); }}
-                                className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-xl transition-all border border-cyan-100 bg-cyan-50/30"
+                                className="p-2 text-brand-600 hover:bg-brand-50 rounded-xl transition-all border border-brand-100 bg-brand-50/30"
                                 title="Gerar Cobrança (Asaas/Link)"
                               >
                                 <CreditCard className="w-4 h-4" />
@@ -562,7 +562,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
               <input {...regTxn('patient_name')} className="w-full px-4 py-2 bg-slate-50 rounded-xl outline-none" />
             </div>
           )}
-          <LoadingButton type="submit" className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg mt-2">Confirmar Lançamento</LoadingButton>
+          <LoadingButton type="submit" className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl shadow-lg mt-2">Confirmar Lançamento</LoadingButton>
         </form>
       </Modal>
 
@@ -571,7 +571,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
           <div className="bg-slate-50 p-4 rounded-2xl mb-4">
             <p className="text-xs text-slate-400 uppercase font-bold mb-1">Destino</p>
             <p className="font-bold text-slate-900">{chargeTarget?.patient_name || 'Paciente Manual'}</p>
-            <p className="text-lg font-black text-cyan-600">{formatCurrency(chargeTarget?.amount || 0)}</p>
+            <p className="text-lg font-black text-brand-600">{formatCurrency(chargeTarget?.amount || 0)}</p>
           </div>
           <div className="space-y-3">
             <label className="text-xs font-bold text-slate-400 uppercase">Método de Pagamento</label>
@@ -586,7 +586,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                   onClick={() => setChargeMethod(m.id as any)}
                   className={cn(
                     "py-3 rounded-xl border text-sm font-bold transition-all",
-                    chargeMethod === m.id ? "bg-cyan-50 border-cyan-500 text-cyan-700" : "bg-white border-slate-100 text-slate-500"
+                    chargeMethod === m.id ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-slate-100 text-slate-500"
                   )}
                 >
                   {m.label}
@@ -662,7 +662,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
           <LoadingButton
             onClick={handleConfirmCharge}
             loading={chargeLoading}
-            className="w-full py-4 bg-cyan-600 text-white font-bold rounded-2xl shadow-xl shadow-cyan-100 hover:bg-cyan-700 transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 bg-brand-600 text-white font-bold rounded-2xl shadow-xl shadow-brand-100 hover:bg-brand-700 transition-all flex items-center justify-center gap-2"
           >
             <CreditCard className="w-5 h-5" /> {parcelamentoPreview && parcelamentoPreview.length > 1 ? `Confirmar ${parcelamentoPreview.length} Parcelas` : 'Confirmar e Enviar Cobrança'}
           </LoadingButton>
@@ -675,7 +675,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
           <div className="bg-slate-50 p-4 rounded-2xl mb-4">
             <p className="text-xs text-slate-400 uppercase font-bold mb-1">Sobre a transação</p>
             <p className="font-bold text-slate-900">{selectedTxnForNfe?.description}</p>
-            <p className="text-lg font-black text-cyan-600">{formatCurrency(selectedTxnForNfe?.amount || 0)}</p>
+            <p className="text-lg font-black text-brand-600">{formatCurrency(selectedTxnForNfe?.amount || 0)}</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -708,7 +708,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
       {reconciling && (
         <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-[2px] z-[100] flex items-center justify-center">
           <div className="bg-white p-6 rounded-3xl shadow-2xl flex items-center gap-4 border border-slate-100">
-            <div className="w-8 h-8 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+            <div className="w-8 h-8 border-4 border-brand-500/20 border-t-brand-500 rounded-full animate-spin" />
             <p className="font-bold text-slate-800">Sincronizando com Asaas...</p>
           </div>
         </div>

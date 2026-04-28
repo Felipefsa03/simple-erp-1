@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -7,7 +7,8 @@
      ============================================ */
   
   /* Fontes */
-  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
   /* Cores Primárias - Slate Profundo */
@@ -23,31 +24,31 @@
   --color-slate-100: #f1f5f9;
   --color-slate-50: #f8fafc;
   
-  /* Cores de Marca - Violet Premium */
-  --color-brand-950: #2e1065;
-  --color-brand-900: #4c1d95;
-  --color-brand-800: #5b21b6;
-  --color-brand-700: #7c3aed;
-  --color-brand-600: #8b5cf6;
-  --color-brand-500: #a78bfa;
-  --color-brand-400: #c4b5fd;
-  --color-brand-300: #ddd6fe;
-  --color-brand-200: #ede9fe;
-  --color-brand-100: #f5f3ff;
-  --color-brand-50: #faf5ff;
+  /* Cores de Marca - Dourado Premium */
+  --color-brand-950: #4a3600;
+  --color-brand-900: #714b1f;
+  --color-brand-800: #8e5f27;
+  --color-brand-700: #b47831;
+  --color-brand-600: #d4af37;
+  --color-brand-500: #e5c158;
+  --color-brand-400: #f1d570;
+  --color-brand-300: #f8e497;
+  --color-brand-200: #fbedad;
+  --color-brand-100: #fcf4d0;
+  --color-brand-50: #fdf9e6;
   
-  /* Cores de Acento - Emerald Vibrante */
-  --color-accent-950: #022c22;
-  --color-accent-900: #064e3b;
-  --color-accent-800: #065f46;
-  --color-accent-700: #047857;
-  --color-accent-600: #059669;
-  --color-accent-500: #10b981;
-  --color-accent-400: #34d399;
-  --color-accent-300: #6ee7b7;
-  --color-accent-200: #a7f3d0;
-  --color-accent-100: #d1fae5;
-  --color-accent-50: #ecfdf5;
+  /* Cores de Acento - Nude/Pastel Suave */
+  --color-accent-950: #2c241e;
+  --color-accent-900: #4a3b32;
+  --color-accent-800: #6b5547;
+  --color-accent-700: #8c7361;
+  --color-accent-600: #b29581;
+  --color-accent-500: #d2b49f;
+  --color-accent-400: #e4cdbe;
+  --color-accent-300: #f0e0d6;
+  --color-accent-200: #f5ebe6;
+  --color-accent-100: #faf5f2;
+  --color-accent-50: #fcf9f8;
   
   /* Cores de Alerta */
   --color-warning-500: #f59e0b;
@@ -74,8 +75,8 @@
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
-  --shadow-glow-violet: 0 0 40px -10px rgba(139, 92, 246, 0.3);
-  --shadow-glow-emerald: 0 0 40px -10px rgba(16, 185, 129, 0.3);
+  --shadow-glow-gold: 0 0 40px -10px rgba(212, 175, 55, 0.3);
+  --shadow-glow-nude: 0 0 40px -10px rgba(210, 180, 159, 0.3);
   
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -99,14 +100,14 @@
   body {
     @apply font-sans bg-slate-50 text-slate-900 antialiased;
     background-image: 
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139, 92, 246, 0.08), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(16, 185, 129, 0.05), transparent);
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212, 175, 55, 0.06), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(210, 180, 159, 0.08), transparent);
     background-attachment: fixed;
   }
   
   /* Tipografia Premium */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold tracking-tight text-slate-900;
+    @apply font-serif font-semibold tracking-tight text-slate-900;
   }
   
   h1 {
@@ -382,11 +383,11 @@
   
   .bg-mesh {
     background-image: 
-      radial-gradient(at 40% 20%, rgba(139, 92, 246, 0.08) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, rgba(139, 92, 246, 0.05) 0px, transparent 50%),
-      radial-gradient(at 80% 50%, rgba(16, 185, 129, 0.03) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+      radial-gradient(at 40% 20%, rgba(212, 175, 55, 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(210, 180, 159, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(212, 175, 55, 0.05) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, rgba(210, 180, 159, 0.03) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(212, 175, 55, 0.05) 0px, transparent 50%);
   }
   
   .scrollbar-thin {
@@ -457,10 +458,10 @@
 
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 20px -5px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 0 20px -5px rgba(212, 175, 55, 0.3);
   }
   50% {
-    box-shadow: 0 0 30px -5px rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 30px -5px rgba(212, 175, 55, 0.5);
   }
 }
 

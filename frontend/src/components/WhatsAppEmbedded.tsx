@@ -288,7 +288,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
                           </div>
                           <p className="text-xs text-slate-500 truncate flex items-center gap-1">
                             {chat.from_me && (
-                              <span className={chat.status === 'read' ? 'text-blue-500' : 'text-slate-400'}>
+                              <span className={chat.status === 'read' ? 'text-brand-500' : 'text-slate-400'}>
                                 {chat.status === 'read' || chat.status === 'delivered' ? <CheckCheck className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
                               </span>
                             )}

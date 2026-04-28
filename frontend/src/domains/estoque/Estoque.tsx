@@ -104,7 +104,7 @@ export function Estoque() {
           <button onClick={() => setShowHistory(true)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50">
             <History className="w-4 h-4 inline mr-2" />Movimentações
           </button>
-          <button onClick={() => { setEditingItem(null); setForm({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' }); setIsModalOpen(true); }} className="px-4 py-2 bg-cyan-600 rounded-xl text-sm font-medium text-white hover:bg-cyan-700 shadow-sm shadow-cyan-200">
+          <button onClick={() => { setEditingItem(null); setForm({ name: '', category: 'Consumíveis', quantity: '', min_quantity: '', unit: 'un', price: '' }); setIsModalOpen(true); }} className="px-4 py-2 bg-brand-600 rounded-xl text-sm font-medium text-white hover:bg-brand-700 shadow-sm shadow-brand-200">
             <Plus className="w-4 h-4 inline mr-2" />Novo Item
           </button>
         </div>
@@ -145,7 +145,7 @@ export function Estoque() {
               <input required type="text" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" placeholder="0,00" />
             </div>
           </div>
-          <button type="submit" className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 shadow-lg shadow-cyan-200 mt-4">Salvar</button>
+          <button type="submit" className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-200 mt-4">Salvar</button>
         </form>
       </Modal>
 
@@ -198,7 +198,7 @@ export function Estoque() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4"><div className="p-2 bg-cyan-50 text-cyan-600 rounded-xl"><Package className="w-6 h-6" /></div></div>
+          <div className="flex items-center justify-between mb-4"><div className="p-2 bg-brand-50 text-brand-600 rounded-xl"><Package className="w-6 h-6" /></div></div>
           <p className="text-sm text-slate-500 mb-1">Total de Itens</p>
           <p className="text-2xl font-bold text-slate-900">{clinicStockItems.length}</p>
         </div>
@@ -224,9 +224,9 @@ export function Estoque() {
             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Buscar item..." className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none" />
           </div>
           <div className="flex gap-1">
-            <button onClick={() => setCategoryFilter('all')} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold", categoryFilter === 'all' ? "bg-cyan-50 text-cyan-600" : "text-slate-400")}>Todos</button>
+            <button onClick={() => setCategoryFilter('all')} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold", categoryFilter === 'all' ? "bg-brand-50 text-brand-600" : "text-slate-400")}>Todos</button>
             {categories.map(c => (
-              <button key={c} onClick={() => setCategoryFilter(c)} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold", categoryFilter === c ? "bg-cyan-50 text-cyan-600" : "text-slate-400")}>{c}</button>
+              <button key={c} onClick={() => setCategoryFilter(c)} className={cn("px-3 py-1.5 rounded-lg text-xs font-bold", categoryFilter === c ? "bg-brand-50 text-brand-600" : "text-slate-400")}>{c}</button>
             ))}
           </div>
         </div>
@@ -262,7 +262,7 @@ export function Estoque() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => handleEdit(item.id)} className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleEdit(item.id)} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
                       <button onClick={() => setDeleteConfirm(item.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>

@@ -89,12 +89,12 @@ export function InsurancePanel({ clinicId }: InsurancePanelProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Shield className="w-6 h-6 text-cyan-600" />
+            <Shield className="w-6 h-6 text-brand-600" />
             Convênios
           </h1>
           <p className="text-sm text-slate-500 mt-1">Gerencie os convênios e planos de saúde aceitos</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors font-medium text-sm">
+        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-medium text-sm">
           <Plus className="w-4 h-4" /> Novo Convênio
         </button>
       </div>
@@ -102,7 +102,7 @@ export function InsurancePanel({ clinicId }: InsurancePanelProps) {
       <div className="flex items-center gap-3">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou código..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou código..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer whitespace-nowrap">
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="rounded border-slate-300" />
@@ -140,7 +140,7 @@ export function InsurancePanel({ clinicId }: InsurancePanelProps) {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <button onClick={() => openEdit(ins)} className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"><Edit3 className="w-4 h-4" /></button>
+                    <button onClick={() => openEdit(ins)} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"><Edit3 className="w-4 h-4" /></button>
                     <button onClick={() => setDeleteId(ins.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </td>
@@ -154,19 +154,19 @@ export function InsurancePanel({ clinicId }: InsurancePanelProps) {
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Editar Convênio' : 'Novo Convênio'}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-semibold text-slate-700 mb-1">Nome *</label><input type="text" value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Ex: Unimed" /></div>
-            <div><label className="block text-sm font-semibold text-slate-700 mb-1">Código *</label><input type="text" value={form.code || ''} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Ex: UNI" /></div>
+            <div><label className="block text-sm font-semibold text-slate-700 mb-1">Nome *</label><input type="text" value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Ex: Unimed" /></div>
+            <div><label className="block text-sm font-semibold text-slate-700 mb-1">Código *</label><input type="text" value={form.code || ''} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Ex: UNI" /></div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label><input type="text" value={form.contact_phone || ''} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="(11) 3000-0000" /></div>
-            <div><label className="block text-sm font-semibold text-slate-700 mb-1">Email</label><input type="email" value={form.contact_email || ''} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="contato@convenio.com.br" /></div>
+            <div><label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label><input type="text" value={form.contact_phone || ''} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="(11) 3000-0000" /></div>
+            <div><label className="block text-sm font-semibold text-slate-700 mb-1">Email</label><input type="email" value={form.contact_email || ''} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="contato@convenio.com.br" /></div>
           </div>
-          <div><label className="block text-sm font-semibold text-slate-700 mb-1">Endereço</label><input type="text" value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Rua, número - Cidade/UF" /></div>
-          <div><label className="block text-sm font-semibold text-slate-700 mb-1">Observações</label><textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm resize-none" placeholder="Informações adicionais..." /></div>
+          <div><label className="block text-sm font-semibold text-slate-700 mb-1">Endereço</label><input type="text" value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Rua, número - Cidade/UF" /></div>
+          <div><label className="block text-sm font-semibold text-slate-700 mb-1">Observações</label><textarea value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm resize-none" placeholder="Informações adicionais..." /></div>
           <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={form.is_active ?? true} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded border-slate-300" />Convênio ativo</label>
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
-            <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm font-medium"><Save className="w-4 h-4" /> {editing ? 'Salvar' : 'Cadastrar'}</button>
+            <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors text-sm font-medium"><Save className="w-4 h-4" /> {editing ? 'Salvar' : 'Cadastrar'}</button>
           </div>
         </div>
       </Modal>

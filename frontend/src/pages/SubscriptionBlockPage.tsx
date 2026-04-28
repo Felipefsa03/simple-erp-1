@@ -43,7 +43,7 @@ export function SubscriptionBlockPage({ user, subscriptionInfo, onPaymentConfirm
           )}
 
           {subscriptionInfo.pixLink && (
-            <a href={subscriptionInfo.pixLink} target="_blank" rel="noopener noreferrer" className="block mb-4 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all">
+            <a href={subscriptionInfo.pixLink} target="_blank" rel="noopener noreferrer" className="block mb-4 px-6 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-all">
               Pagar pelo Mercado Pago →
             </a>
           )}

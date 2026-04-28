@@ -332,7 +332,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <p className="text-2xl font-bold text-slate-900">{attendanceRate}%</p>
                 <p className="text-xs text-slate-400 mt-1">{todayAppointments.length} agendamentos hoje</p>
               </div>
-              <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/25">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-500/25">
                 <Calendar className="w-5 h-5" />
               </div>
             </div>

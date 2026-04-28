@@ -554,7 +554,7 @@ export function MiniWhatsAppChat({
             {onScheduleNew && (
               <button
                 onClick={onScheduleNew}
-                className="w-full mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors"
+                className="w-full mt-2 px-3 py-1.5 bg-brand-50 text-brand-600 rounded-lg text-xs font-medium hover:bg-brand-100 transition-colors"
               >
                 + Novo Agendamento
               </button>

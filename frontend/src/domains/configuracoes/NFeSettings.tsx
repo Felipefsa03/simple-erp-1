@@ -121,7 +121,7 @@ export function NFeSettings() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-cyan-600" />
+            <FileText className="w-5 h-5 text-brand-600" />
             Configuração de NFe
           </h2>
           <p className="text-sm text-slate-500 mt-1">Configure a emissão de Notas Fiscais Eletrônicas</p>
@@ -135,8 +135,8 @@ export function NFeSettings() {
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <p className="text-sm text-blue-800">
+      <div className="bg-brand-50 border border-brand-200 rounded-xl p-4">
+        <p className="text-sm text-brand-800">
           <strong>Provedores suportados:</strong> Focus NFe, NFe.io e WebmaniaBR são provedores brasileiros que fazem a comunicação oficial com a SEFAZ para emissão de notas fiscais eletrônicas.
           Você precisará de uma conta em um desses provedores e uma API Key para começar.
         </p>
@@ -145,7 +145,7 @@ export function NFeSettings() {
       <div className="bg-white rounded-2xl border border-slate-100 p-6 space-y-6">
         <div>
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <Globe className="w-4 h-4 text-cyan-600" />
+            <Globe className="w-4 h-4 text-brand-600" />
             Provedor de Emissão
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -156,13 +156,13 @@ export function NFeSettings() {
                 className={cn(
                   "p-4 rounded-xl border-2 text-left transition-all",
                   form.provider === p.id
-                    ? "border-cyan-500 bg-cyan-50"
+                    ? "border-brand-500 bg-brand-50"
                     : "border-slate-200 hover:border-slate-300"
                 )}
               >
                 <div className="font-semibold text-slate-900">{p.name}</div>
                 <div className="text-xs text-slate-500 mt-1">{p.description}</div>
-                <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-600 hover:underline mt-2 inline-block">
+                <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:underline mt-2 inline-block">
                   Criar conta →
                 </a>
               </button>
@@ -172,13 +172,13 @@ export function NFeSettings() {
 
         <div className="border-t border-slate-100 pt-6">
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <Key className="w-4 h-4 text-cyan-600" />
+            <Key className="w-4 h-4 text-brand-600" />
             Credenciais da API
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Ambiente</label>
-              <select value={form.environment} onChange={e => setForm(f => ({ ...f, environment: e.target.value as NFeConfig['environment'] }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm">
+              <select value={form.environment} onChange={e => setForm(f => ({ ...f, environment: e.target.value as NFeConfig['environment'] }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm">
                 <option value="homologacao">Homologação (Testes)</option>
                 <option value="producao">Produção</option>
               </select>
@@ -186,7 +186,7 @@ export function NFeSettings() {
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">API Key *</label>
               <div className="relative">
-                <input type={showApiKey ? 'text' : 'password'} value={form.apiKey} onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))} className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Cole sua API Key aqui" />
+                <input type={showApiKey ? 'text' : 'password'} value={form.apiKey} onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))} className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Cole sua API Key aqui" />
                 <button type="button" onClick={() => setShowApiKey(!showApiKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                   {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -197,21 +197,21 @@ export function NFeSettings() {
 
         <div className="border-t border-slate-100 pt-6">
           <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-cyan-600" />
+            <Building2 className="w-4 h-4 text-brand-600" />
             Dados do Emitente (Sua Clínica)
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">CNPJ *</label>
-              <input type="text" value={form.cnpj} onChange={e => setForm(f => ({ ...f, cnpj: formatCNPJ(e.target.value) }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="00.000.000/0000-00" maxLength={18} />
+              <input type="text" value={form.cnpj} onChange={e => setForm(f => ({ ...f, cnpj: formatCNPJ(e.target.value) }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="00.000.000/0000-00" maxLength={18} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Inscrição Estadual</label>
-              <input type="text" value={form.ie} onChange={e => setForm(f => ({ ...f, ie: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="123.456.789.012" />
+              <input type="text" value={form.ie} onChange={e => setForm(f => ({ ...f, ie: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="123.456.789.012" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Regime Tributário</label>
-              <select value={form.regimeTributario} onChange={e => setForm(f => ({ ...f, regimeTributario: e.target.value as NFeConfig['regimeTributario'] }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm">
+              <select value={form.regimeTributario} onChange={e => setForm(f => ({ ...f, regimeTributario: e.target.value as NFeConfig['regimeTributario'] }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm">
                 <option value="1">1 - Simples Nacional</option>
                 <option value="2">2 - Simples Nacional (excesso de sublimite)</option>
                 <option value="3">3 - Regime Normal</option>
@@ -219,11 +219,11 @@ export function NFeSettings() {
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-slate-700 mb-1">Razão Social *</label>
-              <input type="text" value={form.razaoSocial} onChange={e => setForm(f => ({ ...f, razaoSocial: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Nome completo da empresa" />
+              <input type="text" value={form.razaoSocial} onChange={e => setForm(f => ({ ...f, razaoSocial: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Nome completo da empresa" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Nome Fantasia</label>
-              <input type="text" value={form.nomeFantasia} onChange={e => setForm(f => ({ ...f, nomeFantasia: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Nome fantasia" />
+              <input type="text" value={form.nomeFantasia} onChange={e => setForm(f => ({ ...f, nomeFantasia: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Nome fantasia" />
             </div>
           </div>
         </div>
@@ -233,23 +233,23 @@ export function NFeSettings() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold text-slate-700 mb-1">Logradouro</label>
-              <input type="text" value={form.logradouro} onChange={e => setForm(f => ({ ...f, logradouro: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Rua, Av, etc." />
+              <input type="text" value={form.logradouro} onChange={e => setForm(f => ({ ...f, logradouro: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Rua, Av, etc." />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Número</label>
-              <input type="text" value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="SN" />
+              <input type="text" value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="SN" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Bairro</label>
-              <input type="text" value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Centro" />
+              <input type="text" value={form.bairro} onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Centro" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Município</label>
-              <input type="text" value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="São Paulo" />
+              <input type="text" value={form.municipio} onChange={e => setForm(f => ({ ...f, municipio: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="São Paulo" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">UF</label>
-              <select value={form.uf} onChange={e => setForm(f => ({ ...f, uf: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm">
+              <select value={form.uf} onChange={e => setForm(f => ({ ...f, uf: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm">
                 <option value="">Selecione</option>
                 {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
                   <option key={uf} value={uf}>{uf}</option>
@@ -258,19 +258,19 @@ export function NFeSettings() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">CEP</label>
-              <input type="text" value={form.cep} onChange={e => setForm(f => ({ ...f, cep: formatCEP(e.target.value) }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="00000-000" maxLength={9} />
+              <input type="text" value={form.cep} onChange={e => setForm(f => ({ ...f, cep: formatCEP(e.target.value) }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="00000-000" maxLength={9} />
             </div>
           </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button onClick={handleTest} disabled={testing} className="flex items-center gap-2 px-4 py-2 border border-cyan-200 text-cyan-700 rounded-xl hover:bg-cyan-50 transition-colors text-sm font-medium disabled:opacity-50">
+          <button onClick={handleTest} disabled={testing} className="flex items-center gap-2 px-4 py-2 border border-brand-200 text-brand-700 rounded-xl hover:bg-brand-50 transition-colors text-sm font-medium disabled:opacity-50">
             <TestTube className="w-4 h-4" />
             {testing ? 'Testando...' : 'Testar Conexão'}
           </button>
           <button onClick={handleSave} className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-medium transition-colors",
-            saved ? "bg-emerald-600" : "bg-cyan-600 hover:bg-cyan-700"
+            saved ? "bg-emerald-600" : "bg-brand-600 hover:bg-brand-700"
           )}>
             {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             {saved ? 'Salvo!' : 'Salvar Configuração'}

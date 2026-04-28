@@ -7,7 +7,7 @@ export function CookiesPage() {
   
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -38,13 +38,13 @@ export function CookiesPage() {
             ].map(cookie => (
               <div key={cookie.category} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
                 <div className="flex items-center gap-3">
-                  <Cookie className="w-5 h-5 text-cyan-600" />
+                  <Cookie className="w-5 h-5 text-brand-600" />
                   <div>
                     <h3 className="font-bold text-slate-900">{cookie.category}</h3>
                     <p className="text-sm text-slate-600">{cookie.desc}</p>
                   </div>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full ${cookie.required ? 'bg-slate-200 text-slate-700' : 'bg-cyan-100 text-cyan-700'}`}>
+                <span className={`text-xs px-2 py-1 rounded-full ${cookie.required ? 'bg-slate-200 text-slate-700' : 'bg-brand-100 text-brand-700'}`}>
                   {cookie.required ? 'Obrigatório' : 'Opcional'}
                 </span>
               </div>
@@ -148,31 +148,31 @@ export function CookiesPage() {
                     <h4 className="font-bold text-slate-900">Essenciais</h4>
                     <p className="text-sm text-slate-600">Necessários para o sistema</p>
                   </div>
-                  <input type="checkbox" checked disabled className="w-5 h-5 text-cyan-600" />
+                  <input type="checkbox" checked disabled className="w-5 h-5 text-brand-600" />
                 </div>
                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                   <div>
                     <h4 className="font-bold text-slate-900">Funcionais</h4>
                     <p className="text-sm text-slate-600">Preferências do usuário</p>
                   </div>
-                  <input type="checkbox" defaultChecked className="w-5 h-5 text-cyan-600" />
+                  <input type="checkbox" defaultChecked className="w-5 h-5 text-brand-600" />
                 </div>
                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                   <div>
                     <h4 className="font-bold text-slate-900">Analíticos</h4>
                     <p className="text-sm text-slate-600">Melhorias do site</p>
                   </div>
-                  <input type="checkbox" defaultChecked className="w-5 h-5 text-cyan-600" />
+                  <input type="checkbox" defaultChecked className="w-5 h-5 text-brand-600" />
                 </div>
                 <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
                   <div>
                     <h4 className="font-bold text-slate-900">Marketing</h4>
                     <p className="text-sm text-slate-600">Anúncios personalizados</p>
                   </div>
-                  <input type="checkbox" className="w-5 h-5 text-cyan-600" />
+                  <input type="checkbox" className="w-5 h-5 text-brand-600" />
                 </div>
               </div>
-              <button onClick={() => setShowSettings(false)} className="w-full mt-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl">
+              <button onClick={() => setShowSettings(false)} className="w-full mt-6 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl">
                 Salvar Preferências
               </button>
             </div>

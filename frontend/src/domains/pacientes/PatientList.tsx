@@ -413,7 +413,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
           <button
             onClick={() => setIsModalOpen(true)}
             disabled={!canManage}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-600 to-brand-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-brand-200 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             Novo Paciente
@@ -426,41 +426,41 @@ export function PatientList({ onNavigate }: PatientListProps) {
         <form onSubmit={handleAddPatient} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome Completo *</label>
-            <input {...regCreate('name')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", createErrors.name ? 'border-red-300' : 'border-transparent')} placeholder="Ex: Maria Silva" />
+            <input {...regCreate('name')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", createErrors.name ? 'border-red-300' : 'border-transparent')} placeholder="Ex: Maria Silva" />
             {createErrors.name && <span className="text-xs text-red-500 font-medium">{createErrors.name.message}</span>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Telefone *</label>
-              <input {...regCreate('phone')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", createErrors.phone ? 'border-red-300' : 'border-transparent')} placeholder="(11) 99999-9999" />
+              <input {...regCreate('phone')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", createErrors.phone ? 'border-red-300' : 'border-transparent')} placeholder="(11) 99999-9999" />
               {createErrors.phone && <span className="text-xs text-red-500 font-medium">{createErrors.phone.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">CPF</label>
-              <input {...regCreate('cpf')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="000.000.000-00" />
+              <input {...regCreate('cpf')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none" placeholder="000.000.000-00" />
               {createErrors.cpf && <span className="text-xs text-red-500 font-medium">{createErrors.cpf.message}</span>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email *</label>
-              <input {...regCreate('email')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", createErrors.email ? 'border-red-300' : 'border-transparent')} placeholder="maria@email.com" />
+              <input {...regCreate('email')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", createErrors.email ? 'border-red-300' : 'border-transparent')} placeholder="maria@email.com" />
               {createErrors.email && <span className="text-xs text-red-500 font-medium">{createErrors.email.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nascimento</label>
-              <input type="date" {...regCreate('birth_date')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" />
+              <input type="date" {...regCreate('birth_date')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none" />
             </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tags (separadas por vírgula)</label>
-            <input {...regCreate('tags')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Ortodontia, Premium" />
+            <input {...regCreate('tags')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none" placeholder="Ex: Ortodontia, Premium" />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Alergias (separadas por vírgula)</label>
-            <input {...regCreate('allergies')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Penicilina, Látex" />
+            <input {...regCreate('allergies')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none" placeholder="Ex: Penicilina, Látex" />
           </div>
-          <LoadingButton type="submit" loading={addPatientLoading} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4">Cadastrar Paciente</LoadingButton>
+          <LoadingButton type="submit" loading={addPatientLoading} className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 mt-4">Cadastrar Paciente</LoadingButton>
 
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100" /></div>
@@ -485,43 +485,43 @@ export function PatientList({ onNavigate }: PatientListProps) {
         <form onSubmit={handleEditPatient} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nome Completo *</label>
-            <input {...regEdit('name')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", editErrors.name ? 'border-red-300' : 'border-transparent')} placeholder="Ex: Maria Silva" />
+            <input {...regEdit('name')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", editErrors.name ? 'border-red-300' : 'border-transparent')} placeholder="Ex: Maria Silva" />
             {editErrors.name && <span className="text-xs text-red-500 font-medium">{editErrors.name.message}</span>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Telefone *</label>
-              <input {...regEdit('phone')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", editErrors.phone ? 'border-red-300' : 'border-transparent')} placeholder="(11) 99999-9999" />
+              <input {...regEdit('phone')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", editErrors.phone ? 'border-red-300' : 'border-transparent')} placeholder="(11) 99999-9999" />
               {editErrors.phone && <span className="text-xs text-red-500 font-medium">{editErrors.phone.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">CPF</label>
-              <input {...regEdit('cpf')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="000.000.000-00" />
+              <input {...regEdit('cpf')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none" placeholder="000.000.000-00" />
               {editErrors.cpf && <span className="text-xs text-red-500 font-medium">{editErrors.cpf.message}</span>}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email *</label>
-              <input {...regEdit('email')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", editErrors.email ? 'border-red-300' : 'border-transparent')} placeholder="maria@email.com" />
+              <input {...regEdit('email')} className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", editErrors.email ? 'border-red-300' : 'border-transparent')} placeholder="maria@email.com" />
               {editErrors.email && <span className="text-xs text-red-500 font-medium">{editErrors.email.message}</span>}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nascimento</label>
-              <input type="date" {...regEdit('birth_date')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" />
+              <input type="date" {...regEdit('birth_date')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none" />
             </div>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tags (separadas por vírgula)</label>
-            <input {...regEdit('tags')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Ortodontia, Premium" />
+            <input {...regEdit('tags')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none" placeholder="Ex: Ortodontia, Premium" />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Alergias (separadas por vírgula)</label>
-            <input {...regEdit('allergies')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none" placeholder="Ex: Penicilina, Látex" />
+            <input {...regEdit('allergies')} className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none" placeholder="Ex: Penicilina, Látex" />
           </div>
           <div className="flex gap-3 mt-4">
             <button type="button" onClick={() => setEditingPatient(null)} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all">Cancelar</button>
-            <LoadingButton type="submit" loading={editPatientLoading} className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200">Salvar Alterações</LoadingButton>
+            <LoadingButton type="submit" loading={editPatientLoading} className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200">Salvar Alterações</LoadingButton>
           </div>
         </form>
       </Modal>
@@ -563,7 +563,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
               onClick={handleConfirmImport}
               loading={importLoading}
               disabled={importErrors.length > 0}
-              className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {importLoading ? 'Importando...' : 'Confirmar Importação'}
             </LoadingButton>
@@ -580,7 +580,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             placeholder="Buscar por nome, CPF ou telefone..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 transition-all outline-none"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 transition-all outline-none"
           />
         </div>
         <div className="flex gap-2">
@@ -590,7 +590,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
               onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                statusFilter === s ? "bg-cyan-50 text-cyan-600" : "text-slate-400 hover:text-slate-600"
+                statusFilter === s ? "bg-brand-50 text-brand-600" : "text-slate-400 hover:text-slate-600"
               )}
             >
               {s === 'all' ? 'Todos' : s === 'active' ? 'Ativos' : s === 'risk' ? 'Risco' : 'Inativos'}
@@ -631,7 +631,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-brand-500 flex items-center justify-center text-white font-bold flex-shrink-0">
                           {patient.name.charAt(0)}
                         </div>
                         <div className="min-w-0">
@@ -660,7 +660,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
                     <td className="px-6 py-4">
                       <span className={cn(
                         "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                        patient.status === 'active' ? "bg-cyan-50 text-cyan-700" :
+                        patient.status === 'active' ? "bg-brand-50 text-brand-700" :
                           patient.status === 'risk' ? "bg-amber-50 text-amber-700" :
                             "bg-slate-100 text-slate-700"
                       )}>
@@ -689,14 +689,14 @@ export function PatientList({ onNavigate }: PatientListProps) {
                         </button>
                         <button
                           onClick={() => onNavigate?.('prontuarios', { patientId: patient.id })}
-                          className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-all"
+                          className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
                           title="Ver prontuário"
                         >
                           <FileText className="w-4 h-4" />
                         </button>
                         <button
                         onClick={() => onNavigate?.('agenda', { patientId: patient.id })}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-all"
                         title="Ver agenda"
                       >
                         <CalendarIcon className="w-4 h-4" />
@@ -729,7 +729,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
                     onClick={() => setCurrentPage(page)}
                     className={cn(
                       "w-8 h-8 rounded-lg text-xs font-bold transition-all",
-                      currentPage === page ? "bg-cyan-600 text-white" : "text-slate-400 hover:bg-slate-50"
+                      currentPage === page ? "bg-brand-600 text-white" : "text-slate-400 hover:bg-slate-50"
                     )}
                   >
                     {page}

@@ -311,8 +311,8 @@ export function Agenda({ onNavigate }: AgendaProps) {
   };
 
   const statusColors: Record<string, { bg: string; border: string; text: string }> = {
-    scheduled: { bg: 'bg-blue-50', border: 'border-blue-500', text: 'text-blue-700' },
-    confirmed: { bg: 'bg-cyan-50', border: 'border-cyan-500', text: 'text-cyan-700' },
+    scheduled: { bg: 'bg-brand-50', border: 'border-brand-500', text: 'text-brand-700' },
+    confirmed: { bg: 'bg-brand-50', border: 'border-brand-500', text: 'text-brand-700' },
     in_progress: { bg: 'bg-amber-50', border: 'border-amber-500', text: 'text-amber-700' },
     done: { bg: 'bg-emerald-50', border: 'border-emerald-500', text: 'text-emerald-700' },
     no_show: { bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-700' },
@@ -381,7 +381,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
                 onClick={() => setView(v)}
                 className={cn(
                   "flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-                  view === v ? "bg-cyan-50 text-cyan-600 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                  view === v ? "bg-brand-50 text-brand-600 shadow-sm" : "text-slate-500 hover:text-slate-900"
                 )}
               >
                 {v === 'day' ? 'Dia' : v === 'week' ? 'Semana' : 'Mês'}
@@ -391,7 +391,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
           <button
             onClick={() => setIsModalOpen(true)}
             disabled={!canCreate}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-cyan-200 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-600 to-brand-600 rounded-xl text-sm font-medium text-white hover:opacity-90 transition-all shadow-sm shadow-brand-200 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Plus className="w-4 h-4" />
             Novo Agendamento
@@ -406,7 +406,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Paciente *</label>
             <select
               {...regApt('patient_id')}
-              className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", aptErrors.patient_id ? 'border-red-300' : 'border-transparent')}
+              className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", aptErrors.patient_id ? 'border-red-300' : 'border-transparent')}
             >
               <option value="">Selecione o paciente...</option>
               {clinicPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -417,7 +417,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Profissional *</label>
             <select
               {...regApt('professional_id')}
-              className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", aptErrors.professional_id ? 'border-red-300' : 'border-transparent')}
+              className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", aptErrors.professional_id ? 'border-red-300' : 'border-transparent')}
             >
               {clinicProfessionals.map(p => (
                 <option key={p.id} value={p.id}>{p.name} ({p.role === 'dentist' ? 'Dentista' : 'Esteticista'})</option>
@@ -429,7 +429,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Procedimento</label>
             <select
               {...regApt('service_id')}
-              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none"
+              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none"
             >
               <option value="">Consulta Geral</option>
               {clinicServices.map(s => (
@@ -443,7 +443,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
               <input
                 type="date"
                 {...regApt('date')}
-                className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", aptErrors.date ? 'border-red-300' : 'border-transparent')}
+                className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", aptErrors.date ? 'border-red-300' : 'border-transparent')}
               />
               {aptErrors.date && <span className="text-xs text-red-500 font-medium">{aptErrors.date.message}</span>}
             </div>
@@ -452,7 +452,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
               <input
                 type="time"
                 {...regApt('time')}
-                className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/20 outline-none", aptErrors.time ? 'border-red-300' : 'border-transparent')}
+                className={cn("w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 outline-none", aptErrors.time ? 'border-red-300' : 'border-transparent')}
               />
               {aptErrors.time && <span className="text-xs text-red-500 font-medium">{aptErrors.time.message}</span>}
             </div>
@@ -464,7 +464,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
                 checked={recurrence.enabled}
                 onChange={e => setRecurrence(prev => ({ ...prev, enabled: e.target.checked }))}
               />
-              <Repeat className="w-4 h-4 text-cyan-600" />
+              <Repeat className="w-4 h-4 text-brand-600" />
               Agendamento recorrente
             </label>
             {recurrence.enabled && (
@@ -494,7 +494,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
             type="submit"
             loading={addLoading}
             disabled={!canCreate}
-            className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-all shadow-lg shadow-cyan-200 mt-4"
+            className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200 mt-4"
           >
             Confirmar Agendamento
           </LoadingButton>
@@ -546,7 +546,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
           />
           <button
             onClick={handleAddToWaitingList}
-            className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700"
+            className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700"
           >
             Adicionar na fila
           </button>
@@ -564,7 +564,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
                       if (fit) toast('Paciente encaixado com sucesso!');
                       else toast('Não foi possível encaixar agora.', 'warning');
                     }}
-                    className="mt-2 text-xs font-bold text-cyan-700 hover:underline"
+                    className="mt-2 text-xs font-bold text-brand-700 hover:underline"
                   >
                     Encaixar hoje 18:00
                   </button>
@@ -631,14 +631,14 @@ export function Agenda({ onNavigate }: AgendaProps) {
                   <button
                     onClick={() => { updateAppointmentStatus(selectedApt.id, 'confirmed'); setSelectedApt({ ...selectedApt, status: 'confirmed' }); toast('Agendamento confirmado!'); }}
                     disabled={!canCreate}
-                    className="flex-1 py-2.5 bg-cyan-50 text-cyan-600 font-bold rounded-xl text-sm hover:bg-cyan-100 transition-all"
+                    className="flex-1 py-2.5 bg-brand-50 text-brand-600 font-bold rounded-xl text-sm hover:bg-brand-100 transition-all"
                   >
                     Confirmar
                   </button>
                   <button
                     onClick={() => { handleStartAppointment(selectedApt); setSelectedApt(null); }}
                     disabled={!canFinalize}
-                    className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 transition-all"
+                    className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-all"
                   >
                     Iniciar Atendimento
                   </button>
@@ -746,19 +746,19 @@ export function Agenda({ onNavigate }: AgendaProps) {
                         }}
                         className={cn(
                           "min-h-[100px] p-2 border-r border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer group",
-                          isSameDay(day, new Date()) && "bg-cyan-50/20"
+                          isSameDay(day, new Date()) && "bg-brand-50/20"
                         )}
                       >
                         <div className="flex justify-between items-start mb-2">
-                          <p className={cn("text-xs font-bold", isSameDay(day, new Date()) ? "text-cyan-600" : "text-slate-900")}>
+                          <p className={cn("text-xs font-bold", isSameDay(day, new Date()) ? "text-brand-600" : "text-slate-900")}>
                             {format(day, 'd')}
                           </p>
                           {dayApts.length === 0 && canCreate && (
-                            <Plus className="w-3 h-3 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <Plus className="w-3 h-3 text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                           )}
                         </div>
                       {dayApts.slice(0, 2).map(apt => (
-                        <div key={apt.id} className={cn("text-[8px] p-1 rounded mb-1 truncate font-bold text-white", statusColors[apt.status]?.border.replace('border', 'bg') || 'bg-cyan-500')}>
+                        <div key={apt.id} className={cn("text-[8px] p-1 rounded mb-1 truncate font-bold text-white", statusColors[apt.status]?.border.replace('border', 'bg') || 'bg-brand-500')}>
                           {format(parseISO(apt.scheduled_at), 'HH:mm')} {apt.patient_name.split(' ')[0]}
                         </div>
                       ))}
@@ -773,11 +773,11 @@ export function Agenda({ onNavigate }: AgendaProps) {
           </>
         ) : view === 'day' ? (
           <>
-            <div className="border-b border-slate-100 p-4 text-center bg-cyan-50/30">
+            <div className="border-b border-slate-100 p-4 text-center bg-brand-50/30">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
                 {format(currentDate, 'eeee', { locale: ptBR })}
               </p>
-              <p className="text-lg font-bold text-cyan-600">{format(currentDate, 'dd')}</p>
+              <p className="text-lg font-bold text-brand-600">{format(currentDate, 'dd')}</p>
             </div>
             <div className="flex-1 overflow-y-auto">
               {hours.map(hour => {
@@ -793,7 +793,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
                     >
                       {hourApts.length === 0 && canCreate && (
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="flex items-center gap-1 text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-1 rounded-lg border border-cyan-100">
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-lg border border-brand-100">
                             <Plus className="w-3 h-3" /> AGENDAR
                           </div>
                         </div>
@@ -810,9 +810,9 @@ export function Agenda({ onNavigate }: AgendaProps) {
             <div className="grid grid-cols-8 border-b border-slate-100">
               <div className="p-4 border-r border-slate-100" />
               {weekDays.map((day) => (
-                <div key={day.toString()} className={cn("p-4 text-center border-r border-slate-100 last:border-r-0", isSameDay(day, new Date()) && "bg-cyan-50/30")}>
+                <div key={day.toString()} className={cn("p-4 text-center border-r border-slate-100 last:border-r-0", isSameDay(day, new Date()) && "bg-brand-50/30")}>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{format(day, 'eee', { locale: ptBR })}</p>
-                  <p className={cn("text-lg font-bold", isSameDay(day, new Date()) ? "text-cyan-600" : "text-slate-900")}>{format(day, 'dd')}</p>
+                  <p className={cn("text-lg font-bold", isSameDay(day, new Date()) ? "text-brand-600" : "text-slate-900")}>{format(day, 'dd')}</p>
                 </div>
               ))}
             </div>
@@ -827,12 +827,12 @@ export function Agenda({ onNavigate }: AgendaProps) {
                     return (
                       <div 
                         key={day.toString()} 
-                        className={cn("border-r border-slate-100 min-h-[80px] p-1 hover:bg-slate-50/50 transition-colors cursor-pointer space-y-1 group relative", isSameDay(day, new Date()) && "bg-cyan-50/10")}
+                        className={cn("border-r border-slate-100 min-h-[80px] p-1 hover:bg-slate-50/50 transition-colors cursor-pointer space-y-1 group relative", isSameDay(day, new Date()) && "bg-brand-50/10")}
                         onClick={() => handleSlotClick(day, hour)}
                       >
                         {hourApts.length === 0 && canCreate && (
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Plus className="w-4 h-4 text-cyan-400" />
+                            <Plus className="w-4 h-4 text-brand-400" />
                           </div>
                         )}
                         {hourApts.map(apt => renderAppointmentCard(apt, true))}

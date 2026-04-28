@@ -26,7 +26,7 @@ export function ContactPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -51,19 +51,19 @@ export function ContactPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Nome</label>
-                  <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
-                  <input type="email" required value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <input type="email" required value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label>
-                  <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="(DDD) XXXXX-XXXX" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="(DDD) XXXXX-XXXX" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Assunto</label>
-                  <select required value={formData.subject} onChange={e => setFormData({ ...formData, subject: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500">
+                  <select required value={formData.subject} onChange={e => setFormData({ ...formData, subject: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500">
                     <option value="">Selecione...</option>
                     <option value="duvida">Dúvida sobre o sistema</option>
                     <option value="suporte">Suporte técnico</option>
@@ -74,9 +74,9 @@ export function ContactPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Mensagem</label>
-                  <textarea required rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <textarea required rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
                 </div>
-                <button type="submit" disabled={sending} className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                <button type="submit" disabled={sending} className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
                   {sending ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}
                   {sending ? 'Enviando...' : 'Enviar Mensagem'}
                 </button>
@@ -89,15 +89,15 @@ export function ContactPage() {
               <h2 className="text-2xl font-bold text-slate-900 mb-6">Informações de Contato</h2>
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-slate-600">
-                  <Mail className="w-5 h-5 text-cyan-600" />
+                  <Mail className="w-5 h-5 text-brand-600" />
                   <span>{CLINEMAIL}</span>
                 </div>
                 <div className="flex items-center gap-3 text-slate-600">
-                  <Phone className="w-5 h-5 text-cyan-600" />
+                  <Phone className="w-5 h-5 text-brand-600" />
                   <span>{CLINPHONE}</span>
                 </div>
                 <div className="flex items-center gap-3 text-slate-600">
-                  <MapPin className="w-5 h-5 text-cyan-600" />
+                  <MapPin className="w-5 h-5 text-brand-600" />
                   <span>São Paulo, SP</span>
                 </div>
               </div>
@@ -106,7 +106,7 @@ export function ContactPage() {
             <div>
               <h2 className="text-2xl font-bold text-slate-900 mb-4">Horário de Atendimento</h2>
               <div className="flex items-center gap-3 text-slate-600">
-                <Clock className="w-5 h-5 text-cyan-600" />
+                <Clock className="w-5 h-5 text-brand-600" />
                 <span>Segunda a Sexta: 8h às 18h</span>
               </div>
             </div>
@@ -114,7 +114,7 @@ export function ContactPage() {
             <div className="bg-slate-50 rounded-xl p-6">
               <h3 className="font-bold text-slate-900 mb-2">Suporte Técnico</h3>
               <p className="text-slate-600 text-sm mb-4">Para questões técnicas, accessemos painel administrativo após login.</p>
-              <Link to="/login" className="text-cyan-600 font-semibold hover:underline">Acessar sistema</Link>
+              <Link to="/login" className="text-brand-600 font-semibold hover:underline">Acessar sistema</Link>
             </div>
           </div>
         </div>

@@ -28,7 +28,7 @@ const CookiesPage = React.lazy(() => import('./domains/pages/CookiesPage').then(
 function FullPageLoader() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+      <div className="w-8 h-8 border-4 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
     </div>
   );
 }

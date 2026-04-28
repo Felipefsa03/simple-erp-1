@@ -5,7 +5,7 @@ import { ArrowLeft, Shield, Eye, Lock, Mail, Trash2 } from 'lucide-react';
 export function PrivacyPage() {
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -36,7 +36,7 @@ export function PrivacyPage() {
               { title: 'Dados de Uso', desc: 'como você interage com nossa plataforma' },
             ].map(item => (
               <div key={item.title} className="flex items-start gap-3">
-                <Shield className="w-5 h-5 text-cyan-600 mt-0.5" />
+                <Shield className="w-5 h-5 text-brand-600 mt-0.5" />
                 <div>
                   <h3 className="font-bold text-slate-900">{item.title}</h3>
                   <p className="text-sm text-slate-600">{item.desc}</p>
@@ -73,7 +73,7 @@ export function PrivacyPage() {
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-4">5. Segurança</h2>
           <div className="flex items-start gap-3">
-            <Lock className="w-5 h-5 text-cyan-600 mt-0.5" />
+            <Lock className="w-5 h-5 text-brand-600 mt-0.5" />
             <p className="text-slate-600 leading-relaxed">
               Utilizamos medidas de segurança técnicas e organizacionais para proteger seus dados, incluindo criptografia TLS/SSL, 
               senhas hasheadas com bcrypt e controles de acesso rigorosos.
@@ -105,7 +105,7 @@ export function PrivacyPage() {
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-4">8. Contato - DPO</h2>
           <div className="flex items-center gap-3">
-            <Mail className="w-5 h-5 text-cyan-600" />
+            <Mail className="w-5 h-5 text-brand-600" />
             <p className="text-slate-600">
               Para exercer seus direitos ou tir dúvidas sobre privacidade: <strong>privacidade@clinxia.com.br</strong>
             </p>
@@ -117,7 +117,7 @@ export function PrivacyPage() {
           <p className="text-slate-600 leading-relaxed mb-4">
             Utilizamos cookies para melhorar sua experiência. Você pode controlar cookies através das configurações do navegador.
           </p>
-          <Link to="/cookies" className="text-cyan-600 hover:underline">Ver Política de Cookies</Link>
+          <Link to="/cookies" className="text-brand-600 hover:underline">Ver Política de Cookies</Link>
         </section>
       </main>
     </div>

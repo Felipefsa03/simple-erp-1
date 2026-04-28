@@ -5,7 +5,7 @@ import { ArrowLeft, Code, CheckCircle2, Database, Shield, Clock, Zap } from 'luc
 export function APIPage() {
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -40,7 +40,7 @@ curl -X GET "https://api.clinxia.com.br/v1/pacientes" \\
               { resource: 'Webhooks', description: 'Eventos em tempo real' },
             ].map((item) => (
               <div key={item.resource} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
-                <Code className="w-5 h-5 text-cyan-600" />
+                <Code className="w-5 h-5 text-brand-600" />
                 <div>
                   <h3 className="font-bold text-slate-900">{item.resource}</h3>
                   <p className="text-sm text-slate-600">{item.description}</p>
@@ -58,7 +58,7 @@ curl -X GET "https://api.clinxia.com.br/v1/pacientes" \\
               { name: 'Profissional', api: true, price: 'R$ 197/mês', highlighted: true },
               { name: 'Premium', api: true, price: 'R$ 397/mês' },
             ].map((plan) => (
-              <div key={plan.name} className={`p-6 rounded-xl border-2 ${plan.highlighted ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200'}`}>
+              <div key={plan.name} className={`p-6 rounded-xl border-2 ${plan.highlighted ? 'border-brand-500 bg-brand-50' : 'border-slate-200'}`}>
                 <h3 className="font-bold text-slate-900 mb-2">{plan.name}</h3>
                 <p className="text-2xl font-black text-slate-900 mb-4">{plan.price}</p>
                 <div className="flex items-center gap-2 text-sm">
@@ -86,7 +86,7 @@ curl -X GET "https://api.clinxia.com.br/v1/pacientes" \\
               { icon: Clock, title: 'Suporte 24/7', description: 'Assistência técnica dedicada' },
             ].map((item) => (
               <div key={item.title} className="flex gap-3">
-                <item.icon className="w-5 h-5 text-cyan-600 shrink-0 mt-0.5" />
+                <item.icon className="w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">{item.title}</h3>
                   <p className="text-sm text-slate-600">{item.description}</p>
@@ -98,7 +98,7 @@ curl -X GET "https://api.clinxia.com.br/v1/pacientes" \\
 
         <section className="text-center">
           <p className="text-slate-600 mb-4">Pronto para integrar?</p>
-          <Link to="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg transition-all">
+          <Link to="/signup" className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:shadow-lg transition-all">
             Começar Agora
           </Link>
         </section>

@@ -117,7 +117,7 @@ const roleLabels: Record<string, string> = {
 
 const roleColors: Record<string, string> = {
   admin: 'bg-purple-100 text-purple-700',
-  dentist: 'bg-blue-100 text-blue-700',
+  dentist: 'bg-brand-100 text-brand-700',
   receptionist: 'bg-emerald-100 text-emerald-700',
   aesthetician: 'bg-pink-100 text-pink-700',
   financial: 'bg-amber-100 text-amber-700',
@@ -207,8 +207,8 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
   const actionColors: Record<string, string> = {
     LOGIN: 'bg-emerald-50 text-emerald-700', LOGIN_FAILED: 'bg-red-50 text-red-700',
-    LOGOUT: 'bg-slate-100 text-slate-700', SETTINGS_CHANGE: 'bg-blue-50 text-blue-700',
-    PATIENT_CREATE: 'bg-cyan-50 text-cyan-700', FINALIZE: 'bg-purple-50 text-purple-700',
+    LOGOUT: 'bg-slate-100 text-slate-700', SETTINGS_CHANGE: 'bg-brand-50 text-brand-700',
+    PATIENT_CREATE: 'bg-brand-50 text-brand-700', FINALIZE: 'bg-purple-50 text-purple-700',
     PLAN_CHANGE: 'bg-amber-50 text-amber-700',
   };
 
@@ -228,18 +228,18 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
             <ArrowLeft className="w-4 h-4" />Voltar
           </button>
           <div className="flex items-center gap-3 flex-1">
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl flex items-center justify-center text-white font-bold">
               {clinic.name.charAt(0)}
             </div>
             <div>
               <h1 className="text-xl font-black text-slate-900">{clinic.name}</h1>
               <p className="text-xs text-slate-500">Modo Inspetor — visualizando como a clínica</p>
             </div>
-            <span className={cn("text-xs font-bold px-2 py-1 rounded-full uppercase", clinic.plan === 'premium' ? 'bg-cyan-50 text-cyan-700' : clinic.plan === 'profissional' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600')}>
+            <span className={cn("text-xs font-bold px-2 py-1 rounded-full uppercase", clinic.plan === 'premium' ? 'bg-brand-50 text-brand-700' : clinic.plan === 'profissional' ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-600')}>
               {clinic.plan}
             </span>
           </div>
-          <button onClick={() => handleImpersonateClinic(clinic.id)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 text-sm">
+          <button onClick={() => handleImpersonateClinic(clinic.id)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 text-sm">
             <LogIn className="w-4 h-4" />Impersonar Clínica
           </button>
         </div>
@@ -254,7 +254,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           ].map(tab => (
             <button key={tab.id} onClick={() => setInspectTab(tab.id as any)}
               className={cn("flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all",
-                inspectTab === tab.id ? "bg-cyan-50 text-cyan-600" : "text-slate-500 hover:text-slate-900")}>
+                inspectTab === tab.id ? "bg-brand-50 text-brand-600" : "text-slate-500 hover:text-slate-900")}>
               <tab.icon className="w-4 h-4" />{tab.label}
             </button>
           ))}
@@ -265,7 +265,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           <div className="space-y-6">
             {/* Info da Clínica */}
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><Building2 className="w-5 h-5 text-cyan-500" />Dados da Empresa</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><Building2 className="w-5 h-5 text-brand-500" />Dados da Empresa</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-slate-50 rounded-xl p-4">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Nome</p>
@@ -296,7 +296,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Especialidades</p>
                     <div className="flex flex-wrap gap-2">
                       {clinic.specialties.map((s: string) => (
-                        <span key={s} className="text-xs font-bold px-2 py-1 bg-cyan-50 text-cyan-700 rounded-full">{s}</span>
+                        <span key={s} className="text-xs font-bold px-2 py-1 bg-brand-50 text-brand-700 rounded-full">{s}</span>
                       ))}
                     </div>
                   </div>
@@ -359,7 +359,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
               </div>
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 text-center">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ticket Médio</p>
-                <p className="text-3xl font-black text-cyan-600 mt-1">R$ {(stats.ticketMedio || 0).toLocaleString('pt-BR')}</p>
+                <p className="text-3xl font-black text-brand-600 mt-1">R$ {(stats.ticketMedio || 0).toLocaleString('pt-BR')}</p>
                 <p className="text-xs text-red-500 font-medium">{stats.taxaNoShow || 0}% no-show</p>
               </div>
             </div>
@@ -367,11 +367,11 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
             {/* Status dos Atendimentos de Hoje */}
             {stats.appointmentStats && (
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-cyan-500" />Status dos Atendimentos de Hoje</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-brand-500" />Status dos Atendimentos de Hoje</h3>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   {[
-                    { label: 'Agendados', value: stats.appointmentStats.agendados, color: 'bg-blue-50 text-blue-700', border: 'border-blue-200' },
-                    { label: 'Confirmados', value: stats.appointmentStats.confirmados, color: 'bg-cyan-50 text-cyan-700', border: 'border-cyan-200' },
+                    { label: 'Agendados', value: stats.appointmentStats.agendados, color: 'bg-brand-50 text-brand-700', border: 'border-brand-200' },
+                    { label: 'Confirmados', value: stats.appointmentStats.confirmados, color: 'bg-brand-50 text-brand-700', border: 'border-brand-200' },
                     { label: 'Em Atendimento', value: stats.appointmentStats.emAtendimento, color: 'bg-amber-50 text-amber-700', border: 'border-amber-200' },
                     { label: 'Concluídos', value: stats.appointmentStats.concluidos, color: 'bg-emerald-50 text-emerald-700', border: 'border-emerald-200' },
                     { label: 'Faltaram', value: stats.appointmentStats.falta, color: 'bg-red-50 text-red-700', border: 'border-red-200' },
@@ -388,11 +388,11 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
             {/* Plano e Assinatura */}
             {sub && (
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5 text-cyan-500" />Assinatura e Plano</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5 text-brand-500" />Assinatura e Plano</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Plano</p>
-                    <span className={cn("text-sm font-bold uppercase px-2 py-1 rounded-md", sub.plan === 'ultra' ? 'bg-cyan-50 text-cyan-700' : sub.plan === 'pro' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600')}>{sub.plan}</span>
+                    <span className={cn("text-sm font-bold uppercase px-2 py-1 rounded-md", sub.plan === 'ultra' ? 'bg-brand-50 text-brand-700' : sub.plan === 'pro' ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-600')}>{sub.plan}</span>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Valor Mensal</p>
@@ -418,12 +418,12 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
         {inspectTab === 'team' && (
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Users className="w-5 h-5 text-cyan-500" />Equipe ({team.length} membros)</h3>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Users className="w-5 h-5 text-brand-500" />Equipe ({team.length} membros)</h3>
             </div>
             <div className="divide-y divide-slate-100">
               {team.map(member => (
                 <div key={member.id} className="p-4 flex items-center gap-4 hover:bg-slate-50/50">
-                  <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
                     {member.name.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -437,7 +437,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-slate-500">{member.phone}</p>
-                    {member.commission > 0 && <p className="text-xs font-bold text-cyan-600">{member.commission}%</p>}
+                    {member.commission > 0 && <p className="text-xs font-bold text-brand-600">{member.commission}%</p>}
                     <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>
                       {member.status === 'active' ? 'Ativo' : 'Inativo'}
                     </span>
@@ -457,10 +457,10 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Faturamento Total</p>
                 <p className="text-3xl font-black text-emerald-700 mt-1">R$ {(stats.revenueTotal || 0).toLocaleString('pt-BR')}</p>
               </div>
-              <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-3xl border border-cyan-100 p-6 text-center">
-                <DollarSign className="w-8 h-8 text-cyan-500 mx-auto mb-2" />
-                <p className="text-xs font-bold text-cyan-600 uppercase tracking-wider">Faturamento Mês</p>
-                <p className="text-3xl font-black text-cyan-700 mt-1">R$ {(stats.revenueMes || 0).toLocaleString('pt-BR')}</p>
+              <div className="bg-gradient-to-br from-brand-50 to-brand-50 rounded-3xl border border-brand-100 p-6 text-center">
+                <DollarSign className="w-8 h-8 text-brand-500 mx-auto mb-2" />
+                <p className="text-xs font-bold text-brand-600 uppercase tracking-wider">Faturamento Mês</p>
+                <p className="text-3xl font-black text-brand-700 mt-1">R$ {(stats.revenueMes || 0).toLocaleString('pt-BR')}</p>
               </div>
               <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl border border-amber-100 p-6 text-center">
                 <TrendingUp className="w-8 h-8 text-amber-500 mx-auto mb-2" />
@@ -495,7 +495,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
         {/* Atividades */}
         {inspectTab === 'activity' && (
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Activity className="w-5 h-5 text-cyan-500" />Atividades Recentes</h3></div>
+            <div className="p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Activity className="w-5 h-5 text-brand-500" />Atividades Recentes</h3></div>
             <div className="divide-y divide-slate-50">
               {DEMO_SECURITY_LOGS.filter(l => team.some((m: any) => m.id === l.user_id)).slice(0, 10).map(log => (
                 <div key={log.id} className="p-4 flex items-center gap-4">
@@ -523,16 +523,16 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Shield className="w-6 h-6 text-cyan-500" />Painel Super Admin</h1>
+        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Shield className="w-6 h-6 text-brand-500" />Painel Super Admin</h1>
         <p className="text-slate-500">Visão geral de todas as clínicas da plataforma Clinxia.</p>
       </header>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Clínicas Ativas', value: clinics.filter(c => c.status === 'active').length, icon: Building2, color: 'from-cyan-500 to-cyan-600' },
+          { label: 'Clínicas Ativas', value: clinics.filter(c => c.status === 'active').length, icon: Building2, color: 'from-brand-500 to-brand-600' },
           { label: 'MRR Total', value: `R$ ${totalMRR.toLocaleString('pt-BR')}`, icon: TrendingUp, color: 'from-emerald-500 to-emerald-600' },
-          { label: 'Usuários Totais', value: totalUsers, icon: Users, color: 'from-blue-500 to-blue-600' },
+          { label: 'Usuários Totais', value: totalUsers, icon: Users, color: 'from-brand-500 to-brand-600' },
           { label: 'Pacientes Totais', value: totalPatients, icon: Activity, color: 'from-violet-500 to-violet-600' },
         ].map((kpi, i) => (
           <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
@@ -556,7 +556,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={cn("flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap",
-              activeTab === tab.id ? "bg-cyan-50 text-cyan-600 shadow-sm" : "text-slate-500 hover:text-slate-900")}>
+              activeTab === tab.id ? "bg-brand-50 text-brand-600 shadow-sm" : "text-slate-500 hover:text-slate-900")}>
             <tab.icon className="w-4 h-4" />{tab.label}
           </button>
         ))}
@@ -592,7 +592,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                     <p className="font-bold text-sm text-slate-900">{c.name}</p>
                     <p className="text-xs text-slate-500">{c.owner} • {c.email}</p>
                   </td>
-                  <td className="px-6 py-4"><span className={cn("text-xs font-bold uppercase px-2 py-1 rounded-md", c.plan === 'ultra' ? "bg-cyan-50 text-cyan-700" : c.plan === 'pro' ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600")}>{c.plan}</span></td>
+                  <td className="px-6 py-4"><span className={cn("text-xs font-bold uppercase px-2 py-1 rounded-md", c.plan === 'ultra' ? "bg-brand-50 text-brand-700" : c.plan === 'pro' ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-600")}>{c.plan}</span></td>
                   <td className="px-6 py-4 text-sm text-slate-600">{c.users}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{c.patients}</td>
                   <td className="px-6 py-4 text-sm font-bold text-slate-900">R$ {c.mrr}</td>
@@ -604,7 +604,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => handleInspectClinic(c)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-cyan-600 bg-cyan-50 hover:bg-cyan-100 rounded-lg transition-colors" title="Inspecionar clínica">
+                      <button onClick={() => handleInspectClinic(c)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors" title="Inspecionar clínica">
                         <Eye className="w-3.5 h-3.5" />Inspecionar
                       </button>
                       <button onClick={() => handleImpersonateClinic(c.id)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors" title="Impersonar como admin">
@@ -625,7 +625,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { label: 'Assinaturas Ativas', value: subscriptions.filter(s => s.status === 'active').length, color: 'text-emerald-600' },
-              { label: 'Receita Mensal', value: `R$ ${subscriptions.filter(s => s.status === 'active').reduce((a, s) => a + s.amount, 0).toLocaleString('pt-BR')}`, color: 'text-cyan-600' },
+              { label: 'Receita Mensal', value: `R$ ${subscriptions.filter(s => s.status === 'active').reduce((a, s) => a + s.amount, 0).toLocaleString('pt-BR')}`, color: 'text-brand-600' },
               { label: 'Inadimplentes', value: subscriptions.filter(s => s.status === 'past_due').length, color: 'text-red-600' },
             ].map(card => (
               <div key={card.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -652,7 +652,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                 {subscriptions.map(sub => (
                   <tr key={sub.id} className="hover:bg-slate-50/50">
                     <td className="px-6 py-4 text-sm font-bold text-slate-900">{sub.clinic_name}</td>
-                    <td className="px-6 py-4"><span className={cn("text-xs font-bold uppercase px-2 py-1 rounded-md", sub.plan === 'ultra' ? "bg-cyan-50 text-cyan-700" : sub.plan === 'pro' ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600")}>{sub.plan}</span></td>
+                    <td className="px-6 py-4"><span className={cn("text-xs font-bold uppercase px-2 py-1 rounded-md", sub.plan === 'ultra' ? "bg-brand-50 text-brand-700" : sub.plan === 'pro' ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-600")}>{sub.plan}</span></td>
                     <td className="px-6 py-4 text-sm font-bold text-slate-900">R$ {sub.amount}/mês</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{new Date(sub.next_billing_date).toLocaleDateString('pt-BR')}</td>
                     <td className="px-6 py-4">
@@ -664,8 +664,8 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setSelectedSub(sub)} className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
-                        <button onClick={() => setChangePlanModal(sub)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Alterar plano"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => setSelectedSub(sub)} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
+                        <button onClick={() => setChangePlanModal(sub)} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg" title="Alterar plano"><Edit2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -715,7 +715,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                   <button key={plan} onClick={() => handleChangePlan(changePlanModal, plan)}
                     disabled={changePlanModal.plan === plan}
                     className={cn("w-full p-4 rounded-2xl border-2 text-left transition-all",
-                      changePlanModal.plan === plan ? "border-cyan-500 bg-cyan-50" : "border-slate-100 hover:border-slate-300"
+                      changePlanModal.plan === plan ? "border-brand-500 bg-brand-50" : "border-slate-100 hover:border-slate-300"
                     )}>
                     <div className="flex items-center justify-between">
                       <div>
@@ -724,7 +724,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                       </div>
                       <p className="text-lg font-bold text-slate-900">R$ {planPrices[plan]}<span className="text-xs font-normal text-slate-400">/mês</span></p>
                     </div>
-                    {changePlanModal.plan === plan && <span className="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full mt-2 inline-block">PLANO ATUAL</span>}
+                    {changePlanModal.plan === plan && <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full mt-2 inline-block">PLANO ATUAL</span>}
                   </button>
                 ))}
               </div>
@@ -763,8 +763,8 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
             <div className="bg-white rounded-2xl border border-slate-100 p-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-brand-600" />
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Uptime</p>
@@ -787,8 +787,8 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
             <div className="bg-white rounded-2xl border border-slate-100 p-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center">
-                  <HardDrive className="w-5 h-5 text-cyan-600" />
+                <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center">
+                  <HardDrive className="w-5 h-5 text-brand-600" />
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Ambiente</p>
@@ -801,13 +801,13 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           {/* Componentes */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6">
-              <Server className="w-5 h-5 text-cyan-500" />Componentes do Sistema
+              <Server className="w-5 h-5 text-brand-500" />Componentes do Sistema
             </h2>
             <div className="space-y-4">
               {Object.entries(systemMetrics?.components || {}).map(([key, value]: [string, any]) => (
                 <div key={key} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
                   <div className="flex items-center gap-3">
-                    {key.includes('database') ? <Database className="w-5 h-5 text-blue-500" /> : 
+                    {key.includes('database') ? <Database className="w-5 h-5 text-brand-500" /> : 
                      key.includes('cache') ? <HardDrive className="w-5 h-5 text-purple-500" /> :
                      key.includes('queue') ? <Activity className="w-5 h-5 text-amber-500" /> :
                      <Server className="w-5 h-5 text-slate-400" />}
@@ -831,7 +831,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
-                <BarChart3 className="w-5 h-5 text-cyan-500" />Métricas de Requisições
+                <BarChart3 className="w-5 h-5 text-brand-500" />Métricas de Requisições
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 rounded-xl p-4">
@@ -855,7 +855,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
-                <Database className="w-5 h-5 text-cyan-500" />Recursos do Sistema
+                <Database className="w-5 h-5 text-brand-500" />Recursos do Sistema
               </h2>
               <div className="space-y-4">
                 <div>
@@ -864,7 +864,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                     <span className="font-medium">{systemMetrics?.memory?.usedPercent || '0%'}</span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-cyan-500 rounded-full" style={{ width: systemMetrics?.memory?.usedPercent || '0%' }} />
+                    <div className="h-full bg-brand-500 rounded-full" style={{ width: systemMetrics?.memory?.usedPercent || '0%' }} />
                   </div>
                   <p className="text-xs text-slate-400 mt-1">{systemMetrics?.memory?.used || '0'} / {systemMetrics?.memory?.total || '0'}</p>
                 </div>
@@ -882,14 +882,14 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           </div>
 
           {/* Link para Documentação API */}
-          <div className="bg-gradient-to-r from-cyan-50 to-blue-50 rounded-3xl border border-cyan-100 p-6">
+          <div className="bg-gradient-to-r from-brand-50 to-brand-50 rounded-3xl border border-brand-100 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-cyan-900">Documentação API</h3>
-                <p className="text-sm text-cyan-700">Acesse a documentação completa dos endpoints</p>
+                <h3 className="font-bold text-brand-900">Documentação API</h3>
+                <p className="text-sm text-brand-700">Acesse a documentação completa dos endpoints</p>
               </div>
               <a href={'/api-docs'} target="_blank" rel="noopener noreferrer"
-                className="px-4 py-2 bg-cyan-600 text-white rounded-xl font-medium hover:bg-cyan-700 transition-colors">
+                className="px-4 py-2 bg-brand-600 text-white rounded-xl font-medium hover:bg-brand-700 transition-colors">
                 Ver Docs
               </a>
             </div>
@@ -903,7 +903,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sessões Ativas</p>
-              <p className="text-2xl font-bold text-cyan-600 mt-1">{DEMO_SESSIONS.length}</p>
+              <p className="text-2xl font-bold text-brand-600 mt-1">{DEMO_SESSIONS.length}</p>
             </div>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tentativas Falhas (24h)</p>
@@ -917,13 +917,13 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Globe className="w-5 h-5 text-cyan-500" />Sessões Ativas</h2>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Globe className="w-5 h-5 text-brand-500" />Sessões Ativas</h2>
             </div>
             <div className="divide-y divide-slate-100">
               {DEMO_SESSIONS.map(session => (
                 <div key={session.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50/50">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">{session.user_name.charAt(0)}</div>
+                    <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full flex items-center justify-center text-white font-bold text-sm">{session.user_name.charAt(0)}</div>
                     <div>
                       <p className="text-sm font-bold text-slate-900">{session.user_name}</p>
                       <p className="text-xs text-slate-500">{session.clinic_name} • {session.device}</p>
@@ -943,10 +943,10 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileText className="w-5 h-5 text-cyan-500" />Logs de Auditoria</h2>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileText className="w-5 h-5 text-brand-500" />Logs de Auditoria</h2>
               <div className="flex gap-2">
                 {['all', 'LOGIN', 'LOGIN_FAILED', 'SETTINGS_CHANGE', 'FINALIZE'].map(f => (
-                  <button key={f} onClick={() => setSecurityFilter(f)} className={cn("px-3 py-1 rounded-lg text-xs font-bold transition-all", securityFilter === f ? "bg-cyan-50 text-cyan-600" : "text-slate-400 hover:text-slate-600")}>
+                  <button key={f} onClick={() => setSecurityFilter(f)} className={cn("px-3 py-1 rounded-lg text-xs font-bold transition-all", securityFilter === f ? "bg-brand-50 text-brand-600" : "text-slate-400 hover:text-slate-600")}>
                     {f === 'all' ? 'Todos' : actionLabels[f] || f}
                   </button>
                 ))}
@@ -971,7 +971,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6"><Key className="w-5 h-5 text-cyan-500" />Política de Senhas</h2>
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6"><Key className="w-5 h-5 text-brand-500" />Política de Senhas</h2>
             <div className="space-y-4">
               {[
                 { label: 'Comprimento mínimo', value: '8 caracteres', enabled: true },
@@ -986,7 +986,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                     <p className="text-sm font-bold text-slate-900">{policy.label}</p>
                     <p className="text-xs text-slate-500">{policy.value}</p>
                   </div>
-                  <div className={cn("w-12 h-6 rounded-full transition-all relative", policy.enabled ? "bg-cyan-500" : "bg-slate-200")}>
+                  <div className={cn("w-12 h-6 rounded-full transition-all relative", policy.enabled ? "bg-brand-500" : "bg-slate-200")}>
                     <div className={cn("w-5 h-5 rounded-full bg-white shadow-sm absolute top-0.5 transition-all", policy.enabled ? "left-6" : "left-0.5")} />
                   </div>
                 </div>

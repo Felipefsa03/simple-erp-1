@@ -499,9 +499,9 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
                   <Shield className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                   <p className="text-[10px] font-bold text-emerald-700">Conexão Segura</p>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-3 text-center">
-                  <Signal className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-                  <p className="text-[10px] font-bold text-blue-700">Sincronizado</p>
+                <div className="bg-brand-50 rounded-xl p-3 text-center">
+                  <Signal className="w-5 h-5 text-brand-600 mx-auto mb-1" />
+                  <p className="text-[10px] font-bold text-brand-700">Sincronizado</p>
                 </div>
                 <div className="bg-purple-50 rounded-xl p-3 text-center">
                   <Link2 className="w-5 h-5 text-purple-600 mx-auto mb-1" />

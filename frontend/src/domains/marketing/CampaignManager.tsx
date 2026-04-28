@@ -110,15 +110,15 @@ const CHANNEL_META: Record<
   email: {
     label: 'E-mail',
     icon: Mail,
-    tone: 'text-cyan-700',
-    soft: 'bg-cyan-50 border-cyan-100',
+    tone: 'text-brand-700',
+    soft: 'bg-brand-50 border-brand-100',
     helper: 'Usa um template institucional com assunto e HTML prontos para disparo.',
   },
   facebook: {
     label: 'Facebook Ads',
     icon: Facebook,
-    tone: 'text-blue-700',
-    soft: 'bg-blue-50 border-blue-100',
+    tone: 'text-brand-700',
+    soft: 'bg-brand-50 border-brand-100',
     helper: 'Registra a campanha e dispara o evento de mídia para Meta.',
   },
   google_ads: {
@@ -610,14 +610,14 @@ export function CampaignManager({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-6 text-white shadow-xl">
+      <section className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-brand-950 p-6 text-white shadow-xl">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-cyan-200">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-brand-200">
               <Sparkles className="h-3.5 w-3.5" />
               Campanhas Unificadas
             </div>
-            <h2 className="mt-4 text-3xl font-black tracking-tight text-cyan-50 drop-shadow-sm">WhatsApp, E-mail, Facebook e Google Ads em uma tela só.</h2>
+            <h2 className="mt-4 text-3xl font-black tracking-tight text-brand-50 drop-shadow-sm">WhatsApp, E-mail, Facebook e Google Ads em uma tela só.</h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
               Centralize a criação, o acompanhamento e o histórico das campanhas por clínica sem depender de páginas duplicadas.
             </p>
@@ -636,7 +636,7 @@ export function CampaignManager({
                 setIsCreateOpen(true);
                 setCreateStep(1);
               }}
-              className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300"
+              className="inline-flex items-center gap-2 rounded-2xl bg-brand-400 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-brand-300"
             >
               <Megaphone className="h-4 w-4" />
               Nova Campanha
@@ -648,7 +648,7 @@ export function CampaignManager({
       <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
         {[
           { label: 'Total', value: summary.total, icon: BarChart3, tone: 'text-slate-700 bg-slate-100' },
-          { label: 'Em andamento', value: summary.running, icon: Send, tone: 'text-cyan-700 bg-cyan-50' },
+          { label: 'Em andamento', value: summary.running, icon: Send, tone: 'text-brand-700 bg-brand-50' },
           { label: 'Pausadas', value: summary.paused, icon: PauseCircle, tone: 'text-amber-700 bg-amber-50' },
           { label: 'Concluídas', value: summary.completed, icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50' },
         ].map((card) => (
@@ -690,7 +690,7 @@ export function CampaignManager({
                     onClick={() => setSelectedCampaignId(campaign.id)}
                     className={cn(
                       'w-full rounded-2xl border p-4 text-left transition',
-                      isActive ? 'border-cyan-300 bg-cyan-50/60 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300',
+                      isActive ? 'border-brand-300 bg-brand-50/60 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300',
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -708,7 +708,7 @@ export function CampaignManager({
                         className={cn(
                           'rounded-full px-2.5 py-1 text-[11px] font-bold',
                           campaign.status === 'completed' && 'bg-emerald-50 text-emerald-700',
-                          campaign.status === 'running' && 'bg-cyan-50 text-cyan-700',
+                          campaign.status === 'running' && 'bg-brand-50 text-brand-700',
                           campaign.status === 'paused' && 'bg-amber-50 text-amber-700',
                           campaign.status === 'draft' && 'bg-slate-100 text-slate-600',
                         )}
@@ -729,7 +729,7 @@ export function CampaignManager({
                         <span>{campaign.progress}%</span>
                       </div>
                       <div className="h-2 rounded-full bg-slate-100">
-                        <div className="h-2 rounded-full bg-cyan-500 transition-all" style={{ width: `${campaign.progress}%` }} />
+                        <div className="h-2 rounded-full bg-brand-500 transition-all" style={{ width: `${campaign.progress}%` }} />
                       </div>
                     </div>
                   </button>
@@ -768,7 +768,7 @@ export function CampaignManager({
                   {selectedCampaign.channel === 'whatsapp' && selectedCampaign.status === 'draft' && (
                     <button
                       onClick={() => callCampaignAction(selectedCampaign.id, 'start')}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-cyan-700"
+                      className="inline-flex items-center gap-2 rounded-2xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-700"
                     >
                       <PlayCircle className="h-4 w-4" />
                       Iniciar
@@ -786,7 +786,7 @@ export function CampaignManager({
                   {selectedCampaign.channel === 'whatsapp' && selectedCampaign.status === 'paused' && (
                     <button
                       onClick={() => callCampaignAction(selectedCampaign.id, 'resume')}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-cyan-700"
+                      className="inline-flex items-center gap-2 rounded-2xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-700"
                     >
                       <PlayCircle className="h-4 w-4" />
                       Retomar
@@ -825,7 +825,7 @@ export function CampaignManager({
                   <span>{selectedCampaign.progress}%</span>
                 </div>
                 <div className="h-3 rounded-full bg-slate-100">
-                  <div className="h-3 rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500" style={{ width: `${selectedCampaign.progress}%` }} />
+                  <div className="h-3 rounded-full bg-gradient-to-r from-brand-500 to-emerald-500" style={{ width: `${selectedCampaign.progress}%` }} />
                 </div>
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3 text-sm text-slate-500">
                   <div>
@@ -903,7 +903,7 @@ export function CampaignManager({
                       setChannel(key);
                       setCreateStep(2);
                     }}
-                    className="rounded-3xl border border-slate-200 p-5 text-left transition hover:border-cyan-300 hover:bg-cyan-50/40"
+                    className="rounded-3xl border border-slate-200 p-5 text-left transition hover:border-brand-300 hover:bg-brand-50/40"
                   >
                     <div className={cn('flex h-12 w-12 items-center justify-center rounded-2xl border', meta.soft)}>
                       <Icon className={cn('h-5 w-5', meta.tone)} />
@@ -934,7 +934,7 @@ export function CampaignManager({
                     value={campaignName}
                     onChange={(event) => setCampaignName(event.target.value)}
                     placeholder="Ex: Reativação de pacientes em risco"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-400"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
                   />
                 </div>
 
@@ -943,7 +943,7 @@ export function CampaignManager({
                   <select
                     value={target}
                     onChange={(event) => setTarget(event.target.value as CampaignTarget)}
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-400"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
                   >
                     <option value="all">Toda a base</option>
                     <option value="inactive">Pacientes inativos / em risco</option>
@@ -959,7 +959,7 @@ export function CampaignManager({
                       value={manualRecipients}
                       onChange={(event) => setManualRecipients(event.target.value)}
                       placeholder="Nome;5511999999999;email@exemplo.com"
-                      className="min-h-[140px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-400"
+                      className="min-h-[140px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
                     />
                     <p className="mt-2 text-xs text-slate-400">Use um contato por linha no formato: nome;telefone;email.</p>
                   </div>
@@ -971,7 +971,7 @@ export function CampaignManager({
                     <input
                       value={subject}
                       onChange={(event) => setSubject(event.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-400"
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
                     />
                   </div>
                 )}
@@ -984,7 +984,7 @@ export function CampaignManager({
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
                     placeholder="Digite a mensagem base da campanha."
-                    className="min-h-[180px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-cyan-400"
+                    className="min-h-[180px] w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-400"
                   />
                 </div>
               </div>
@@ -1016,7 +1016,7 @@ export function CampaignManager({
                       </div>
                       <button
                         onClick={handleOpenEmailPreview}
-                        className="rounded-xl bg-cyan-600 px-3 py-2 text-xs font-bold text-white hover:bg-cyan-700"
+                        className="rounded-xl bg-brand-600 px-3 py-2 text-xs font-bold text-white hover:bg-brand-700"
                       >
                         Pré-visualizar
                       </button>
@@ -1033,7 +1033,7 @@ export function CampaignManager({
               <LoadingButton
                 loading={isSubmitting}
                 onClick={handleCreateCampaign}
-                className="rounded-2xl bg-cyan-600 px-5 py-3 text-sm font-black text-white hover:bg-cyan-700"
+                className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-black text-white hover:bg-brand-700"
               >
                 Criar Campanha
               </LoadingButton>
@@ -1069,7 +1069,7 @@ export function CampaignManager({
                 onChange={(event) =>
                   setDefaults((prev) => ({ ...prev, [key]: Math.max(0, Number(event.target.value) || 0) }))
                 }
-                className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-cyan-400"
+                className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
               />
             </label>
           ))}
@@ -1095,7 +1095,7 @@ export function CampaignManager({
           <button onClick={() => setIsSettingsOpen(false)} className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-200">
             Cancelar
           </button>
-          <button onClick={handleSaveSettings} className="rounded-2xl bg-cyan-600 px-4 py-3 text-sm font-black text-white hover:bg-cyan-700">
+          <button onClick={handleSaveSettings} className="rounded-2xl bg-brand-600 px-4 py-3 text-sm font-black text-white hover:bg-brand-700">
             Salvar Configurações
           </button>
         </div>

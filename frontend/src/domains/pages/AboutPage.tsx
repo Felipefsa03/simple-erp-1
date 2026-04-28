@@ -5,7 +5,7 @@ import { ArrowLeft, CheckCircle2, Users, Shield, Heart, Zap, TrendingUp, Message
 export function AboutPage() {
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -42,8 +42,8 @@ export function AboutPage() {
               { icon: TrendingUp, title: 'Resultados Comprovados', description: '40% menos faltas e 25% mais faturamento.' },
             ].map((item) => (
               <div key={item.title} className="flex gap-4 p-4 bg-slate-50 rounded-xl">
-                <div className="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center shrink-0">
-                  <item.icon className="w-6 h-6 text-cyan-600" />
+                <div className="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center shrink-0">
+                  <item.icon className="w-6 h-6 text-brand-600" />
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 mb-1">{item.title}</h3>
@@ -64,7 +64,7 @@ export function AboutPage() {
               'Foco no sucesso do cliente',
             ].map((value) => (
               <div key={value} className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-cyan-600" />
+                <CheckCircle2 className="w-5 h-5 text-brand-600" />
                 <span className="text-slate-700">{value}</span>
               </div>
             ))}
@@ -76,21 +76,21 @@ export function AboutPage() {
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-slate-600">
-                <Mail className="w-5 h-5 text-cyan-600" />
+                <Mail className="w-5 h-5 text-brand-600" />
                 <span>contato.clinxia@gmail.com</span>
               </div>
               <div className="flex items-center gap-3 text-slate-600">
-                <Phone className="w-5 h-5 text-cyan-600" />
+                <Phone className="w-5 h-5 text-brand-600" />
                 <span>(75) 99151-7196</span>
               </div>
               <div className="flex items-center gap-3 text-slate-600">
-                <MapPin className="w-5 h-5 text-cyan-600" />
+                <MapPin className="w-5 h-5 text-brand-600" />
                 <span>São Paulo, SP</span>
               </div>
             </div>
             <Link
               to="/contato"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-semibold rounded-xl hover:shadow-lg transition-all"
             >
               <MessageSquare className="w-5 h-5" />
               Fale Conosco

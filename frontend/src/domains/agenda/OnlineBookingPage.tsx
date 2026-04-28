@@ -96,7 +96,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
           <p className="text-slate-500 font-medium animate-pulse">Carregando formulário...</p>
         </div>
       </div>
@@ -106,15 +106,15 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 flex items-center justify-center font-sans">
       <div className="w-full max-w-2xl">
-        <div className="bg-white rounded-[40px] border border-slate-100 shadow-2xl shadow-cyan-900/5 overflow-hidden">
-          <div className="bg-gradient-to-br from-cyan-600 to-cyan-800 p-8 text-white text-center">
+        <div className="bg-white rounded-[40px] border border-slate-100 shadow-2xl shadow-brand-900/5 overflow-hidden">
+          <div className="bg-gradient-to-br from-brand-600 to-brand-800 p-8 text-white text-center">
              <div className="flex justify-center mb-4">
                 <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center">
                    <CalendarCheck2 className="w-10 h-10 text-white" />
                 </div>
              </div>
              <h1 className="text-3xl font-bold mb-1">Agendamento Online</h1>
-             <p className="text-cyan-100 font-medium opacity-90">{clinicName || 'Reserve seu horário agora.'}</p>
+             <p className="text-brand-100 font-medium opacity-90">{clinicName || 'Reserve seu horário agora.'}</p>
           </div>
 
           <div className="p-8 md:p-10">
@@ -139,7 +139,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                     <input
                       value={form.name}
                       onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all"
+                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
                       placeholder="Como deseja ser chamado?"
                     />
                   </div>
@@ -148,7 +148,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                     <input
                       value={form.phone}
                       onChange={e => setForm(prev => ({ ...prev, phone: e.target.value }))}
-                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all"
+                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
                       placeholder="(00) 00000-0000"
                     />
                   </div>
@@ -160,7 +160,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                     type="email"
                     value={form.email}
                     onChange={e => setForm(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all"
+                    className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
                     placeholder="seu@email.com"
                   />
                 </div>
@@ -171,7 +171,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                     <select
                       value={form.service_id}
                       onChange={e => setForm(prev => ({ ...prev, service_id: e.target.value }))}
-                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all appearance-none cursor-pointer"
+                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all appearance-none cursor-pointer"
                     >
                       <option value="">Selecione um serviço</option>
                       {clinicServices.map(item => (
@@ -184,7 +184,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                     <select
                       value={form.professional_id}
                       onChange={e => setForm(prev => ({ ...prev, professional_id: e.target.value }))}
-                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all appearance-none cursor-pointer"
+                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all appearance-none cursor-pointer"
                     >
                       <option value="">Qualquer profissional</option>
                       {clinicProfessionals.map(item => (
@@ -202,7 +202,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                       value={form.date}
                       min={format(new Date(), 'yyyy-MM-dd')}
                       onChange={e => setForm(prev => ({ ...prev, date: e.target.value }))}
-                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all"
+                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -211,7 +211,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                       type="time"
                       value={form.time}
                       onChange={e => setForm(prev => ({ ...prev, time: e.target.value }))}
-                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all"
+                      className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
                     />
                   </div>
                 </div>
@@ -221,7 +221,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                   <textarea
                     value={form.notes}
                     onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))}
-                    className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all min-h-[100px] resize-none"
+                    className="w-full px-5 py-3 bg-slate-50 rounded-2xl border border-slate-200 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all min-h-[100px] resize-none"
                     placeholder="Algo que precisamos saber antes?"
                   />
                 </div>
@@ -229,7 +229,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
                 <button
                   onClick={handleSubmit}
                   disabled={submitting}
-                  className="w-full py-4 bg-cyan-600 text-white font-bold rounded-2xl hover:bg-cyan-700 shadow-lg shadow-cyan-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg mt-4"
+                  className="w-full py-4 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 shadow-lg shadow-brand-600/20 transition-all transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg mt-4"
                 >
                   {submitting ? (
                     <>

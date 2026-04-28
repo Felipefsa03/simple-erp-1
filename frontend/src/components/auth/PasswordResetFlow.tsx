@@ -293,10 +293,10 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-cyan-200/50">
+          <div className="w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-brand-200/50">
             <span className="text-2xl font-black">L</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
@@ -325,7 +325,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
                   onChange={e => { setEmail(e.target.value); setError(''); }}
                   placeholder="seu@email.com"
                   autoComplete="email"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none"
                   required
                 />
               </div>
@@ -338,7 +338,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -366,7 +366,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
                     onKeyDown={e => handleCodeKeyDown(i, e)}
                     className={cn(
                       "w-12 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all",
-                      digit ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-200 focus:border-cyan-400",
+                      digit ? "border-brand-500 bg-brand-50 text-brand-700" : "border-slate-200 focus:border-brand-400",
                       error && "border-red-300 bg-red-50"
                     )}
                     disabled={blockedUntil > 0 && Date.now() < blockedUntil}
@@ -393,7 +393,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
                     type="button"
                     onClick={handleResendCode}
                     disabled={loading}
-                    className="text-cyan-600 font-bold hover:underline text-sm"
+                    className="text-brand-600 font-bold hover:underline text-sm"
                   >
                     {loading ? 'Reenviando...' : 'Reenviar código'}
                   </button>
@@ -410,7 +410,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
               <button
                 type="submit"
                 disabled={loading || code.some(d => !d) || (blockedUntil > 0 && Date.now() < blockedUntil)}
-                className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -439,7 +439,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
                     value={newPassword}
                     onChange={e => { setNewPassword(e.target.value); setError(''); }}
                     placeholder="Mínimo 8 caracteres"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none pr-12"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none pr-12"
                     required
                   />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -456,7 +456,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
                     value={confirmPassword}
                     onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
                     placeholder="Repita a senha"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none pr-12"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none pr-12"
                     required
                   />
                   <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -491,7 +491,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -513,7 +513,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
               <p className="text-slate-500 text-sm mb-6">Você já pode fazer login com sua nova senha.</p>
               <button
                 onClick={onSuccess}
-                className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2"
               >
                 Ir para login
               </button>

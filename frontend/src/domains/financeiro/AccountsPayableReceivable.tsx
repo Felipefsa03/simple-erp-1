@@ -120,7 +120,7 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-700';
-      case 'partial': return 'bg-blue-100 text-blue-700';
+      case 'partial': return 'bg-brand-100 text-brand-700';
       case 'paid': return 'bg-green-100 text-green-700';
       case 'overdue': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-700';
@@ -142,12 +142,12 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <DollarSign className="w-6 h-6 text-cyan-600" />
+            <DollarSign className="w-6 h-6 text-brand-600" />
             Contas a Pagar/Receber
           </h1>
           <p className="text-sm text-slate-500 mt-1">Gerencie suas contas a pagar e receber</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors font-medium text-sm">
+        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-medium text-sm">
           <Plus className="w-4 h-4" /> Nova Conta
         </button>
       </div>
@@ -213,7 +213,7 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
                 <td className="px-4 py-3">
                   <div className="font-semibold text-slate-900">{formatCurrency(acc.value)}</div>
                   {acc.paid > 0 && acc.paid < acc.value && (
-                    <div className="text-xs text-blue-600">Pago: {formatCurrency(acc.paid)}</div>
+                    <div className="text-xs text-brand-600">Pago: {formatCurrency(acc.paid)}</div>
                   )}
                 </td>
                 <td className="px-4 py-3 text-slate-600">{acc.dueDate.split('-').reverse().join('/')}</td>
@@ -229,7 +229,7 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
                         <Check className="w-4 h-4" />
                       </button>
                     )}
-                    <button onClick={() => openEdit(acc)} className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors">
+                    <button onClick={() => openEdit(acc)} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button onClick={() => setDeleteId(acc.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
@@ -250,29 +250,29 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Descrição *</label>
-            <input type="text" value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Ex: Consulta - João Silva" />
+            <input type="text" value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Ex: Consulta - João Silva" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">{activeTab === 'receivable' ? 'Paciente/Cliente' : 'Fornecedor'}</label>
-            <input type="text" value={form.counterparty || ''} onChange={e => setForm(f => ({ ...f, counterparty: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="Nome" />
+            <input type="text" value={form.counterparty || ''} onChange={e => setForm(f => ({ ...f, counterparty: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="Nome" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Valor *</label>
-              <input type="number" step="0.01" min="0" value={form.value || ''} onChange={e => setForm(f => ({ ...f, value: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="0,00" />
+              <input type="number" step="0.01" min="0" value={form.value || ''} onChange={e => setForm(f => ({ ...f, value: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="0,00" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Vencimento *</label>
-              <input type="date" value={form.dueDate || ''} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" />
+              <input type="date" value={form.dueDate || ''} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Valor Pago</label>
-            <input type="number" step="0.01" min="0" value={form.paid || ''} onChange={e => setForm(f => ({ ...f, paid: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm" placeholder="0,00" />
+            <input type="number" step="0.01" min="0" value={form.paid || ''} onChange={e => setForm(f => ({ ...f, paid: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="0,00" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Categoria</label>
-            <select value={form.category || ''} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm">
+            <select value={form.category || ''} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm">
               {activeTab === 'receivable' ? (
                 <>
                   <option value="consultation">Consulta</option>
@@ -295,7 +295,7 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
-            <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm font-medium">
+            <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors text-sm font-medium">
               <Save className="w-4 h-4" /> {editing ? 'Salvar' : 'Cadastrar'}
             </button>
           </div>

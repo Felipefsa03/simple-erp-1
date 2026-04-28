@@ -76,9 +76,9 @@ function Typewriter({ texts, speed = 100 }: { texts: string[]; speed?: number })
   }, [charIndex, deleting, index, texts, speed]);
 
   return (
-    <span className="text-cyan-600">
+    <span className="text-brand-600">
       {text}
-      <motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.4, repeat: Infinity }} className="text-cyan-500">|</motion.span>
+      <motion.span animate={{ opacity: [1, 0] }} transition={{ duration: 0.4, repeat: Infinity }} className="text-brand-500">|</motion.span>
     </span>
   );
 }
@@ -125,7 +125,7 @@ function Dashboard3D() {
               <p className="text-sm text-slate-500">Bem-vindo de volta</p>
               <p className="text-xl font-bold text-slate-800">Dr. Lucas Silva</p>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-cyan-500/20">
+            <div className="w-12 h-12 bg-gradient-to-br from-brand-400 to-brand-500 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-brand-500/20">
               L
             </div>
           </div>
@@ -135,29 +135,29 @@ function Dashboard3D() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl p-4"
+              className="bg-gradient-to-br from-brand-50 to-brand-50 rounded-xl p-4"
             >
-              <p className="text-xs text-cyan-600 font-medium">Agendamentos Hoje</p>
+              <p className="text-xs text-brand-600 font-medium">Agendamentos Hoje</p>
               <p className="text-2xl font-bold text-slate-800">12</p>
-              <p className="text-xs text-emerald-600 mt-1">+3 que ontem</p>
+              <p className="text-xs text-accent-600 mt-1">+3 que ontem</p>
             </motion.div>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-4"
+              className="bg-gradient-to-br from-accent-50 to-accent-50 rounded-xl p-4"
             >
-              <p className="text-xs text-emerald-600 font-medium">Receita do Mês</p>
+              <p className="text-xs text-accent-600 font-medium">Receita do Mês</p>
               <p className="text-2xl font-bold text-slate-800">R$ 45k</p>
-              <p className="text-xs text-emerald-600 mt-1">+12% vs mês anterior</p>
+              <p className="text-xs text-accent-600 mt-1">+12% vs mês anterior</p>
             </motion.div>
           </div>
 
           <div className="space-y-3">
             {[
-              { time: '09:00', name: 'João Silva', status: 'Confirmado', color: 'bg-emerald-500', textColor: 'text-emerald-600' },
-              { time: '10:30', name: 'Maria Santos', status: 'Confirmado', color: 'bg-blue-500', textColor: 'text-blue-600' },
-              { time: '14:00', name: 'Pedro Costa', status: 'Pendente', color: 'bg-amber-500', textColor: 'text-amber-600' },
+              { time: '09:00', name: 'João Silva', status: 'Confirmado', color: 'bg-accent-500', textColor: 'text-accent-600' },
+              { time: '10:30', name: 'Maria Santos', status: 'Confirmado', color: 'bg-brand-500', textColor: 'text-brand-600' },
+              { time: '14:00', name: 'Pedro Costa', status: 'Pendente', color: 'bg-brand-500', textColor: 'text-brand-600' },
             ].map((apt, i) => (
               <motion.div
                 key={i}
@@ -185,8 +185,8 @@ function Dashboard3D() {
             className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-3 border border-slate-100"
           >
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <Check className="w-4 h-4 text-emerald-600" />
+              <div className="w-8 h-8 bg-accent-100 rounded-lg flex items-center justify-center">
+                <Check className="w-4 h-4 text-accent-600" />
               </div>
               <div>
                 <p className="text-[10px] text-slate-500">Confirmado via</p>
@@ -203,12 +203,12 @@ function Dashboard3D() {
             className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-3 border border-slate-100"
           >
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-cyan-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-4 h-4 text-cyan-600" />
+              <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
+                <DollarSign className="w-4 h-4 text-brand-600" />
               </div>
               <div>
                 <p className="text-[10px] text-slate-500">Pix recebido</p>
-                <p className="text-xs font-bold text-emerald-600">+ R$ 350</p>
+                <p className="text-xs font-bold text-accent-600">+ R$ 350</p>
               </div>
             </div>
           </motion.div>
@@ -221,8 +221,8 @@ function Dashboard3D() {
             className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 p-3 border border-slate-100"
           >
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Bell className="w-4 h-4 text-purple-600" />
+              <div className="w-8 h-8 bg-accent-100 rounded-lg flex items-center justify-center">
+                <Bell className="w-4 h-4 text-accent-600" />
               </div>
               <div>
                 <p className="text-[10px] text-slate-500">Lembrete</p>
@@ -234,7 +234,7 @@ function Dashboard3D() {
       </motion.div>
 
       {/* Glow effect behind dashboard */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-to-r from-cyan-200/30 to-blue-200/30 rounded-full blur-3xl -z-10" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-to-r from-brand-200/30 to-brand-200/30 rounded-full blur-3xl -z-10" />
     </div>
   );
 }
@@ -278,7 +278,7 @@ function FeatureCard3D({ icon: Icon, title, description, color, delay }: {
       }}
       className="relative group cursor-pointer"
     >
-      <div className="bg-white rounded-2xl p-6 shadow-lg shadow-slate-200/50 border border-slate-100 hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 h-full">
+      <div className="bg-white rounded-2xl p-6 shadow-lg shadow-slate-200/50 border border-slate-100 hover:shadow-xl hover:shadow-brand-500/10 transition-all duration-300 h-full">
         <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110", color)}>
           <Icon className="w-7 h-7" />
         </div>
@@ -319,7 +319,7 @@ function Section({ children, className, id, bg = 'white' }: {
 // Gradient Text
 function GradientText({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={cn("text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500", className)}>
+    <span className={cn("text-transparent bg-clip-text bg-gradient-to-r from-brand-500 via-brand-500 to-accent-500", className)}>
       {children}
     </span>
   );
@@ -390,12 +390,12 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
   const heroOpacity = useTransform(scrollYProgress, [0, 0.2], [1, 0.8]);
 
   const features = [
-    { icon: Calendar, title: 'Agenda Inteligente', description: 'Gestão de horários com confirmação automática via WhatsApp. Reduza faltas em até 40%.', color: 'bg-blue-50 text-blue-600' },
-    { icon: FileText, title: 'Prontuário Digital', description: 'Odontograma interativo, anamnese completa e evolução clínica com assinatura digital.', color: 'bg-emerald-50 text-emerald-600' },
-    { icon: CreditCard, title: 'Financeiro Completo', description: 'Pix, cartão e boleto integrados. DRE e fluxo de caixa em tempo real.', color: 'bg-amber-50 text-amber-600' },
-    { icon: Package, title: 'Controle de Estoque', description: 'Gestão de materiais com alertas automáticos de reposição e consumo por procedimento.', color: 'bg-purple-50 text-purple-600' },
-    { icon: MessageSquare, title: 'WhatsApp Business', description: 'Lembretes, confirmações e campanhas de marketing direto pelo WhatsApp.', color: 'bg-green-50 text-green-600' },
-    { icon: BarChart3, title: 'Relatórios Inteligentes', description: 'Dashboards com métricas em tempo real. Saiba exatamente como está seu negócio.', color: 'bg-indigo-50 text-indigo-600' },
+    { icon: Calendar, title: 'Agenda Inteligente', description: 'Gestão de horários com confirmação automática via WhatsApp. Reduza faltas em até 40%.', color: 'bg-brand-50 text-brand-600' },
+    { icon: FileText, title: 'Prontuário Digital', description: 'Odontograma interativo, anamnese completa e evolução clínica com assinatura digital.', color: 'bg-accent-50 text-accent-600' },
+    { icon: CreditCard, title: 'Financeiro Completo', description: 'Pix, cartão e boleto integrados. DRE e fluxo de caixa em tempo real.', color: 'bg-brand-50 text-brand-600' },
+    { icon: Package, title: 'Controle de Estoque', description: 'Gestão de materiais com alertas automáticos de reposição e consumo por procedimento.', color: 'bg-accent-50 text-accent-600' },
+    { icon: MessageSquare, title: 'WhatsApp Business', description: 'Lembretes, confirmações e campanhas de marketing direto pelo WhatsApp.', color: 'bg-accent-50 text-accent-600' },
+    { icon: BarChart3, title: 'Relatórios Inteligentes', description: 'Dashboards com métricas em tempo real. Saiba exatamente como está seu negócio.', color: 'bg-accent-50 text-accent-600' },
   ];
 
   const stats = [
@@ -462,24 +462,24 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
+            <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/20">
               <span className="text-xl text-white font-bold">⚕</span>
             </div>
             <span className="font-bold text-xl text-slate-800">Clinxia</span>
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-700">
-            <a href="#features" className="hover:text-cyan-600 transition-colors relative group">
+            <a href="#features" className="hover:text-brand-600 transition-colors relative group">
               Funcionalidades
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-cyan-500 group-hover:w-full transition-all" />
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-500 group-hover:w-full transition-all" />
             </a>
-            <a href="#pricing" className="hover:text-cyan-600 transition-colors relative group">
+            <a href="#pricing" className="hover:text-brand-600 transition-colors relative group">
               Planos
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-cyan-500 group-hover:w-full transition-all" />
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-500 group-hover:w-full transition-all" />
             </a>
-            <a href="#testimonials" className="hover:text-cyan-600 transition-colors relative group">
+            <a href="#testimonials" className="hover:text-brand-600 transition-colors relative group">
               Depoimentos
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-cyan-500 group-hover:w-full transition-all" />
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-brand-500 group-hover:w-full transition-all" />
             </a>
           </div>
 
@@ -489,7 +489,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
             </Link>
             <Link
               to="/signup"
-              className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-cyan-500/25 transition-all"
+              className="px-5 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-brand-500/25 transition-all"
             >
               Teste Grátis
             </Link>
@@ -508,16 +508,16 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
               className="md:hidden bg-white border-t border-slate-100 overflow-hidden"
             >
               <div className="px-6 py-4 space-y-3">
-                <a href="#features" className="block text-slate-700 hover:text-cyan-600 font-medium">Funcionalidades</a>
-                <a href="#pricing" className="block text-slate-700 hover:text-cyan-600 font-medium">Planos</a>
-                <a href="#testimonials" className="block text-slate-700 hover:text-cyan-600 font-medium">Depoimentos</a>
-                <a href="/api" className="block text-slate-700 hover:text-cyan-600 font-medium">API</a>
-                <a href="/sobre" className="block text-slate-700 hover:text-cyan-600 font-medium">Sobre</a>
-                <a href="/blog" className="block text-slate-700 hover:text-cyan-600 font-medium">Blog</a>
-                <a href="/carreiras" className="block text-slate-700 hover:text-cyan-600 font-medium">Carreiras</a>
-                <a href="/contato" className="block text-slate-700 hover:text-cyan-600 font-medium">Contato</a>
-                <a href="/termos" className="block text-slate-700 hover:text-cyan-600 font-medium">Termos de Uso</a>
-                <a href="/privacidade" className="block text-slate-700 hover:text-cyan-600 font-medium">Privacidade</a>
+                <a href="#features" className="block text-slate-700 hover:text-brand-600 font-medium">Funcionalidades</a>
+                <a href="#pricing" className="block text-slate-700 hover:text-brand-600 font-medium">Planos</a>
+                <a href="#testimonials" className="block text-slate-700 hover:text-brand-600 font-medium">Depoimentos</a>
+                <a href="/api" className="block text-slate-700 hover:text-brand-600 font-medium">API</a>
+                <a href="/sobre" className="block text-slate-700 hover:text-brand-600 font-medium">Sobre</a>
+                <a href="/blog" className="block text-slate-700 hover:text-brand-600 font-medium">Blog</a>
+                <a href="/carreiras" className="block text-slate-700 hover:text-brand-600 font-medium">Carreiras</a>
+                <a href="/contato" className="block text-slate-700 hover:text-brand-600 font-medium">Contato</a>
+                <a href="/termos" className="block text-slate-700 hover:text-brand-600 font-medium">Termos de Uso</a>
+                <a href="/privacidade" className="block text-slate-700 hover:text-brand-600 font-medium">Privacidade</a>
               </div>
             </motion.div>
           )}
@@ -528,11 +528,11 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
         {/* Background Decorations */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-20 right-0 w-[600px] h-[600px] bg-gradient-to-br from-cyan-100/50 to-blue-100/50 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-br from-indigo-100/30 to-purple-100/30 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/4 w-2 h-2 bg-cyan-400 rounded-full opacity-40" />
-          <div className="absolute top-1/3 right-1/4 w-3 h-3 bg-blue-400 rounded-full opacity-30" />
-          <div className="absolute bottom-1/3 left-1/3 w-2 h-2 bg-indigo-400 rounded-full opacity-40" />
+          <div className="absolute top-20 right-0 w-[600px] h-[600px] bg-gradient-to-br from-brand-100/50 to-brand-100/50 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-br from-accent-100/30 to-accent-100/30 rounded-full blur-3xl" />
+          <div className="absolute top-1/2 left-1/4 w-2 h-2 bg-brand-400 rounded-full opacity-40" />
+          <div className="absolute top-1/3 right-1/4 w-3 h-3 bg-brand-400 rounded-full opacity-30" />
+          <div className="absolute bottom-1/3 left-1/3 w-2 h-2 bg-accent-400 rounded-full opacity-40" />
         </div>
 
         <motion.div style={{ y: heroY, opacity: heroOpacity }} className="relative z-10 max-w-7xl mx-auto px-6 w-full">
@@ -543,7 +543,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-50 border border-cyan-100 rounded-full text-sm text-cyan-700 font-medium mb-6"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-50 border border-brand-100 rounded-full text-sm text-brand-700 font-medium mb-6"
               >
                 <Sparkles className="w-4 h-4" />
                 Sistema #1 para clínicas de saúde
@@ -577,7 +577,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
               >
                 <button
                   onClick={onLoginClick}
-                  className="group px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold rounded-2xl hover:shadow-xl hover:shadow-cyan-500/20 transition-all flex items-center justify-center gap-2"
+                  className="group px-8 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold rounded-2xl hover:shadow-xl hover:shadow-brand-500/20 transition-all flex items-center justify-center gap-2"
                 >
                   Começar Teste Grátis de 7 Dias
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -595,11 +595,11 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 className="mt-10 flex flex-wrap items-center gap-6 text-sm text-slate-400"
               >
                 <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-cyan-500" />
+                  <Shield className="w-4 h-4 text-brand-500" />
                   Dados protegidos (LGPD)
                 </div>
                 <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-500" />
+                  <Zap className="w-4 h-4 text-brand-500" />
                   7 dias grátis
                 </div>
                 <div className="flex items-center gap-2">
@@ -619,7 +619,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                   {['C', 'R', 'J', 'A'].map((letter, i) => (
                     <div
                       key={i}
-                      className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 border-2 border-white flex items-center justify-center text-white text-xs font-bold"
+                      className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-500 border-2 border-white flex items-center justify-center text-white text-xs font-bold"
                       style={{ zIndex: 4 - i }}
                     >
                       {letter}
@@ -661,7 +661,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
             <motion.p
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
-              className="text-cyan-600 font-semibold text-sm uppercase tracking-wider mb-4"
+              className="text-brand-600 font-semibold text-sm uppercase tracking-wider mb-4"
             >
               Por que escolher o Clinxia?
             </motion.p>
@@ -680,13 +680,13 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 icon: Zap,
                 title: 'Implementação em 24h',
                 description: 'Sua clínica funcionando em menos de 1 dia',
-                color: 'bg-amber-500',
+                color: 'bg-brand-500',
               },
               {
                 icon: Shield,
                 title: 'Dados 100% seguros',
                 description: 'Conformidade total com a LGPD',
-                color: 'bg-emerald-500',
+                color: 'bg-accent-500',
               },
               {
                 icon: Heart,
@@ -698,7 +698,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 icon: TrendingUp,
                 title: 'Resultados comprovados',
                 description: '40% menos faltas, 25% mais faturamento',
-                color: 'bg-cyan-500',
+                color: 'bg-brand-500',
               },
             ].map((item, i) => (
               <motion.div
@@ -738,7 +738,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
             <motion.p
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
-              className="text-cyan-600 font-semibold text-sm uppercase tracking-wider mb-4"
+              className="text-brand-600 font-semibold text-sm uppercase tracking-wider mb-4"
             >
               Funcionalidades
             </motion.p>
@@ -775,7 +775,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
               initial={{ opacity: 0, x: -40 }}
               whileInView={{ opacity: 1, x: 0 }}
             >
-              <p className="text-cyan-600 font-semibold text-sm uppercase tracking-wider mb-4">Dashboard</p>
+              <p className="text-brand-600 font-semibold text-sm uppercase tracking-wider mb-4">Dashboard</p>
               <h2 className="text-4xl font-extrabold text-slate-900 mb-6">
                 Controle total na <GradientText>palma da mão</GradientText>
               </h2>
@@ -798,8 +798,8 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                     transition={{ delay: 0.2 + i * 0.1 }}
                     className="flex items-center gap-3"
                   >
-                    <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center">
-                      <item.icon className="w-5 h-5 text-cyan-600" />
+                    <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center">
+                      <item.icon className="w-5 h-5 text-brand-600" />
                     </div>
                     <span className="text-slate-700 font-medium">{item.text}</span>
                   </motion.div>
@@ -821,14 +821,14 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 <div className="flex items-center gap-2 mb-6">
                   <div className="w-3 h-3 rounded-full bg-red-400" />
                   <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <div className="w-3 h-3 rounded-full bg-green-400" />
+                  <div className="w-3 h-3 rounded-full bg-accent-400" />
                 </div>
 
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   {[
-                    { label: 'Agendamentos', value: '127', change: '+12%', color: 'text-green-600' },
-                    { label: 'Receita', value: 'R$ 45k', change: '+8%', color: 'text-green-600' },
-                    { label: 'Pacientes', value: '342', change: '+15%', color: 'text-green-600' },
+                    { label: 'Agendamentos', value: '127', change: '+12%', color: 'text-accent-600' },
+                    { label: 'Receita', value: 'R$ 45k', change: '+8%', color: 'text-accent-600' },
+                    { label: 'Pacientes', value: '342', change: '+15%', color: 'text-accent-600' },
                   ].map((stat, i) => (
                     <div key={stat.label} className="bg-slate-50 rounded-xl p-4">
                       <p className="text-xs text-slate-500 mb-1">{stat.label}</p>
@@ -838,14 +838,14 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                   ))}
                 </div>
 
-                <div className="h-32 bg-gradient-to-r from-cyan-50 to-blue-50 rounded-xl flex items-end p-4 gap-2">
+                <div className="h-32 bg-gradient-to-r from-brand-50 to-brand-50 rounded-xl flex items-end p-4 gap-2">
                   {[40, 65, 45, 80, 55, 90, 70, 85, 60, 95, 75, 88].map((h, i) => (
                     <motion.div
                       key={i}
                       initial={{ height: 0 }}
                       whileInView={{ height: `${h}%` }}
                       transition={{ delay: 0.1 * i, duration: 0.5 }}
-                      className="flex-1 bg-gradient-to-t from-cyan-500 to-blue-500 rounded-t-md"
+                      className="flex-1 bg-gradient-to-t from-brand-500 to-brand-500 rounded-t-md"
                     />
                   ))}
                 </div>
@@ -867,7 +867,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 transition={{ delay: i * 0.15 }}
                 className="text-center"
               >
-                <div className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-blue-600 mb-2">
+                <div className="text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-brand-600 mb-2">
                   <AnimatedCounter end={stat.value} suffix={stat.suffix} />
                 </div>
                 <p className="text-slate-500 font-medium">{stat.label}</p>
@@ -881,7 +881,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       <Section id="pricing" className="py-24" bg="gray">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <p className="text-cyan-600 font-semibold text-sm uppercase tracking-wider mb-4">Planos</p>
+            <p className="text-brand-600 font-semibold text-sm uppercase tracking-wider mb-4">Planos</p>
             <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4">
               Escolha o plano <GradientText>ideal</GradientText>
             </h2>
@@ -891,7 +891,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid md:grid-cols-3 gap-8">
             {loadingPrices ? (
               <div className="col-span-3 flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+                <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
                 <span className="ml-3 text-slate-500">Carregando preços...</span>
               </div>
             ) : plans.map((plan, i) => (
@@ -904,12 +904,12 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 className={cn(
                   "relative bg-white rounded-3xl p-8 border transition-all",
                   plan.highlighted
-                    ? "border-cyan-200 shadow-xl shadow-cyan-500/10 scale-105"
+                    ? "border-brand-200 shadow-xl shadow-brand-500/10 scale-105"
                     : "border-slate-200 shadow-lg"
                 )}
               >
                 {plan.highlighted && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold rounded-full">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-gradient-to-r from-brand-500 to-brand-600 text-white text-xs font-bold rounded-full">
                     MAIS POPULAR
                   </div>
                 )}
@@ -925,14 +925,14 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                       <span className="text-slate-400">/mês</span>
                     </div>
                   ) : (
-                    <span className="text-2xl font-bold text-cyan-600">Sob consulta</span>
+                    <span className="text-2xl font-bold text-brand-600">Sob consulta</span>
                   )}
                 </div>
 
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-center gap-3 text-slate-600">
-                      <Check className="w-5 h-5 text-cyan-500 shrink-0" />
+                      <Check className="w-5 h-5 text-brand-500 shrink-0" />
                       {feature}
                     </li>
                   ))}
@@ -943,7 +943,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                   className={cn(
                     "w-full py-4 rounded-xl font-semibold transition-all",
                     plan.highlighted
-                      ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:shadow-lg hover:shadow-cyan-500/20"
+                      ? "bg-gradient-to-r from-brand-500 to-brand-600 text-white hover:shadow-lg hover:shadow-brand-500/20"
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   )}
                 >
@@ -959,7 +959,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       <Section id="testimonials" className="py-24">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <p className="text-cyan-600 font-semibold text-sm uppercase tracking-wider mb-4">Depoimentos</p>
+            <p className="text-brand-600 font-semibold text-sm uppercase tracking-wider mb-4">Depoimentos</p>
             <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 mb-4">
               O que dizem nossos <GradientText>clientes</GradientText>
             </h2>
@@ -975,10 +975,10 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 whileHover={{ y: -5 }}
                 className="bg-white rounded-2xl p-6 shadow-lg border border-slate-100"
               >
-                <Quote className="w-8 h-8 text-cyan-200 mb-4" />
+                <Quote className="w-8 h-8 text-brand-200 mb-4" />
                 <p className="text-slate-600 mb-6 leading-relaxed">{t.text}</p>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                  <div className="w-12 h-12 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full flex items-center justify-center text-white font-bold">
                     {t.name.charAt(4)}
                   </div>
                   <div>
@@ -988,7 +988,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 </div>
                 <div className="flex gap-1 mt-4">
                   {[...Array(t.rating)].map((_, j) => (
-                    <Star key={j} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    <Star key={j} className="w-4 h-4 fill-brand-400 text-brand-400" />
                   ))}
                 </div>
               </motion.div>
@@ -1000,7 +1000,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       {/* CTA Section */}
       <Section className="py-24" bg="gray">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <div className="bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 rounded-3xl p-12 md:p-16 relative overflow-hidden">
+          <div className="bg-gradient-to-br from-brand-500 via-brand-600 to-accent-600 rounded-3xl p-12 md:p-16 relative overflow-hidden">
             <div className="absolute inset-0 opacity-10">
               {[...Array(20)].map((_, i) => (
                 <div
@@ -1035,7 +1035,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 whileInView={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3 }}
                 onClick={onLoginClick}
-                className="group px-10 py-5 bg-white text-cyan-600 text-lg font-bold rounded-2xl hover:shadow-2xl transition-all inline-flex items-center gap-3"
+                className="group px-10 py-5 bg-white text-brand-600 text-lg font-bold rounded-2xl hover:shadow-2xl transition-all inline-flex items-center gap-3"
               >
                 Começar Teste Grátis
                 <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
@@ -1051,7 +1051,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-xl flex items-center justify-center">
                   <span className="text-xl text-white font-bold">⚕</span>
                 </div>
                 <span className="font-bold text-xl">Clinxia</span>
@@ -1064,30 +1064,30 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
             <div>
               <h4 className="font-bold mb-4 text-white">Produto</h4>
               <ul className="space-y-3 text-sm text-slate-400">
-                <li><a href="#features" className="hover:text-cyan-400 transition-colors">Funcionalidades</a></li>
-                <li><a href="#pricing" className="hover:text-cyan-400 transition-colors">Planos</a></li>
-                <li><a href="/carreiras" className="hover:text-cyan-400 transition-colors">Carreiras</a></li>
-                <li><a href="/api" className="hover:text-cyan-400 transition-colors">API</a></li>
+                <li><a href="#features" className="hover:text-brand-400 transition-colors">Funcionalidades</a></li>
+                <li><a href="#pricing" className="hover:text-brand-400 transition-colors">Planos</a></li>
+                <li><a href="/carreiras" className="hover:text-brand-400 transition-colors">Carreiras</a></li>
+                <li><a href="/api" className="hover:text-brand-400 transition-colors">API</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-bold mb-4 text-white">Empresa</h4>
               <ul className="space-y-3 text-sm text-slate-400">
-                <li><a href="/sobre" className="hover:text-cyan-400 transition-colors">Sobre</a></li>
-                <li><a href="/blog" className="hover:text-cyan-400 transition-colors">Blog</a></li>
-                <li><a href="/carreiras" className="hover:text-cyan-400 transition-colors">Carreiras</a></li>
-                <li><a href="/contato" className="hover:text-cyan-400 transition-colors">Contato</a></li>
+                <li><a href="/sobre" className="hover:text-brand-400 transition-colors">Sobre</a></li>
+                <li><a href="/blog" className="hover:text-brand-400 transition-colors">Blog</a></li>
+                <li><a href="/carreiras" className="hover:text-brand-400 transition-colors">Carreiras</a></li>
+                <li><a href="/contato" className="hover:text-brand-400 transition-colors">Contato</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="font-bold mb-4 text-white">Legal</h4>
               <ul className="space-y-3 text-sm text-slate-400">
-                <li><a href="/termos" className="hover:text-cyan-400 transition-colors">Termos de Uso</a></li>
-                <li><a href="/privacidade" className="hover:text-cyan-400 transition-colors">Privacidade</a></li>
-                <li><a href="/lgpd" className="hover:text-cyan-400 transition-colors">LGPD</a></li>
-                <li><a href="/cookies" className="hover:text-cyan-400 transition-colors">Cookies</a></li>
+                <li><a href="/termos" className="hover:text-brand-400 transition-colors">Termos de Uso</a></li>
+                <li><a href="/privacidade" className="hover:text-brand-400 transition-colors">Privacidade</a></li>
+                <li><a href="/lgpd" className="hover:text-brand-400 transition-colors">LGPD</a></li>
+                <li><a href="/cookies" className="hover:text-brand-400 transition-colors">Cookies</a></li>
               </ul>
             </div>
           </div>

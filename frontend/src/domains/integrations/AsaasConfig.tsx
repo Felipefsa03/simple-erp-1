@@ -120,12 +120,12 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
 
   return (
     <div className="space-y-4">
-      <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4">
-        <h4 className="font-bold text-cyan-900 flex items-center gap-2">
+      <div className="bg-brand-50 border border-brand-200 rounded-xl p-4">
+        <h4 className="font-bold text-brand-900 flex items-center gap-2">
           <CreditCard className="w-5 h-5" />
           Configuração do Asaas
         </h4>
-        <p className="text-sm text-cyan-700 mt-1">
+        <p className="text-sm text-brand-700 mt-1">
           Insira sua API Key do Asaas para processar pagamentos
         </p>
       </div>
@@ -170,7 +170,7 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder={environment === 'sandbox' ? '$$ sandbox_api_key_here' : 'sua_api_key_de_produção'}
-          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 outline-none text-sm font-mono"
+          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm font-mono"
         />
         <p className="text-xs text-slate-500 mt-1">
           Obtenha sua API Key em: Asaas → Configurações → Integrações
@@ -194,7 +194,7 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
         <button
           onClick={handleSave}
           disabled={loading}
-          className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
           Salvar Credenciais

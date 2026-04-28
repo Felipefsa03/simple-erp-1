@@ -245,7 +245,7 @@ export function NFePanel({ clinicId }: NFePanelProps) {
     switch (status) {
       case 'authorized': return 'bg-emerald-100 text-emerald-700';
       case 'pending': return 'bg-yellow-100 text-yellow-700';
-      case 'processing': return 'bg-blue-100 text-blue-700';
+      case 'processing': return 'bg-brand-100 text-brand-700';
       case 'cancelled': return 'bg-red-100 text-red-700';
       case 'rejected': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-700';
@@ -268,12 +268,12 @@ export function NFePanel({ clinicId }: NFePanelProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-cyan-600" />
+            <FileText className="w-6 h-6 text-brand-600" />
             NFe - Nota Fiscal Eletrônica
           </h1>
           <p className="text-sm text-slate-500 mt-1">Emita notas fiscais eletrônicas via SEFAZ</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors font-medium text-sm">
+        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors font-medium text-sm">
           <Plus className="w-4 h-4" /> Nova NFe
         </button>
       </div>
@@ -299,7 +299,7 @@ export function NFePanel({ clinicId }: NFePanelProps) {
         </div>
         <div className="bg-white rounded-xl border border-slate-100 p-4">
           <p className="text-xs text-slate-500 mb-1">Processando</p>
-          <p className="text-xl font-bold text-blue-600">{stats.processing}</p>
+          <p className="text-xl font-bold text-brand-600">{stats.processing}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-100 p-4">
           <p className="text-xs text-slate-500 mb-1">Canceladas</p>
@@ -360,7 +360,7 @@ export function NFePanel({ clinicId }: NFePanelProps) {
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
                     {inv.status === 'processing' && (
-                      <button onClick={() => handleConsultar(inv)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Consultar status">
+                      <button onClick={() => handleConsultar(inv)} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors" title="Consultar status">
                         <Eye className="w-4 h-4" />
                       </button>
                     )}
@@ -370,7 +370,7 @@ export function NFePanel({ clinicId }: NFePanelProps) {
                       </button>
                     )}
                     {inv.pdfUrl && (
-                      <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors" title="Ver DANFE">
+                      <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors" title="Ver DANFE">
                         <ExternalLink className="w-4 h-4" />
                       </a>
                     )}
@@ -419,7 +419,7 @@ export function NFePanel({ clinicId }: NFePanelProps) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-semibold text-slate-700">Itens da NFe *</label>
-              <button onClick={addItem} className="text-xs text-cyan-600 hover:text-cyan-700 font-medium">+ Adicionar item</button>
+              <button onClick={addItem} className="text-xs text-brand-600 hover:text-brand-700 font-medium">+ Adicionar item</button>
             </div>
             <div className="space-y-2">
               {itensForm.map((item, idx) => (
@@ -461,7 +461,7 @@ export function NFePanel({ clinicId }: NFePanelProps) {
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
-            <button onClick={handleEmitir} disabled={emitindo} className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-xl hover:bg-cyan-700 transition-colors text-sm font-medium disabled:opacity-50">
+            <button onClick={handleEmitir} disabled={emitindo} className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 transition-colors text-sm font-medium disabled:opacity-50">
               {emitindo ? (
                 <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Emitindo...</>
               ) : (

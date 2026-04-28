@@ -71,7 +71,7 @@ export function LoginPage({
   const twoFACard = (
     <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
       <div className="flex flex-col items-center mb-6">
-        <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg shadow-cyan-200/50">
+        <div className="w-14 h-14 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg shadow-brand-200/50">
           <Shield className="w-7 h-7" />
         </div>
         <h2 className="text-xl font-black text-slate-900 tracking-tight">
@@ -100,7 +100,7 @@ export function LoginPage({
             placeholder="000000"
             autoComplete="one-time-code"
             autoFocus
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none text-center text-2xl tracking-widest font-mono"
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none text-center text-2xl tracking-widest font-mono"
           />
         </div>
 
@@ -113,7 +113,7 @@ export function LoginPage({
         <button
           type="submit"
           disabled={twoFALoading || twoFACode.length !== 6}
-          className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+          className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
         >
           {twoFALoading ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -153,7 +153,7 @@ export function LoginPage({
             }}
             placeholder="seu@email.com"
             autoComplete="email"
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none"
+            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none"
             required
           />
         </div>
@@ -171,7 +171,7 @@ export function LoginPage({
               }}
               placeholder="••••••••"
               autoComplete="current-password"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all outline-none pr-12"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none pr-12"
               required
             />
             <button
@@ -195,7 +195,7 @@ export function LoginPage({
         <button
           type="submit"
           disabled={loginLoading}
-          className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+          className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 transition-all disabled:opacity-70 flex items-center justify-center gap-2"
         >
           {loginLoading ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -207,7 +207,7 @@ export function LoginPage({
       <div className="mt-4 text-center">
         <button
           onClick={onForgotPassword}
-          className="text-sm text-cyan-600 font-medium hover:underline"
+          className="text-sm text-brand-600 font-medium hover:underline"
         >
           Esqueceu sua senha?
         </button>
@@ -216,7 +216,7 @@ export function LoginPage({
       <div className="mt-6 flex items-center justify-between">
         <button
           onClick={onSignup}
-          className="text-sm text-cyan-600 font-bold hover:underline"
+          className="text-sm text-brand-600 font-bold hover:underline"
         >
           Criar conta
         </button>
@@ -233,10 +233,10 @@ export function LoginPage({
   return (
     <ToastProvider>
       <ErrorBoundary key="login-page">
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-cyan-200/50">
+              <div className="w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-brand-200/50">
                 <span className="text-2xl font-black">C</span>
               </div>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">

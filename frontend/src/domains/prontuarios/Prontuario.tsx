@@ -36,7 +36,7 @@ const tabs = [
 
 const procedureColors: Record<string, string> = {
   'Cárie': 'bg-red-500 border-red-600',
-  'Restauração': 'bg-blue-500 border-blue-600',
+  'Restauração': 'bg-brand-500 border-brand-600',
   'Canal': 'bg-amber-500 border-amber-600',
   'Extraído': 'bg-slate-800 border-slate-900',
   'Implante': 'bg-purple-500 border-purple-600',
@@ -592,7 +592,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
           <button onClick={() => setShowStartConfirm(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-200">
             Cancelar
           </button>
-          <button onClick={handleStartAppointment} className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700">
+          <button onClick={handleStartAppointment} className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700">
             Iniciar Atendimento
           </button>
         </div>
@@ -604,14 +604,14 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
   const renderFinishModal = () => (
     <Modal isOpen={showFinishConfirm} onClose={() => setShowFinishConfirm(false)} title="Finalizar Atendimento" maxWidth="max-w-lg">
       <div className="space-y-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-blue-800 text-sm font-medium mb-2">Resumo do Atendimento</p>
+        <div className="bg-brand-50 border border-brand-200 rounded-xl p-4">
+          <p className="text-brand-800 text-sm font-medium mb-2">Resumo do Atendimento</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div><strong>Paciente:</strong> {patient?.name}</div>
             <div><strong>Profissional:</strong> {appointment?.professional_name}</div>
             <div><strong>Serviço Base:</strong> {formatCurrency(appointmentTotals.serviceValue)}</div>
             <div><strong>Procedimentos Plano:</strong> {formatCurrency(appointmentTotals.treatmentValue)}</div>
-            <div className="col-span-2 text-sm font-bold pt-1 border-t border-blue-100">
+            <div className="col-span-2 text-sm font-bold pt-1 border-t border-brand-100">
               Total: {formatCurrency(appointmentTotals.totalGeral)}
             </div>
           </div>
@@ -700,7 +700,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
       <div className="space-y-6">
         <header>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-cyan-500" /> Prontuário
+            <FileText className="w-6 h-6 text-brand-500" /> Prontuário
           </h1>
           <p className="text-slate-500">Selecione um paciente para visualizar o prontuário.</p>
         </header>
@@ -716,7 +716,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                 onClick={() => setNavigationContext({ patientId: p.id })}
                 className="w-full p-4 flex items-center gap-3 hover:bg-slate-50 text-left"
               >
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full flex items-center justify-center text-white font-bold">
                   {p.name.charAt(0)}
                 </div>
                 <div>
@@ -745,7 +745,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <FileText className="w-6 h-6 text-cyan-500" /> Prontuário
+              <FileText className="w-6 h-6 text-brand-500" /> Prontuário
               {isLocked && <Lock className="w-5 h-5 text-amber-500" />}
             </h1>
             <p className="text-slate-500">{patient.name} • {patient.phone}</p>
@@ -754,7 +754,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
         
         <div className="flex gap-2">
           {needsStart && (
-            <button onClick={() => setShowStartConfirm(true)} className="px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 flex items-center gap-2">
+            <button onClick={() => setShowStartConfirm(true)} className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 flex items-center gap-2">
               <Activity className="w-4 h-4" /> Iniciar Atendimento
             </button>
           )}
@@ -814,7 +814,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
             onClick={() => setActiveSubTab(tab.id)}
             className={cn(
               "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap",
-              activeSubTab === tab.id ? "bg-cyan-50 text-cyan-600" : "text-slate-500 hover:text-slate-900"
+              activeSubTab === tab.id ? "bg-brand-50 text-brand-600" : "text-slate-500 hover:text-slate-900"
             )}
           >
             <tab.icon className="w-4 h-4" />{tab.label}
@@ -842,7 +842,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                   onClick={handleSaveEvolution}
                   loading={evolutionSaving}
                   disabled={isLocked || !evolutionText.trim()}
-                  className="mt-3 px-6 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 disabled:opacity-50"
+                  className="mt-3 px-6 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 disabled:opacity-50"
                 >
                   Salvar Evolução
                 </LoadingButton>
@@ -953,7 +953,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                   <textarea value={anamneseForm.complaints} onChange={e => setAnamneseForm(p => ({ ...p, complaints: e.target.value }))} className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm min-h-[60px]" disabled={isLocked} />
                 </div>
                 <div className="flex gap-2">
-                  <LoadingButton onClick={handleSaveAnamnese} loading={anamneseSaving} disabled={isLocked} className="px-6 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 disabled:opacity-50">
+                  <LoadingButton onClick={handleSaveAnamnese} loading={anamneseSaving} disabled={isLocked} className="px-6 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 disabled:opacity-50">
                     Salvar Anamnese
                   </LoadingButton>
                   <button onClick={handleGenerateAnamneseLink} className="px-6 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-200">
@@ -970,7 +970,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-slate-900">Materiais Utilizados</h3>
                 {!isLocked && (
-                  <button onClick={() => setIsAddingItem(true)} className="px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 flex items-center gap-2">
+                  <button onClick={() => setIsAddingItem(true)} className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 flex items-center gap-2">
                     <Plus className="w-4 h-4" /> Adicionar Material
                   </button>
                 )}
@@ -1033,7 +1033,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                 {!isLocked && (
                   <div>
                     <input type="file" ref={photoInputRef} onChange={handlePhotoUpload} accept="image/*" className="hidden" />
-                    <button onClick={() => photoInputRef.current?.click()} className="px-4 py-2 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 flex items-center gap-2">
+                    <button onClick={() => photoInputRef.current?.click()} className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 flex items-center gap-2">
                       <Camera className="w-4 h-4" /> Adicionar Foto
                     </button>
                   </div>
@@ -1079,7 +1079,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
               <h3 className="font-bold text-slate-900 mb-4">Gerar Documentos</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <button onClick={() => handleDownloadDocument('certificate')} className="p-6 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all text-center">
-                  <FileText className="w-8 h-8 text-cyan-500 mx-auto mb-2" />
+                  <FileText className="w-8 h-8 text-brand-500 mx-auto mb-2" />
                   <p className="font-bold text-slate-900">Atestado</p>
                   <p className="text-xs text-slate-500">Atestado de comparecimento</p>
                 </button>
@@ -1109,7 +1109,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                       value={certDays}
                       onChange={(e) => setCertDays(e.target.value)}
                       placeholder="Ex: 3"
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-cyan-400"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-400"
                     />
                   </div>
                   <div>
@@ -1119,7 +1119,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                       onChange={(e) => setCertObs(e.target.value)}
                       placeholder="Ex: Atendimento odontológico"
                       rows={3}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-cyan-400 resize-none"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-400 resize-none"
                     />
                   </div>
                 </>
@@ -1178,7 +1178,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                   onClick={handleGenerateDocument}
                   className={cn(
                     "flex-1 py-2.5 text-white font-bold rounded-xl text-sm transition-all",
-                    docType === 'certificate' ? "bg-cyan-600 hover:bg-cyan-700" :
+                    docType === 'certificate' ? "bg-brand-600 hover:bg-brand-700" :
                     docType === 'prescription' ? "bg-emerald-600 hover:bg-emerald-700" :
                     "bg-purple-600 hover:bg-purple-700"
                   )}
@@ -1192,7 +1192,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
           {/* Resumo Tab */}
           {activeSubTab === 'resumo' && (
             <div className="space-y-4">
-              <div className="bg-gradient-to-r from-emerald-50 to-cyan-50 rounded-3xl border border-emerald-100 p-6">
+              <div className="bg-gradient-to-r from-emerald-50 to-brand-50 rounded-3xl border border-emerald-100 p-6">
                 <h3 className="font-bold text-slate-900 mb-4">Resumo Financeiro do Atendimento</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white rounded-xl p-4 text-center">
@@ -1206,9 +1206,9 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
                     <p className="text-xl font-bold text-amber-600">{formatCurrency(appointmentTotals.materialsCost)}</p>
                   </div>
                   <div className="bg-white rounded-xl p-4 text-center">
-                    <User className="w-6 h-6 text-blue-500 mx-auto mb-2" />
+                    <User className="w-6 h-6 text-brand-500 mx-auto mb-2" />
                     <p className="text-xs text-slate-500">Comissão Prof.</p>
-                    <p className="text-xl font-bold text-blue-600">{formatCurrency(appointmentTotals.professionalCommission)}</p>
+                    <p className="text-xl font-bold text-brand-600">{formatCurrency(appointmentTotals.professionalCommission)}</p>
                   </div>
                   <div className="bg-white rounded-xl p-4 text-center">
                     <TrendingUp className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
@@ -1353,7 +1353,7 @@ function TreatmentPlanSection({
             <select 
               value={selectedPlanId} 
               onChange={(e) => setSelectedPlanId(e.target.value)}
-              className="mt-1 text-xs bg-slate-50 border-none rounded-lg py-1 px-2 outline-none focus:ring-1 focus:ring-cyan-500"
+              className="mt-1 text-xs bg-slate-50 border-none rounded-lg py-1 px-2 outline-none focus:ring-1 focus:ring-brand-500"
             >
               {patientPlans.map(p => (
                 <option key={p.id} value={p.id}>{p.title}</option>
@@ -1384,7 +1384,7 @@ function TreatmentPlanSection({
           {canEdit && (
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 flex items-center gap-2"
+              className="px-4 py-2 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 flex items-center gap-2"
             >
               <Plus className="w-4 h-4" /> Adicionar Serviço
             </button>
@@ -1410,7 +1410,7 @@ function TreatmentPlanSection({
             return (
               <div key={idx} className={cn(
                 "p-4 rounded-xl flex items-center justify-between transition-all",
-                isPerformedToday ? "bg-cyan-50 border border-cyan-100" : "bg-slate-50 border border-transparent"
+                isPerformedToday ? "bg-brand-50 border border-brand-100" : "bg-slate-50 border border-transparent"
               )}>
                 <div className="flex-1">
                   <p className="font-medium text-slate-900">{item.service_name}</p>
@@ -1423,7 +1423,7 @@ function TreatmentPlanSection({
                 <div className="flex items-center gap-4">
                    <div className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", 
                     isDone ? "bg-emerald-100 text-emerald-700" : 
-                    item.status === 'in_progress' ? "bg-blue-100 text-blue-700" : 
+                    item.status === 'in_progress' ? "bg-brand-100 text-brand-700" : 
                     "bg-amber-100 text-amber-700"
                   )}>
                     {isDone ? 'Concluído' : item.status === 'in_progress' ? 'Em andamento' : 'Pendente'}
@@ -1434,7 +1434,7 @@ function TreatmentPlanSection({
                       type="checkbox" 
                       checked={isPerformedToday}
                       onChange={() => toggleItemPerformed(item)}
-                      className="w-5 h-5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
+                      className="w-5 h-5 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
                     />
                   )}
                 </div>
@@ -1454,7 +1454,7 @@ function TreatmentPlanSection({
           {canEdit && (
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-6 py-2 bg-white text-cyan-600 border border-cyan-200 font-bold rounded-xl text-sm hover:bg-cyan-50"
+              className="px-6 py-2 bg-white text-brand-600 border border-brand-200 font-bold rounded-xl text-sm hover:bg-brand-50"
             >
               Criar Primeiro Plano
             </button>
@@ -1479,7 +1479,7 @@ function TreatmentPlanSection({
                 <select
                   value={selectedService}
                   onChange={(e) => setSelectedService(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm font-medium"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm font-medium"
                 >
                   <option value="">Selecione um serviço...</option>
                   {clinicServices.map(service => (
@@ -1502,7 +1502,7 @@ function TreatmentPlanSection({
                         onClick={() => setSelectedTooth(isSelected ? '' : String(tooth))}
                         className={cn(
                           "h-8 flex items-center justify-center text-[10px] font-bold rounded-md transition-all",
-                          isSelected ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          isSelected ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         )}
                       >
                         {tooth}
@@ -1518,7 +1518,7 @@ function TreatmentPlanSection({
                   value={planNotes}
                   onChange={(e) => setPlanNotes(e.target.value)}
                   placeholder="Ex: Utilizar resina Z350..."
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl h-24 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm resize-none"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl h-24 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm resize-none"
                 />
               </div>
               
@@ -1543,7 +1543,7 @@ function TreatmentPlanSection({
               </button>
               <button
                 onClick={handleAddItem}
-                className="flex-1 py-3 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 shadow-md shadow-cyan-200 transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 shadow-md shadow-brand-200 transition-all flex items-center justify-center gap-2"
               >
                 <Save className="w-4 h-4" /> Salvar Item
               </button>

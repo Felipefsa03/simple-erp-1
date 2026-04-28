@@ -103,7 +103,7 @@ export function RecurringAppointments({ clinicId }: RecurringAppointmentsProps) 
           <h1 className="text-2xl font-bold text-gray-900">Agendamentos Recorrentes</h1>
           <p className="text-gray-600">Gerencie agendamentos que se repetem</p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+        <button className="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 flex items-center gap-2">
           <Repeat size={18} />
           Novo Agendamento
         </button>
@@ -112,7 +112,7 @@ export function RecurringAppointments({ clinicId }: RecurringAppointmentsProps) 
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg border p-4">
           <p className="text-sm text-gray-600 mb-1">Total Recorrências</p>
-          <p className="text-2xl font-bold text-blue-600">{recurringAppointments.length}</p>
+          <p className="text-2xl font-bold text-brand-600">{recurringAppointments.length}</p>
         </div>
         <div className="bg-white rounded-lg border p-4">
           <p className="text-sm text-gray-600 mb-1">Ativos</p>
@@ -163,7 +163,7 @@ export function RecurringAppointments({ clinicId }: RecurringAppointmentsProps) 
                 <td className="py-3 px-4">{apt.procedure}</td>
                 <td className="py-3 px-4 text-center">{apt.professional}</td>
                 <td className="py-3 px-4 text-center">
-                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                  <span className="px-2 py-1 bg-brand-100 text-brand-700 rounded text-xs">
                     {getFrequencyLabel(apt.frequency)}
                   </span>
                 </td>
@@ -183,7 +183,7 @@ export function RecurringAppointments({ clinicId }: RecurringAppointmentsProps) 
                   <div className="flex items-center gap-2">
                     <div className="flex-1 bg-gray-200 rounded-full h-2">
                       <div 
-                        className="bg-blue-600 h-2 rounded-full" 
+                        className="bg-brand-600 h-2 rounded-full" 
                         style={{ width: `${(apt.occurrences / apt.totalOccurrences) * 100}%` }}
                       />
                     </div>
@@ -209,7 +209,7 @@ export function RecurringAppointments({ clinicId }: RecurringAppointmentsProps) 
                         <Play size={16} />
                       </button>
                     )}
-                    <button className="p-1 text-blue-600 hover:bg-blue-50 rounded" title="Editar">
+                    <button className="p-1 text-brand-600 hover:bg-brand-50 rounded" title="Editar">
                       <Edit size={16} />
                     </button>
                     <button className="p-1 text-red-600 hover:bg-red-50 rounded" title="Cancelar">

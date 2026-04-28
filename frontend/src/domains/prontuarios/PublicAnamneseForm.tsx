@@ -90,7 +90,7 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
         <div className="bg-white p-8 rounded-3xl border border-slate-100 max-w-md text-center">
           <p className="text-lg font-bold text-slate-900">Link inválido</p>
           <p className="text-sm text-slate-500 mt-2">Solicite um novo link de anamnese para a clínica.</p>
-          <button onClick={onBack} className="mt-4 px-4 py-2 bg-cyan-600 text-white rounded-xl font-bold">Voltar</button>
+          <button onClick={onBack} className="mt-4 px-4 py-2 bg-brand-600 text-white rounded-xl font-bold">Voltar</button>
         </div>
       </div>
     );
@@ -132,7 +132,7 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
                   />
                 </label>
               ))}
-              <button onClick={handleSubmit} className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 inline-flex items-center justify-center gap-2">
+              <button onClick={handleSubmit} className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 inline-flex items-center justify-center gap-2">
                 <ClipboardCheck className="w-4 h-4" />
                 Enviar Anamnese
               </button>

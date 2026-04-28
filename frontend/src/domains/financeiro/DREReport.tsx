@@ -84,7 +84,7 @@ export function DREReport({ clinicId }: DREReportProps) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-cyan-600" />
+            <TrendingUp className="w-6 h-6 text-brand-600" />
             DRE - Demonstração do Resultado
           </h1>
           <p className="text-sm text-slate-500 mt-1">Demonstração do Resultado do Exercício</p>
@@ -133,17 +133,17 @@ export function DREReport({ clinicId }: DREReportProps) {
             <span className="text-slate-600">(-) Despesas Operacionais</span>
             <span className="font-semibold text-red-600">({formatCurrency(dreData.operatingExpenses.total)})</span>
           </div>
-          <div className="p-4 flex justify-between bg-blue-50">
-            <span className="font-semibold text-blue-800">Lucro Operacional</span>
-            <span className="font-bold text-blue-700">{formatCurrency(dreData.operatingProfit.value)} ({dreData.operatingProfit.margin.toFixed(1)}%)</span>
+          <div className="p-4 flex justify-between bg-brand-50">
+            <span className="font-semibold text-brand-800">Lucro Operacional</span>
+            <span className="font-bold text-brand-700">{formatCurrency(dreData.operatingProfit.value)} ({dreData.operatingProfit.margin.toFixed(1)}%)</span>
           </div>
           <div className="p-4 flex justify-between">
             <span className="text-slate-600">(-) Impostos</span>
             <span className="font-semibold text-red-600">({formatCurrency(dreData.taxes.total)})</span>
           </div>
-          <div className="p-4 flex justify-between bg-gradient-to-r from-cyan-50 to-blue-50">
+          <div className="p-4 flex justify-between bg-gradient-to-r from-brand-50 to-brand-50">
             <span className="font-bold text-slate-900">LUCRO LÍQUIDO</span>
-            <span className="font-bold text-lg text-cyan-700">{formatCurrency(dreData.netProfit.value)} ({dreData.netProfit.margin.toFixed(1)}%)</span>
+            <span className="font-bold text-lg text-brand-700">{formatCurrency(dreData.netProfit.value)} ({dreData.netProfit.margin.toFixed(1)}%)</span>
           </div>
         </div>
       </div>

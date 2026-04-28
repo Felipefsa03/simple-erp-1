@@ -120,12 +120,12 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
 
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <h4 className="font-bold text-blue-900 flex items-center gap-2">
+      <div className="bg-brand-50 border border-brand-200 rounded-xl p-4">
+        <h4 className="font-bold text-brand-900 flex items-center gap-2">
           <Calendar className="w-5 h-5" />
           Google Calendar
         </h4>
-        <p className="text-sm text-blue-700 mt-1">
+        <p className="text-sm text-brand-700 mt-1">
           Sincronize seus agendamentos com o Google Calendar automaticamente
         </p>
       </div>
@@ -140,7 +140,7 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder="AIzaSy..."
-          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-mono"
+          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm font-mono"
         />
         <p className="text-xs text-slate-500 mt-1">
           Obtenha em: Google Cloud Console → APIs → Credentials → API Key
@@ -157,7 +157,7 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
           value={calendarId}
           onChange={(e) => setCalendarId(e.target.value)}
           placeholder="primary"
-          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm"
+          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm"
         />
         <p className="text-xs text-slate-500 mt-1">
           Geralmente "primary" para o calendário principal
@@ -181,7 +181,7 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
         <button
           onClick={handleSave}
           disabled={loading}
-          className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
           Salvar Credenciais

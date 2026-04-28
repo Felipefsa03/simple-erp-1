@@ -41,7 +41,7 @@ export function CareersPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -65,8 +65,8 @@ export function CareersPage() {
               { icon: Clock, title: 'Flexibilidade', desc: 'Horário flexível' },
             ].map(perk => (
               <div key={perk.title} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
-                <div className="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center">
-                  <perk.icon className="w-5 h-5 text-cyan-600" />
+                <div className="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center">
+                  <perk.icon className="w-5 h-5 text-brand-600" />
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900">{perk.title}</h3>
@@ -90,21 +90,21 @@ export function CareersPage() {
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Nome Completo</label>
-                  <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
-                  <input type="email" required value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <input type="email" required value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
                 </div>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label>
-                  <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="(DDD) XXXXX-XXXX" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                  <input type="tel" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="(DDD) XXXXX-XXXX" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Vaga de Interesse</label>
-                  <select required value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500">
+                  <select required value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500">
                     <option value="">Selecione...</option>
                     {roleOptions.map(role => (
                       <option key={role} value={role}>{role}</option>
@@ -114,13 +114,13 @@ export function CareersPage() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">LinkedIn (opcional)</label>
-                <input type="url" value={formData.linkedin} onChange={e => setFormData({ ...formData, linkedin: e.target.value })} placeholder="https://linkedin.com/in/seu-perfil" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                <input type="url" value={formData.linkedin} onChange={e => setFormData({ ...formData, linkedin: e.target.value })} placeholder="https://linkedin.com/in/seu-perfil" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Mensagem</label>
-                <textarea rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} placeholder="Conte-nos um pouco sobre você..." className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-cyan-500" />
+                <textarea rows={4} value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} placeholder="Conte-nos um pouco sobre você..." className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-500" />
               </div>
-              <button type="submit" disabled={sending} className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+              <button type="submit" disabled={sending} className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:shadow-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2">
                 {sending ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}
                 {sending ? 'Enviando...' : 'Enviar Currículo'}
               </button>

@@ -189,8 +189,8 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
     <div className="space-y-4">
       {!config.isConnected ? (
         <div className="text-center py-8">
-          <div className="w-20 h-12 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Facebook className="w-10 h-10 text-blue-600" />
+          <div className="w-20 h-12 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Facebook className="w-10 h-10 text-brand-600" />
           </div>
           <h3 className="text-xl font-bold text-slate-900 mb-2">Facebook Ads</h3>
           <p className="text-slate-500 text-sm mb-6 max-w-xs mx-auto">
@@ -200,7 +200,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
           {!showCredentials ? (
             <button
               onClick={() => setShowCredentials(true)}
-              className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 flex items-center gap-2 mx-auto"
+              className="px-6 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 flex items-center gap-2 mx-auto"
             >
               <Settings className="w-5 h-5" />
               Configurar Conexão
@@ -220,7 +220,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                     value={credentials.appId}
                     onChange={(e) => setCredentials({ ...credentials, appId: e.target.value })}
                     placeholder="Ex: 123456789012345"
-                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 
@@ -235,7 +235,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                       value={credentials.appSecret}
                       onChange={(e) => setCredentials({ ...credentials, appSecret: e.target.value })}
                       placeholder="Ex: abc123def456..."
-                      className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                     <button
                       type="button"
@@ -259,7 +259,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                       value={credentials.accessToken}
                       onChange={(e) => setCredentials({ ...credentials, accessToken: e.target.value })}
                       placeholder="Ex: EAABwzLixnjYBO..."
-                      className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                     <button
                       type="button"
@@ -275,11 +275,11 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                 </div>
                 
                 {/* Help text */}
-                <div className="bg-blue-50 rounded-xl p-3">
-                  <p className="text-xs text-blue-700">
+                <div className="bg-brand-50 rounded-xl p-3">
+                  <p className="text-xs text-brand-700">
                     <strong>Como obter as credenciais:</strong>
                   </p>
-                  <ol className="text-xs text-blue-600 mt-1 space-y-1 list-decimal list-inside">
+                  <ol className="text-xs text-brand-600 mt-1 space-y-1 list-decimal list-inside">
                     <li>Acesse <a href="https://developers.facebook.com" target="_blank" rel="noopener" className="underline">developers.facebook.com</a></li>
                     <li>Crie um aplicativo ou use um existente</li>
                     <li>Adicione o produto "Marketing API"</li>
@@ -298,7 +298,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                   <button
                     onClick={handleTestConnection}
                     disabled={isTesting || !credentials.accessToken}
-                    className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {isTesting ? (
                       <>
@@ -324,7 +324,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
       ) : (
         <div className="py-4">
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-white">
+            <div className="w-14 h-14 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white">
               <Facebook className="w-7 h-7" />
             </div>
             <div className="flex-1">
@@ -386,7 +386,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                       value={credentials.appId}
                       onChange={(e) => setCredentials({ ...credentials, appId: e.target.value })}
                       placeholder="Ex: 123456789012345"
-                      className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
                   
@@ -400,7 +400,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                         value={credentials.appSecret}
                         onChange={(e) => setCredentials({ ...credentials, appSecret: e.target.value })}
                         placeholder="Ex: abc123def456..."
-                        className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
                       <button
                         type="button"
@@ -422,7 +422,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                         value={credentials.accessToken}
                         onChange={(e) => setCredentials({ ...credentials, accessToken: e.target.value })}
                         placeholder="Ex: EAABwzLixnjYBO..."
-                        className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 pr-10 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />
                       <button
                         type="button"
@@ -444,7 +444,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
                   <button
                     onClick={handleSaveCredentials}
                     disabled={isSaving}
-                    className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2"
                   >
                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                     Salvar

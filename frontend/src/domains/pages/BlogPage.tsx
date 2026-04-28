@@ -29,7 +29,7 @@ const BLOG_POSTS = [
     date: '15/04/2026',
     author: 'Equipe Clinxia',
     readTime: '5 min',
-    image: 'bg-gradient-to-br from-cyan-100 to-blue-100'
+    image: 'bg-gradient-to-br from-brand-100 to-brand-100'
   },
   {
     id: 2,
@@ -152,7 +152,7 @@ O Clinxia integra WhatsApp Business API para automate todas essas mensagens sem 
 function BlogPost({ post, onBack }: { post: typeof BLOG_POSTS[0]; onBack: () => void }) {
   return (
     <div className="max-w-4xl mx-auto px-6 py-16">
-      <button onClick={onBack} className="inline-flex items-center gap-2 text-cyan-600 hover:text-cyan-700 mb-8">
+      <button onClick={onBack} className="inline-flex items-center gap-2 text-brand-600 hover:text-brand-700 mb-8">
         <ArrowLeft className="w-5 h-5" />
         Voltar ao blog
       </button>
@@ -169,7 +169,7 @@ function BlogPost({ post, onBack }: { post: typeof BLOG_POSTS[0]; onBack: () => 
         <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6">{post.title}</h1>
         
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+          <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex items-center justify-center text-white font-bold">
             {post.author.charAt(0)}
           </div>
           <div>
@@ -204,7 +204,7 @@ export function BlogPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white py-16">
+      <header className="bg-gradient-to-r from-brand-600 to-brand-600 text-white py-16">
         <div className="max-w-4xl mx-auto px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-white/80 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -229,7 +229,7 @@ export function BlogPage() {
                 <p className="text-slate-600 text-sm mb-4">{post.excerpt}</p>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500 flex items-center gap-1"><User className="w-3 h-3" /> {post.author}</span>
-                  <span className="text-cyan-600 font-semibold text-sm flex items-center gap-1">
+                  <span className="text-brand-600 font-semibold text-sm flex items-center gap-1">
                     Ler mais <ArrowRight className="w-4 h-4" />
                   </span>
                 </div>
@@ -242,7 +242,7 @@ export function BlogPage() {
           <p className="text-slate-600 mb-4">Inscreva-se na newsletter para receber novidades</p>
           <form className="max-w-md mx-auto flex gap-2">
             <input type="email" placeholder="Seu email" className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none" />
-            <button type="submit" className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold rounded-xl">
+            <button type="submit" className="px-6 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl">
               Inscrever
             </button>
           </form>

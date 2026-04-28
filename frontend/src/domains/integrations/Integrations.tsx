@@ -84,7 +84,7 @@ export function Integrations() {
       name: 'Google Calendar',
       description: 'Sincronize agendamentos automaticamente com o Google Calendar',
       icon: Calendar,
-      color: 'bg-blue-500',
+      color: 'bg-brand-500',
       connected: false,
       category: 'calendar',
       features: ['Sincronização bidirecional', 'Lembretes automáticos', 'Disponibilidade em tempo real'],
@@ -95,7 +95,7 @@ export function Integrations() {
       name: 'Facebook Ads',
       description: 'Importe leads e métricas de campanhas do Facebook Ads',
       icon: Facebook,
-      color: 'bg-blue-600',
+      color: 'bg-brand-600',
       connected: false,
       category: 'ads',
       features: ['Importação automática de leads', 'ROI por campanha', 'Segmentação de público'],
@@ -167,7 +167,7 @@ export function Integrations() {
       name: 'Meta Pixel',
       description: 'Rastreamento de conversões no Facebook e Instagram',
       icon: TrendingUp,
-      color: 'bg-blue-700',
+      color: 'bg-brand-700',
       connected: false,
       category: 'ads',
       features: ['Rastreamento de conversões', 'Públicos personalizados', 'Remarketing'],
@@ -238,7 +238,7 @@ export function Integrations() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Link2 className="w-6 h-6 text-cyan-500" /> Integrações
+            <Link2 className="w-6 h-6 text-brand-500" /> Integrações
           </h1>
           <p className="text-slate-500">Conecte suas ferramentas favoritas para automatizar seu fluxo</p>
         </div>
@@ -252,7 +252,7 @@ export function Integrations() {
           )}
           <div className="w-32 bg-slate-100 rounded-full h-2">
             <div 
-              className="bg-cyan-500 h-2 rounded-full transition-all"
+              className="bg-brand-500 h-2 rounded-full transition-all"
               style={{ width: `${accessibleCount > 0 ? (accessibleCount / (accessibleCount + lockedCount)) * 100 : 0}%` }}
             />
           </div>
@@ -261,21 +261,21 @@ export function Integrations() {
 
       {/* Seletor de Clínica (apenas Super Admin) */}
       {isSuperAdmin && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-4">
+        <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-600" />
-            <span className="text-sm font-semibold text-blue-800">Visualizando clínica:</span>
+            <Shield className="w-5 h-5 text-brand-600" />
+            <span className="text-sm font-semibold text-brand-800">Visualizando clínica:</span>
           </div>
           <select
             value={selectedClinicId}
             onChange={e => setSelectedClinicId(e.target.value)}
-            className="flex-1 max-w-xs px-4 py-2 rounded-xl border border-blue-200 bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm font-medium"
+            className="flex-1 max-w-xs px-4 py-2 rounded-xl border border-brand-200 bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm font-medium"
           >
             {clinics.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <span className="text-xs text-blue-600">
+          <span className="text-xs text-brand-600">
             As integrações são isoladas por clínica
           </span>
         </div>
@@ -304,13 +304,13 @@ export function Integrations() {
         </div>
         
         {clinicPlan !== 'premium' && (
-          <div className="mb-4 bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-3 flex items-center gap-3">
-            <ArrowUpCircle className="w-5 h-5 text-cyan-600" />
+          <div className="mb-4 bg-gradient-to-r from-brand-50 to-brand-50 border border-brand-200 rounded-xl p-3 flex items-center gap-3">
+            <ArrowUpCircle className="w-5 h-5 text-brand-600" />
             <div>
-              <p className="text-sm font-medium text-cyan-800">
+              <p className="text-sm font-medium text-brand-800">
                 Plano {clinicPlan === 'basic' ? 'Básico' : clinicPlan === 'profissional' ? 'Profissional' : 'Premium'}
               </p>
-              <p className="text-xs text-cyan-600">
+              <p className="text-xs text-brand-600">
                 Todas as funcionalidades do WhatsApp estão disponíveis
               </p>
             </div>
@@ -506,7 +506,7 @@ export function Integrations() {
               ) : (
                 <button 
                   onClick={() => handleConnect(selectedIntegration)}
-                  className="w-full py-2.5 bg-cyan-600 text-white font-bold rounded-xl text-sm hover:bg-cyan-700 flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 flex items-center justify-center gap-2"
                 >
                   <Link2 className="w-4 h-4" /> Conectar
                 </button>
@@ -724,7 +724,7 @@ export function Integrations() {
                 <label className="text-xs font-bold text-slate-400 uppercase">Token de Acesso</label>
                 <input type="text" placeholder="Seu access token" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
               </div>
-              <button onClick={() => { setMetaPixelConnected(!metaPixelConnected); setSelectedIntegration(null); toast(metaPixelConnected ? 'Desconectado!' : 'Conectado ao Meta Pixel!'); }} className="w-full py-3 bg-blue-700 text-white font-bold rounded-xl hover:bg-blue-800">
+              <button onClick={() => { setMetaPixelConnected(!metaPixelConnected); setSelectedIntegration(null); toast(metaPixelConnected ? 'Desconectado!' : 'Conectado ao Meta Pixel!'); }} className="w-full py-3 bg-brand-700 text-white font-bold rounded-xl hover:bg-brand-800">
                 {metaPixelConnected ? 'Desconectar' : 'Conectar'}
               </button>
             </div>

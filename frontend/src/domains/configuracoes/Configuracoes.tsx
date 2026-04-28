@@ -1044,7 +1044,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             className={cn(
               "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap",
               activeSubTab === tab.id
-                ? "bg-cyan-50 text-cyan-600 shadow-sm"
+                ? "bg-brand-50 text-brand-600 shadow-sm"
                 : "text-slate-500 hover:text-slate-900",
             )}
           >
@@ -1096,7 +1096,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           <button
             onClick={handleSaveClinic}
             disabled={!canManageSettings}
-            className="px-6 py-2 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4 inline mr-2" />
             Salvar Alterações
@@ -1117,7 +1117,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               <button
                 onClick={() => setShowUserModal(true)}
                 disabled={!canManageTeam}
-                className="px-4 py-2 bg-cyan-600 text-white text-sm font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 + Novo Usuário
               </button>
@@ -1130,11 +1130,11 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   className={cn(
                     "flex items-center gap-4 p-4 rounded-2xl transition-all cursor-pointer",
                     selectedProfessional === prof.id
-                      ? "bg-cyan-50 border border-cyan-200"
+                      ? "bg-brand-50 border border-brand-200"
                       : "border border-transparent hover:bg-slate-50",
                   )}
                 >
-                  <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                  <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full flex items-center justify-center text-white font-bold">
                     {prof.name.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1176,7 +1176,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                           <button
                             onClick={handleSaveCommission}
                             disabled={!canManageCommissions}
-                            className="text-cyan-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="text-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
                           >
                             <Save className="w-3 h-3" />
                           </button>
@@ -1191,7 +1191,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                             });
                           }}
                           disabled={!canManageCommissions}
-                          className="text-sm font-bold text-cyan-600 hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="text-sm font-bold text-brand-600 hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {prof.commission_pct}%
                         </button>
@@ -1204,7 +1204,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                           handleEditUser(prof);
                         }}
                         disabled={!canManageTeam}
-                        className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
                         title="Editar"
                       >
                         <Edit2 className="w-4 h-4" />
@@ -1341,7 +1341,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               <button
                 onClick={handleCreateUser}
                 disabled={!canManageTeam}
-                className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Criar Usuário
               </button>
@@ -1449,7 +1449,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 <button
                   onClick={handleSaveEditUser}
                   disabled={!canManageTeam}
-                  className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   Salvar Alterações
                 </button>
@@ -1475,7 +1475,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             {selectedProfessional && profStats ? (
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
                 <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-cyan-500" />
+                  <BarChart3 className="w-5 h-5 text-brand-500" />
                   Estatísticas
                 </h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -1585,7 +1585,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 setShowServiceModal(true);
               }}
               disabled={!canManageSettings}
-              className="px-4 py-2 bg-cyan-600 text-white text-sm font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4 inline mr-2" />
               Novo Serviço
@@ -1629,7 +1629,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       {svc.professional_prices &&
                         Object.keys(svc.professional_prices || {}).length >
                           0 && (
-                          <p className="text-[10px] text-cyan-500 font-medium">
+                          <p className="text-[10px] text-brand-500 font-medium">
                             Preços por profissional configurados
                           </p>
                         )}
@@ -1649,7 +1649,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       <button
                         onClick={() => handleEditService(svc)}
                         disabled={!canManageSettings}
-                        className="p-2 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -1786,7 +1786,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     .filter((p) => p.role !== "receptionist")
                     .map((prof) => (
                       <div key={prof.id} className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                        <div className="w-8 h-8 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                           {prof.name.charAt(0)}
                         </div>
                         <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">
@@ -1805,7 +1805,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                             }
                             placeholder={svcForm.base_price || "0"}
                             disabled={!canManageSettings}
-                            className="w-24 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none text-right disabled:opacity-60 focus:border-cyan-400"
+                            className="w-24 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none text-right disabled:opacity-60 focus:border-brand-400"
                           />
                         </div>
                       </div>
@@ -1831,7 +1831,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       ])
                     }
                     disabled={!canManageSettings}
-                    className="text-xs text-cyan-600 font-bold hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="text-xs text-brand-600 font-bold hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     + Adicionar
                   </button>
@@ -1892,7 +1892,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 disabled={
                   !svcForm.name || !svcForm.base_price || !canManageSettings
                 }
-                className="w-full py-3 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-50 mt-4"
+                className="w-full py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 mt-4"
               >
                 Salvar Serviço
               </button>
@@ -2066,7 +2066,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 disabled={!canManageSettings}
                 className={cn(
                   "w-12 h-6 rounded-full transition-all relative",
-                  notificationPrefs[item.key] ? "bg-cyan-500" : "bg-slate-200",
+                  notificationPrefs[item.key] ? "bg-brand-500" : "bg-slate-200",
                   !canManageSettings && "opacity-60 cursor-not-allowed",
                 )}
               >
@@ -2089,7 +2089,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               }
             }}
             disabled={!canManageSettings}
-            className="px-6 py-2 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             Salvar Preferências
           </button>
@@ -2105,7 +2105,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
         >
           <div>
             <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-cyan-600" />
+              <CreditCard className="w-5 h-5 text-brand-600" />
               Plano e Assinatura
             </h2>
             <p className="text-sm text-slate-500 mt-1">
@@ -2115,7 +2115,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           </div>
 
           {/* Current Plan Card */}
-          <div className="bg-gradient-to-r from-cyan-500 to-blue-600 rounded-3xl p-6 text-white">
+          <div className="bg-gradient-to-r from-brand-500 to-brand-600 rounded-3xl p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-white/80">Plano Atual</p>
@@ -2206,17 +2206,17 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   className={cn(
                     "p-6 rounded-3xl border-2 transition-all relative",
                     isCurrent
-                      ? "bg-white border-cyan-500 shadow-lg shadow-cyan-100"
+                      ? "bg-white border-brand-500 shadow-lg shadow-brand-100"
                       : "bg-white border-slate-100 hover:border-slate-300",
                   )}
                 >
                   {plan.popular && !isCurrent && (
-                    <span className="absolute -top-2.5 right-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">
+                    <span className="absolute -top-2.5 right-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">
                       Popular
                     </span>
                   )}
                   {isCurrent && (
-                    <span className="absolute -top-2.5 right-4 bg-cyan-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">
+                    <span className="absolute -top-2.5 right-4 bg-brand-600 text-white text-xs font-bold px-3 py-0.5 rounded-full">
                       PLANO ATUAL
                     </span>
                   )}
@@ -2238,7 +2238,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                         key={f}
                         className="text-slate-600 flex items-center gap-2"
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
                         {f}
                       </li>
                     ))}
@@ -2303,10 +2303,10 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
                 return (
                   <div className="space-y-4">
-                    <div className="bg-cyan-50 p-4 rounded-2xl">
+                    <div className="bg-brand-50 p-4 rounded-2xl">
                       <p className="text-sm text-slate-700">
                         Upgrade para{" "}
-                        <strong className="text-cyan-600">
+                        <strong className="text-brand-600">
                           {upgradeModal.plan}
                         </strong>
                       </p>
@@ -2350,7 +2350,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       </button>
                       <button
                         onClick={() => handleUpgrade(planId)}
-                        className="flex-1 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 flex items-center justify-center gap-2"
+                        className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 flex items-center justify-center gap-2"
                       >
                         <CheckCircle2 className="w-4 h-4" /> Confirmar e Pagar
                       </button>
@@ -2431,7 +2431,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     }))
                   }
                   placeholder="$aact_YTU5YTE0M2M2MWM2..."
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-mono focus:border-cyan-400"
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-mono focus:border-brand-400"
                 />
               </div>
 
@@ -2450,7 +2450,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       }))
                     }
                     placeholder="xxxxxxxx-xxxx-xxxx-xxxx"
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-mono focus:border-cyan-400"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none font-mono focus:border-brand-400"
                   />
                 </div>
                 <div className="space-y-1">
@@ -2465,7 +2465,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                         environment: e.target.value as "sandbox" | "production",
                       }))
                     }
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-cyan-400"
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-400"
                   >
                     <option value="sandbox">Sandbox (Teste)</option>
                     <option value="production">Produção</option>
@@ -2487,7 +2487,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     }))
                   }
                   placeholder="https://suaapi.com/webhooks/asaas"
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-cyan-400"
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-400"
                 />
               </div>
             </div>
@@ -2500,7 +2500,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   "flex-1 py-3 font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2",
                   asaasTesting
                     ? "bg-slate-100 text-slate-400"
-                    : "bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:opacity-90 shadow-sm shadow-cyan-200",
+                    : "bg-gradient-to-r from-brand-600 to-brand-600 text-white hover:opacity-90 shadow-sm shadow-brand-200",
                 )}
               >
                 {asaasTesting ? (
@@ -2601,8 +2601,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           {/* Alterar Senha */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center">
-                <Shield className="w-5 h-5 text-cyan-600" />
+              <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center">
+                <Shield className="w-5 h-5 text-brand-600" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
@@ -2629,7 +2629,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     })
                   }
                   placeholder="••••••••"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                 />
               </div>
               <div></div>
@@ -2644,7 +2644,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     setPasswordForm({ ...passwordForm, new: e.target.value })
                   }
                   placeholder="••••••••"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                 />
               </div>
               <div className="space-y-1">
@@ -2661,7 +2661,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     })
                   }
                   placeholder="••••••••"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                 />
               </div>
             </div>
@@ -2692,7 +2692,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             <button
               onClick={handleChangePassword}
               disabled={passwordLoading}
-              className="px-6 py-2.5 bg-cyan-600 text-white font-bold rounded-xl hover:bg-cyan-700 transition-colors disabled:opacity-70 flex items-center gap-2"
+              className="px-6 py-2.5 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-70 flex items-center gap-2"
             >
               {passwordLoading && (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -2922,7 +2922,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                               navigator.clipboard.writeText(key.key);
                               toast("Chave copiada!");
                             }}
-                            className="p-1.5 text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"
+                            className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                             title="Copiar"
                           >
                             <Link2 className="w-4 h-4" />
@@ -3022,7 +3022,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                           case "UPDATE_PERMISSIONS":
                             return {
                               label: "Permissões",
-                              color: "bg-blue-50 text-blue-700",
+                              color: "bg-brand-50 text-brand-700",
                             };
                           default:
                             return {
@@ -3247,7 +3247,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           {/* Mercado Pago Config */}
           <div className="bg-white rounded-3xl border border-slate-100 p-6">
             <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
-              <CreditCard className="w-5 h-5 text-blue-600" />
+              <CreditCard className="w-5 h-5 text-brand-600" />
               Mercado Pago - Pagamentos
             </h3>
             <p className="text-sm text-slate-500 mb-4">
@@ -3268,7 +3268,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     })
                   }
                   placeholder="APP_USR-xxxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none font-mono text-sm"
                 />
               </div>
               <div>
@@ -3285,7 +3285,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     })
                   }
                   placeholder="APP_USR-xxxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none font-mono text-sm"
                 />
               </div>
               <div>
@@ -3302,11 +3302,11 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     })
                   }
                   placeholder="Webhook secret do Mercado Pago"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none font-mono text-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-brand-500/10 focus:border-brand-500 transition-all outline-none font-mono text-sm"
                 />
               </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                <p className="text-xs text-blue-700">
+              <div className="bg-brand-50 border border-brand-200 rounded-xl p-3">
+                <p className="text-xs text-brand-700">
                   <strong>Como obter:</strong> Acesse{" "}
                   <a
                     href="https://www.mercadopago.com.br/developers/panel/app"
@@ -3363,7 +3363,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       toast("Erro ao salvar: " + e.message, "error");
                     }
                   }}
-                  className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all"
+                  className="px-6 py-2.5 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-all"
                 >
                   Salvar Credenciais
                 </button>
