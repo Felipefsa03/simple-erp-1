@@ -1288,19 +1288,12 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
   }
 });
 
-      const jid = cleanPhone.length === 11 
-        ? `55${cleanPhone.slice(0, 2)}${cleanPhone.slice(3)}@s.whatsapp.net` 
-        : `${cleanPhone}@s.whatsapp.net`;
-        
-      whatsappSockets[waClinicId].sendMessage(jid, { text: waMessage }).catch(() => {});
-    }
+// Helper for UUID validation
+function isUuid(id) {
+  const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return regex.test(id);
+}
 
-    res.json({ ok: true, appointmentId: newAppoints[0].id });
-  } catch (error) {
-    console.error("[Public API] Booking error:", error);
-    res.status(500).json({ ok: false, error: "Erro ao processar agendamento", details: error.message });
-  }
-});
 
 // OAuth v2.3 - deploy 2026-04-06 - Google OAuth (obrigatório em produção)
 const GOOGLE_REDIRECT_URI_FALLBACK =
