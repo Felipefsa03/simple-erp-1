@@ -957,23 +957,23 @@ app.use(
         return callback(null, true);
       }
 
-      // Check exact match
-      if (ALLOWED_ORIGINS.includes(origin)) {
+      // Check exact match or wildcard patterns
+      const isAllowed = ALLOWED_ORIGINS.some(pattern => {
+        if (pattern === origin) return true;
+        if (pattern.includes("*")) {
+          const regex = new RegExp("^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$");
+          return regex.test(origin);
+        }
+        return false;
+      });
+
+      if (isAllowed) {
         return callback(null, true);
       }
 
-      // Check wildcard patterns (e.g., *.vercel.app)
-      for (const pattern of ALLOWED_ORIGINS) {
-        if (pattern.includes("*")) {
-          const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$");
-          if (regex.test(origin)) {
-            return callback(null, true);
-          }
-        }
-      }
-
       console.warn(`[CORS] Blocked request from: ${origin}`);
-      callback(new Error(`Origem não permitida: ${origin}`));
+      // Don't throw error, just block headers
+      callback(null, false); 
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -987,6 +987,7 @@ app.use(
     ],
   }),
 );
+
 
 // Handle preflight explicitly
 app.options(
