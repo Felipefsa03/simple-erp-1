@@ -412,7 +412,9 @@ export function MiniWhatsAppChat({
   // Scroll to bottom when messages change
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      }, 100);
     }
   }, [messages]);
 
@@ -442,7 +444,7 @@ export function MiniWhatsAppChat({
     <div className={cn(
       "fixed bg-white shadow-2xl rounded-2xl overflow-hidden flex flex-col transition-all duration-300",
       isFullscreen 
-        ? "top-4 bottom-4 right-4 left-4 md:left-[272px] z-[9999]" 
+        ? "top-4 bottom-4 right-4 left-4 md:left-72 z-[9999]" 
         : isMinimized 
           ? "bottom-4 right-4 w-80 h-14 z-50" 
           : "bottom-4 right-4 w-[420px] h-[600px] z-50"

@@ -260,7 +260,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
                     const name = matchedPatient ? matchedPatient.name : chat.pushName || formatPhoneDisplay(chat.phone);
                     
                     // Format message text snippet
-                    let snippet = chat.message || '';
+                    let snippet = chat.text || chat.message || '';
                     if (chat.media_type) {
                       snippet = `[${chat.media_type === 'image' ? '📷 Foto' : chat.media_type === 'audio' ? '🎵 Áudio' : chat.media_type === 'video' ? '🎥 Vídeo' : 'Mídia'}] ${snippet}`;
                     }

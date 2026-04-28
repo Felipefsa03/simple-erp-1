@@ -2946,7 +2946,8 @@ app.post("/api/whatsapp/send", async (req, res) => {
             const cleanPhone = msg.phone.replace(/\D/g, "");
             
             // Ignore group messages, broadcast lists or shortcodes
-            if (cleanPhone.length < 10 || cleanPhone.length > 15) continue;
+            // Valid Brazilian numbers are up to 13 digits (55 + 2 DDD + 9 digits). Anything longer is a group ID.
+            if (cleanPhone.length < 10 || cleanPhone.length > 13) continue;
             
             // To handle cases with or without the 9th digit for the same person
             let phoneKey = cleanPhone;
