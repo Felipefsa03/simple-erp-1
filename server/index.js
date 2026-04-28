@@ -2302,7 +2302,7 @@ const createWhatsAppSocket = async (clinicId) => {
       // Listen for incoming messages - captures ALL message types
       sock.ev.on("messages.upsert", async ({ messages: incomingMsgs, type }) => {
         try {
-          if (type !== "notify") return;
+          // Do not skip type !== 'notify' because offline messages may arrive as 'append'
           addLog(`[Baileys] messages.upsert (type: ${type}, count: ${incomingMsgs?.length})`);
 
           for (const msg of incomingMsgs) {
@@ -2582,12 +2582,14 @@ const disconnectWhatsAppSession = async (clinicId) => {
 
   if (whatsappSockets[clinicId]) {
     try {
+      whatsappSockets[clinicId].ev.removeAllListeners();
       whatsappSockets[clinicId].end(undefined);
     } catch (_e) {}
     delete whatsappSockets[clinicId];
   }
 
   delete whatsappConnections[clinicId];
+  delete whatsapp440Tracker[clinicId];
 
   try {
     await fetch(
@@ -2601,6 +2603,16 @@ const disconnectWhatsAppSession = async (clinicId) => {
       },
     );
   } catch (_e) {}
+
+  try {
+    const authDir = ensureClinicStatus(clinicId);
+    if (fs.existsSync(authDir)) {
+      await new Promise(r => setTimeout(r, 1000)); // wait for LevelDB to close
+      fs.rmSync(authDir, { recursive: true, force: true });
+    }
+  } catch (e) {
+    console.error(`[Baileys] Erro ao deletar authDir para ${clinicId}:`, e.message);
+  }
 };
 
 // Disconnect endpoint
