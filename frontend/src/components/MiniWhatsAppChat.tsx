@@ -18,6 +18,7 @@ const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://cli
 interface MiniWhatsAppChatProps {
   isOpen: boolean;
   onClose: () => void;
+  onBack?: () => void;
   clinicId: string;
   patientPhone: string;
   patientName: string;
@@ -222,6 +223,7 @@ const formatPhoneForWhatsApp = (phone: string): string => {
 export function MiniWhatsAppChat({
   isOpen,
   onClose,
+  onBack,
   clinicId,
   patientPhone,
   patientName,
@@ -441,6 +443,15 @@ export function MiniWhatsAppChat({
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="p-1.5 hover:bg-white/20 rounded-lg transition-colors -ml-2"
+              title="Voltar para lista"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+          )}
           <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
             <MessageSquare className="w-6 h-6" />
           </div>
