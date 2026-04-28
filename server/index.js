@@ -98,6 +98,12 @@ const REQUIRED_ENVS = [
 const missingEnvs = REQUIRED_ENVS.filter(([, value]) => !value).map(
   ([name]) => name,
 );
+
+const getSupabaseAdminHeaders = () => ({
+  'apikey': SUPABASE_SERVICE_ROLE_KEY,
+  'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+  'Content-Type': 'application/json'
+});
 if (missingEnvs.length > 0 && process.env.NODE_ENV !== "development") {
   for (const key of missingEnvs) {
     console.error(`[FATAL] Variável de ambiente ausente: ${key}`);
@@ -1112,12 +1118,23 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
     const headers = getSupabaseAdminHeaders();
     
     // Fetch Clinic info
-    const clinicRes = await fetch(`${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=name`, { headers });
+    const clinicUrl = `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=name`;
+    console.log("[Public API] Fetching clinic from:", clinicUrl);
+    
+    const clinicRes = await fetch(clinicUrl, { headers });
     const clinics = await clinicRes.json();
     
     if (!Array.isArray(clinics) || clinics.length === 0) {
-      console.error("[Public API] Clinic not found or error:", clinics);
-      return res.status(404).json({ ok: false, error: "Clínica não encontrada" });
+      console.error("[Public API] Clinic not found. Response:", clinics, "Status:", clinicRes.status);
+      return res.status(404).json({ 
+        ok: false, 
+        error: "Clínica não encontrada no banco de dados do servidor",
+        debug: {
+          status: clinicRes.status,
+          received: clinics,
+          id: clinicId
+        }
+      });
     }
 
     // Fetch active services

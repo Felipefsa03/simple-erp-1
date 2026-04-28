@@ -50,7 +50,11 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
           setServices(Array.isArray(data.services) ? data.services : []);
           setProfessionals(Array.isArray(data.professionals) ? data.professionals : []);
         } else {
-          toast(data.error || 'Informações indisponíveis', 'error');
+          console.warn("[Booking] Clinic not found:", data);
+          if (data.debug) {
+            console.error("[Booking] Server Debug Info:", data.debug);
+          }
+          toast(data.error || 'Clínica não encontrada ou link inválido', 'error');
         }
       } catch (e) {
         console.error("[Booking] Error loading info:", e);
