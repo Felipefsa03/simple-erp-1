@@ -1197,71 +1197,81 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
   }
 
   try {
-    // 1. Find or create patient (Simplified)
+    // 1. Find or create patient (Direct Fetch with Service Key to bypass 42501)
     let patientId;
     const cleanPhone = phone.replace(/\D/g, "");
-    console.log(`[Public Booking] Processing patient: ${email} / ${cleanPhone}`);
+    const masterKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
     
-    const { data: existingPatients, error: searchError } = await supabaseAdmin
-      .from('patients')
-      .select('id')
-      .eq('clinic_id', clinicId)
-      .or(`email.eq."${email.toLowerCase()}",phone.eq."${cleanPhone}"`)
-      .limit(1);
-
-    if (searchError) {
-      console.error("[Public Booking] Search Error:", searchError);
-      throw new Error(`Busca de paciente falhou: ${searchError.message}`);
-    }
+    console.log(`[Public Booking] Searching patient via Direct API...`);
+    const searchUrl = `${SUPABASE_URL}/rest/v1/patients?clinic_id=eq.${clinicId}&or=(email.eq.${email.toLowerCase()},phone.eq.${cleanPhone})&select=id`;
+    
+    const searchRes = await fetch(searchUrl, {
+      headers: { 'apikey': masterKey, 'Authorization': `Bearer ${masterKey}` }
+    });
+    
+    const existingPatients = await searchRes.json();
 
     if (existingPatients && existingPatients.length > 0) {
       patientId = existingPatients[0].id;
-      console.log(`[Public Booking] Existing patient ID: ${patientId}`);
+      console.log(`[Public Booking] Found: ${patientId}`);
     } else {
-      console.log(`[Public Booking] Creating new patient...`);
-      const { data: newPatients, error: createError } = await supabaseAdmin
-        .from('patients')
-        .insert([{
+      console.log(`[Public Booking] Creating patient via Direct API...`);
+      const createRes = await fetch(`${SUPABASE_URL}/rest/v1/patients`, {
+        method: 'POST',
+        headers: { 
+          'apikey': masterKey, 
+          'Authorization': `Bearer ${masterKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify({
           clinic_id: clinicId,
           name,
           phone: cleanPhone,
           email: email.toLowerCase()
-        }])
-        .select();
+        })
+      });
       
-      if (createError || !newPatients || newPatients.length === 0) {
-        console.error("[Public Booking] Creation Error:", createError);
-        throw new Error(`Criação de paciente falhou: ${createError?.message || 'Sem dados retornados'}`);
+      const newPatients = await createRes.json();
+      if (!newPatients || !newPatients[0]) {
+        throw new Error(`Erro ao criar paciente: ${JSON.stringify(newPatients)}`);
       }
       patientId = newPatients[0].id;
-      console.log(`[Public Booking] New patient ID: ${patientId}`);
+      console.log(`[Public Booking] Created: ${patientId}`);
     }
 
-    // 2. Create appointment
+    // 2. Create appointment (Direct API)
     const scheduled = `${date}T${time}:00`;
-    console.log(`[Public Booking] Creating appointment for ${scheduled}`);
+    console.log(`[Public Booking] Saving appointment via Direct API...`);
     
-    const { data: newAppoints, error: appointError } = await supabaseAdmin
-      .from('appointments')
-      .insert([{
+    const appointRes = await fetch(`${SUPABASE_URL}/rest/v1/appointments`, {
+      method: 'POST',
+      headers: { 
+        'apikey': masterKey, 
+        'Authorization': `Bearer ${masterKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify({
         clinic_id: clinicId,
         patient_id: patientId,
         professional_id: professional_id || null,
         service_id: service_id || null,
         scheduled: scheduled,
         notes: notes || "Agendamento Online"
-      }])
-      .select();
+      })
+    });
 
-    if (appointError) {
-      console.error("[Public Booking] Appointment Error:", appointError);
+    const newAppoints = await appointRes.json();
+    if (!newAppoints || !newAppoints[0]) {
+      console.error("[Public Booking] Save Error:", newAppoints);
       return res.status(400).json({ 
         ok: false, 
-        error: "Erro ao salvar na tabela appointments", 
-        message: appointError.message,
-        details: appointError
+        error: "Erro ao salvar agendamento", 
+        details: newAppoints
       });
     }
+
 
     // 3. WhatsApp Notification (Safe Fetch)
     const waUrl = process.env.WHATSAPP_API_URL;
