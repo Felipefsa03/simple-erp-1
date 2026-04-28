@@ -1133,8 +1133,8 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
     });
     const services = (await servicesRes.json()) || [];
 
-    // 3. Fetch professionals
-    const profsUrl = `${SUPABASE_URL}/rest/v1/professionals?clinic_id=eq.${clinicId}&active=eq.true&select=id,name`;
+    // 3. Fetch professionals with names from users table
+    const profsUrl = `${SUPABASE_URL}/rest/v1/professionals?clinic_id=eq.${clinicId}&active=eq.true&select=id,user:user_id(name)`;
     const profsRes = await fetch(profsUrl, {
       headers: {
         'apikey': SUPABASE_ANON_KEY,
@@ -1142,10 +1142,12 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
       }
     });
     const professionalsRaw = (await profsRes.json()) || [];
+    
     const professionals = professionalsRaw.map(p => ({
       id: p.id,
-      name: p.name || "Profissional"
+      name: p.user?.name || "Profissional"
     }));
+
 
     res.json({
       ok: true,
