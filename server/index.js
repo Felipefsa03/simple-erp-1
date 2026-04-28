@@ -1294,14 +1294,12 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
   }
 });
 
-// Helper for UUID validation
-function isUuid(id) {
-  const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return regex.test(id);
-}
 
+// Helper for UUID validation
+// (Note: Using the existing definition found elsewhere in the file)
 
 // OAuth v2.3 - deploy 2026-04-06 - Google OAuth (obrigatório em produção)
+
 const GOOGLE_REDIRECT_URI_FALLBACK =
   "https://clinxia-backend.onrender.com/api/auth/google/callback";
 
