@@ -238,6 +238,7 @@ export function MiniWhatsAppChat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   const [showIframe, setShowIframe] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -571,14 +572,17 @@ export function MiniWhatsAppChat({
                         <AudioPlayer src={msg.media_url} fromMe={msg.fromMe} />
                       )}
                       {msg.media_url && msg.media_type === 'image' && (
-                        <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
+                        <div 
+                          onClick={() => setFullscreenImage(msg.media_url!)}
+                          className="cursor-pointer"
+                        >
                           <img
                             src={msg.media_url}
                             alt="Imagem"
-                            className="rounded-lg max-w-[240px] max-h-[200px] object-cover mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+                            className="rounded-lg max-w-[240px] max-h-[200px] object-cover mb-1 hover:opacity-90 transition-opacity"
                             loading="lazy"
                           />
-                        </a>
+                        </div>
                       )}
                       {msg.media_url && msg.media_type === 'video' && (
                         <video
@@ -664,6 +668,30 @@ export function MiniWhatsAppChat({
             )}
           </div>
         </>
+      )}
+
+      {/* Image Fullscreen Modal */}
+      {fullscreenImage && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <button 
+            className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFullscreenImage(null);
+            }}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img 
+            src={fullscreenImage} 
+            alt="Imagem Ampliada" 
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-md"
+            onClick={(e) => e.stopPropagation()} // Prevent click from closing when clicking exactly on the image
+          />
+        </div>
       )}
     </div>
   );
