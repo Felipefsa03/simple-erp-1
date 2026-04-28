@@ -99,11 +99,6 @@ const missingEnvs = REQUIRED_ENVS.filter(([, value]) => !value).map(
   ([name]) => name,
 );
 
-const getSupabaseAdminHeaders = () => ({
-  'apikey': SUPABASE_SERVICE_ROLE_KEY,
-  'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-  'Content-Type': 'application/json'
-});
 if (missingEnvs.length > 0 && process.env.NODE_ENV !== "development") {
   for (const key of missingEnvs) {
     console.error(`[FATAL] Variável de ambiente ausente: ${key}`);
@@ -1212,9 +1207,10 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
     const services = await serviceRes.json();
     const service = services[0] || { name: "Consulta", avg_duration_min: 60, base_price: 0 };
 
-    const profRes = await fetch(`${SUPABASE_URL}/rest/v1/professionals?id=eq.${professional_id}&select=name`, { headers });
+    const profRes = await fetch(`${SUPABASE_URL}/rest/v1/professionals?id=eq.${professional_id}&select=id,user:user_id(name)`, { headers });
     const profs = await profRes.json();
-    const professional = profs[0] || { name: "Profissional" };
+    const professional = Array.isArray(profs) && profs[0] ? { name: profs[0].user?.name || "Profissional" } : { name: "Profissional" };
+
 
     // 3. Create appointment
     const scheduledAt = `${date}T${time}:00`;
