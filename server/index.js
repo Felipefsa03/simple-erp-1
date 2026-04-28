@@ -102,12 +102,21 @@ const missingEnvs = REQUIRED_ENVS.filter(([, value]) => !value).map(
 );
 
 // Initialize Supabase Admin Client
+console.log("[Supabase] Initializing backend client...");
+console.log("[Supabase] URL:", SUPABASE_URL ? `${SUPABASE_URL.substring(0, 15)}...` : "MISSING");
+console.log("[Supabase] Service Role Key:", SUPABASE_SERVICE_ROLE_KEY ? "CONFIGURED" : "MISSING");
+console.log("[Supabase] Anon Key:", SUPABASE_ANON_KEY ? "CONFIGURED" : "MISSING");
+
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
+  },
+  db: {
+    schema: 'public'
   }
 });
+
 
 
 if (missingEnvs.length > 0 && process.env.NODE_ENV !== "development") {

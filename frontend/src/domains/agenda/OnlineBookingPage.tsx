@@ -38,10 +38,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
         
         if (!res.ok) {
            const errorData = await res.json().catch(() => ({}));
-           console.error("[Booking] Error response:", res.status, errorData);
-           toast(errorData.error || 'Clínica não encontrada', 'error');
-           setLoading(false);
-           return;
+           throw new Error(errorData.error || `Erro ${res.status}: ${JSON.stringify(errorData.debug || errorData)}`);
         }
 
         const data = await res.json();
