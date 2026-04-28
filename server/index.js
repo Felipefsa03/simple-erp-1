@@ -1138,24 +1138,26 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
     }
 
     // Fetch active services
-    const servicesRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/services?clinic_id=eq.${clinicId}&active=eq.true&select=id,name,avg_duration_min,base_price`,
-      { headers }
-    );
-    const services = await servicesRes.json();
-
-    // Fetch professionals (excluding receptionists)
-    const profsRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/professionals?clinic_id=eq.${clinicId}&role=neq.receptionist&select=id,name`,
-      { headers }
-    );
-    const professionals = await profsRes.json();
+    const servicesRes = await fetch(`${SUPABASE_URL}/rest/v1/services?clinic_id=eq.${clinicId}&active=eq.true`, { headers });
+    let services = await servicesRes.json();
+    if (!Array.isArray(services)) services = [];
+    
+    // Fetch professionals (joining with users to get the name)
+    const profRes = await fetch(`${SUPABASE_URL}/rest/v1/professionals?clinic_id=eq.${clinicId}&select=id,user:user_id(name)`, { headers });
+    let professionalsRaw = await profRes.json();
+    
+    const professionals = Array.isArray(professionalsRaw) 
+      ? professionalsRaw.map(p => ({
+          id: p.id,
+          name: p.user?.name || "Profissional"
+        }))
+      : [];
 
     res.json({
       ok: true,
       clinic: clinics[0],
-      services: Array.isArray(services) ? services : [],
-      professionals: Array.isArray(professionals) ? professionals : [],
+      services,
+      professionals,
     });
   } catch (error) {
     console.error("[Public API] Error fetching booking info:", error.message);
