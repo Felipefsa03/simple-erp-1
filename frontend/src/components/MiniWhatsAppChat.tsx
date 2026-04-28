@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X, Minimize2, Maximize2, MessageSquare, Send, Loader2,
-  CheckCheck
+  CheckCheck, Play, Pause, Mic
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
@@ -49,6 +49,117 @@ const formatPhoneDisplay = (phone: string): string => {
   }
   return phone;
 };
+
+// WhatsApp-style Audio Player Component
+function AudioPlayer({ src, fromMe }: { src: string; fromMe: boolean }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const formatTime = (seconds: number) => {
+    if (!seconds || !isFinite(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+    } else {
+      audio.play().catch(() => {});
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const newTime = parseFloat(e.target.value);
+    audio.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const onLoadedMetadata = () => setDuration(audio.duration);
+    const onEnded = () => { setIsPlaying(false); setCurrentTime(0); };
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('ended', onEnded);
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, []);
+
+  // Generate static waveform-like bars
+  const bars = [3,5,8,4,7,10,6,9,5,8,11,4,7,6,9,5,8,3,6,10,7,4,8,5,9,6,3,7,10,5];
+  const progress = duration > 0 ? currentTime / duration : 0;
+
+  return (
+    <div className="flex items-center gap-2 min-w-[220px] max-w-[280px] py-1">
+      <audio ref={audioRef} src={src} preload="metadata" />
+      
+      {/* Play/Pause Button */}
+      <button
+        onClick={togglePlay}
+        className={cn(
+          "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors",
+          fromMe
+            ? "bg-white/20 hover:bg-white/30 text-white"
+            : "bg-emerald-500 hover:bg-emerald-600 text-white"
+        )}
+      >
+        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+      </button>
+
+      {/* Waveform + Progress */}
+      <div className="flex-1 flex flex-col gap-1">
+        <div className="flex items-end gap-[2px] h-[18px] relative cursor-pointer"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const pct = x / rect.width;
+            if (audioRef.current && duration > 0) {
+              audioRef.current.currentTime = pct * duration;
+              setCurrentTime(pct * duration);
+            }
+          }}
+        >
+          {bars.map((h, i) => {
+            const barProgress = i / bars.length;
+            const isActive = barProgress <= progress;
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "w-[3px] rounded-full transition-colors duration-150",
+                  isActive
+                    ? (fromMe ? "bg-white/90" : "bg-emerald-500")
+                    : (fromMe ? "bg-white/30" : "bg-slate-300")
+                )}
+                style={{ height: `${h + 2}px` }}
+              />
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className={cn("text-[10px]", fromMe ? "text-green-100" : "text-slate-400")}>
+            {formatTime(isPlaying ? currentTime : duration)}
+          </span>
+          <Mic className={cn("w-3 h-3", fromMe ? "text-green-100" : "text-emerald-400")} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Formatar telefone para WhatsApp (13 dígitos com 55 + DDD + 9 + Numero)
 const formatPhoneForWhatsApp = (phone: string): string => {
@@ -457,16 +568,7 @@ export function MiniWhatsAppChat({
                     >
                       {/* Media rendering */}
                       {msg.media_url && msg.media_type === 'audio' && (
-                        <audio
-                          controls
-                          preload="metadata"
-                          className="w-full max-w-[240px] mb-1"
-                          style={{ height: '40px' }}
-                        >
-                          <source src={msg.media_url} type="audio/ogg" />
-                          <source src={msg.media_url} type="audio/mpeg" />
-                          Seu navegador não suporta áudio.
-                        </audio>
+                        <AudioPlayer src={msg.media_url} fromMe={msg.fromMe} />
                       )}
                       {msg.media_url && msg.media_type === 'image' && (
                         <a href={msg.media_url} target="_blank" rel="noopener noreferrer">

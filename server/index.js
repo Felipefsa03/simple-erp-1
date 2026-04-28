@@ -2422,49 +2422,63 @@ const createWhatsAppSocket = async (clinicId) => {
               });
 
               if (buffer && buffer.length > 0) {
-                // Determine file extension and mime type
-                const extMap = { audio: 'ogg', image: 'jpg', video: 'mp4', sticker: 'webp', document: 'bin' };
-                const mimeMap = { audio: 'audio/ogg', image: 'image/jpeg', video: 'video/mp4', sticker: 'image/webp', document: 'application/octet-stream' };
-                const ext = extMap[mediaType] || 'bin';
-                const mime = mimeMap[mediaType] || 'application/octet-stream';
-                const fileName = `${clinicId}/${cleanPhone}/${msg.key.id}.${ext}`;
+                // Limites de tamanho para proteger o plano gratuito do Supabase (1GB)
+                const sizeLimits = { audio: 2 * 1024 * 1024, image: 3 * 1024 * 1024, video: 5 * 1024 * 1024, sticker: 500 * 1024, document: 3 * 1024 * 1024 };
+                const maxSize = sizeLimits[mediaType] || 3 * 1024 * 1024;
+                const fileSizeKB = Math.round(buffer.length / 1024);
 
-                const uploadKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-
-                // Ensure bucket exists (create if needed, ignore error if already exists)
-                try {
-                  await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      apikey: uploadKey,
-                      Authorization: `Bearer ${uploadKey}`,
-                    },
-                    body: JSON.stringify({ id: 'whatsapp-media', name: 'whatsapp-media', public: true }),
-                  });
-                } catch (_) { /* bucket may already exist */ }
-
-                // Upload to Supabase Storage
-                const uploadRes = await fetch(
-                  `${SUPABASE_URL}/storage/v1/object/whatsapp-media/${fileName}`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': mime,
-                      apikey: uploadKey,
-                      Authorization: `Bearer ${uploadKey}`,
-                      'x-upsert': 'true',
-                    },
-                    body: buffer,
-                  }
-                );
-
-                if (uploadRes.ok) {
-                  mediaUrl = `${SUPABASE_URL}/storage/v1/object/public/whatsapp-media/${fileName}`;
-                  addLog(`[Baileys] Mídia ${mediaType} enviada ao Storage: ${mediaUrl.substring(0, 80)}...`);
+                if (buffer.length > maxSize) {
+                  addLog(`[Baileys] ⚠️ Mídia ${mediaType} muito grande (${fileSizeKB}KB > ${Math.round(maxSize/1024)}KB). Salvando apenas texto.`);
                 } else {
-                  const errText = await uploadRes.text().catch(() => '');
-                  addLog(`[Baileys] Falha no upload de mídia (${uploadRes.status}): ${errText.substring(0, 200)}`);
+                  addLog(`[Baileys] Mídia ${mediaType}: ${fileSizeKB}KB (limite: ${Math.round(maxSize/1024)}KB)`);
+
+                  // Determine file extension and mime type
+                  const extMap = { audio: 'ogg', image: 'jpg', video: 'mp4', sticker: 'webp', document: 'bin' };
+                  const mimeMap = { audio: 'audio/ogg', image: 'image/jpeg', video: 'video/mp4', sticker: 'image/webp', document: 'application/octet-stream' };
+                  const ext = extMap[mediaType] || 'bin';
+                  const mime = mimeMap[mediaType] || 'application/octet-stream';
+                  const fileName = `${clinicId}/${cleanPhone}/${msg.key.id}.${ext}`;
+
+                  const uploadKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+
+                  // Ensure bucket exists only once per server lifetime
+                  if (!global.whatsappBucketCreated) {
+                    try {
+                      await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          apikey: uploadKey,
+                          Authorization: `Bearer ${uploadKey}`,
+                        },
+                        body: JSON.stringify({ id: 'whatsapp-media', name: 'whatsapp-media', public: true }),
+                      });
+                      global.whatsappBucketCreated = true;
+                    } catch (_) { global.whatsappBucketCreated = true; }
+                  }
+
+                  // Upload to Supabase Storage
+                  const uploadRes = await fetch(
+                    `${SUPABASE_URL}/storage/v1/object/whatsapp-media/${fileName}`,
+                    {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': mime,
+                        apikey: uploadKey,
+                        Authorization: `Bearer ${uploadKey}`,
+                        'x-upsert': 'true',
+                      },
+                      body: buffer,
+                    }
+                  );
+
+                  if (uploadRes.ok) {
+                    mediaUrl = `${SUPABASE_URL}/storage/v1/object/public/whatsapp-media/${fileName}`;
+                    addLog(`[Baileys] Mídia ${mediaType} enviada ao Storage (${fileSizeKB}KB)`);
+                  } else {
+                    const errText = await uploadRes.text().catch(() => '');
+                    addLog(`[Baileys] Falha no upload de mídia (${uploadRes.status}): ${errText.substring(0, 200)}`);
+                  }
                 }
               }
             } catch (mediaErr) {
