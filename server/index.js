@@ -87,9 +87,8 @@ const SUPABASE_SERVICE_ROLE_KEY_RAW = pickEnv(
   process.env.SUPABASE_SECRET_KEY,
   process.env.SUPABASE_SERVICE_ROLE_KEY_PROD,
 );
-const SUPABASE_SERVICE_ROLE_KEY = isValidSupabaseKey(SUPABASE_SERVICE_ROLE_KEY_RAW)
-  ? SUPABASE_SERVICE_ROLE_KEY_RAW
-  : "";
+const SUPABASE_SERVICE_ROLE_KEY = cleanEnv(SUPABASE_SERVICE_ROLE_KEY_RAW);
+
 
 // ============================================
 // Startup: validate required environment variables
@@ -105,8 +104,12 @@ const missingEnvs = REQUIRED_ENVS.filter(([, value]) => !value).map(
 // Initialize Supabase Admin Client
 console.log("[Supabase] Initializing backend client...");
 console.log("[Supabase] URL:", SUPABASE_URL ? `${SUPABASE_URL.substring(0, 15)}...` : "MISSING");
-console.log("[Supabase] Service Role Key:", SUPABASE_SERVICE_ROLE_KEY ? "CONFIGURED" : "MISSING");
-console.log("[Supabase] Anon Key:", SUPABASE_ANON_KEY ? "CONFIGURED" : "MISSING");
+console.log("[Supabase] Service Role Key (First 5):", SUPABASE_SERVICE_ROLE_KEY ? `${SUPABASE_SERVICE_ROLE_KEY.substring(0, 5)}...` : "MISSING");
+console.log("[Supabase] Anon Key (First 5):", SUPABASE_ANON_KEY ? `${SUPABASE_ANON_KEY.substring(0, 5)}...` : "MISSING");
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn("[Supabase] WARNING: SUPABASE_SERVICE_ROLE_KEY is missing. Administrative operations WILL FAIL.");
+}
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
   auth: {
