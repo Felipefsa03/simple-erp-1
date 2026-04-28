@@ -79,7 +79,7 @@ export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-00000000
       const data = await res.json();
       if (data.ok) {
         setSubmitted(true);
-        toast('Solicitação enviada com sucesso! Aguarde nossa confirmação.', 'success');
+        toast('Agendamento realizado com sucesso! Você receberá uma confirmação em breve.', 'success');
       } else {
         // Here we handle the availability error returned by the backend
         toast(data.error || 'Erro ao processar agendamento', 'error');
