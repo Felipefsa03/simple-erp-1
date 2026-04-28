@@ -70,11 +70,10 @@ function PasswordResetFlowWrapper() {
 
 function OnlineBookingPageWrapper() {
   const { clinicId } = useParams();
-  const navigate = useNavigate();
   
   return (
     <ToastProvider>
-      <OnlineBookingPage clinicId={clinicId} onBack={() => navigate('/')} />
+      <OnlineBookingPage clinicId={clinicId} />
     </ToastProvider>
   );
 }

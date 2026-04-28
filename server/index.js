@@ -1114,7 +1114,9 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
     // Fetch Clinic info
     const clinicRes = await fetch(`${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=name`, { headers });
     const clinics = await clinicRes.json();
-    if (!clinics || clinics.length === 0) {
+    
+    if (!Array.isArray(clinics) || clinics.length === 0) {
+      console.error("[Public API] Clinic not found or error:", clinics);
       return res.status(404).json({ ok: false, error: "Clínica não encontrada" });
     }
 
