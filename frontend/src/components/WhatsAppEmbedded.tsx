@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
-import { X, Minimize2, Maximize2, MessageSquare, Search, Users } from 'lucide-react';
+import { X, Minimize2, Maximize2, MessageSquare, Search, Users, Check, CheckCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 import { MiniWhatsAppChat } from './MiniWhatsAppChat';
@@ -270,7 +270,14 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
                               {format(new Date(chat.timestamp), 'HH:mm')}
                             </p>
                           </div>
-                          <p className="text-xs text-slate-500 truncate">{snippet}</p>
+                          <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                            {chat.from_me && (
+                              <span className={chat.status === 'read' ? 'text-blue-500' : 'text-slate-400'}>
+                                {chat.status === 'read' || chat.status === 'delivered' ? <CheckCheck className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+                              </span>
+                            )}
+                            <span className="truncate">{snippet}</span>
+                          </p>
                         </div>
                       </button>
                     );
