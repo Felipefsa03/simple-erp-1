@@ -13,6 +13,7 @@ import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
+  downloadMediaMessage,
   BufferJSON,
 } from "baileys";
 
@@ -2374,13 +2375,105 @@ const createWhatsAppSocket = async (clinicId) => {
                 addLog(`[Baileys] Mapeado @lid para número real: ${cleanPhone}`);
              } else {
                 addLog(`[Baileys] ALERTA: @lid recebido sem número real associado! (${from})`);
-                // For now, we'll still save it with the @lid as the phone to not lose data
                 cleanPhone = from.replace("@lid", "");
              }
           }
 
+          // ====== MEDIA DOWNLOAD & UPLOAD ======
+          let mediaUrl = null;
+          let mediaType = null;
+
+          // Detect media type from message
+          const msgContent = msg.message;
+          if (msgContent) {
+            if (msgContent.audioMessage) mediaType = 'audio';
+            else if (msgContent.imageMessage) mediaType = 'image';
+            else if (msgContent.videoMessage) mediaType = 'video';
+            else if (msgContent.ptvMessage) mediaType = 'video';
+            else if (msgContent.stickerMessage) mediaType = 'sticker';
+            else if (msgContent.documentMessage) mediaType = 'document';
+            // Check inside viewOnce/ephemeral wrappers
+            else if (msgContent.viewOnceMessage?.message) {
+              const inner = msgContent.viewOnceMessage.message;
+              if (inner.audioMessage) mediaType = 'audio';
+              else if (inner.imageMessage) mediaType = 'image';
+              else if (inner.videoMessage) mediaType = 'video';
+            }
+            else if (msgContent.viewOnceMessageV2?.message) {
+              const inner = msgContent.viewOnceMessageV2.message;
+              if (inner.audioMessage) mediaType = 'audio';
+              else if (inner.imageMessage) mediaType = 'image';
+              else if (inner.videoMessage) mediaType = 'video';
+            }
+            else if (msgContent.ephemeralMessage?.message) {
+              const inner = msgContent.ephemeralMessage.message;
+              if (inner.audioMessage) mediaType = 'audio';
+              else if (inner.imageMessage) mediaType = 'image';
+              else if (inner.videoMessage) mediaType = 'video';
+            }
+          }
+
+          if (mediaType && SUPABASE_URL) {
+            try {
+              addLog(`[Baileys] Baixando mídia ${mediaType} de ${cleanPhone}...`);
+              const buffer = await downloadMediaMessage(msg, 'buffer', {}, {
+                logger,
+                reuploadRequest: sock.updateMediaMessage,
+              });
+
+              if (buffer && buffer.length > 0) {
+                // Determine file extension and mime type
+                const extMap = { audio: 'ogg', image: 'jpg', video: 'mp4', sticker: 'webp', document: 'bin' };
+                const mimeMap = { audio: 'audio/ogg', image: 'image/jpeg', video: 'video/mp4', sticker: 'image/webp', document: 'application/octet-stream' };
+                const ext = extMap[mediaType] || 'bin';
+                const mime = mimeMap[mediaType] || 'application/octet-stream';
+                const fileName = `${clinicId}/${cleanPhone}/${msg.key.id}.${ext}`;
+
+                const uploadKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+
+                // Ensure bucket exists (create if needed, ignore error if already exists)
+                try {
+                  await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      apikey: uploadKey,
+                      Authorization: `Bearer ${uploadKey}`,
+                    },
+                    body: JSON.stringify({ id: 'whatsapp-media', name: 'whatsapp-media', public: true }),
+                  });
+                } catch (_) { /* bucket may already exist */ }
+
+                // Upload to Supabase Storage
+                const uploadRes = await fetch(
+                  `${SUPABASE_URL}/storage/v1/object/whatsapp-media/${fileName}`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': mime,
+                      apikey: uploadKey,
+                      Authorization: `Bearer ${uploadKey}`,
+                      'x-upsert': 'true',
+                    },
+                    body: buffer,
+                  }
+                );
+
+                if (uploadRes.ok) {
+                  mediaUrl = `${SUPABASE_URL}/storage/v1/object/public/whatsapp-media/${fileName}`;
+                  addLog(`[Baileys] Mídia ${mediaType} enviada ao Storage: ${mediaUrl.substring(0, 80)}...`);
+                } else {
+                  const errText = await uploadRes.text().catch(() => '');
+                  addLog(`[Baileys] Falha no upload de mídia (${uploadRes.status}): ${errText.substring(0, 200)}`);
+                }
+              }
+            } catch (mediaErr) {
+              addLog(`[Baileys] Erro ao baixar/enviar mídia: ${mediaErr.message}`);
+            }
+          }
+
           addLog(
-            `[Baileys] Mensagem recebida de ${cleanPhone}: ${text.substring(0, 50)}...`,
+            `[Baileys] Mensagem recebida de ${cleanPhone}: ${text.substring(0, 50)}...${mediaType ? ` [${mediaType}]` : ''}`,
           );
 
           const msgData = {
@@ -2390,6 +2483,8 @@ const createWhatsAppSocket = async (clinicId) => {
             text: text,
             fromMe: false,
             timestamp: (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
+            media_url: mediaUrl,
+            media_type: mediaType,
           };
 
           // Store in memory
@@ -2405,6 +2500,20 @@ const createWhatsAppSocket = async (clinicId) => {
           const persistKey = SUPABASE_ANON_KEY;
           if (SUPABASE_URL && persistKey) {
             try {
+              const persistBody = {
+                clinic_id: clinicId,
+                phone: cleanPhone,
+                message_id: msg.key.id,
+                text: text,
+                from_me: false,
+                timestamp: new Date(
+                  (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
+                ).toISOString(),
+              };
+              // Only add media fields if they exist (avoids errors if columns don't exist yet)
+              if (mediaUrl) persistBody.media_url = mediaUrl;
+              if (mediaType) persistBody.media_type = mediaType;
+
               const persistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
                 method: "POST",
                 headers: {
@@ -2413,16 +2522,7 @@ const createWhatsAppSocket = async (clinicId) => {
                   Authorization: `Bearer ${persistKey}`,
                   Prefer: "resolution=merge-duplicates",
                 },
-                body: JSON.stringify({
-                  clinic_id: clinicId,
-                  phone: cleanPhone,
-                  message_id: msg.key.id,
-                  text: text,
-                  from_me: false,
-                  timestamp: new Date(
-                    (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
-                  ).toISOString(),
-                }),
+                body: JSON.stringify(persistBody),
               });
               if (!persistRes.ok) {
                 const errBody = await persistRes.text().catch(() => "");
@@ -2824,6 +2924,8 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
             text: m.text,
             fromMe: m.from_me,
             timestamp: new Date(m.timestamp).getTime(),
+            media_url: m.media_url || null,
+            media_type: m.media_type || null,
           }));
           addLog(`[API] ${supaData.length} mensagens carregadas do Supabase para ${cleanPhone}`);
         } else {

@@ -33,6 +33,8 @@ interface Message {
   text: string;
   fromMe: boolean;
   timestamp: Date;
+  media_url?: string | null;
+  media_type?: string | null;
 }
 
 // Format phone for display
@@ -256,7 +258,9 @@ export function MiniWhatsAppChat({
               id: m.id,
               text: m.text,
               fromMe: m.fromMe,
-              timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp)
+              timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp),
+              media_url: m.media_url || null,
+              media_type: m.media_type || null,
             }));
           if (newMessages.length > 0) {
             const allMessages = [...prev, ...newMessages];
@@ -451,7 +455,51 @@ export function MiniWhatsAppChat({
                           : "bg-white text-slate-800 shadow-sm"
                       )}
                     >
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                      {/* Media rendering */}
+                      {msg.media_url && msg.media_type === 'audio' && (
+                        <audio
+                          controls
+                          preload="metadata"
+                          className="w-full max-w-[240px] mb-1"
+                          style={{ height: '40px' }}
+                        >
+                          <source src={msg.media_url} type="audio/ogg" />
+                          <source src={msg.media_url} type="audio/mpeg" />
+                          Seu navegador não suporta áudio.
+                        </audio>
+                      )}
+                      {msg.media_url && msg.media_type === 'image' && (
+                        <a href={msg.media_url} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={msg.media_url}
+                            alt="Imagem"
+                            className="rounded-lg max-w-[240px] max-h-[200px] object-cover mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+                            loading="lazy"
+                          />
+                        </a>
+                      )}
+                      {msg.media_url && msg.media_type === 'video' && (
+                        <video
+                          controls
+                          preload="metadata"
+                          className="rounded-lg max-w-[240px] max-h-[200px] mb-1"
+                        >
+                          <source src={msg.media_url} type="video/mp4" />
+                          Seu navegador não suporta vídeo.
+                        </video>
+                      )}
+                      {msg.media_url && msg.media_type === 'sticker' && (
+                        <img
+                          src={msg.media_url}
+                          alt="Figurinha"
+                          className="max-w-[120px] max-h-[120px] mb-1"
+                          loading="lazy"
+                        />
+                      )}
+                      {/* Text - hide raw emoji labels when media is present */}
+                      {(!msg.media_url || !['🎵 Áudio', '📷 Imagem', '🎥 Vídeo', '🎥 Vídeo de Voz', '🏷️ Figurinha'].includes(msg.text)) && (
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      )}
                       <div className={cn(
                         "flex items-center justify-end gap-1 mt-1",
                         msg.fromMe ? "text-green-100" : "text-slate-400"
