@@ -1140,15 +1140,28 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
       .eq('clinic_id', clinicId)
       .eq('active', true);
     
-    const professionals = (professionalsRaw || [])
-      .filter(p => {
-        const role = (p.user?.role || '').toLowerCase();
-        return role === 'dentista' || role === 'esteticista';
-      })
-      .map(p => ({
-        id: p.id,
-        name: p.user?.name || "Profissional"
-      }));
+    // Log available roles for debugging (visible in Render logs)
+    if (professionalsRaw) {
+      const roles = [...new Set(professionalsRaw.map(p => p.user?.role))];
+      console.log(`[Public API] Available roles in clinic ${clinicId}:`, roles);
+    }
+
+    let filteredProfs = (professionalsRaw || []).filter(p => {
+      const role = (p.user?.role || '').toLowerCase();
+      return role.includes('dentista') || role.includes('esteticista') || role.includes('dentist');
+    });
+
+    // Fallback: If filter is too strict and returns nothing, show all to avoid blank list
+    if (filteredProfs.length === 0 && (professionalsRaw || []).length > 0) {
+      console.warn("[Public API] Role filter returned 0 results, falling back to all professionals");
+      filteredProfs = professionalsRaw;
+    }
+
+    const professionals = filteredProfs.map(p => ({
+      id: p.id,
+      name: p.user?.name || "Profissional"
+    }));
+
 
 
     res.json({
