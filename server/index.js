@@ -1189,53 +1189,51 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
   }
 
   try {
-    // 1. Find or create patient
+    // 1. Find or create patient (Simplified)
+
     let patientId;
     const cleanPhone = phone.replace(/\D/g, "");
+    console.log(`[Public Booking] Finding patient: ${email} or ${cleanPhone}`);
     
-    const { data: existingPatients } = await supabaseAdmin
+    const { data: existingPatients, error: searchError } = await supabaseAdmin
       .from('patients')
       .select('id')
       .eq('clinic_id', clinicId)
       .or(`email.eq.${email.toLowerCase()},phone.eq.${cleanPhone}`)
       .limit(1);
 
+    if (searchError) {
+      console.error("[Public Booking] Patient search error:", searchError);
+      throw new Error(`Erro ao buscar paciente: ${searchError.message}`);
+    }
+
     if (existingPatients && existingPatients.length > 0) {
       patientId = existingPatients[0].id;
+      console.log(`[Public Booking] Found existing patient: ${patientId}`);
     } else {
+      console.log(`[Public Booking] Creating new patient...`);
       const { data: newPatients, error: createError } = await supabaseAdmin
         .from('patients')
         .insert([{
           clinic_id: clinicId,
           name,
           phone: cleanPhone,
-          email: email.toLowerCase(),
-          status: "active",
-          tags: ["Agendamento Online"],
+          email: email.toLowerCase()
         }])
         .select();
       
-      if (createError || !newPatients) throw createError || new Error("Falha ao criar paciente");
+      if (createError || !newPatients || newPatients.length === 0) {
+        console.error("[Public Booking] Patient creation error:", createError);
+        throw new Error(`Erro ao criar paciente: ${createError?.message || 'Sem resposta do banco'}`);
+      }
       patientId = newPatients[0].id;
+      console.log(`[Public Booking] Created patient: ${patientId}`);
     }
 
-    // 2. Fetch service and professional info
-    const { data: service } = await supabaseAdmin
-      .from('services')
-      .select('name, avg_duration_min, base_price')
-      .eq('id', service_id)
-      .single();
-
-    const { data: prof } = await supabaseAdmin
-      .from('professionals')
-      .select('user:user_id(name)')
-      .eq('id', professional_id)
-      .single();
-
-    // 3. Availability Check (Optional, but let's make it safe)
+    // 2. Create appointment (Minimal fields)
     const scheduled = `${date}T${time}:00`;
+    console.log(`[Public Booking] Creating appointment at ${scheduled} for patient ${patientId}`);
     
-    // 4. Create appointment
     const { data: newAppoints, error: appointError } = await supabaseAdmin
       .from('appointments')
       .insert([{
@@ -1244,40 +1242,30 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
         professional_id: professional_id || null,
         service_id: service_id || null,
         scheduled: scheduled,
-        status: "pending",
-        notes: notes || "Agendamento Online",
+        notes: notes || "Agendamento Online"
       }])
       .select();
 
     if (appointError) {
-      console.error("[Public Booking] Supabase Error:", appointError);
+      console.error("[Public Booking] Appointment creation error:", appointError);
       return res.status(400).json({ 
         ok: false, 
-        error: "Erro no banco ao criar agendamento", 
+        error: "Erro no banco ao salvar agendamento", 
         message: appointError.message,
-        details: appointError
+        details: appointError,
+        step: "appointment_creation"
       });
     }
 
-    // 5. WhatsApp Notification (Optional but helpful)
-    try {
-      const waMessage = `*Novo Agendamento Online*\n\nPaciente: ${name}\nData: ${date}\nHora: ${time}\nServiço: ${service?.name || "Consulta"}\n\nAcesse o sistema para confirmar.`;
-      
-      const waClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
-      if (waClinicId) {
-        fetch(`${process.env.WHATSAPP_API_URL}/send-message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clinicId: waClinicId,
-            to: phone.replace(/\D/g, ""),
-            message: waMessage
-          })
-        }).catch(e => console.log("WA notification failed (non-critical):", e.message));
-      }
-
-    } catch (waErr) {
-      console.log("WA Notification error (non-critical):", waErr.message);
+    // 3. WhatsApp Notification (Silent)
+    const waClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
+    if (waClinicId) {
+      const waMessage = `*Novo Agendamento Online*\n\nPaciente: ${name}\nData: ${date}\nHora: ${time}\n\nAcesse o sistema para confirmar.`;
+      fetch(`${process.env.WHATSAPP_API_URL}/send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clinicId: waClinicId, to: phone.replace(/\D/g, ""), message: waMessage })
+      }).catch(() => {});
     }
 
     res.json({
@@ -1285,10 +1273,16 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
       appointment: newAppoints[0]
     });
   } catch (error) {
-    console.error("[Public Booking] Critical Error:", error);
+    console.error("[Public Booking] Critical catch:", error);
     res.status(500).json({ 
       ok: false, 
-      error: "Erro crítico ao processar agendamento", 
+      error: "Erro no processamento do servidor", 
+      message: error.message,
+      details: error
+    });
+  }
+});
+o ao processar agendamento", 
       message: error.message 
     });
   }
