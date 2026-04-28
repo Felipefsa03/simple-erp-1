@@ -1133,17 +1133,23 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
     });
     const services = (await servicesRes.json()) || [];
 
-    // 3. Fetch professionals with names using ADMIN key to bypass RLS on users table
+    // 3. Fetch professionals with names and roles, filtering for Dentists/Estheticians
     const { data: professionalsRaw, error: profsError } = await supabaseAdmin
       .from('professionals')
-      .select('id, user:user_id(name)')
+      .select('id, user:user_id(name, role)')
       .eq('clinic_id', clinicId)
       .eq('active', true);
     
-    const professionals = (professionalsRaw || []).map(p => ({
-      id: p.id,
-      name: p.user?.name || "Profissional"
-    }));
+    const professionals = (professionalsRaw || [])
+      .filter(p => {
+        const role = (p.user?.role || '').toLowerCase();
+        return role === 'dentista' || role === 'esteticista';
+      })
+      .map(p => ({
+        id: p.id,
+        name: p.user?.name || "Profissional"
+      }));
+
 
     res.json({
       ok: true,
