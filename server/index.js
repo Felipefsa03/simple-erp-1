@@ -1213,6 +1213,16 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
       source: "online",
     };
 
+    // Check if professional is busy at this time
+    const checkRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/appointments?professional_id=eq.${professional_id}&scheduled_at=eq.${scheduledAt}&deleted_at=is.null&status=neq.cancelled`,
+      { headers }
+    );
+    const existingAppointments = await checkRes.json();
+    if (existingAppointments && existingAppointments.length > 0) {
+      return res.status(400).json({ ok: false, error: "Este horário já está ocupado por outro paciente." });
+    }
+
     const appointRes = await fetch(`${SUPABASE_URL}/rest/v1/appointments`, {
       method: "POST",
       headers: { ...headers, Prefer: "return=representation" },
