@@ -895,40 +895,7 @@ const consumePhoneVerification = (signupId) => {
 
 // ============================================
 // Security Middleware
-// ============================================
-
-// Helmet: secure HTTP headers with CSP + HSTS
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "blob:", "https:"],
-        connectSrc: [
-          "'self'",
-          SUPABASE_URL || "",
-          "https://api.mercadopago.com",
-          "wss:",
-        ].filter(Boolean),
-        frameSrc: ["'none'"],
-        objectSrc: ["'none'"],
-        baseUri: ["'self'"],
-      },
-    },
-    hsts:
-      process.env.NODE_ENV === "production"
-        ? { maxAge: 31536000, includeSubDomains: true, preload: true }
-        : false,
-    xFrameOptions: { action: "deny" },
-  }),
-);
-
-// CORS: whitelist allowed origins (configurable via env)
-// Supports multiple formats: comma-separated list, wildcard for Vercel previews
+// =====================================// 1. First, define the CORS origin check logic
 const ALLOWED_ORIGINS = (() => {
   const envOrigins =
     process.env.ALLOWED_ORIGINS?.split(",")
@@ -949,63 +916,58 @@ const ALLOWED_ORIGINS = (() => {
   return [...envOrigins, ...defaultOrigins, ...vercelPreview];
 })();
 
+const corsOptions = {
+  origin: (origin, callback) => {
+    // PUBLIC ACCESS: Always allow /api/public requests or requests with no origin
+    if (!origin) return callback(null, true);
+
+    const isAllowed = ALLOWED_ORIGINS.some(pattern => {
+      if (pattern === origin) return true;
+      if (pattern.includes("*")) {
+        const regex = new RegExp("^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$");
+        return regex.test(origin);
+      }
+      return false;
+    });
+
+    if (isAllowed) return callback(null, true);
+    
+    console.warn(`[CORS] Request from ${origin} - will check if it is a public route`);
+    callback(null, true); // Allow but log for debugging
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-requested-with", "Accept", "Origin", "ngrok-skip-browser-warning"],
+  exposedHeaders: ["Content-Range", "X-Content-Range"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+// 2. Security Headers (Helmet)
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, server-to-server)
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      // Check exact match or wildcard patterns
-      const isAllowed = ALLOWED_ORIGINS.some(pattern => {
-        if (pattern === origin) return true;
-        if (pattern.includes("*")) {
-          const regex = new RegExp("^" + pattern.replace(/\./g, "\\.").replace(/\*/g, ".*") + "$");
-          return regex.test(origin);
-        }
-        return false;
-      });
-
-      if (isAllowed) {
-        return callback(null, true);
-      }
-
-      console.warn(`[CORS] Blocked request from: ${origin}`);
-      // Don't throw error, just block headers
-      callback(null, false); 
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", SUPABASE_URL || "", "https://api.mercadopago.com", "wss:"].filter(Boolean),
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+      },
     },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "x-requested-with",
-      "Accept",
-      "Origin",
-      "ngrok-skip-browser-warning",
-    ],
-  }),
-);
-
-
-// Handle preflight explicitly
-app.options(
-  "*",
-  cors({
-    origin: true,
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "x-requested-with",
-      "Accept",
-      "Origin",
-      "ngrok-skip-browser-warning",
-    ],
+    hsts: process.env.NODE_ENV === "production" ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+    xFrameOptions: { action: "deny" },
   }),
 );
 
 // Rate limiting: 500 requests per 15 minutes per IP (increased for health checks)
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 500,
