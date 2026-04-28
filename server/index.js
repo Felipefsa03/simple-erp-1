@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { Boom } from "@hapi/boom";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { createClient } from '@supabase/supabase-js';
 import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
@@ -17,6 +18,7 @@ import makeWASocket, {
   downloadMediaMessage,
   BufferJSON,
 } from "baileys";
+
 
 const app = express();
 app.set("trust proxy", 1);
@@ -98,6 +100,15 @@ const REQUIRED_ENVS = [
 const missingEnvs = REQUIRED_ENVS.filter(([, value]) => !value).map(
   ([name]) => name,
 );
+
+// Initialize Supabase Admin Client
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
 
 if (missingEnvs.length > 0 && process.env.NODE_ENV !== "development") {
   for (const key of missingEnvs) {
@@ -1110,53 +1121,52 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
   }
 
   try {
-    const headers = getSupabaseAdminHeaders();
-    
     // Fetch Clinic info
-    const clinicUrl = `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=name`;
-    console.log("[Public API] Fetching clinic from:", clinicUrl);
+    const { data: clinic, error: clinicError } = await supabaseAdmin
+      .from('clinics')
+      .select('name')
+      .eq('id', clinicId)
+      .single();
     
-    const clinicRes = await fetch(clinicUrl, { headers });
-    const clinics = await clinicRes.json();
-    
-    if (!Array.isArray(clinics) || clinics.length === 0) {
-      console.error("[Public API] Clinic not found. Response:", clinics, "Status:", clinicRes.status);
+    if (clinicError || !clinic) {
+      console.error("[Public API] Clinic not found:", clinicError);
       return res.status(404).json({ 
         ok: false, 
-        error: "Clínica não encontrada no banco de dados do servidor",
-        debug: {
-          status: clinicRes.status,
-          received: clinics,
-          id: clinicId
-        }
+        error: "Clínica não encontrada",
+        debug: clinicError
       });
     }
 
     // Fetch active services
-    const servicesRes = await fetch(`${SUPABASE_URL}/rest/v1/services?clinic_id=eq.${clinicId}&active=eq.true`, { headers });
-    let services = await servicesRes.json();
-    if (!Array.isArray(services)) services = [];
-    
-    // Fetch professionals (joining with users to get the name)
-    const profRes = await fetch(`${SUPABASE_URL}/rest/v1/professionals?clinic_id=eq.${clinicId}&select=id,user:user_id(name)`, { headers });
-    let professionalsRaw = await profRes.json();
-    
-    const professionals = Array.isArray(professionalsRaw) 
-      ? professionalsRaw.map(p => ({
-          id: p.id,
-          name: p.user?.name || "Profissional"
-        }))
-      : [];
+    const { data: services, error: servicesError } = await supabaseAdmin
+      .from('services')
+      .select('id, name, avg_duration_min, base_price')
+      .eq('clinic_id', clinicId)
+      .eq('active', true)
+      .is('deleted_at', null)
+      .order('name');
+
+    // Fetch professionals
+    const { data: professionalsRaw, error: profsError } = await supabaseAdmin
+      .from('professionals')
+      .select('id, user:user_id(name)')
+      .eq('clinic_id', clinicId)
+      .is('deleted_at', null);
+
+    const professionals = (professionalsRaw || []).map(p => ({
+      id: p.id,
+      name: p.user?.name || "Profissional"
+    }));
 
     res.json({
       ok: true,
-      clinic: clinics[0],
-      services,
+      clinic,
+      services: services || [],
       professionals,
     });
   } catch (error) {
-    console.error("[Public API] Error fetching booking info:", error.message);
-    res.status(500).json({ ok: false, error: "Erro ao buscar informações da clínica" });
+    console.error("[Public API] Error fetching booking info:", error);
+    res.status(500).json({ ok: false, error: "Erro interno ao buscar informações", message: error.message });
   }
 });
 
@@ -1170,110 +1180,103 @@ app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
   }
 
   try {
-    const headers = getSupabaseAdminHeaders();
-
     // 1. Find or create patient
     let patientId;
     const cleanPhone = phone.replace(/\D/g, "");
-    const patientRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/patients?clinic_id=eq.${clinicId}&or=(email.eq.${encodeURIComponent(email.toLowerCase())},phone.eq.${encodeURIComponent(cleanPhone)})&select=id`,
-      { headers }
-    );
-    const patients = await patientRes.json();
+    
+    const { data: existingPatients } = await supabaseAdmin
+      .from('patients')
+      .select('id')
+      .eq('clinic_id', clinicId)
+      .or(`email.eq.${email.toLowerCase()},phone.eq.${cleanPhone}`)
+      .limit(1);
 
-    if (patients && patients.length > 0) {
-      patientId = patients[0].id;
+    if (existingPatients && existingPatients.length > 0) {
+      patientId = existingPatients[0].id;
     } else {
-      const newPatientRes = await fetch(`${SUPABASE_URL}/rest/v1/patients`, {
-        method: "POST",
-        headers: { ...headers, Prefer: "return=representation" },
-        body: JSON.stringify({
+      const { data: newPatients, error: createError } = await supabaseAdmin
+        .from('patients')
+        .insert([{
           clinic_id: clinicId,
           name,
           phone: cleanPhone,
           email: email.toLowerCase(),
           status: "active",
           tags: ["Agendamento Online"],
-        }),
-      });
-      const newPatients = await newPatientRes.json();
-      patientId = newPatients[0]?.id;
+        }])
+        .select();
+      
+      if (createError || !newPatients) throw createError || new Error("Falha ao criar paciente");
+      patientId = newPatients[0].id;
     }
 
-    if (!patientId) throw new Error("Falha ao identificar/criar paciente");
+    // 2. Fetch service and professional info
+    const { data: service } = await supabaseAdmin
+      .from('services')
+      .select('name, avg_duration_min, base_price')
+      .eq('id', service_id)
+      .single();
 
-    // 2. Fetch service and professional info for the record
-    const serviceRes = await fetch(`${SUPABASE_URL}/rest/v1/services?id=eq.${service_id}&select=name,avg_duration_min,base_price`, { headers });
-    const services = await serviceRes.json();
-    const service = services[0] || { name: "Consulta", avg_duration_min: 60, base_price: 0 };
+    const { data: prof } = await supabaseAdmin
+      .from('professionals')
+      .select('user:user_id(name)')
+      .eq('id', professional_id)
+      .single();
 
-    const profRes = await fetch(`${SUPABASE_URL}/rest/v1/professionals?id=eq.${professional_id}&select=id,user:user_id(name)`, { headers });
-    const profs = await profRes.json();
-    const professional = Array.isArray(profs) && profs[0] ? { name: profs[0].user?.name || "Profissional" } : { name: "Profissional" };
-
-
-    // 3. Create appointment
+    // 3. Availability Check
     const scheduledAt = `${date}T${time}:00`;
-    const appointmentBody = {
-      clinic_id: clinicId,
-      patient_id: patientId,
-      patient_name: name,
-      professional_id: professional_id,
-      professional_name: professional.name,
-      service_id: service_id,
-      service_name: service.name,
-      scheduled_at: scheduledAt,
-      duration_min: service.avg_duration_min,
-      status: "scheduled",
-      base_value: service.base_price,
-      notes: notes,
-      source: "online",
-    };
+    const { data: conflict } = await supabaseAdmin
+      .from('appointments')
+      .select('id')
+      .eq('professional_id', professional_id)
+      .eq('scheduled_at', scheduledAt)
+      .is('deleted_at', null)
+      .neq('status', 'cancelled')
+      .limit(1);
 
-    // Check if professional is busy at this time
-    const checkRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/appointments?professional_id=eq.${professional_id}&scheduled_at=eq.${scheduledAt}&deleted_at=is.null&status=neq.cancelled`,
-      { headers }
-    );
-    const existingAppointments = await checkRes.json();
-    if (existingAppointments && existingAppointments.length > 0) {
+    if (conflict && conflict.length > 0) {
       return res.status(400).json({ ok: false, error: "Este horário já está ocupado por outro paciente." });
     }
+    // 4. Create appointment
+    const { data: newAppoints, error: appointError } = await supabaseAdmin
+      .from('appointments')
+      .insert([{
+        clinic_id: clinicId,
+        patient_id: patientId,
+        patient_name: name,
+        professional_id,
+        professional_name: prof?.user?.name || "Profissional",
+        service_id,
+        service_name: service?.name || "Consulta",
+        scheduled_at: scheduledAt,
+        duration_min: service?.avg_duration_min || 60,
+        status: "scheduled",
+        base_value: service?.base_price || 0,
+        notes,
+        source: "online",
+      }])
+      .select();
 
-    const appointRes = await fetch(`${SUPABASE_URL}/rest/v1/appointments`, {
-      method: "POST",
-      headers: { ...headers, Prefer: "return=representation" },
-      body: JSON.stringify(appointmentBody),
-    });
+    if (appointError || !newAppoints) throw appointError || new Error("Erro ao criar agendamento");
 
-    if (!appointRes.ok) {
-      const errText = await appointRes.text();
-      throw new Error(`Falha ao criar agendamento: ${errText}`);
-    }
-
-    const newAppoint = await appointRes.json();
-    const appointmentId = newAppoint[0]?.id;
-
-    // 4. Send WhatsApp confirmation
-    const waMessage = `Olá ${name}, recebemos seu agendamento online para ${new Date(scheduledAt).toLocaleString('pt-BR')}.`;
+    // 5. WhatsApp Notification
+    const waMessage = `*Novo Agendamento Online*\n\nPaciente: ${name}\nData: ${date}\nHora: ${time}\nServiço: ${service?.name || "Consulta"}\n\nAguarde confirmação da clínica.`;
     
     let waClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
-    if (whatsappConnections[clinicId]?.status === "connected") {
-      waClinicId = clinicId;
+    if (whatsappSockets[clinicId]) waClinicId = clinicId;
+
+    if (whatsappSockets[waClinicId]) {
+      const jid = cleanPhone.length === 11 
+        ? `55${cleanPhone.slice(0, 2)}${cleanPhone.slice(3)}@s.whatsapp.net` 
+        : `${cleanPhone}@s.whatsapp.net`;
+        
+      whatsappSockets[waClinicId].sendMessage(jid, { text: waMessage }).catch(() => {});
     }
 
-    if (whatsappConnections[waClinicId]?.status === "connected") {
-       sendWhatsAppMessage({
-         clinicId: waClinicId,
-         to: cleanPhone,
-         message: waMessage
-       }).catch(e => console.error("[Booking WA] Failed to send:", e.message));
-    }
-
-    res.json({ ok: true, appointmentId });
+    res.json({ ok: true, appointmentId: newAppoints[0].id });
   } catch (error) {
-    console.error("[Public API] Error creating booking:", error.message);
-    res.status(500).json({ ok: false, error: "Erro ao processar agendamento" });
+    console.error("[Public API] Booking error:", error);
+    res.status(500).json({ ok: false, error: "Erro ao processar agendamento", details: error.message });
   }
 });
 
