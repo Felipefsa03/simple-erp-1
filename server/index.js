@@ -1093,53 +1093,64 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
   }
 
   try {
-    // Fetch Clinic info
-    console.log(`[Public API] Fetching clinic ${clinicId} from ${SUPABASE_URL}`);
-    const { data: clinic, error: clinicError } = await supabaseAdmin
-      .from('clinics')
-      .select('name')
-      .eq('id', clinicId)
-      .maybeSingle(); // maybeSingle doesn't throw on 404
-    
-    if (clinicError || !clinic) {
-      console.error("[Public API] Clinic not found error:", clinicError);
-      return res.status(404).json({ 
+    // 1. Fetch Clinic info using direct fetch (matching frontend successful behavior)
+    console.log(`[Public API] Fetching clinic info via direct fetch for ID: ${clinicId}`);
+    const clinicUrl = `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=name`;
+    const clinicRes = await fetch(clinicUrl, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+
+    if (!clinicRes.ok) {
+      const errText = await clinicRes.text();
+      return res.status(clinicRes.status).json({ 
         ok: false, 
-        error: `Clínica não encontrada. Detalhes: ${JSON.stringify(clinicError || 'ID não existe no banco')}`,
-        debug: {
-          url: SUPABASE_URL.substring(0, 20),
-          id: clinicId,
-          error: clinicError
-        }
+        error: `Erro ao buscar clínica no Supabase (${clinicRes.status})`,
+        details: errText
       });
     }
 
+    const clinics = await clinicRes.json();
+    const clinic = clinics?.[0];
 
-    // Fetch active services
-    const { data: services, error: servicesError } = await supabaseAdmin
-      .from('services')
-      .select('id, name, avg_duration_min, base_price')
-      .eq('clinic_id', clinicId)
-      .eq('active', true)
-      .is('deleted_at', null)
-      .order('name');
+    if (!clinic) {
+      return res.status(404).json({ 
+        ok: false, 
+        error: "Clínica não encontrada no banco de dados do servidor",
+        details: "O ID existe no frontend mas não foi retornado pelo Supabase no backend. Verifique a URL do Supabase no Render."
+      });
+    }
 
-    // Fetch professionals
-    const { data: professionalsRaw, error: profsError } = await supabaseAdmin
-      .from('professionals')
-      .select('id, user:user_id(name)')
-      .eq('clinic_id', clinicId)
-      .is('deleted_at', null);
+    // 2. Fetch services using direct fetch
+    const servicesUrl = `${SUPABASE_URL}/rest/v1/services?clinic_id=eq.${clinicId}&deleted_at=is.null&select=id,name&order=name.asc`;
+    const servicesRes = await fetch(servicesUrl, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    const services = (await servicesRes.json()) || [];
 
-    const professionals = (professionalsRaw || []).map(p => ({
+    // 3. Fetch professionals
+    const profsUrl = `${SUPABASE_URL}/rest/v1/professionals?clinic_id=eq.${clinicId}&active=eq.true&select=id,name`;
+    const profsRes = await fetch(profsUrl, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    const professionalsRaw = (await profsRes.json()) || [];
+    const professionals = professionalsRaw.map(p => ({
       id: p.id,
-      name: p.user?.name || "Profissional"
+      name: p.name || "Profissional"
     }));
 
     res.json({
       ok: true,
       clinic,
-      services: services || [],
+      services,
       professionals,
     });
   } catch (error) {
@@ -1147,6 +1158,7 @@ app.get("/api/public/clinic/:clinicId/booking-info", async (req, res) => {
     res.status(500).json({ ok: false, error: "Erro interno ao buscar informações", message: error.message });
   }
 });
+
 
 app.post("/api/public/clinic/:clinicId/booking", async (req, res) => {
   const { clinicId } = req.params;
