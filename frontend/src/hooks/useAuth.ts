@@ -735,40 +735,28 @@ export const useAuth = create<AuthState>()(
         return getNormalizedClinicId(currentClinicId || userClinicId);
       },
       getPlan: () => {
-        // Tentar ler de múltiplas fontes para garantir o plano correto
         const clinic = get().clinic;
+        if (!clinic) {
+          console.log("[Auth] getPlan - no clinic loaded, returning basico");
+          return "basico";
+        }
 
-        // 1. Tentar subscription_plan primeiro (mais atual)
-        let plan = clinic?.subscription_plan as PlanType;
-        if (plan && plan !== "basico") {
-          console.log("[Auth] getPlan from subscription_plan:", plan);
+        // Prioridade: plan (campo direto da tabela clinics)
+        const plan = clinic.plan as PlanType;
+        if (plan && ["basico", "profissional", "premium"].includes(plan)) {
+          console.log("[Auth] getPlan from clinic.plan:", plan);
           return plan;
         }
 
-        // 2. Tentar plan
-        plan = clinic?.plan as PlanType;
-        if (plan && plan !== "basico") {
-          console.log("[Auth] getPlan from plan:", plan);
-          return plan;
+        // Fallback: subscription_plan (se existir)
+        const subPlan = clinic.subscription_plan as PlanType;
+        if (subPlan && ["basico", "profissional", "premium"].includes(subPlan)) {
+          console.log("[Auth] getPlan from subscription_plan:", subPlan);
+          return subPlan;
         }
 
-        // 3. Tentar status da subscription
-        if (
-          clinic?.subscription_status === "active" &&
-          clinic?.subscription_plan
-        ) {
-          plan = clinic?.subscription_plan as PlanType;
-          console.log(
-            "[Auth] getPlan from subscription_status active, using subscription_plan:",
-            plan,
-          );
-          return plan || "profissional";
-        }
-
-        console.log(
-          "[Auth] getPlan - fallback to professional (no premium found)",
-        );
-        return "profissional";
+        console.log("[Auth] getPlan - no valid plan found, returning basico");
+        return "basico";
       },
       hasFeature: (feature) => {
         const plan = (get().clinic?.plan as PlanType) || "basico";

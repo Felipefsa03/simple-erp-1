@@ -523,17 +523,22 @@ const fetchUserByEmail = async (email) => {
 };
 
 const fetchClinicById = async (clinicId) => {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !clinicId) return null;
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=id,name,plan,active&limit=1`,
-    { headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY) },
-  );
-  if (!response.ok) {
-    console.warn('[fetchClinicById] Failed:', response.status);
+  if (!clinicId) return null;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("clinics")
+      .select("id,name,plan,active")
+      .eq("id", clinicId)
+      .maybeSingle();
+    if (error) {
+      console.warn('[fetchClinicById] Failed:', error.message);
+      return null;
+    }
+    return data || null;
+  } catch (e) {
+    console.warn('[fetchClinicById] Exception:', e.message);
     return null;
   }
-  const rows = await safeJson(response);
-  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 };
 
 const findAuthUserIdByEmail = async (email) => {
@@ -709,18 +714,6 @@ const upsertClinicRecord = async ({
 }) => {
   console.log('[upsertClinicRecord] Starting for clinicId:', clinicId);
 
-  // Use SERVICE_ROLE_KEY to bypass RLS for administrative provisioning
-  const provisionKey = SUPABASE_SERVICE_ROLE_KEY;
-  const adminHeaders = {
-    "Content-Type": "application/json",
-    apikey: provisionKey,
-    Authorization: `Bearer ${provisionKey}`,
-    Prefer: "resolution=merge-duplicates,return=representation",
-  };
-
-  const existingClinic = await fetchClinicById(clinicId);
-  // Only use columns that actually exist in the clinics table schema:
-  // id, name, cnpj, email, phone, address, city, state, zip_code, logo_url, plan, status, expires_at, created_at, updated_at
   const payload = {
     id: clinicId,
     name: clinicName,
@@ -732,40 +725,39 @@ const upsertClinicRecord = async ({
     created_at: new Date().toISOString(),
   };
 
+  // Use supabaseAdmin JS client (bypasses REST API permission issues)
+  const { data: existingClinic } = await supabaseAdmin
+    .from("clinics")
+    .select("id")
+    .eq("id", clinicId)
+    .maybeSingle();
+
   if (existingClinic) {
     console.log('[upsertClinicRecord] Clinic exists, updating...');
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}`,
-      {
-        method: "PATCH",
-        headers: adminHeaders,
-        body: JSON.stringify(payload),
-      },
-    );
-    if (!response.ok) {
-      const err = await safeJson(response);
-      console.error('[upsertClinicRecord] PATCH failed:', response.status, err);
-      if (err?.message?.includes('clinics_cnpj_key') || err?.error?.includes('clinics_cnpj_key')) {
+    const { error } = await supabaseAdmin
+      .from("clinics")
+      .update(payload)
+      .eq("id", clinicId);
+    if (error) {
+      console.error('[upsertClinicRecord] UPDATE failed:', error);
+      if (error.message?.includes('clinics_cnpj_key') || error.code === '23505') {
         throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
       }
-      throw new Error(err?.message || "Erro ao atualizar clínica");
+      throw new Error(error.message || "Erro ao atualizar clínica");
     }
     return { created: false };
   }
 
   console.log('[upsertClinicRecord] Creating new clinic...');
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/clinics`, {
-    method: "POST",
-    headers: adminHeaders,
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const err = await safeJson(response);
-    console.error('[upsertClinicRecord] POST failed:', response.status, err);
-    if (err?.message?.includes('clinics_cnpj_key') || err?.error?.includes('clinics_cnpj_key')) {
+  const { error } = await supabaseAdmin
+    .from("clinics")
+    .insert(payload);
+  if (error) {
+    console.error('[upsertClinicRecord] INSERT failed:', error);
+    if (error.message?.includes('clinics_cnpj_key') || error.code === '23505') {
       throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
     }
-    throw new Error(err?.message || "Erro ao criar clínica");
+    throw new Error(error.message || "Erro ao criar clínica");
   }
   console.log('[upsertClinicRecord] Clinic created successfully');
   return { created: true };
@@ -779,15 +771,6 @@ const upsertClinicAdminUser = async ({
   phone,
 }) => {
   console.log('[upsertClinicAdminUser] Starting for userId:', userId, 'clinicId:', clinicId);
-
-  // Use SERVICE_ROLE_KEY to bypass RLS for administrative provisioning
-  const provisionKey = SUPABASE_SERVICE_ROLE_KEY;
-  const adminHeaders = {
-    "Content-Type": "application/json",
-    apikey: provisionKey,
-    Authorization: `Bearer ${provisionKey}`,
-    Prefer: "resolution=merge-duplicates,return=representation",
-  };
 
   const existing = await fetchUserByEmail(email);
   const payload = {
@@ -806,34 +789,24 @@ const upsertClinicAdminUser = async ({
       throw new Error("Este email já está vinculado a outra clínica.");
     }
     console.log('[upsertClinicAdminUser] User exists, updating...');
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${existing.id}`,
-      {
-        method: "PATCH",
-        headers: adminHeaders,
-        body: JSON.stringify(payload),
-      },
-    );
-    if (!response.ok) {
-      const err = await safeJson(response);
-      console.error('[upsertClinicAdminUser] PATCH failed:', response.status, err);
-      throw new Error(
-        err?.message || "Erro ao atualizar usuário administrador",
-      );
+    const { error } = await supabaseAdmin
+      .from("users")
+      .update({ ...payload, id: existing.id })
+      .eq("id", existing.id);
+    if (error) {
+      console.error('[upsertClinicAdminUser] UPDATE failed:', error);
+      throw new Error(error.message || "Erro ao atualizar usuário administrador");
     }
     return { created: false, userId: existing.id };
   }
 
   console.log('[upsertClinicAdminUser] Creating new admin user...');
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-    method: "POST",
-    headers: adminHeaders,
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const err = await safeJson(response);
-    console.error('[upsertClinicAdminUser] POST failed:', response.status, err);
-    throw new Error(err?.message || "Erro ao criar usuário administrador");
+  const { error } = await supabaseAdmin
+    .from("users")
+    .insert(payload);
+  if (error) {
+    console.error('[upsertClinicAdminUser] INSERT failed:', error);
+    throw new Error(error.message || "Erro ao criar usuário administrador");
   }
   console.log('[upsertClinicAdminUser] Admin user created successfully');
   return { created: true, userId };
@@ -3989,17 +3962,7 @@ app.post("/api/signup/provision-trial", async (req, res) => {
     // Calculate trial end date (7 days from now)
     const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Use SERVICE_ROLE_KEY to bypass RLS for administrative provisioning
-    const provisionKey = SUPABASE_SERVICE_ROLE_KEY;
-    const adminHeaders = {
-      "Content-Type": "application/json",
-      apikey: provisionKey,
-      Authorization: `Bearer ${provisionKey}`,
-      Prefer: "resolution=merge-duplicates,return=representation",
-    };
-
-    // Only columns that exist in the clinics table:
-    // id, name, cnpj, email, phone, plan, status, expires_at, created_at
+    // Clinic payload
     const clinicPayload = {
       id: clinicId,
       name: String(clinicName).trim(),
@@ -4014,34 +3977,29 @@ app.post("/api/signup/provision-trial", async (req, res) => {
 
     console.log("[TrialProvision] Clinic payload:", JSON.stringify(clinicPayload));
 
+    // Use supabaseAdmin JS client (bypasses REST API permission issues on clinics table)
     const existingClinic = await fetchClinicById(clinicId);
     if (existingClinic) {
-      const cr = await fetch(`${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}`, {
-        method: "PATCH", headers: adminHeaders, body: JSON.stringify(clinicPayload),
-      });
-      if (!cr.ok) {
-        const err = await safeJson(cr);
-        console.error("[TrialProvision] PATCH clinic failed:", cr.status, err);
-        if (err?.message?.includes('clinics_cnpj_key') || err?.error?.includes('clinics_cnpj_key')) {
+      const { error: clinicErr } = await supabaseAdmin.from("clinics").update(clinicPayload).eq("id", clinicId);
+      if (clinicErr) {
+        console.error("[TrialProvision] UPDATE clinic failed:", clinicErr);
+        if (clinicErr.message?.includes('clinics_cnpj_key') || clinicErr.code === '23505') {
           throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
         }
-        throw new Error(err?.message || err?.error || "Erro ao atualizar clinica trial.");
+        throw new Error(clinicErr.message || "Erro ao atualizar clinica trial.");
       }
     } else {
-      const cr = await fetch(`${SUPABASE_URL}/rest/v1/clinics`, {
-        method: "POST", headers: adminHeaders, body: JSON.stringify(clinicPayload),
-      });
-      if (!cr.ok) {
-        const err = await safeJson(cr);
-        console.error("[TrialProvision] POST clinic failed:", cr.status, err);
-        if (err?.message?.includes('clinics_cnpj_key') || err?.error?.includes('clinics_cnpj_key')) {
+      const { error: clinicErr } = await supabaseAdmin.from("clinics").insert(clinicPayload);
+      if (clinicErr) {
+        console.error("[TrialProvision] INSERT clinic failed:", clinicErr);
+        if (clinicErr.message?.includes('clinics_cnpj_key') || clinicErr.code === '23505') {
           throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
         }
-        throw new Error(err?.message || err?.error || "Erro ao criar clinica trial.");
+        throw new Error(clinicErr.message || "Erro ao criar clinica trial.");
       }
     }
 
-    // Create admin user — columns: id, clinic_id, email, name, phone, role, active, created_at
+    // Create admin user
     const userPayload = {
       id: authUserId,
       clinic_id: clinicId,
@@ -4057,17 +4015,15 @@ app.post("/api/signup/provision-trial", async (req, res) => {
 
     const existingUsr = await fetchUserByEmail(normalizedEmail);
     if (existingUsr) {
-      await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${existingUsr.id}`, {
-        method: "PATCH", headers: adminHeaders, body: JSON.stringify(userPayload),
-      });
+      const { error: usrErr } = await supabaseAdmin.from("users").update(userPayload).eq("id", existingUsr.id);
+      if (usrErr) {
+        console.error("[TrialProvision] UPDATE user failed:", usrErr);
+      }
     } else {
-      const ur = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-        method: "POST", headers: adminHeaders, body: JSON.stringify(userPayload),
-      });
-      if (!ur.ok) {
-        const err = await safeJson(ur);
-        console.error("[TrialProvision] POST user failed:", ur.status, err);
-        throw new Error(err?.message || err?.error || "Erro ao criar usuario admin trial.");
+      const { error: usrErr } = await supabaseAdmin.from("users").insert(userPayload);
+      if (usrErr) {
+        console.error("[TrialProvision] INSERT user failed:", usrErr);
+        throw new Error(usrErr.message || "Erro ao criar usuario admin trial.");
       }
     }
 
