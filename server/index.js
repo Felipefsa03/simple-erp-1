@@ -745,6 +745,9 @@ const upsertClinicRecord = async ({
     if (!response.ok) {
       const err = await safeJson(response);
       console.error('[upsertClinicRecord] PATCH failed:', response.status, err);
+      if (err?.message?.includes('clinics_cnpj_key') || err?.error?.includes('clinics_cnpj_key')) {
+        throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
+      }
       throw new Error(err?.message || "Erro ao atualizar clínica");
     }
     return { created: false };
@@ -759,6 +762,9 @@ const upsertClinicRecord = async ({
   if (!response.ok) {
     const err = await safeJson(response);
     console.error('[upsertClinicRecord] POST failed:', response.status, err);
+    if (err?.message?.includes('clinics_cnpj_key') || err?.error?.includes('clinics_cnpj_key')) {
+      throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
+    }
     throw new Error(err?.message || "Erro ao criar clínica");
   }
   console.log('[upsertClinicRecord] Clinic created successfully');
@@ -3985,7 +3991,7 @@ app.post("/api/signup/provision-trial", async (req, res) => {
       "Content-Type": "application/json",
       apikey: provisionKey,
       Authorization: `Bearer ${provisionKey}`,
-      Prefer: "return=representation",
+      Prefer: "resolution=merge-duplicates,return=representation",
     };
 
     // Only columns that exist in the clinics table:
@@ -4012,6 +4018,9 @@ app.post("/api/signup/provision-trial", async (req, res) => {
       if (!cr.ok) {
         const err = await safeJson(cr);
         console.error("[TrialProvision] PATCH clinic failed:", cr.status, err);
+        if (err?.message?.includes('clinics_cnpj_key') || err?.error?.includes('clinics_cnpj_key')) {
+          throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
+        }
         throw new Error(err?.message || err?.error || "Erro ao atualizar clinica trial.");
       }
     } else {
@@ -4021,6 +4030,9 @@ app.post("/api/signup/provision-trial", async (req, res) => {
       if (!cr.ok) {
         const err = await safeJson(cr);
         console.error("[TrialProvision] POST clinic failed:", cr.status, err);
+        if (err?.message?.includes('clinics_cnpj_key') || err?.error?.includes('clinics_cnpj_key')) {
+          throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
+        }
         throw new Error(err?.message || err?.error || "Erro ao criar clinica trial.");
       }
     }
