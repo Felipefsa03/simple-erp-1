@@ -707,28 +707,29 @@ const upsertClinicRecord = async ({
   console.log('[upsertClinicRecord] Starting for clinicId:', clinicId);
   console.log('[upsertClinicRecord] SERVICE_ROLE_KEY available:', Boolean(SUPABASE_SERVICE_ROLE_KEY));
 
-  // IMPORTANT: Always use service_role headers to bypass RLS on clinics table
-  // The clinics table may not have INSERT policies for anon/authenticated users
-  const adminHeaders = SUPABASE_SERVICE_ROLE_KEY
-    ? {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        Prefer: "return=representation",
-      }
-    : getSupabaseAdminHeaders();
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY não está configurada no servidor. Configure esta variável no Render para permitir o cadastro de clínicas.');
+  }
+
+  // MUST use service_role to bypass RLS on clinics table
+  const adminHeaders = {
+    "Content-Type": "application/json",
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    Prefer: "return=representation",
+  };
 
   const existingClinic = await fetchClinicById(clinicId);
+  // Only use columns that actually exist in the clinics table schema:
+  // id, name, cnpj, email, phone, address, city, state, zip_code, logo_url, plan, status, expires_at, created_at, updated_at
   const payload = {
     id: clinicId,
     name: clinicName,
-    document_type: docType,
-    document_number: docNumber,
-    modality,
+    cnpj: String(docNumber || "").replace(/\D/g, "") || null,
     plan: sanitizePlan(plan),
+    status: "active",
     phone,
     email,
-    active: true,
     created_at: new Date().toISOString(),
   };
 
@@ -774,15 +775,17 @@ const upsertClinicAdminUser = async ({
 }) => {
   console.log('[upsertClinicAdminUser] Starting for userId:', userId, 'clinicId:', clinicId);
 
-  // IMPORTANT: Always use service_role headers to bypass RLS during provisioning
-  const adminHeaders = SUPABASE_SERVICE_ROLE_KEY
-    ? {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        Prefer: "return=representation",
-      }
-    : getSupabaseAdminHeaders();
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY não está configurada no servidor. Configure esta variável no Render.');
+  }
+
+  // MUST use service_role to bypass RLS during provisioning
+  const adminHeaders = {
+    "Content-Type": "application/json",
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    Prefer: "return=representation",
+  };
 
   const existing = await fetchUserByEmail(email);
   const payload = {
@@ -3980,28 +3983,38 @@ app.post("/api/signup/provision-trial", async (req, res) => {
     // Calculate trial end date (7 days from now)
     const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Create clinic with trial status and premium plan
-    const adminHeaders = SUPABASE_SERVICE_ROLE_KEY
-      ? {
-          "Content-Type": "application/json",
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          Prefer: "return=representation",
-        }
-      : getSupabaseAdminHeaders();
+    // MUST have service_role key for provisioning
+    if (!SUPABASE_SERVICE_ROLE_KEY) {
+      console.error("[TrialProvision] FATAL: SUPABASE_SERVICE_ROLE_KEY is missing!");
+      return res.status(503).json({
+        ok: false,
+        error: "Servidor não está configurado corretamente. A chave SUPABASE_SERVICE_ROLE_KEY está ausente. Configure no Render.",
+      });
+    }
 
+    // Create clinic with trial status and premium plan
+    const adminHeaders = {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      Prefer: "return=representation",
+    };
+
+    // Only columns that exist in the clinics table:
+    // id, name, cnpj, email, phone, plan, status, expires_at, created_at
     const clinicPayload = {
       id: clinicId,
       name: String(clinicName).trim(),
-      cnpj: String(clinicDoc || "").replace(/\D/g, ""), // Alinhado com o esquema SQL
-      plan: sanitizePlan("premium"), // Converte 'premium' para 'enterprise'
+      cnpj: String(clinicDoc || "").replace(/\D/g, "") || null,
+      plan: sanitizePlan("premium"),
       status: "trial",
       phone: normalizedPhone,
       email: normalizedEmail,
-      active: true,
-      expires_at: trialEndsAt, // Alinhado com o esquema SQL
+      expires_at: trialEndsAt,
       created_at: new Date().toISOString(),
     };
+
+    console.log("[TrialProvision] Clinic payload:", JSON.stringify(clinicPayload));
 
     const existingClinic = await fetchClinicById(clinicId);
     if (existingClinic) {
@@ -4011,7 +4024,7 @@ app.post("/api/signup/provision-trial", async (req, res) => {
       if (!cr.ok) {
         const err = await safeJson(cr);
         console.error("[TrialProvision] PATCH clinic failed:", cr.status, err);
-        throw new Error(err?.message || "Erro ao atualizar clinica trial.");
+        throw new Error(err?.message || err?.error || "Erro ao atualizar clinica trial.");
       }
     } else {
       const cr = await fetch(`${SUPABASE_URL}/rest/v1/clinics`, {
@@ -4020,11 +4033,11 @@ app.post("/api/signup/provision-trial", async (req, res) => {
       if (!cr.ok) {
         const err = await safeJson(cr);
         console.error("[TrialProvision] POST clinic failed:", cr.status, err);
-        throw new Error(err?.message || "Erro ao criar clinica trial.");
+        throw new Error(err?.message || err?.error || "Erro ao criar clinica trial.");
       }
     }
 
-    // Create admin user
+    // Create admin user — columns: id, clinic_id, email, name, phone, role, active, created_at
     const userPayload = {
       id: authUserId,
       clinic_id: clinicId,
@@ -4035,6 +4048,9 @@ app.post("/api/signup/provision-trial", async (req, res) => {
       active: true,
       created_at: new Date().toISOString(),
     };
+
+    console.log("[TrialProvision] User payload:", JSON.stringify(userPayload));
+
     const existingUsr = await fetchUserByEmail(normalizedEmail);
     if (existingUsr) {
       await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${existingUsr.id}`, {
@@ -4047,7 +4063,7 @@ app.post("/api/signup/provision-trial", async (req, res) => {
       if (!ur.ok) {
         const err = await safeJson(ur);
         console.error("[TrialProvision] POST user failed:", ur.status, err);
-        throw new Error(err?.message || "Erro ao criar usuario admin trial.");
+        throw new Error(err?.message || err?.error || "Erro ao criar usuario admin trial.");
       }
     }
 
