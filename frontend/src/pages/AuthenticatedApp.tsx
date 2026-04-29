@@ -121,7 +121,7 @@ export function AuthenticatedApp() {
   useEffect(() => {
     if (user?.role === 'super_admin') {
       setActiveTab(prev => {
-        const next = prev.startsWith('admin-') ? prev : 'admin-dashboard';
+        const next = (prev.startsWith('admin-') || prev === 'configuracoes') ? prev : 'admin-dashboard';
         if (location.pathname !== `/${next}`) navigate(`/${next}`, { replace: true });
         return next;
       });
