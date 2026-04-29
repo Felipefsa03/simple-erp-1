@@ -333,6 +333,41 @@ export function SystemWhatsAppConfig() {
                 )}
               </div>
             </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-bold text-slate-700">Teste de Envio</p>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="DDD + Número (ex: 75999999999)" 
+                  id="test_phone"
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400"
+                />
+                <button 
+                  onClick={async () => {
+                    const phoneInput = (document.getElementById('test_phone') as HTMLInputElement);
+                    const phone = phoneInput?.value;
+                    if (!phone) return toast('Digite um número para teste', 'error');
+                    try {
+                      const r = await fetch(`${API_BASE}/api/whatsapp/test-send`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone, message: 'Teste de conexão Clinxia Global ✅', clinicId: SYSTEM_CLINIC_ID })
+                      });
+                      const d = await r.json();
+                      if (d.ok) toast('Mensagem de teste enviada!', 'success');
+                      else throw new Error(d.error);
+                    } catch (e: any) {
+                      toast('Erro no teste: ' + e.message, 'error');
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Testar
+                </button>
+              </div>
+            </div>
+
             <button
               onClick={handleDisconnect}
               className="w-full py-3 border-2 border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-2"

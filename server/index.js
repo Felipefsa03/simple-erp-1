@@ -2830,7 +2830,19 @@ const createWhatsAppSocket = async (clinicId) => {
 };
 
 // Connect endpoint - generates QR code or pairing code
-app.post("/api/whatsapp/connect", async (req, res) => {
+  app.post("/api/whatsapp/test-send", async (req, res) => {
+    const { phone, message, clinicId } = req.body;
+    if (!phone || !message) return res.status(400).json({ ok: false, error: "Phone and message required" });
+    
+    try {
+      await sendWhatsAppMessage({ clinicId: clinicId || SYSTEM_WHATSAPP_CLINIC_ID, to: phone, message });
+      res.json({ ok: true, message: "Mensagem de teste enviada com sucesso!" });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/api/whatsapp/connect", async (req, res) => {
   const { clinicId, phoneNumber } = req.body;
 
   try {
