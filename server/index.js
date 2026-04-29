@@ -704,6 +704,20 @@ const upsertClinicRecord = async ({
   phone,
   email,
 }) => {
+  console.log('[upsertClinicRecord] Starting for clinicId:', clinicId);
+  console.log('[upsertClinicRecord] SERVICE_ROLE_KEY available:', Boolean(SUPABASE_SERVICE_ROLE_KEY));
+
+  // IMPORTANT: Always use service_role headers to bypass RLS on clinics table
+  // The clinics table may not have INSERT policies for anon/authenticated users
+  const adminHeaders = SUPABASE_SERVICE_ROLE_KEY
+    ? {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        Prefer: "return=representation",
+      }
+    : getSupabaseAdminHeaders();
+
   const existingClinic = await fetchClinicById(clinicId);
   const payload = {
     id: clinicId,
@@ -719,30 +733,35 @@ const upsertClinicRecord = async ({
   };
 
   if (existingClinic) {
+    console.log('[upsertClinicRecord] Clinic exists, updating...');
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}`,
       {
         method: "PATCH",
-        headers: getSupabaseAdminHeaders(),
+        headers: adminHeaders,
         body: JSON.stringify(payload),
       },
     );
     if (!response.ok) {
       const err = await safeJson(response);
+      console.error('[upsertClinicRecord] PATCH failed:', response.status, err);
       throw new Error(err?.message || "Erro ao atualizar clínica");
     }
     return { created: false };
   }
 
+  console.log('[upsertClinicRecord] Creating new clinic...');
   const response = await fetch(`${SUPABASE_URL}/rest/v1/clinics`, {
     method: "POST",
-    headers: getSupabaseWriteHeaders(),
+    headers: adminHeaders,
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
     const err = await safeJson(response);
+    console.error('[upsertClinicRecord] POST failed:', response.status, err);
     throw new Error(err?.message || "Erro ao criar clínica");
   }
+  console.log('[upsertClinicRecord] Clinic created successfully');
   return { created: true };
 };
 
@@ -753,6 +772,18 @@ const upsertClinicAdminUser = async ({
   email,
   phone,
 }) => {
+  console.log('[upsertClinicAdminUser] Starting for userId:', userId, 'clinicId:', clinicId);
+
+  // IMPORTANT: Always use service_role headers to bypass RLS during provisioning
+  const adminHeaders = SUPABASE_SERVICE_ROLE_KEY
+    ? {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        Prefer: "return=representation",
+      }
+    : getSupabaseAdminHeaders();
+
   const existing = await fetchUserByEmail(email);
   const payload = {
     id: userId,
@@ -769,16 +800,18 @@ const upsertClinicAdminUser = async ({
     if (existing.clinic_id && existing.clinic_id !== clinicId) {
       throw new Error("Este email já está vinculado a outra clínica.");
     }
+    console.log('[upsertClinicAdminUser] User exists, updating...');
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/users?id=eq.${existing.id}`,
       {
         method: "PATCH",
-        headers: getSupabaseAdminHeaders(),
+        headers: adminHeaders,
         body: JSON.stringify(payload),
       },
     );
     if (!response.ok) {
       const err = await safeJson(response);
+      console.error('[upsertClinicAdminUser] PATCH failed:', response.status, err);
       throw new Error(
         err?.message || "Erro ao atualizar usuário administrador",
       );
@@ -786,15 +819,18 @@ const upsertClinicAdminUser = async ({
     return { created: false, userId: existing.id };
   }
 
+  console.log('[upsertClinicAdminUser] Creating new admin user...');
   const response = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
     method: "POST",
-    headers: getSupabaseWriteHeaders(),
+    headers: adminHeaders,
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
     const err = await safeJson(response);
+    console.error('[upsertClinicAdminUser] POST failed:', response.status, err);
     throw new Error(err?.message || "Erro ao criar usuário administrador");
   }
+  console.log('[upsertClinicAdminUser] Admin user created successfully');
   return { created: true, userId };
 };
 
