@@ -2115,22 +2115,12 @@ function brazilianPhoneCandidates(rawPhone) {
   if (local.length > 9) local = local.slice(-9);
   if (local.length < 8) return [digits];
 
-  const results = [];
-  // Se tem 8 dígitos e começa com 6-9, é celular. Tentar com 9 na frente e sem.
+  // Ensure 9th digit for mobile
   if (local.length === 8 && ["6", "7", "8", "9"].includes(local[0])) {
-    results.push(`${country}${ddd}9${local}`);
-    results.push(`${country}${ddd}${local}`);
-  } 
-  // Se tem 9 dígitos e começa com 9, tentar com ele e sem ele.
-  else if (local.length === 9 && local[0] === "9") {
-    results.push(`${country}${ddd}${local}`);
-    results.push(`${country}${ddd}${local.slice(1)}`);
-  } 
-  else {
-    results.push(`${country}${ddd}${local}`);
+    local = "9" + local;
   }
 
-  return [...new Set(results)];
+  return [`${country}${ddd}${local}`];
 }
 
 // Resolve WhatsApp JID by checking which candidate actually exists
@@ -3047,32 +3037,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
 
   const jid = await resolveWhatsAppJID(sock, to);
   addLog(`[API] Enviando para ${jid}...`);
-  let result;
-  let lastError;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      result = await sock.sendMessage(jid, { text: message });
-      lastError = null;
-      
-      // FIX: WhatsApp companion devices sometimes queue outbound messages indefinitely if the host phone is sleeping.
-      // Sending a message to ourselves forces the WhatsApp server to sync the queue and flush all pending messages instantly.
-      if (clinicId === "system-global" && sock.user?.id) {
-        try {
-          const myJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
-          await sock.sendMessage(myJid, { text: "🔄 [Sistema] Sincronizando fila de envios..." });
-        } catch (pingErr) {
-          addLog(`[API] Erro no ping interno: ${pingErr.message}`);
-        }
-      }
-      
-      break;
-    } catch (err) {
-      lastError = err;
-      addLog(`[API] ERRO sock.sendMessage (tentativa ${attempt + 1}): ${err.message}`);
-      if (attempt < 1) await new Promise(r => setTimeout(r, 3000));
-    }
-  }
-  if (lastError) throw lastError;
+  const result = await sock.sendMessage(jid, { text: message });
 
   const cleanPhone = String(to || "").replace(/\D/g, "");
   const msgData = {
