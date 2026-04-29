@@ -3030,9 +3030,19 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
     throw new Error("Dispositivo não conectado. Status atual: " + (whatsappConnections[clinicId]?.status || "desconhecido"));
   }
 
+  if (!sock) {
+    throw new Error("Falha ao obter socket do WhatsApp (possível bloqueio 440 ou desconectado). Reconecte via QR.");
+  }
+
   const jid = await resolveWhatsAppJID(sock, to);
   addLog(`[API] Enviando para ${jid}...`);
-  const result = await sock.sendMessage(jid, { text: message });
+  let result;
+  try {
+    result = await sock.sendMessage(jid, { text: message });
+  } catch (err) {
+    addLog(`[API] ERRO sock.sendMessage: ${err.message}`);
+    throw err;
+  }
 
   const cleanPhone = String(to || "").replace(/\D/g, "");
   const msgData = {
@@ -4547,12 +4557,11 @@ app.listen(PORT, async () => {
       if (res.ok) {
         const credentials = await res.json();
         if (Array.isArray(credentials) && credentials.length > 0) {
-          // Filter out system-global to avoid dual-socket conflict (error 440)
-          // When system-global and a clinic use the same phone number,
-          // WhatsApp disconnects both every ~5 seconds, preventing message reception
-          const clinicCreds = credentials.filter(c => c.clinic_id !== SYSTEM_WHATSAPP_CLINIC_ID);
+          // Include all clinic credentials, including system-global, because system-global is essential for signups and password resets.
+          // Note: If a clinic uses the same phone number as system-global, it may cause 440 conflicts.
+          const clinicCreds = credentials;
           console.log(
-            `🔄 Auto-reconnecting ${clinicCreds.length} WhatsApp session(s) (skipped system-global to avoid 440 conflict)...`,
+            `🔄 Auto-reconnecting ${clinicCreds.length} WhatsApp session(s)...`,
           );
           for (const cred of clinicCreds) {
             try {
