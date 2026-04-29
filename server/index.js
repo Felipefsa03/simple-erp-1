@@ -3343,6 +3343,18 @@ app.post("/api/signup/phone/send-code", async (req, res) => {
     return res.status(400).json({ ok: false, error: "Telefone invalido." });
   }
 
+  try {
+    await ensureSocketConnected(SYSTEM_WHATSAPP_CLINIC_ID);
+    // Wait up to 15 seconds if it's connecting
+    let waitCount = 0;
+    while (whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connecting" && waitCount < 30) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      waitCount++;
+    }
+  } catch (e) {
+    console.error("Erro ao garantir conexão global:", e);
+  }
+
   const systemConnected =
     whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected";
   if (!systemConnected) {
