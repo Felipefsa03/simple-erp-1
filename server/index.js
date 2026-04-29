@@ -3036,8 +3036,10 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   }
 
   const jid = await resolveWhatsAppJID(sock, to);
+  console.log(`[DEBUG-WA] Enviando mensagem REAL para: ${jid} (Clinic: ${clinicId})`);
   addLog(`[API] Enviando para ${jid}...`);
   const result = await sock.sendMessage(jid, { text: message });
+  console.log(`[DEBUG-WA] Mensagem enviada com sucesso! ID: ${result.key.id}`);
 
   const cleanPhone = String(to || "").replace(/\D/g, "");
   const msgData = {
@@ -4547,7 +4549,7 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 WhatsApp API ready for connections`);
+  console.log(`📱 WhatsApp API ready for connections [v2.0.1-no-ping]`);
 
   // Auto-reconnect all saved WhatsApp sessions on startup
   if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
