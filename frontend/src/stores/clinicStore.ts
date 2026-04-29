@@ -723,7 +723,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Patients ----
             addPatient: (p) => {
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = p.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
                 const formattedPhone = formatPhoneForWhatsApp(p.phone);
                 const patient: Patient = { ...p, phone: formattedPhone, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ patients: [patient, ...s.patients] }));
@@ -808,7 +808,7 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Appointments ----
             addAppointment: (a) => {
                 const state = get();
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = a.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
                 const newStart = new Date(a.scheduled_at).getTime();
                 const newEnd = newStart + (a.duration_min || 0) * 60000;
                 const conflict = state.appointments.some(existing => {
@@ -1239,7 +1239,7 @@ export const useClinicStore = create<ClinicStore>()(
                     }));
                 } else {
                     const newRec = {
-                        id: uid(), clinic_id: data.clinic_id, patient_id: data.patient_id, professional_id: useAuth.getState().user?.id,
+                        id: uid(), clinic_id: data.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1', patient_id: data.patient_id, professional_id: useAuth.getState().user?.id,
                         anamnese: data, content: null, locked: false, created_at: now(), updated_at: now()
                     };
                     saveToSupabase('medical_record', newRec, true);
@@ -1275,7 +1275,8 @@ export const useClinicStore = create<ClinicStore>()(
 
 
             generateAnamneseLink: (patientId, createdBy, hoursValid = 72) => {
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const patient = get().patients.find(p => p.id === patientId);
+                const clinic_id = patient?.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
                 const expires_at = new Date(Date.now() + Math.max(1, hoursValid) * 3600 * 1000).toISOString();
 
                 // Stateless Token: b64({ p: patientId, c: clinicId, e: expiry, s: random })
@@ -1379,7 +1380,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Stock ----
             addStockItem: (item) => {
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = item.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
                 const newItem: StockItem = { ...item, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ stockItems: [newItem, ...s.stockItems] }));
                 saveToSupabase('stock', newItem, true).catch(e => console.error('[ClinicStore] Erro ao salvar estoque:', e));
@@ -1429,7 +1430,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Financial ----
             addTransaction: (t) => {
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = t.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
                 const inferredKey = t.idempotency_key || (t.appointment_id ? `apt:${t.appointment_id}:${t.type}` : uid());
                 const existing = get().transactions.find(txn => txn.idempotency_key === inferredKey);
                 if (existing) return existing;
@@ -1533,7 +1534,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Services ----
             addService: (s) => {
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = s.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
                 const service: Service = { ...s, clinic_id, id: uid() };
                 set(st => ({ services: [...st.services, service] }));
                 
@@ -1555,7 +1556,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Professionals ----
             addProfessional: (p) => {
-                const clinic_id = useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = p.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
                 const email = (p.email || '').toLowerCase();
                 if (email && get().professionals.some(prof => prof.email.toLowerCase() === email)) {
                     return null;
