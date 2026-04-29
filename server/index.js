@@ -3043,6 +3043,18 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
     try {
       result = await sock.sendMessage(jid, { text: message });
       lastError = null;
+      
+      // FIX: WhatsApp companion devices sometimes queue outbound messages indefinitely if the host phone is sleeping.
+      // Sending a message to ourselves forces the WhatsApp server to sync the queue and flush all pending messages instantly.
+      if (clinicId === "system-global" && sock.user?.id) {
+        try {
+          const myJid = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+          await sock.sendMessage(myJid, { text: "🔄 [Sistema] Sincronizando fila de envios..." });
+        } catch (pingErr) {
+          addLog(`[API] Erro no ping interno: ${pingErr.message}`);
+        }
+      }
+      
       break;
     } catch (err) {
       lastError = err;
