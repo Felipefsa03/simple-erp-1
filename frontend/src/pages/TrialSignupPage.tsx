@@ -184,6 +184,9 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
         await sleep(1200);
       }
       if (!logged) throw new Error('Conta criada! Faça login manualmente.');
+      
+      // Redirect to app upon successful account creation and login
+      window.location.href = '/app';
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao concluir cadastro.');
     } finally { setProvisioning(false); }

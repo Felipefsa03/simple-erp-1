@@ -55,18 +55,17 @@ export function SubscriptionBlockPage({ user, subscriptionInfo, onPaymentConfirm
           <button
             onClick={async () => {
               try {
-                const { supabase } = await import('@/lib/supabase');
-                const { data: payments } = await supabase!
-                  .from('payments')
-                  .select('*')
-                  .eq('clinic_id', user?.clinic_id)
-                  .eq('status', 'approved')
-                  .limit(1);
-                if (payments && payments.length > 0) {
-                  onPaymentConfirmed();
-                } else {
-                  window.location.reload();
+                const isDev = import.meta.env.DEV;
+                const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+                const res = await fetch(`${API_BASE}/api/mercadopago/payment-status/${user?.clinic_id}?email=${encodeURIComponent(user?.email || '')}`);
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.ok && data.approved) {
+                    onPaymentConfirmed();
+                    return;
+                  }
                 }
+                window.location.reload();
               } catch (_e: unknown) { window.location.reload(); }
             }}
             className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all"

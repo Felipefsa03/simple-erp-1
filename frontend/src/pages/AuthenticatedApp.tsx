@@ -169,13 +169,23 @@ export function AuthenticatedApp() {
         const clinicId = user?.clinic_id;
         if (!clinicId) return;
         
-        // Buscar pagamento aprovado primeiro
-        const { data: payments } = await supabase!.from('payments').select('*').eq('clinic_id', clinicId).eq('status', 'approved').order('created_at', { ascending: false }).limit(1);
-        if (payments && payments.length > 0) {
-          console.log('[Subscription] Pagamento aprovado encontrado, liberando acesso');
-          setSubscriptionBlocked(false);
-          setSubscriptionInfo(null);
-          return;
+        const isDev = import.meta.env.DEV;
+        const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+        
+        // Verificar status do pagamento via backend (consulta MercadoPago e banco local usando admin auth)
+        try {
+          const statusRes = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(user?.email || '')}`);
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData.ok && statusData.approved) {
+              console.log('[Subscription] Pagamento aprovado encontrado via backend, liberando acesso');
+              setSubscriptionBlocked(false);
+              setSubscriptionInfo(null);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('[Subscription] Erro ao verificar pagamento no backend...', e);
         }
         
         // Se não tem pagamento aprovado, verificar plano e gerar cobrança
@@ -199,8 +209,6 @@ export function AuthenticatedApp() {
         console.log('[Subscription] Plano atual:', plan);
         const amount = prices[`plan_price_${plan}`] || defaultPrices[plan] || 17;
         console.log('[Subscription] Valor do plano:', amount, 'prices from DB:', prices);
-        const isDev = import.meta.env.DEV;
-        const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
         const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clinicName: clinic?.name || 'Minha Clínica', email: user.email, name: user.name, phone: user.phone || '', plan, amount, clinicId }),

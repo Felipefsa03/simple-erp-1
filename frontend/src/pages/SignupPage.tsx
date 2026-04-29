@@ -469,6 +469,9 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
       if (!logged) {
         throw new Error('Conta criada, mas nao foi possivel autenticar automaticamente. Tente fazer login.');
       }
+      
+      // Redirect to app upon successful account creation and login
+      window.location.href = '/app';
     } catch (error: unknown) {
       setSignupError(error instanceof Error ? error.message : 'Erro ao concluir cadastro.');
     } finally {
