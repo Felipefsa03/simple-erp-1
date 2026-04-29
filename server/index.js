@@ -3069,7 +3069,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
 
   // Persist sent message to Supabase
   const sendPersistKey = SUPABASE_ANON_KEY;
-  if (SUPABASE_URL && sendPersistKey) {
+  if (SUPABASE_URL && sendPersistKey && clinicId !== "system-global") {
     try {
       const sendPersistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
         method: "POST",
