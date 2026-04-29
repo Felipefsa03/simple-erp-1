@@ -27,6 +27,23 @@ const InsurancePanel = lazy(() => import('@/domains/insurance/InsurancePanel').t
 const BranchPanel = lazy(() => import('@/domains/branches/BranchPanel').then(m => ({ default: m.BranchPanel })));
 const WhatsAppTest = lazy(() => import('@/domains/testes/WhatsAppTest').then(m => ({ default: m.WhatsAppTest })));
 
+const tabPermissions: Record<string, string | null> = {
+  dashboard: 'view_dashboard',
+  agenda: 'create_appointment',
+  pacientes: 'view_patients',
+  prontuarios: 'view_patients',
+  financeiro: 'view_financial',
+  insurance: 'view_patients',
+  branches: 'manage_settings',
+  estoque: 'manage_stock',
+  marketing: 'view_dashboard',
+  configuracoes: 'manage_settings',
+};
+
+const CLINIC_TABS_PRIORITY = [
+  'dashboard', 'agenda', 'pacientes', 'prontuarios', 'financeiro', 'estoque', 'configuracoes'
+];
+
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-64">
@@ -51,7 +68,23 @@ export function AuthenticatedApp() {
   const [activeTab, setActiveTab] = useState(() => {
     // Initialize from URL path on first load
     const path = location.pathname.replace('/', '');
-    return path || 'dashboard';
+    const initialTab = path || 'dashboard';
+
+    // Se o usuário já está carregado e tem permissões (exceto super_admin), checar se ele tem acesso a aba inicial
+    if (user && user.role !== 'super_admin') {
+      const requiredPerm = tabPermissions[initialTab];
+      if (requiredPerm && !hasPermission(requiredPerm)) {
+        // Encontrar a primeira aba que ele tem acesso
+        for (const tab of CLINIC_TABS_PRIORITY) {
+          const perm = tabPermissions[tab];
+          if (!perm || hasPermission(perm)) {
+            return tab;
+          }
+        }
+      }
+    }
+
+    return initialTab;
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -84,14 +117,47 @@ export function AuthenticatedApp() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Set default tab based on role
+  // Keep URL in sync and handle role/permission changes after initial load
   useEffect(() => {
     if (user?.role === 'super_admin') {
-      setActiveTab(prev => prev.startsWith('admin-') ? prev : 'admin-dashboard');
+      setActiveTab(prev => {
+        const next = prev.startsWith('admin-') ? prev : 'admin-dashboard';
+        if (location.pathname !== `/${next}`) navigate(`/${next}`, { replace: true });
+        return next;
+      });
     } else if (user) {
-      setActiveTab(prev => prev === 'admin-dashboard' || prev.startsWith('admin-') ? 'dashboard' : (prev || 'dashboard'));
+      let firstAccessibleTab = 'dashboard';
+      for (const tab of CLINIC_TABS_PRIORITY) {
+        const requiredPerm = tabPermissions[tab];
+        if (!requiredPerm || hasPermission(requiredPerm)) {
+          firstAccessibleTab = tab;
+          break;
+        }
+      }
+
+      setActiveTab(prev => {
+        let nextTab = prev;
+        
+        if (!prev || prev === 'admin-dashboard' || prev.startsWith('admin-')) {
+          nextTab = firstAccessibleTab;
+        } else {
+          const currentPerm = tabPermissions[prev];
+          if (currentPerm && !hasPermission(currentPerm)) {
+            nextTab = firstAccessibleTab;
+          }
+        }
+
+        // Se a rota na URL está vazia e fomos mandados para uma aba específica (ex: agenda),
+        // atualizamos a URL para não ficar na raiz e refletir a aba atual.
+        const path = location.pathname.replace('/', '') || 'dashboard';
+        if (path !== nextTab && !(path === 'dashboard' && nextTab === 'dashboard')) {
+           navigate(`/${nextTab === 'dashboard' ? '' : nextTab}`, { replace: true });
+        }
+        
+        return nextTab;
+      });
     }
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, hasPermission, location.pathname, navigate]);
 
   // Check subscription status
   useEffect(() => {
@@ -204,19 +270,7 @@ export function AuthenticatedApp() {
     return () => { offFinished(); offPayment(); offImported(); };
   }, [activeTab]);
 
-  const tabPermissions: Record<string, string | null> = {
-    dashboard: 'view_dashboard',
-    agenda: 'create_appointment',
-    pacientes: 'view_patients',
-    prontuarios: 'view_patients',
-    financeiro: 'view_financial',
-    insurance: 'view_patients',
-    branches: 'manage_settings',
-    estoque: 'manage_stock',
-    marketing: 'view_dashboard',
-    configuracoes: 'manage_settings',
-  };
-
+  // tabPermissions movido para fora do componente
   const handleNavigate = useCallback((tab: string, ctx?: { patientId?: string; appointmentId?: string }) => {
     const required = tabPermissions[tab];
     if (required && !hasPermission(required)) {
