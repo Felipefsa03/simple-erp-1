@@ -2136,26 +2136,29 @@ function brazilianPhoneCandidates(rawPhone) {
 // Resolve WhatsApp JID by checking which candidate actually exists
 async function resolveWhatsAppJID(sock, rawPhone) {
   const candidates = brazilianPhoneCandidates(rawPhone);
-  addLog(
-    `[Phone] Resolving JID for "${rawPhone}" → candidates: ${candidates.join(", ")}`,
-  );
+  addLog(`[Phone] Resolving JID for "${rawPhone}" → candidates: ${candidates.join(", ")}`);
 
   for (const candidate of candidates) {
     try {
-      const [result] = await sock.onWhatsApp(candidate);
+      // Timeout de 3 segundos para a verificação onWhatsApp
+      const checkPromise = sock.onWhatsApp(candidate);
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000));
+      
+      const results = await Promise.race([checkPromise, timeoutPromise]);
+      const result = Array.isArray(results) ? results[0] : null;
+
       if (result?.exists) {
         addLog(`[Phone] JID confirmed: ${result.jid}`);
         return result.jid;
       }
     } catch (e) {
-      addLog(`[Phone] onWhatsApp failed for ${candidate}: ${e.message}`);
+      addLog(`[Phone] onWhatsApp check failed for ${candidate}: ${e.message}`);
     }
   }
 
+  // Fallback: usar o primeiro candidato se nenhum for confirmado (Minichat style)
   const fallback = `${candidates[0]}@s.whatsapp.net`;
-  addLog(
-    `[Phone] No JID confirmed for "${rawPhone}". Using fallback: ${fallback}`,
-  );
+  addLog(`[Phone] No JID confirmed for "${rawPhone}". Using fallback: ${fallback}`);
   return fallback;
 }
 
@@ -3405,13 +3408,20 @@ app.post("/api/signup/phone/send-code", async (req, res) => {
   ].join("\n");
 
   try {
+    addLog(`[Signup] Attempting to send code to ${normalizedPhone} via ${SYSTEM_WHATSAPP_CLINIC_ID}`);
     await sendWhatsAppMessage({
       clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
       to: normalizedPhone,
       message,
     });
+    addLog(`[Signup] Code sent successfully to ${normalizedPhone}`);
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message });
+    addLog(`[Signup] Error sending code: ${error.message}`);
+    return res.status(500).json({ 
+      ok: false, 
+      error: error.message,
+      details: "Verifique se o WhatsApp Global está conectado no painel de Super Admin."
+    });
   }
 
   return res.json({
