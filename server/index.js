@@ -3046,7 +3046,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
         
         // Persist sent message to Supabase
         const sendPersistKey = SUPABASE_ANON_KEY;
-        if (SUPABASE_URL && sendPersistKey && clinicId !== "system-global") {
+        if (SUPABASE_URL && sendPersistKey) {
           try {
             const sendPersistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
               method: "POST",
@@ -3429,6 +3429,8 @@ app.post("/api/signup/phone/send-code", async (req, res) => {
     expires_in_seconds: 30,
     masked_phone: maskPhone(normalizedPhone),
     destination_name: name || "",
+    debug_jid: session.phone + "@s.whatsapp.net", // Informação para debug no console
+    sender_id: SYSTEM_WHATSAPP_CLINIC_ID
   });
 });
 
