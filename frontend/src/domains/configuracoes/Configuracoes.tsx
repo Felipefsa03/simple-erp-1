@@ -1698,14 +1698,18 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Categoria
                   </label>
-                  <select
+                  <input
+                    list="service-categories"
+                    type="text"
                     value={svcForm.category}
                     onChange={(e) =>
                       setSvcForm({ ...svcForm, category: e.target.value })
                     }
                     disabled={!canManageSettings}
+                    placeholder="Selecione ou digite..."
                     className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none disabled:opacity-60"
-                  >
+                  />
+                  <datalist id="service-categories">
                     {[
                       "Consulta",
                       "Preventivo",
@@ -1713,12 +1717,11 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       "Cirúrgico",
                       "Ortodontia",
                       "Estética",
-                      "Implante",
-                      "Outro",
+                      "Implante"
                     ].map((c) => (
-                      <option key={c}>{c}</option>
+                      <option key={c} value={c} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
