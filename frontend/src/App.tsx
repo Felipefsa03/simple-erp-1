@@ -9,6 +9,7 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 const AuthenticatedApp = React.lazy(() => import('./pages/AuthenticatedApp').then(m => ({ default: m.AuthenticatedApp })));
 const LoginPage = React.lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const SignupPage = React.lazy(() => import('./pages/SignupPage').then(m => ({ default: m.SignupPage })));
+const TrialSignupPage = React.lazy(() => import('./pages/TrialSignupPage').then(m => ({ default: m.TrialSignupPage })));
 const LandingPage = React.lazy(() => import('./domains/marketing/LandingPage').then(m => ({ default: m.LandingPage })));
 const OnlineBookingPage = React.lazy(() => import('./domains/agenda/OnlineBookingPage').then(m => ({ default: m.OnlineBookingPage })));
 const PublicAnamneseForm = React.lazy(() => import('./domains/prontuarios/PublicAnamneseForm').then(m => ({ default: m.PublicAnamneseForm })));
@@ -57,6 +58,16 @@ function SignupPageWrapper() {
   );
 }
 
+function TrialSignupPageWrapper() {
+  const navigate = useNavigate();
+  
+  return (
+    <TrialSignupPage 
+      onLoginClick={() => navigate('/login')}
+    />
+  );
+}
+
 function PasswordResetFlowWrapper() {
   const navigate = useNavigate();
   
@@ -95,6 +106,7 @@ export default function App() {
         {/* Public routes - redirect to login if authenticated */}
         <Route path="/login" element={<LoginPageWrapper />} />
         <Route path="/signup" element={<SignupPageWrapper />} />
+        <Route path="/signup/trial" element={<TrialSignupPageWrapper />} />
         <Route path="/forgot-password" element={<PasswordResetFlowWrapper />} />
         
         {/* Public pages - always accessible */}

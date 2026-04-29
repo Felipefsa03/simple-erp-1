@@ -1449,6 +1449,7 @@ const publicPaths = [
   "/signup/phone/send-code",
   "/signup/phone/verify-code",
   "/signup/provision",
+  "/signup/provision-trial",
   "/system/signup-config",
   "/mercadopago/create-preference",
   "/mercadopago/payment-status/",
@@ -3860,6 +3861,144 @@ app.post("/api/signup/provision", async (req, res) => {
       payment_status: payment.status,
     });
   } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// ============================================
+// Trial Signup — 7 days free, no payment required
+// ============================================
+app.post("/api/signup/provision-trial", async (req, res) => {
+  const {
+    signupId, clinicId, name, email, phone, password,
+    clinicName, clinicDoc, docType, modality,
+  } = req.body || {};
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return res.status(503).json({ ok: false, error: "Supabase nao configurado no backend." });
+  }
+  if (!signupId || !clinicId || !name || !email || !phone || !password || !clinicName) {
+    return res.status(400).json({ ok: false, error: "Campos obrigatorios ausentes." });
+  }
+  if (!isUuid(clinicId)) {
+    return res.status(400).json({ ok: false, error: "clinicId invalido." });
+  }
+  if (String(password).length < 6) {
+    return res.status(400).json({ ok: false, error: "Senha deve ter ao menos 6 caracteres." });
+  }
+
+  try {
+    assertPhoneVerificationValid({ signupId, phone });
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedPhone = normalizePhoneForSignup(phone) || String(phone).replace(/\D/g, "");
+
+    const existingUser = await fetchUserByEmail(normalizedEmail);
+    if (existingUser?.clinic_id && existingUser.clinic_id !== clinicId) {
+      return res.status(409).json({ ok: false, error: "Este email ja pertence a outra clinica." });
+    }
+
+    let authUserId = existingUser?.id || null;
+    if (!authUserId) {
+      const authResult = await createSupabaseAuthUser({
+        email: normalizedEmail,
+        password: String(password),
+        name: String(name),
+      });
+      authUserId = authResult.userId;
+    }
+
+    // Calculate trial end date (7 days from now)
+    const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Create clinic with trial status and premium plan
+    const adminHeaders = SUPABASE_SERVICE_ROLE_KEY
+      ? {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          Prefer: "return=representation",
+        }
+      : getSupabaseAdminHeaders();
+
+    const clinicPayload = {
+      id: clinicId,
+      name: String(clinicName).trim(),
+      document_type: String(docType || "cpf").trim(),
+      document_number: String(clinicDoc || "").replace(/\D/g, ""),
+      modality: String(modality || "odonto").trim(),
+      plan: "premium",
+      subscription_plan: "premium",
+      subscription_status: "trial",
+      phone: normalizedPhone,
+      email: normalizedEmail,
+      active: true,
+      trial_ends_at: trialEndsAt,
+      created_at: new Date().toISOString(),
+    };
+
+    const existingClinic = await fetchClinicById(clinicId);
+    if (existingClinic) {
+      const cr = await fetch(`${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}`, {
+        method: "PATCH", headers: adminHeaders, body: JSON.stringify(clinicPayload),
+      });
+      if (!cr.ok) {
+        const err = await safeJson(cr);
+        console.error("[TrialProvision] PATCH clinic failed:", cr.status, err);
+        throw new Error(err?.message || "Erro ao atualizar clinica trial.");
+      }
+    } else {
+      const cr = await fetch(`${SUPABASE_URL}/rest/v1/clinics`, {
+        method: "POST", headers: adminHeaders, body: JSON.stringify(clinicPayload),
+      });
+      if (!cr.ok) {
+        const err = await safeJson(cr);
+        console.error("[TrialProvision] POST clinic failed:", cr.status, err);
+        throw new Error(err?.message || "Erro ao criar clinica trial.");
+      }
+    }
+
+    // Create admin user
+    const userPayload = {
+      id: authUserId,
+      clinic_id: clinicId,
+      name: String(name).trim(),
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      role: "admin",
+      active: true,
+      created_at: new Date().toISOString(),
+    };
+    const existingUsr = await fetchUserByEmail(normalizedEmail);
+    if (existingUsr) {
+      await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${existingUsr.id}`, {
+        method: "PATCH", headers: adminHeaders, body: JSON.stringify(userPayload),
+      });
+    } else {
+      const ur = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+        method: "POST", headers: adminHeaders, body: JSON.stringify(userPayload),
+      });
+      if (!ur.ok) {
+        const err = await safeJson(ur);
+        console.error("[TrialProvision] POST user failed:", ur.status, err);
+        throw new Error(err?.message || "Erro ao criar usuario admin trial.");
+      }
+    }
+
+    consumePhoneVerification(signupId);
+
+    console.log(`[TrialProvision] Trial account created: clinic=${clinicId}, user=${authUserId}, trial_ends=${trialEndsAt}`);
+
+    return res.json({
+      ok: true,
+      clinic_id: clinicId,
+      user_id: authUserId,
+      plan: "premium",
+      subscription_status: "trial",
+      trial_ends_at: trialEndsAt,
+    });
+  } catch (error) {
+    console.error("[TrialProvision] Error:", error.message);
     return res.status(500).json({ ok: false, error: error.message });
   }
 });

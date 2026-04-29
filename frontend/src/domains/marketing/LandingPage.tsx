@@ -488,7 +488,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
               Entrar
             </Link>
             <Link
-              to="/signup"
+              to="/signup/trial"
               className="px-5 py-2.5 bg-gradient-to-r from-brand-500 to-brand-600 text-white text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-brand-500/25 transition-all"
             >
               Teste Grátis
@@ -576,7 +576,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 className="flex flex-col sm:flex-row gap-4"
               >
                 <button
-                  onClick={onLoginClick}
+                  onClick={() => window.location.href = '/signup/trial'}
                   className="group px-8 py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-semibold rounded-2xl hover:shadow-xl hover:shadow-brand-500/20 transition-all flex items-center justify-center gap-2"
                 >
                   Começar Teste Grátis de 7 Dias
@@ -939,7 +939,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 </ul>
 
                 <button
-                  onClick={onLoginClick}
+                  onClick={() => plan.price ? window.location.href = '/signup/trial' : window.location.href = '/contato'}
                   className={cn(
                     "w-full py-4 rounded-xl font-semibold transition-all",
                     plan.highlighted
@@ -1034,7 +1034,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 initial={{ opacity: 0, scale: 0.9 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3 }}
-                onClick={onLoginClick}
+                onClick={() => window.location.href = '/signup/trial'}
                 className="group px-10 py-5 bg-white text-brand-600 text-lg font-bold rounded-2xl hover:shadow-2xl transition-all inline-flex items-center gap-3"
               >
                 Começar Teste Grátis
