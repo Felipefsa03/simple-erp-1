@@ -2302,12 +2302,6 @@ const whatsapp440Tracker = {}; // Global tracker for 440 errors per clinicId
 
 // Singleton socket manager
 const ensureSocketConnected = async (clinicId) => {
-  // Block new connections if we're in a 440 cooldown
-  const tracker = whatsapp440Tracker[clinicId];
-  if (tracker && tracker.blocked) {
-    addLog(`[Baileys] BLOCKED: ${clinicId} está em cooldown de erro 440. Reconecte via QR.`);
-    return null;
-  }
   if (whatsappSockets[clinicId]) return whatsappSockets[clinicId];
   return await createWhatsAppSocket(clinicId);
 };
@@ -2405,35 +2399,10 @@ const createWhatsAppSocket = async (clinicId) => {
             statusCode === DisconnectReason.loggedOut || statusCode === 401;
           const isStreamConflict = statusCode === 440;
           const shouldReconnect = !isLoggedOut;
-          // Use global 440 tracker instead of local retryCount
-          if (!whatsapp440Tracker[clinicId]) whatsapp440Tracker[clinicId] = { count: 0, blocked: false };
-          if (isStreamConflict) {
-            whatsapp440Tracker[clinicId].count++;
-          } else {
-            whatsapp440Tracker[clinicId].count = 0; // Reset on non-440 errors
-          }
-          const globalRetry = whatsapp440Tracker[clinicId].count;
           retryCount++;
-          addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount}, global440: ${globalRetry})`);
+          addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
 
-          // Stop reconnecting after 3 consecutive 440 errors
-          if (isStreamConflict && globalRetry >= 3) {
-            addLog(`[Baileys] ⚠️ BLOQUEADO: ${globalRetry}x erro 440 para ${clinicId} - sessão corrompida, limpando`);
-            whatsapp440Tracker[clinicId].blocked = true;
-            delete whatsappSockets[clinicId];
-            whatsappConnections[clinicId] = { status: "disconnected", qr: null, qrBase64: null };
-            // Clear corrupted credentials
-            try {
-              const clearKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-              await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`, {
-                method: "DELETE",
-                headers: { apikey: clearKey, Authorization: `Bearer ${clearKey}` },
-              });
-              addLog(`[Baileys] Credenciais corrompidas removidas para ${clinicId}`);
-            } catch (e) {
-              addLog(`[Baileys] Erro ao limpar credenciais: ${e.message}`);
-            }
-          } else if (shouldReconnect) {
+          if (shouldReconnect) {
             const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
             setTimeout(connect, delay);
           } else {
@@ -2886,6 +2855,10 @@ app.post("/api/whatsapp/connect", async (req, res) => {
     whatsappConnections[clinicId] = { status: "connecting" };
 
     const sock = await ensureSocketConnected(clinicId);
+
+    if (!sock) {
+      throw new Error("Não foi possível inicializar o socket do WhatsApp.");
+    }
 
     // Generate pairing code if phone provided
     if (phoneNumber) {
