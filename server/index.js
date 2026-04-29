@@ -3018,18 +3018,15 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
     throw new Error("Falha ao obter socket do WhatsApp (possível bloqueio 440 ou desconectado). Reconecte via QR.");
   }
 
-  // 1. Silent Flush: Send presence update to wake up the connection without a visible ping
-  const candidates = brazilianPhoneCandidates(to);
-  let lastError = null;
-
-  for (const phone of candidates) {
-    try {
-      const targetJid = `${phone}@s.whatsapp.net`;
-      await sock.sendPresenceUpdate("composing", targetJid);
-      await new Promise(r => setTimeout(r, 500));
+  try {
+    const number = String(to).replace(/\D/g, "");
+    // Lógica idêntica à das campanhas (Minichat style)
+    const targetJid = (number.startsWith("55") && number.length === 13)
+      ? `${number.slice(0, 4)}${number.slice(5)}@s.whatsapp.net` 
+      : `${number}@s.whatsapp.net`;
       
-      addLog(`[API] Enviando para ${targetJid}...`);
-      const result = await sock.sendMessage(targetJid, { text: message });
+    addLog(`[API] Enviando via ${clinicId} para ${targetJid}...`);
+    const result = await sock.sendMessage(targetJid, { text: message });
       
       if (result?.key?.id) {
         // Success!
@@ -3078,28 +3075,13 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
           }
         }
         
-        return { messageId: result.key.id, jid: targetJid };
-      }
-    } catch (err) {
-      addLog(`[API] Erro ao enviar para o candidato ${phone}: ${err.message}`);
-      lastError = err;
-      // Se for o primeiro erro, tentar forçar a criação do JID normal
-      if (err.message.includes("is not formatted correctly")) {
-         try {
-            const fallbackJid = `${String(to || "").replace(/\D/g, "")}@s.whatsapp.net`;
-            addLog(`[API] Tentando fallback para JID: ${fallbackJid}`);
-            const result = await sock.sendMessage(fallbackJid, { text: message });
-            if (result?.key?.id) {
-               return { messageId: result.key.id, jid: fallbackJid };
-            }
-         } catch (fallbackErr) {
-             addLog(`[API] Erro no fallback: ${fallbackErr.message}`);
-         }
-      }
+      return { messageId: result.key.id, jid: targetJid };
     }
+    throw new Error("Resposta inválida do socket ao enviar.");
+  } catch (err) {
+    addLog(`[API] Erro no envio estilo minichat: ${err.message}`);
+    throw err;
   }
-  
-  throw new Error(lastError ? lastError.message : "Falha ao enviar mensagem para todos os candidatos de telefone.");
 };
 
 app.post("/api/whatsapp/send", async (req, res) => {
