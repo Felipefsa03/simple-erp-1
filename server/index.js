@@ -705,17 +705,13 @@ const upsertClinicRecord = async ({
   email,
 }) => {
   console.log('[upsertClinicRecord] Starting for clinicId:', clinicId);
-  console.log('[upsertClinicRecord] SERVICE_ROLE_KEY available:', Boolean(SUPABASE_SERVICE_ROLE_KEY));
 
-  if (!SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY não está configurada no servidor. Configure esta variável no Render para permitir o cadastro de clínicas.');
-  }
-
-  // MUST use service_role to bypass RLS on clinics table
+  // Use ANON_KEY for REST API calls (service_role JWT is blocked by Supabase gateway)
+  const provisionKey = SUPABASE_ANON_KEY;
   const adminHeaders = {
     "Content-Type": "application/json",
-    apikey: SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    apikey: provisionKey,
+    Authorization: `Bearer ${provisionKey}`,
     Prefer: "return=representation",
   };
 
@@ -775,15 +771,12 @@ const upsertClinicAdminUser = async ({
 }) => {
   console.log('[upsertClinicAdminUser] Starting for userId:', userId, 'clinicId:', clinicId);
 
-  if (!SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY não está configurada no servidor. Configure esta variável no Render.');
-  }
-
-  // MUST use service_role to bypass RLS during provisioning
+  // Use ANON_KEY for REST API calls (service_role JWT is blocked by Supabase gateway)
+  const provisionKey = SUPABASE_ANON_KEY;
   const adminHeaders = {
     "Content-Type": "application/json",
-    apikey: SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    apikey: provisionKey,
+    Authorization: `Bearer ${provisionKey}`,
     Prefer: "return=representation",
   };
 
@@ -3983,20 +3976,12 @@ app.post("/api/signup/provision-trial", async (req, res) => {
     // Calculate trial end date (7 days from now)
     const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // MUST have service_role key for provisioning
-    if (!SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("[TrialProvision] FATAL: SUPABASE_SERVICE_ROLE_KEY is missing!");
-      return res.status(503).json({
-        ok: false,
-        error: "Servidor não está configurado corretamente. A chave SUPABASE_SERVICE_ROLE_KEY está ausente. Configure no Render.",
-      });
-    }
-
-    // Create clinic with trial status and premium plan
+    // Use ANON_KEY for REST API provisioning (service_role JWT is blocked by Supabase gateway)
+    const provisionKey = SUPABASE_ANON_KEY;
     const adminHeaders = {
       "Content-Type": "application/json",
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      apikey: provisionKey,
+      Authorization: `Bearer ${provisionKey}`,
       Prefer: "return=representation",
     };
 
