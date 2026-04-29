@@ -3436,17 +3436,25 @@ app.post("/api/signup/phone/send-code", async (req, res) => {
   session.sendTimestamps = [...recentSends, now];
   setVerificationSession(signupId, session);
 
+  const greetings = ["Olá!", "Oi!", "Tudo bem?", "Saudações da Clinxia!"];
+  const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+  
   const message = [
-    "Clinxia - Validacao de Telefone",
+    `${greeting} Clinxia - Validação de Telefone`,
     "",
-    `Seu codigo de verificacao: ${code}`,
-    "Esse codigo expira em 30 segundos.",
+    `Seu código de verificação é: *${code}*`,
+    "Ele expira em 30 segundos.",
     "",
-    "Se voce nao solicitou, ignore esta mensagem.",
+    "Use este código para concluir seu cadastro com segurança. Se não solicitou, pode ignorar esta mensagem.",
   ].join("\n");
 
   try {
     addLog(`[Signup] Attempting to send code to ${normalizedPhone} via ${SYSTEM_WHATSAPP_CLINIC_ID}`);
+    
+    // Pequeno delay aleatório entre 1 e 3 segundos para simular comportamento humano
+    const delay = Math.floor(Math.random() * 2000) + 1000;
+    await new Promise(resolve => setTimeout(resolve, delay));
+
     await sendWhatsAppMessage({
       clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
       to: normalizedPhone,
