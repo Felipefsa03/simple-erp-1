@@ -290,17 +290,30 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
     setSignupLoading(true);
     setSignupError('');
     try {
-      const response = await fetch(`${API_BASE}/api/signup/phone/send-code`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          signupId: idsRef.current.signupId,
-          phone: signupForm.phone,
-          name: signupForm.name,
-        }),
-      });
-      const data = await response.json();
-      if (!data.ok) throw new Error(data.error || 'Falha ao enviar codigo.');
+      let response;
+      let data;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        response = await fetch(`${API_BASE}/api/signup/phone/send-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            signupId: idsRef.current.signupId,
+            phone: signupForm.phone,
+            name: signupForm.name,
+          }),
+        });
+        if (response.status === 503 || response.status === 500) {
+          if (attempt < 2) {
+            setSignupError('Servidor iniciando/conectando, aguarde...');
+            await sleep(4000);
+            continue;
+          }
+        }
+        data = await response.json();
+        break;
+      }
+      if (!data?.ok) throw new Error(data?.error || 'Falha ao enviar codigo.');
+      setSignupError('');
 
       setPhoneCode('');
       setPhoneCodeSent(true);

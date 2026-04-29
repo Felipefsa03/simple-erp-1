@@ -2485,9 +2485,10 @@ const createWhatsAppSocket = async (clinicId) => {
             creds ? "sim" : "não",
           );
           if (creds) {
+            const existingData = await loadCredentialsFromSupabase(clinicId) || {};
             const saved = await saveCredentialsToSupabase(clinicId, {
+              ...existingData,
               creds,
-              keys: {},
             });
             console.log("[Baileys] Resultado do save:", saved);
             addLog(`[Baileys] Credenciais salvas no Supabase: ${saved}`);
@@ -3037,12 +3038,19 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   const jid = await resolveWhatsAppJID(sock, to);
   addLog(`[API] Enviando para ${jid}...`);
   let result;
-  try {
-    result = await sock.sendMessage(jid, { text: message });
-  } catch (err) {
-    addLog(`[API] ERRO sock.sendMessage: ${err.message}`);
-    throw err;
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      result = await sock.sendMessage(jid, { text: message });
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
+      addLog(`[API] ERRO sock.sendMessage (tentativa ${attempt + 1}): ${err.message}`);
+      if (attempt < 1) await new Promise(r => setTimeout(r, 3000));
+    }
   }
+  if (lastError) throw lastError;
 
   const cleanPhone = String(to || "").replace(/\D/g, "");
   const msgData = {

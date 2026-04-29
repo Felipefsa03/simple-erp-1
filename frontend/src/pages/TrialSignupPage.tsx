@@ -112,12 +112,25 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
     if (!form.phone.trim()) { setError('Informe o telefone.'); return; }
     setLoading(true); setError('');
     try {
-      const r = await fetch(`${API_BASE}/api/signup/phone/send-code`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signupId: idsRef.current.signupId, phone: form.phone, name: form.name }),
-      });
-      const d = await r.json();
-      if (!d.ok) throw new Error(d.error || 'Falha ao enviar código.');
+      let r;
+      let d;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        r = await fetch(`${API_BASE}/api/signup/phone/send-code`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ signupId: idsRef.current.signupId, phone: form.phone, name: form.name }),
+        });
+        if (r.status === 503 || r.status === 500) {
+          if (attempt < 2) {
+            setError('Servidor iniciando/conectando, aguarde...');
+            await sleep(4000);
+            continue;
+          }
+        }
+        d = await r.json();
+        break;
+      }
+      if (!d?.ok) throw new Error(d?.error || 'Falha ao enviar código.');
+      setError('');
       setPhoneCode(''); setPhoneCodeSent(true); setPhoneVerified(false);
       setMaskedPhone(d.masked_phone || ''); setPhoneTimer(Number(d.expires_in_seconds || 30));
     } catch (e: unknown) {
