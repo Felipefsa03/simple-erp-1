@@ -523,10 +523,10 @@ const fetchUserByEmail = async (email) => {
 };
 
 const fetchClinicById = async (clinicId) => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !clinicId) return null;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !clinicId) return null;
   const response = await fetch(
     `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=id,name,plan,active&limit=1`,
-    { headers: getSupabaseAdminHeaders(SUPABASE_ANON_KEY) },
+    { headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY) },
   );
   if (!response.ok) {
     console.warn('[fetchClinicById] Failed:', response.status);
@@ -709,8 +709,8 @@ const upsertClinicRecord = async ({
 }) => {
   console.log('[upsertClinicRecord] Starting for clinicId:', clinicId);
 
-  // Use ANON_KEY for REST API calls (service_role JWT is blocked by Supabase gateway)
-  const provisionKey = SUPABASE_ANON_KEY;
+  // Use SERVICE_ROLE_KEY to bypass RLS for administrative provisioning
+  const provisionKey = SUPABASE_SERVICE_ROLE_KEY;
   const adminHeaders = {
     "Content-Type": "application/json",
     apikey: provisionKey,
@@ -780,8 +780,8 @@ const upsertClinicAdminUser = async ({
 }) => {
   console.log('[upsertClinicAdminUser] Starting for userId:', userId, 'clinicId:', clinicId);
 
-  // Use ANON_KEY for REST API calls (service_role JWT is blocked by Supabase gateway)
-  const provisionKey = SUPABASE_ANON_KEY;
+  // Use SERVICE_ROLE_KEY to bypass RLS for administrative provisioning
+  const provisionKey = SUPABASE_SERVICE_ROLE_KEY;
   const adminHeaders = {
     "Content-Type": "application/json",
     apikey: provisionKey,
@@ -3935,7 +3935,11 @@ app.post("/api/signup/provision", async (req, res) => {
       payment_status: payment.status,
     });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message });
+    console.error("[Provision] Error:", error.message);
+    if (error.message.includes("invalid JWT") || error.message.includes("unable to parse") || error.message.includes("assinatura inválida")) {
+      return res.status(400).json({ ok: false, error: "ERRO CRÍTICO NO BACKEND: Sua chave SUPABASE_SERVICE_ROLE_KEY configurada no Render (variáveis de ambiente) está desatualizada ou incorreta. Vá no painel do Supabase > Project Settings > API > role: service_role, copie a chave e atualize no Render." });
+    }
+    return res.status(400).json({ ok: false, error: error.message });
   }
 });
 
@@ -3985,8 +3989,8 @@ app.post("/api/signup/provision-trial", async (req, res) => {
     // Calculate trial end date (7 days from now)
     const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Use ANON_KEY for REST API provisioning (service_role JWT is blocked by Supabase gateway)
-    const provisionKey = SUPABASE_ANON_KEY;
+    // Use SERVICE_ROLE_KEY to bypass RLS for administrative provisioning
+    const provisionKey = SUPABASE_SERVICE_ROLE_KEY;
     const adminHeaders = {
       "Content-Type": "application/json",
       apikey: provisionKey,
@@ -4081,7 +4085,10 @@ app.post("/api/signup/provision-trial", async (req, res) => {
     });
   } catch (error) {
     console.error("[TrialProvision] Error:", error.message);
-    return res.status(500).json({ ok: false, error: error.message });
+    if (error.message.includes("invalid JWT") || error.message.includes("unable to parse") || error.message.includes("assinatura inválida")) {
+      return res.status(400).json({ ok: false, error: "ERRO CRÍTICO NO BACKEND: Sua chave SUPABASE_SERVICE_ROLE_KEY configurada no Render (variáveis de ambiente) está desatualizada ou incorreta. Atualize-a no Render copiando do Supabase." });
+    }
+    return res.status(400).json({ ok: false, error: error.message });
   }
 });
 
