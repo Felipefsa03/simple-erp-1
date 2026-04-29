@@ -526,9 +526,12 @@ const fetchClinicById = async (clinicId) => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !clinicId) return null;
   const response = await fetch(
     `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=id,name,plan,active&limit=1`,
-    { headers: getSupabaseAdminHeaders() },
+    { headers: getSupabaseAdminHeaders(SUPABASE_ANON_KEY) },
   );
-  if (!response.ok) return null;
+  if (!response.ok) {
+    console.warn('[fetchClinicById] Failed:', response.status);
+    return null;
+  }
   const rows = await safeJson(response);
   return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 };
@@ -712,7 +715,7 @@ const upsertClinicRecord = async ({
     "Content-Type": "application/json",
     apikey: provisionKey,
     Authorization: `Bearer ${provisionKey}`,
-    Prefer: "return=representation",
+    Prefer: "resolution=merge-duplicates,return=representation",
   };
 
   const existingClinic = await fetchClinicById(clinicId);
@@ -777,7 +780,7 @@ const upsertClinicAdminUser = async ({
     "Content-Type": "application/json",
     apikey: provisionKey,
     Authorization: `Bearer ${provisionKey}`,
-    Prefer: "return=representation",
+    Prefer: "resolution=merge-duplicates,return=representation",
   };
 
   const existing = await fetchUserByEmail(email);
