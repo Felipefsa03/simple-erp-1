@@ -3993,16 +3993,13 @@ app.post("/api/signup/provision-trial", async (req, res) => {
     const clinicPayload = {
       id: clinicId,
       name: String(clinicName).trim(),
-      document_type: String(docType || "cpf").trim(),
-      document_number: String(clinicDoc || "").replace(/\D/g, ""),
-      modality: String(modality || "odonto").trim(),
-      plan: "premium",
-      subscription_plan: "premium",
-      subscription_status: "trial",
+      cnpj: String(clinicDoc || "").replace(/\D/g, ""), // Alinhado com o esquema SQL
+      plan: sanitizePlan("premium"), // Converte 'premium' para 'enterprise'
+      status: "trial",
       phone: normalizedPhone,
       email: normalizedEmail,
       active: true,
-      trial_ends_at: trialEndsAt,
+      expires_at: trialEndsAt, // Alinhado com o esquema SQL
       created_at: new Date().toISOString(),
     };
 
@@ -4064,7 +4061,7 @@ app.post("/api/signup/provision-trial", async (req, res) => {
       user_id: authUserId,
       plan: "premium",
       subscription_status: "trial",
-      trial_ends_at: trialEndsAt,
+      expires_at: trialEndsAt,
     });
   } catch (error) {
     console.error("[TrialProvision] Error:", error.message);
