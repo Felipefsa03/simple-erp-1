@@ -2115,12 +2115,22 @@ function brazilianPhoneCandidates(rawPhone) {
   if (local.length > 9) local = local.slice(-9);
   if (local.length < 8) return [digits];
 
-  // Ensure 9th digit for mobile
+  const results = [];
+  // Se tem 8 dígitos e começa com 6-9, é celular. Tentar com 9 na frente e sem.
   if (local.length === 8 && ["6", "7", "8", "9"].includes(local[0])) {
-    local = "9" + local;
+    results.push(`${country}${ddd}9${local}`);
+    results.push(`${country}${ddd}${local}`);
+  } 
+  // Se tem 9 dígitos e começa com 9, tentar com ele e sem ele.
+  else if (local.length === 9 && local[0] === "9") {
+    results.push(`${country}${ddd}${local}`);
+    results.push(`${country}${ddd}${local.slice(1)}`);
+  } 
+  else {
+    results.push(`${country}${ddd}${local}`);
   }
 
-  return [`${country}${ddd}${local}`];
+  return [...new Set(results)];
 }
 
 // Resolve WhatsApp JID by checking which candidate actually exists
@@ -4589,11 +4599,12 @@ app.listen(PORT, async () => {
       if (res.ok) {
         const credentials = await res.json();
         if (Array.isArray(credentials) && credentials.length > 0) {
-          // Include all clinic credentials, including system-global, because system-global is essential for signups and password resets.
-          // Note: If a clinic uses the same phone number as system-global, it may cause 440 conflicts.
-          const clinicCreds = credentials;
+          // Filter out system-global to avoid dual-socket conflict (error 440)
+          // When system-global and a clinic use the same phone number,
+          // WhatsApp disconnects both every ~5 seconds, preventing message reception
+          const clinicCreds = credentials.filter(c => c.clinic_id !== SYSTEM_WHATSAPP_CLINIC_ID);
           console.log(
-            `🔄 Auto-reconnecting ${clinicCreds.length} WhatsApp session(s)...`,
+            `🔄 Auto-reconnecting ${clinicCreds.length} WhatsApp session(s) (skipped system-global to avoid 440 conflict)...`,
           );
           for (const cred of clinicCreds) {
             try {
