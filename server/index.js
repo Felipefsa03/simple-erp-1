@@ -174,7 +174,7 @@ const getServerHeaders = (token) => ({
 let mpAccessToken = cleanEnv(process.env.MP_ACCESS_TOKEN);
 let mpPublicKey = cleanEnv(process.env.MP_PUBLIC_KEY);
 const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
-const SYSTEM_WHATSAPP_CLINIC_ID = "system-global";
+const SYSTEM_WHATSAPP_CLINIC_ID = GLOBAL_CLINIC_ID; // Usando super admin para tudo do sistema
 const DEFAULT_PLAN_PRICES = {
   basico: 17,
   profissional: 197,
@@ -3019,9 +3019,11 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   }
 
   // 1. Silent Flush: Send presence update to wake up the connection without a visible ping
-  try {
-    const candidates = brazilianPhoneCandidates(to);
-    for (const phone of candidates) {
+  const candidates = brazilianPhoneCandidates(to);
+  let lastError = null;
+
+  for (const phone of candidates) {
+    try {
       const targetJid = `${phone}@s.whatsapp.net`;
       await sock.sendPresenceUpdate("composing", targetJid);
       await new Promise(r => setTimeout(r, 500));
@@ -3046,51 +3048,46 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
         }
         whatsappConnections[clinicId].messages.push(msgData);
         
-        // Persist and return
-        if (SUPABASE_URL && SUPABASE_ANON_KEY && clinicId !== "system-global") {
-          // ... existing persist logic (abbreviated here for replace)
+        // Persist sent message to Supabase
+        const sendPersistKey = SUPABASE_ANON_KEY;
+        if (SUPABASE_URL && sendPersistKey && clinicId !== "system-global") {
+          try {
+            const sendPersistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                apikey: sendPersistKey,
+                Authorization: `Bearer ${sendPersistKey}`,
+                Prefer: "resolution=merge-duplicates",
+              },
+              body: JSON.stringify({
+                clinic_id: clinicId,
+                phone: cleanPhone,
+                message_id: result.key.id,
+                text: message,
+                from_me: true,
+                timestamp: new Date().toISOString(),
+              }),
+            });
+            if (!sendPersistRes.ok) {
+              const errBody = await sendPersistRes.text().catch(() => "");
+              addLog(`[API] Supabase INSERT (sent) falhou (${sendPersistRes.status}): ${errBody.substring(0, 200)}`);
+            }
+          } catch (e) {
+            addLog(`[API] Erro ao salvar mensagem no Supabase: ${e.message}`);
+          }
         }
+        
         return { messageId: result.key.id, jid: targetJid };
       }
+    } catch (err) {
+      addLog(`[API] Erro ao enviar para o candidato ${phone}: ${err.message}`);
+      lastError = err;
+      // Continua para o próximo candidato
     }
-  } catch (err) {
-    addLog(`[API] Erro no fluxo de envio robusco: ${err.message}`);
-    throw err;
   }
   
-  throw new Error("Falha ao enviar mensagem para todos os candidatos de telefone.");
-
-  // Persist sent message to Supabase
-  const sendPersistKey = SUPABASE_ANON_KEY;
-  if (SUPABASE_URL && sendPersistKey && clinicId !== "system-global") {
-    try {
-      const sendPersistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: sendPersistKey,
-          Authorization: `Bearer ${sendPersistKey}`,
-          Prefer: "resolution=merge-duplicates",
-        },
-        body: JSON.stringify({
-          clinic_id: clinicId,
-          phone: cleanPhone,
-          message_id: result.key.id,
-          text: message,
-          from_me: true,
-          timestamp: new Date().toISOString(),
-        }),
-      });
-      if (!sendPersistRes.ok) {
-        const errBody = await sendPersistRes.text().catch(() => "");
-        addLog(`[API] Supabase INSERT (sent) falhou (${sendPersistRes.status}): ${errBody.substring(0, 200)}`);
-      }
-    } catch (e) {
-      addLog(`[API] Erro ao salvar mensagem no Supabase: ${e.message}`);
-    }
-  }
-
-  return { messageId: result.key.id, jid };
+  throw new Error(lastError ? lastError.message : "Falha ao enviar mensagem para todos os candidatos de telefone.");
 };
 
 app.post("/api/whatsapp/send", async (req, res) => {
