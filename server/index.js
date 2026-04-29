@@ -2830,6 +2830,32 @@ const createWhatsAppSocket = async (clinicId) => {
 };
 
 // Connect endpoint - generates QR code or pairing code
+  app.post("/api/whatsapp/reset-session", async (req, res) => {
+    const { clinicId } = req.body;
+    if (!clinicId) return res.status(400).json({ ok: false, error: "clinicId required" });
+    
+    try {
+      addLog(`[System] Reseting session for ${clinicId}...`);
+      if (whatsappSockets[clinicId]) {
+        try { whatsappSockets[clinicId].end(undefined); } catch(e) {}
+        delete whatsappSockets[clinicId];
+      }
+      delete whatsappConnections[clinicId];
+      
+      const authDir = ensureClinicStatus(clinicId);
+      if (fs.existsSync(authDir)) {
+        fs.rmSync(authDir, { recursive: true, force: true });
+      }
+      
+      // Também remover do Supabase se quiser começar do zero absoluto
+      await saveCredentialsToSupabase(clinicId, null);
+      
+      res.json({ ok: true, message: "Sessão resetada com sucesso. Conecte novamente." });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   app.post("/api/whatsapp/test-send", async (req, res) => {
     const { phone, message, clinicId } = req.body;
     if (!phone || !message) return res.status(400).json({ ok: false, error: "Phone and message required" });

@@ -356,9 +356,13 @@ export function SystemWhatsAppConfig() {
                       });
                       const d = await r.json();
                       if (d.ok) toast('Mensagem de teste enviada!', 'success');
-                      else throw new Error(d.error);
+                      else {
+                        console.error('[WhatsApp Test] Full error:', d);
+                        throw new Error(d.error || 'Erro desconhecido');
+                      }
                     } catch (e: any) {
                       toast('Erro no teste: ' + e.message, 'error');
+                      console.error('[WhatsApp Test] Catch error:', e);
                     }
                   }}
                   className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors"
@@ -366,6 +370,28 @@ export function SystemWhatsAppConfig() {
                   Testar
                 </button>
               </div>
+              <button 
+                onClick={async () => {
+                  if (!confirm('Isso vai desconectar o WhatsApp e apagar todos os arquivos de sessão do sistema. Deseja continuar?')) return;
+                  try {
+                    const r = await fetch(`${API_BASE}/api/whatsapp/reset-session`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID })
+                    });
+                    const d = await r.json();
+                    if (d.ok) {
+                      toast('Sessão resetada! Conecte o QR Code novamente.', 'success');
+                      window.location.reload();
+                    } else throw new Error(d.error);
+                  } catch (e: any) {
+                    toast('Erro ao resetar: ' + e.message, 'error');
+                  }
+                }}
+                className="w-full py-2 text-xs font-bold text-slate-400 hover:text-red-500 transition-colors border border-dashed border-slate-200 rounded-lg hover:border-red-200"
+              >
+                Resetar Sessão Global (Limpeza Profunda)
+              </button>
             </div>
 
             <button
