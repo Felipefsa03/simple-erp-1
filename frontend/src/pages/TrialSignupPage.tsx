@@ -127,6 +127,7 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
           }
         }
         d = await r.json();
+        console.log('[Trial Signup] Send code response:', d);
         break;
       }
       if (!d?.ok) throw new Error(d?.error || 'Falha ao enviar código.');

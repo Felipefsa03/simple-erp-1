@@ -310,6 +310,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
           }
         }
         data = await response.json();
+        console.log('[Signup] Send code response:', data);
         break;
       }
       if (!data?.ok) throw new Error(data?.error || 'Falha ao enviar codigo.');
