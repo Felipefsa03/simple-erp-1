@@ -552,11 +552,15 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Senha</label>
-                    <input type="password" value={signupForm.password} onChange={e => setSignupForm({ ...signupForm, password: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" />
+                    <form onSubmit={(e) => e.preventDefault()} className="relative">
+                      <input type="password" value={signupForm.password} onChange={e => setSignupForm({ ...signupForm, password: e.target.value })} autoComplete="new-password" placeholder="••••••••" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" />
+                    </form>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Confirmar senha</label>
-                    <input type="password" value={signupForm.confirmPassword} onChange={e => setSignupForm({ ...signupForm, confirmPassword: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" />
+                    <form onSubmit={(e) => e.preventDefault()} className="relative">
+                      <input type="password" value={signupForm.confirmPassword} onChange={e => setSignupForm({ ...signupForm, confirmPassword: e.target.value })} autoComplete="new-password" placeholder="••••••••" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" />
+                    </form>
                   </div>
                   <button
                     onClick={() => {
@@ -644,14 +648,21 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                       <p className="text-xs text-slate-500">
                         Codigo enviado para {maskedPhone || signupForm.phone}. Valido por {phoneTimer}s.
                       </p>
-                      <input
-                        type="text"
-                        value={phoneCode}
-                        maxLength={6}
-                        onChange={e => setPhoneCode(e.target.value.replace(/\D/g, ''))}
-                        placeholder="Digite o codigo de 6 digitos"
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
-                      />
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!signupLoading && phoneCode.length === 6) {
+                          handleVerifyPhoneCode();
+                        }
+                      }} className="relative">
+                        <input
+                          type="text"
+                          value={phoneCode}
+                          maxLength={6}
+                          onChange={e => setPhoneCode(e.target.value.replace(/\D/g, ''))}
+                          placeholder="Digite o codigo de 6 digitos"
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none"
+                        />
+                      </form>
                       <button
                         onClick={handleVerifyPhoneCode}
                         disabled={signupLoading || phoneCode.length !== 6}

@@ -174,7 +174,7 @@ const getServerHeaders = (token) => ({
 let mpAccessToken = cleanEnv(process.env.MP_ACCESS_TOKEN);
 let mpPublicKey = cleanEnv(process.env.MP_PUBLIC_KEY);
 const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
-const SYSTEM_WHATSAPP_CLINIC_ID = GLOBAL_CLINIC_ID; // Usando super admin para tudo do sistema
+const SYSTEM_WHATSAPP_CLINIC_ID = "system-global"; // Identificador fixo para o WhatsApp do sistema global
 const DEFAULT_PLAN_PRICES = {
   basico: 17,
   profissional: 197,
@@ -3019,11 +3019,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   }
 
   try {
-    const number = String(to).replace(/\D/g, "");
-    // Lógica idêntica à das campanhas (Minichat style)
-    const targetJid = (number.startsWith("55") && number.length === 13)
-      ? `${number.slice(0, 4)}${number.slice(5)}@s.whatsapp.net` 
-      : `${number}@s.whatsapp.net`;
+    const targetJid = await resolveWhatsAppJID(sock, to);
       
     addLog(`[API] Enviando via ${clinicId} para ${targetJid}...`);
     const result = await sock.sendMessage(targetJid, { text: message });
