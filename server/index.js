@@ -3028,7 +3028,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
       await sock.sendPresenceUpdate("composing", targetJid);
       await new Promise(r => setTimeout(r, 500));
       
-      addLog(`[API] Enviando código para ${targetJid}...`);
+      addLog(`[API] Enviando para ${targetJid}...`);
       const result = await sock.sendMessage(targetJid, { text: message });
       
       if (result?.key?.id) {
@@ -3083,7 +3083,19 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
     } catch (err) {
       addLog(`[API] Erro ao enviar para o candidato ${phone}: ${err.message}`);
       lastError = err;
-      // Continua para o próximo candidato
+      // Se for o primeiro erro, tentar forçar a criação do JID normal
+      if (err.message.includes("is not formatted correctly")) {
+         try {
+            const fallbackJid = `${String(to || "").replace(/\D/g, "")}@s.whatsapp.net`;
+            addLog(`[API] Tentando fallback para JID: ${fallbackJid}`);
+            const result = await sock.sendMessage(fallbackJid, { text: message });
+            if (result?.key?.id) {
+               return { messageId: result.key.id, jid: fallbackJid };
+            }
+         } catch (fallbackErr) {
+             addLog(`[API] Erro no fallback: ${fallbackErr.message}`);
+         }
+      }
     }
   }
   
