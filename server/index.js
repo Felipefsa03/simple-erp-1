@@ -1684,28 +1684,36 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
       "Use este código no portal para definir sua nova senha. Se não solicitou, pode ignorar esta mensagem."
     ].join("\n");
     
-    try {
-      addLog(`[PasswordReset] Attempting to send code to ${normalizedPhone} via ${targetClinicId}`);
-      const delay = Math.floor(Math.random() * 2000) + 1000;
-      await new Promise(resolve => setTimeout(resolve, delay));
-
-      const result = await sendWhatsAppMessage({
-        clinicId: targetClinicId,
-        to: normalizedPhone,
-        message
-      });
-      addLog(`[PasswordReset] Code sent successfully to ${normalizedPhone}. Message ID: ${result?.messageId}`);
-    } catch (waError) {
-      console.error("[ResetRequest] Erro ao enviar WhatsApp:", waError.message);
-      deletePasswordResetSession(normalizedEmail);
-      throw new Error("Serviço de WhatsApp temporariamente indisponível. Verifique a conexão global.");
-    }
-
-    return res.json({ 
+    // Retornar sucesso imediatamente para o frontend para evitar timeout (AbortError)
+    res.json({ 
       ok: true, 
-      message: "Código enviado com sucesso!",
+      message: "Se este email estiver cadastrado, você receberá um código no WhatsApp em instantes.",
       masked_phone: maskPhone(normalizedPhone)
     });
+
+    // Envio em background para não travar o frontend
+    (async () => {
+      try {
+        addLog(`[PasswordReset] Background: Iniciando processo para ${normalizedPhone} via ${targetClinicId}`);
+        
+        // Delay anti-spam similar ao cadastro
+        const delay = Math.floor(Math.random() * 2000) + 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        const result = await sendWhatsAppMessage({
+          clinicId: targetClinicId,
+          to: normalizedPhone,
+          message
+        });
+        
+        addLog(`[PasswordReset] Background: Código enviado com sucesso para ${normalizedPhone}. Message ID: ${result?.messageId}`);
+      } catch (waError) {
+        console.error("[PasswordReset] Erro em background ao enviar WhatsApp:", waError.message);
+        addLog(`[PasswordReset] FALHA CRÍTICA no envio para ${normalizedPhone}: ${waError.message}`);
+      }
+    })();
+
+    return;
 
   } catch (error) {
     console.error("[ResetRequest] Erro Fatal:", error.message);
@@ -2159,10 +2167,9 @@ async function resolveWhatsAppJID(sock, rawPhone) {
     }
   }
 
-  // Fallback: usar o primeiro candidato se nenhum for confirmado (Minichat style)
-  const fallback = `${candidates[0]}@s.whatsapp.net`;
-  addLog(`[Phone] No JID confirmed for "${rawPhone}". Using fallback: ${fallback}`);
-  return fallback;
+  // Se nenhum foi confirmado, retornamos a lista de candidatos para o remetente decidir
+  addLog(`[Phone] Nenhum JID confirmado para "${rawPhone}". Retornando lista de candidatos.`);
+  return candidates.map(c => c + "@s.whatsapp.net");
 }
 
 // Ensure auth directories exist (fallback for local dev)
@@ -3063,14 +3070,25 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   }
 
   try {
-    const targetJid = await resolveWhatsAppJID(sock, to);
+    const target = await resolveWhatsAppJID(sock, to);
+    const jidsToSend = Array.isArray(target) ? target : [target];
+    
+    let lastResult = null;
+    for (const jid of jidsToSend) {
+      addLog(`[API] Enviando via ${clinicId} para ${jid}...`);
+      const result = await sock.sendMessage(jid, { text: message });
+      lastResult = result;
       
-    addLog(`[API] Enviando via ${clinicId} para ${targetJid}...`);
-    const result = await sock.sendMessage(targetJid, { text: message });
+      // Pequeno delay entre tentativas se houver mais de um
+      if (jidsToSend.length > 1) await new Promise(r => setTimeout(r, 1000));
+    }
+
+    const result = lastResult;
       
       if (result?.key?.id) {
         // Success!
         const cleanPhone = String(to || "").replace(/\D/g, "");
+        const targetJid = Array.isArray(target) ? target[0] : target;
         const msgData = {
           id: result.key.id,
           key: targetJid,
