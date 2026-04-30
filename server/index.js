@@ -1679,42 +1679,42 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
       `${greeting} Clinxia - Recuperação de Senha`,
       "",
       `Seu código de verificação é: *${code}*`,
-      "Ele expira em alguns minutos.",
+      "Ele expira em 10 minutos.",
       "",
-      "Use este código no portal para definir sua nova senha. Se não solicitou, pode ignorar esta mensagem."
+      "Use este código para concluir sua recuperação de senha com segurança. Se não solicitou, pode ignorar esta mensagem.",
     ].join("\n");
-    
-    // Retornar sucesso imediatamente para o frontend para evitar timeout (AbortError)
-    res.json({ 
-      ok: true, 
-      message: "Se este email estiver cadastrado, você receberá um código no WhatsApp em instantes.",
-      masked_phone: maskPhone(normalizedPhone)
-    });
 
-    // Envio em background para não travar o frontend
-    (async () => {
-      try {
-        addLog(`[PasswordReset] Background: Iniciando processo para ${normalizedPhone} via ${targetClinicId}`);
-        
-        // Delay anti-spam similar ao cadastro
-        const delay = Math.floor(Math.random() * 2000) + 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+    try {
+      addLog(`[PasswordReset] Iniciando envio para ${normalizedPhone} via ${targetClinicId}`);
+      
+      // Delay anti-spam similar ao cadastro
+      const delay = Math.floor(Math.random() * 2000) + 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
 
-        const result = await sendWhatsAppMessage({
-          clinicId: targetClinicId,
-          to: normalizedPhone,
-          message
-        });
-        
-        addLog(`[PasswordReset] Background: Código enviado com sucesso para ${normalizedPhone}. Message ID: ${result?.messageId}`);
-      } catch (waError) {
-        console.error("[PasswordReset] Erro em background ao enviar WhatsApp:", waError.message);
-        addLog(`[PasswordReset] FALHA CRÍTICA no envio para ${normalizedPhone}: ${waError.message}`);
-      }
-    })();
+      const result = await sendWhatsAppMessage({
+        clinicId: targetClinicId,
+        to: normalizedPhone,
+        message
+      });
+      
+      addLog(`[PasswordReset] Código enviado com sucesso para ${normalizedPhone}. ID: ${result?.messageId}`);
 
-    return;
-
+      return res.json({ 
+        ok: true, 
+        message: "Código enviado com sucesso para seu WhatsApp.",
+        masked_phone: maskPhone(normalizedPhone),
+        expires_in_seconds: 600
+      });
+    } catch (waError) {
+      console.error("[PasswordReset] Erro ao enviar WhatsApp:", waError.message);
+      addLog(`[PasswordReset] FALHA no envio para ${normalizedPhone}: ${waError.message}`);
+      
+      return res.status(500).json({ 
+        ok: false, 
+        error: waError.message,
+        details: "Verifique se o WhatsApp Global está conectado."
+      });
+    }
   } catch (error) {
     console.error("[ResetRequest] Erro Fatal:", error.message);
     return res.status(500).json({ ok: false, error: error.message });
@@ -3133,7 +3133,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
                   message_id: result.key.id,
                   text: message,
                   status: "enviado",
-                  sent_at: new Date().toISOString()
+                  timestamp: new Date().toISOString()
                 })
               });
               if (!supaRes.ok) {
