@@ -1589,30 +1589,11 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
   const normalizedEmail = String(email).toLowerCase().trim();
 
   try {
-    await ensureSocketConnected(SYSTEM_WHATSAPP_CLINIC_ID);
-    // Wait up to 15 seconds if it's connecting
-    let waitCount = 0;
-    while (whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connecting" && waitCount < 30) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      waitCount++;
-    }
-  } catch (e) {
-    console.error("Erro ao garantir conexão global:", e);
-  }
-
-  const systemConnected =
-    whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected";
-  if (!systemConnected) {
-    return res.status(503).json({
-      ok: false,
-      error:
-        "WhatsApp global não conectado. Solicite ao super admin para conectar em Sistema (Global).",
-    });
-  }
-
-  try {
-    const user = await fetchUserByEmail(normalizedEmail);
+    // Tentar usar o WhatsApp da clínica primeiro, se houver
+    let targetClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
     
+    // Fetch user early to know the clinic_id
+    const user = await fetchUserByEmail(normalizedEmail);
     if (!user) {
       console.log(`[PasswordReset] Email não encontrado na base de dados: ${normalizedEmail}`);
       return res.json({ 
@@ -1621,6 +1602,31 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
         mock: true 
       });
     }
+
+    if (user.clinic_id && whatsappConnections[user.clinic_id]?.status === "connected") {
+      targetClinicId = user.clinic_id;
+    }
+
+    await ensureSocketConnected(targetClinicId);
+    let waitCount = 0;
+    while (whatsappConnections[targetClinicId]?.status === "connecting" && waitCount < 30) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      waitCount++;
+    }
+
+    const systemConnected = whatsappConnections[targetClinicId]?.status === "connected";
+    if (!systemConnected) {
+      if (targetClinicId !== SYSTEM_WHATSAPP_CLINIC_ID && whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected") {
+        targetClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
+      } else {
+        return res.status(503).json({
+          ok: false,
+          error: "WhatsApp global não conectado. Solicite ao super admin para conectar em Sistema (Global).",
+        });
+      }
+    }
+
+    // O usuário já foi buscado acima.
 
     const rawPhone = user.phone;
     const normalizedPhone = normalizePhoneForSignup(rawPhone);
@@ -1677,25 +1683,25 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     const message = `🔐 *Clinxia - Segurança*\n\nSeu código de recuperação de senha é: *${code}*\n\nUse este código no portal para definir sua nova senha. Se você não solicitou isso, ignore esta mensagem.`;
     
     try {
-      addLog(`[PasswordReset] Attempting to send code to ${normalizedPhone} via ${SYSTEM_WHATSAPP_CLINIC_ID}`);
+      addLog(`[PasswordReset] Attempting to send code to ${normalizedPhone} via ${targetClinicId}`);
       const delay = Math.floor(Math.random() * 2000) + 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
 
       await sendWhatsAppMessage({
-        clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
+        clinicId: targetClinicId,
         to: normalizedPhone,
         message
       });
     } catch (waError) {
       console.error("[ResetRequest] Erro ao enviar WhatsApp:", waError.message);
-      if (user.clinic_id && user.clinic_id !== GLOBAL_CLINIC_ID) {
+      if (targetClinicId !== SYSTEM_WHATSAPP_CLINIC_ID && whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected") {
         try {
-          addLog(`[PasswordReset] Fallback: Attempting to send code to ${normalizedPhone} via clinic ${user.clinic_id}`);
+          addLog(`[PasswordReset] Fallback: Attempting to send code to ${normalizedPhone} via ${SYSTEM_WHATSAPP_CLINIC_ID}`);
           const delay = Math.floor(Math.random() * 2000) + 1000;
           await new Promise(resolve => setTimeout(resolve, delay));
 
           await sendWhatsAppMessage({
-            clinicId: user.clinic_id,
+            clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
             to: normalizedPhone,
             message
           });
