@@ -2319,14 +2319,27 @@ const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
 };
 
 // Status cache for quick retrieval
-const whatsappConnections = {};
 const whatsappSockets = {};
-const whatsapp440Tracker = {}; // Global tracker for 440 errors per clinicId
+const whatsappConnections = {};
+const whatsappSocketCreationPromises = {}; // Mapa para evitar criação de múltiplos sockets simultâneos
+const whatsappMessagesQueue = {}; // Fila para mensagens em espera se necessário
 
 // Singleton socket manager
 const ensureSocketConnected = async (clinicId) => {
   if (whatsappSockets[clinicId]) return whatsappSockets[clinicId];
-  return await createWhatsAppSocket(clinicId);
+  
+  // Se já houver uma criação em andamento, aguarde ela
+  if (whatsappSocketCreationPromises[clinicId]) {
+    addLog(`[Baileys] Aguardando conexão já em andamento para ${clinicId}...`);
+    return await whatsappSocketCreationPromises[clinicId];
+  }
+
+  // Inicia nova criação com trava
+  whatsappSocketCreationPromises[clinicId] = createWhatsAppSocket(clinicId).finally(() => {
+    delete whatsappSocketCreationPromises[clinicId];
+  });
+
+  return await whatsappSocketCreationPromises[clinicId];
 };
 
 // Updated QR generation to support Base64
@@ -2426,7 +2439,10 @@ const createWhatsAppSocket = async (clinicId) => {
           addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
 
           if (shouldReconnect) {
-            const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000);
+            // Adiciona um atraso aleatório para evitar loops de conflito 440 entre instâncias
+            const randomDelay = Math.floor(Math.random() * 5000);
+            const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000) + randomDelay;
+            addLog(`[Baileys] Reconectando ${clinicId} em ${delay}ms (incluindo jitter)...`);
             setTimeout(connect, delay);
           } else {
             addLog(
@@ -2434,6 +2450,7 @@ const createWhatsAppSocket = async (clinicId) => {
             );
             hasFailed401 = true;
             delete whatsappSockets[clinicId];
+            delete whatsappSocketCreationPromises[clinicId]; // Limpa a trava também
             whatsappConnections[clinicId] = {
               status: "disconnected",
               qr: null,
@@ -3004,7 +3021,7 @@ const disconnectWhatsAppSession = async (clinicId) => {
   }
 
   delete whatsappConnections[clinicId];
-  delete whatsapp440Tracker[clinicId];
+  delete whatsappSocketCreationPromises[clinicId];
 
   try {
     await fetch(
@@ -3037,108 +3054,117 @@ app.post("/api/whatsapp/disconnect/:clinicId", async (req, res) => {
   res.json({ ok: true, status: "disconnected" });
 });
 
-app.post("/api/whatsapp/disconnect", async (req, res) => {
-  const clinicId = String(req.body?.clinicId || "").trim();
-  if (!clinicId) {
-    return res.status(400).json({ ok: false, error: "clinicId é obrigatório" });
-  }
-  await disconnectWhatsAppSession(clinicId);
-  res.json({ ok: true, status: "disconnected" });
-});
-
 // Rate limiting for WhatsApp
 const whatsappRateLimit = new Map();
 const RATE_LIMIT_WINDOW = 10000; // 10 seconds
 const RATE_LIMIT_MAX = 5; // 5 messages per window
 
 const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
-  const sock = await ensureSocketConnected(clinicId);
+  let attempts = 0;
+  const maxAttempts = 2;
 
-  // Wait up to 15 seconds if it's connecting
-  let waitCount = 0;
-  while (whatsappConnections[clinicId]?.status === "connecting" && waitCount < 30) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    waitCount++;
-  }
-
-  if (whatsappConnections[clinicId]?.status !== "connected") {
-    throw new Error("Dispositivo não conectado. Status atual: " + (whatsappConnections[clinicId]?.status || "desconhecido"));
-  }
-
-  if (!sock) {
-    throw new Error("Falha ao obter socket do WhatsApp (possível bloqueio 440 ou desconectado). Reconecte via QR.");
-  }
-
-  try {
-    const target = await resolveWhatsAppJID(sock, to);
-    const jidsToSend = Array.isArray(target) ? target : [target];
-    
-    let lastResult = null;
-    for (const jid of jidsToSend) {
-      addLog(`[API] Enviando via ${clinicId} para ${jid}...`);
-      const result = await sock.sendMessage(jid, { text: message });
-      lastResult = result;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const sock = await ensureSocketConnected(clinicId);
       
-      // Pequeno delay entre tentativas se houver mais de um
-      if (jidsToSend.length > 1) await new Promise(r => setTimeout(r, 1000));
-    }
+      // Aguarda conexão (até 15s)
+      let waitCount = 0;
+      while (whatsappConnections[clinicId]?.status === "connecting" && waitCount < 30) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        waitCount++;
+      }
 
-    const result = lastResult;
+      if (whatsappConnections[clinicId]?.status !== "connected") {
+        throw new Error("Dispositivo não conectado. Status atual: " + (whatsappConnections[clinicId]?.status || "desconhecido"));
+      }
+
+      if (!sock) {
+        throw new Error("Falha ao obter socket do WhatsApp.");
+      }
+
+      const target = await resolveWhatsAppJID(sock, to);
+      const jidsToSend = Array.isArray(target) ? target : [target];
       
+      let lastResult = null;
+      for (const jid of jidsToSend) {
+        addLog(`[API] Enviando via ${clinicId} para ${jid} (tentativa ${attempts})...`);
+        const result = await sock.sendMessage(jid, { text: message });
+        lastResult = result;
+        
+        // Pequeno delay entre tentativas se houver mais de um JID
+        if (jidsToSend.length > 1) await new Promise(r => setTimeout(r, 1000));
+      }
+
+      const result = lastResult;
+        
       if (result?.key?.id) {
-        // Success!
-        const cleanPhone = String(to || "").replace(/\D/g, "");
-        const targetJid = Array.isArray(target) ? target[0] : target;
-        const msgData = {
-          id: result.key.id,
-          key: targetJid,
-          phone: cleanPhone,
-          text: message,
-          fromMe: true,
-          timestamp: Date.now(),
-        };
-        
-        if (!whatsappConnections[clinicId].messages) {
-          whatsappConnections[clinicId].messages = [];
-        }
-        whatsappConnections[clinicId].messages.push(msgData);
-        
-        // Persist sent message to Supabase
-        const sendPersistKey = SUPABASE_ANON_KEY;
-        if (SUPABASE_URL && sendPersistKey) {
-          try {
-            const sendPersistRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                apikey: sendPersistKey,
-                Authorization: `Bearer ${sendPersistKey}`,
-                Prefer: "resolution=merge-duplicates",
-              },
-              body: JSON.stringify({
-                clinic_id: clinicId === "system-global" ? GLOBAL_CLINIC_ID : clinicId,
-                phone: cleanPhone,
-                message_id: result.key.id,
-                text: message,
-                from_me: true,
-                timestamp: new Date().toISOString(),
-              }),
-            });
-            if (!sendPersistRes.ok) {
-              const errBody = await sendPersistRes.text().catch(() => "");
-              addLog(`[API] Supabase INSERT (sent) falhou (${sendPersistRes.status}): ${errBody.substring(0, 200)}`);
-            }
-          } catch (e) {
-            addLog(`[API] Erro ao salvar mensagem no Supabase: ${e.message}`);
+          const cleanPhone = String(to || "").replace(/\D/g, "");
+          const targetJid = Array.isArray(target) ? target[0] : target;
+          
+          const msgData = {
+            id: result.key.id,
+            key: targetJid,
+            phone: cleanPhone,
+            text: message,
+            fromMe: true,
+            timestamp: Date.now(),
+          };
+          
+          if (!whatsappConnections[clinicId].messages) {
+            whatsappConnections[clinicId].messages = [];
           }
-        }
-        
-      return { messageId: result.key.id, jid: targetJid };
+          whatsappConnections[clinicId].messages.push(msgData);
+          
+          // Persistência no Supabase
+          const sendPersistKey = SUPABASE_ANON_KEY;
+          if (SUPABASE_URL && sendPersistKey) {
+            try {
+              const supaRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  apikey: sendPersistKey,
+                  Authorization: `Bearer ${sendPersistKey}`,
+                },
+                body: JSON.stringify({
+                  clinic_id: clinicId === "system-global" ? GLOBAL_CLINIC_ID : clinicId,
+                  phone: cleanPhone,
+                  message_id: result.key.id,
+                  text: message,
+                  status: "enviado",
+                  sent_at: new Date().toISOString()
+                })
+              });
+              if (!supaRes.ok) {
+                const supaErr = await supaRes.text();
+                addLog(`[API] Falha ao persistir no Supabase: ${supaErr}`);
+              }
+            } catch (pErr) {
+              addLog(`[API] Erro ao persistir no Supabase: ${pErr.message}`);
+            }
+          }
+          
+          return { success: true, messageId: result.key.id };
+      }
+      
+      throw new Error("Não foi possível obter ID da mensagem após envio.");
+
+    } catch (err) {
+      const isConnectionError = err.message.toLowerCase().includes("fechada") || 
+                               err.message.toLowerCase().includes("closed") || 
+                               err.message.toLowerCase().includes("timed out") ||
+                               err.message.toLowerCase().includes("conflict") ||
+                               err.message.toLowerCase().includes("440");
+      
+      if (isConnectionError && attempts < maxAttempts) {
+        addLog(`[API] Erro de conexão detectado (${err.message}). Tentando novamente em 2s...`);
+        delete whatsappSockets[clinicId]; // Força recriação do socket
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      throw err;
     }
-    throw new Error("Resposta inválida do socket ao enviar.");
-  } catch (err) {
-    addLog(`[API] Erro no envio estilo minichat: ${err.message}`);
-    throw err;
   }
 };
 
