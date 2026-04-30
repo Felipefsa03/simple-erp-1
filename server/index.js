@@ -2265,7 +2265,12 @@ const loadCredentialsFromSupabase = async (clinicId) => {
     const data = await res.json();
     if (data && data.length > 0 && data[0].credentials) {
       console.log("[Supabase] Credenciais carregadas para", clinicId);
-      return JSON.parse(data[0].credentials, BufferJSON.reviver);
+      const parsed = JSON.parse(data[0].credentials, BufferJSON.reviver);
+      if (parsed && parsed.keys) {
+        console.log("[Supabase] Removendo sessão corrompida (keys) para forçar re-criação");
+        delete parsed.keys;
+      }
+      return parsed;
     }
     return null;
   } catch (error) {
@@ -2277,7 +2282,10 @@ const loadCredentialsFromSupabase = async (clinicId) => {
 // Custom auth state that uses Supabase
 const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
   let credentials = initialCredentials?.creds || null;
-  let keys = initialCredentials?.keys || {};
+  let keys = initialCredentials?.keys ? (() => {
+    console.log("[Supabase] Ignorando keys corrompidas do initialCredentials");
+    return {};
+  })() : {};
   let saveCount = 0;
 
   return {
