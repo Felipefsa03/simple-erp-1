@@ -91,7 +91,7 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
   // Helper para chamadas ao backend
   const apiCall = async (endpoint: string, body: any) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 35000);
 
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -105,6 +105,9 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
       return await response.json();
     } catch (err: any) {
       clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('O envio está demorando mais que o esperado. Verifique seu WhatsApp em instantes.');
+      }
       throw err;
     }
   };
