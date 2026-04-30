@@ -1587,6 +1587,19 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
   if (!email) return res.status(400).json({ ok: false, error: "Email é obrigatório" });
 
   const normalizedEmail = String(email).toLowerCase().trim();
+
+  try {
+    await ensureSocketConnected(SYSTEM_WHATSAPP_CLINIC_ID);
+    // Wait up to 15 seconds if it's connecting
+    let waitCount = 0;
+    while (whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connecting" && waitCount < 30) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      waitCount++;
+    }
+  } catch (e) {
+    console.error("Erro ao garantir conexão global:", e);
+  }
+
   const systemConnected =
     whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected";
   if (!systemConnected) {
