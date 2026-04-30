@@ -1676,12 +1676,12 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
     
     const message = [
-      `🔐 ${greeting} Clinxia - Segurança`,
+      `${greeting} Clinxia - Recuperação de Senha`,
       "",
-      `Seu código de recuperação de senha é: *${code}*`,
+      `Seu código de verificação é: *${code}*`,
       "Ele expira em alguns minutos.",
       "",
-      "Use este código no portal para definir sua nova senha. Se você não solicitou isso, ignore esta mensagem."
+      "Use este código no portal para definir sua nova senha. Se não solicitou, pode ignorar esta mensagem."
     ].join("\n");
     
     try {
@@ -2107,15 +2107,27 @@ function brazilianPhoneCandidates(rawPhone) {
   if (local.length < 8) return [digits];
 
   const results = [];
-  // Se tem 8 dígitos e começa com 6-9, é celular. Tentar com 9 na frente e sem.
+  const is9DigitJID = parseInt(ddd) >= 11 && parseInt(ddd) <= 28;
+
+  // Se tem 8 dígitos e começa com 6-9, é celular.
   if (local.length === 8 && ["6", "7", "8", "9"].includes(local[0])) {
-    results.push(`${country}${ddd}9${local}`);
-    results.push(`${country}${ddd}${local}`);
+    if (is9DigitJID) {
+      results.push(`${country}${ddd}9${local}`);
+      results.push(`${country}${ddd}${local}`);
+    } else {
+      results.push(`${country}${ddd}${local}`);
+      results.push(`${country}${ddd}9${local}`);
+    }
   } 
-  // Se tem 9 dígitos e começa com 9, tentar com ele e sem ele.
+  // Se tem 9 dígitos e começa com 9
   else if (local.length === 9 && local[0] === "9") {
-    results.push(`${country}${ddd}${local}`);
-    results.push(`${country}${ddd}${local.slice(1)}`);
+    if (is9DigitJID) {
+      results.push(`${country}${ddd}${local}`);
+      results.push(`${country}${ddd}${local.slice(1)}`);
+    } else {
+      results.push(`${country}${ddd}${local.slice(1)}`);
+      results.push(`${country}${ddd}${local}`);
+    }
   } 
   else {
     results.push(`${country}${ddd}${local}`);
