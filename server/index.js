@@ -3140,7 +3140,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
                   phone: cleanPhone,
                   message_id: result.key.id,
                   text: message,
-                  status: "enviado",
+                  status: "sent",
                   timestamp: new Date().toISOString()
                 })
               });
