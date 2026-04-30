@@ -1623,9 +1623,9 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     }
 
     const rawPhone = user.phone;
-    const cleanPhone = String(rawPhone || "").replace(/\D/g, "");
+    const normalizedPhone = normalizePhoneForSignup(rawPhone);
     
-    if (!cleanPhone || cleanPhone.length < 10) {
+    if (!normalizedPhone || normalizedPhone.length < 10) {
       console.log(`[PasswordReset] Usuário encontrado mas sem telefone válido: ${normalizedEmail}, fone: ${rawPhone}`);
       return res.status(400).json({ 
         ok: false, 
@@ -1637,7 +1637,7 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     const existing = getPasswordResetSession(normalizedEmail);
     const session = existing || {
       email: normalizedEmail,
-      phone: cleanPhone,
+      phone: normalizedPhone,
       sendTimestamps: [],
       attempts: 0,
       blockedUntil: 0,
@@ -1671,24 +1671,32 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     session.attempts = 0;
     session.blockedUntil = 0;
     session.sendTimestamps = [...recentSends, now];
-    session.phone = cleanPhone;
+    session.phone = normalizedPhone;
     setPasswordResetSession(normalizedEmail, session);
 
     const message = `🔐 *Clinxia - Segurança*\n\nSeu código de recuperação de senha é: *${code}*\n\nUse este código no portal para definir sua nova senha. Se você não solicitou isso, ignore esta mensagem.`;
     
     try {
+      addLog(`[PasswordReset] Attempting to send code to ${normalizedPhone} via ${SYSTEM_WHATSAPP_CLINIC_ID}`);
+      const delay = Math.floor(Math.random() * 2000) + 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+
       await sendWhatsAppMessage({
         clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
-        to: user.phone,
+        to: normalizedPhone,
         message
       });
     } catch (waError) {
       console.error("[ResetRequest] Erro ao enviar WhatsApp:", waError.message);
       if (user.clinic_id && user.clinic_id !== GLOBAL_CLINIC_ID) {
         try {
+          addLog(`[PasswordReset] Fallback: Attempting to send code to ${normalizedPhone} via clinic ${user.clinic_id}`);
+          const delay = Math.floor(Math.random() * 2000) + 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+
           await sendWhatsAppMessage({
             clinicId: user.clinic_id,
-            to: user.phone,
+            to: normalizedPhone,
             message
           });
         } catch (innerError) {
@@ -1704,7 +1712,7 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     return res.json({ 
       ok: true, 
       message: "Código enviado com sucesso!",
-      masked_phone: maskPhone(user.phone)
+      masked_phone: maskPhone(normalizedPhone)
     });
 
   } catch (error) {
