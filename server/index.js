@@ -1589,10 +1589,10 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
   const normalizedEmail = String(email).toLowerCase().trim();
 
   try {
-    // Tentar usar o WhatsApp da clínica primeiro, se houver
-    let targetClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
+    // Usuário solicitou funcionar SOMENTE no global
+    const targetClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
     
-    // Fetch user early to know the clinic_id
+    // Fetch user early to know if they exist
     const user = await fetchUserByEmail(normalizedEmail);
     if (!user) {
       console.log(`[PasswordReset] Email não encontrado na base de dados: ${normalizedEmail}`);
@@ -1601,10 +1601,6 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
         message: "Se este email estiver cadastrado, você receberá um código.",
         mock: true 
       });
-    }
-
-    if (user.clinic_id && whatsappConnections[user.clinic_id]?.status === "connected") {
-      targetClinicId = user.clinic_id;
     }
 
     await ensureSocketConnected(targetClinicId);
@@ -1616,14 +1612,10 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
 
     const systemConnected = whatsappConnections[targetClinicId]?.status === "connected";
     if (!systemConnected) {
-      if (targetClinicId !== SYSTEM_WHATSAPP_CLINIC_ID && whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected") {
-        targetClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
-      } else {
-        return res.status(503).json({
-          ok: false,
-          error: "WhatsApp global não conectado. Solicite ao super admin para conectar em Sistema (Global).",
-        });
-      }
+      return res.status(503).json({
+        ok: false,
+        error: "WhatsApp global não conectado. Solicite ao super admin para conectar em Sistema (Global).",
+      });
     }
 
     // O usuário já foi buscado acima.
@@ -1680,39 +1672,33 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     session.phone = normalizedPhone;
     setPasswordResetSession(normalizedEmail, session);
 
-    const message = `🔐 *Clinxia - Segurança*\n\nSeu código de recuperação de senha é: *${code}*\n\nUse este código no portal para definir sua nova senha. Se você não solicitou isso, ignore esta mensagem.`;
+    const greetings = ["Olá!", "Oi!", "Tudo bem?", "Saudações da Clinxia!"];
+    const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+    
+    const message = [
+      `🔐 ${greeting} Clinxia - Segurança`,
+      "",
+      `Seu código de recuperação de senha é: *${code}*`,
+      "Ele expira em alguns minutos.",
+      "",
+      "Use este código no portal para definir sua nova senha. Se você não solicitou isso, ignore esta mensagem."
+    ].join("\n");
     
     try {
       addLog(`[PasswordReset] Attempting to send code to ${normalizedPhone} via ${targetClinicId}`);
       const delay = Math.floor(Math.random() * 2000) + 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
 
-      await sendWhatsAppMessage({
+      const result = await sendWhatsAppMessage({
         clinicId: targetClinicId,
         to: normalizedPhone,
         message
       });
+      addLog(`[PasswordReset] Code sent successfully to ${normalizedPhone}. Message ID: ${result?.messageId}`);
     } catch (waError) {
       console.error("[ResetRequest] Erro ao enviar WhatsApp:", waError.message);
-      if (targetClinicId !== SYSTEM_WHATSAPP_CLINIC_ID && whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected") {
-        try {
-          addLog(`[PasswordReset] Fallback: Attempting to send code to ${normalizedPhone} via ${SYSTEM_WHATSAPP_CLINIC_ID}`);
-          const delay = Math.floor(Math.random() * 2000) + 1000;
-          await new Promise(resolve => setTimeout(resolve, delay));
-
-          await sendWhatsAppMessage({
-            clinicId: SYSTEM_WHATSAPP_CLINIC_ID,
-            to: normalizedPhone,
-            message
-          });
-        } catch (innerError) {
-          deletePasswordResetSession(normalizedEmail);
-          throw new Error("Serviço de WhatsApp temporariamente indisponível. Tente novamente em instantes.");
-        }
-      } else {
-        deletePasswordResetSession(normalizedEmail);
-        throw new Error("Serviço de WhatsApp temporariamente indisponível.");
-      }
+      deletePasswordResetSession(normalizedEmail);
+      throw new Error("Serviço de WhatsApp temporariamente indisponível. Verifique a conexão global.");
     }
 
     return res.json({ 
@@ -3100,7 +3086,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
                 Prefer: "resolution=merge-duplicates",
               },
               body: JSON.stringify({
-                clinic_id: clinicId,
+                clinic_id: clinicId === "system-global" ? GLOBAL_CLINIC_ID : clinicId,
                 phone: cleanPhone,
                 message_id: result.key.id,
                 text: message,
