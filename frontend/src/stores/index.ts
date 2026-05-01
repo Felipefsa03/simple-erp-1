@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP - Stores Index
+// clinxia ERP - Stores Index
 // ============================================
 
 // Store Principal (único store utilizado)
@@ -10,3 +10,4 @@ export { useEventBus } from './eventBus';
 
 // Subscription store
 export { useSubscriptionStore } from './subscriptionStore';
+

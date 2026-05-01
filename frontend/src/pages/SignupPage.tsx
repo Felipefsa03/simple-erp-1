@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ToastProvider, ErrorBoundary } from '@/components/shared';
+import { Logo } from '@/components/shared/Logo';
 import { useAuth } from '@/hooks/useAuth';
 import { X, FileText } from 'lucide-react';
 // @ts-ignore - qrcode package doesn't have types
@@ -485,10 +486,10 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 flex items-center justify-center p-4">
           <div className="w-full max-w-lg">
             <div className="text-center mb-6">
-              <div className="w-14 h-14 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-brand-200/50">
-                <span className="text-xl font-black">L</span>
+              <div className="flex justify-center mb-4">
+                <Logo variant="full" size="lg" />
               </div>
-              <h1 className="text-xl font-black text-slate-900">Criar Conta - Clinxia</h1>
+              <h1 className="text-xl font-black text-slate-900">Criar sua Conta</h1>
               <div className="flex items-center justify-center gap-2 mt-3">
                 {[1, 2, 3, 4, 5].map(step => (
                   <div key={step} className={`w-7 h-1.5 rounded-full transition-all ${step <= signupStep ? 'bg-brand-500' : 'bg-slate-200'}`} />

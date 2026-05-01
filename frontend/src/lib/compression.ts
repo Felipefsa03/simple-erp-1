@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP - Utilitários de Compressão
+// clinxia ERP - Utilitários de Compressão
 // Otimizado para plano gratuito do Supabase
 // ============================================
 
@@ -158,3 +158,4 @@ export function compactCPF(cpf: string): string {
 export function compactPhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
+

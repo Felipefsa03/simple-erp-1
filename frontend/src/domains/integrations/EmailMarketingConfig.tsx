@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - E-mail Marketing Integration Config
+// clinxia - E-mail Marketing Integration Config
 // ============================================
 
 import React, { useState, useEffect } from 'react';
@@ -280,3 +280,4 @@ export function EmailMarketingConfig({ clinicId, isConnected, onConnectionChange
     </div>
   );
 }
+

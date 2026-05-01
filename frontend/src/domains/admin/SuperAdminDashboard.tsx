@@ -20,9 +20,9 @@ import { getSupabaseSession } from '@/lib/supabase';
 // Dados fictícios completos de cada clínica
 const DEMO_CLINIC_TEAMS: Record<string, any[]> = {
   'clinic-1': [
-    { id: 'admin-1', name: 'Dr. Lucas Silva', email: 'clinica@luminaflow.com.br', role: 'admin', phone: '(11) 98765-4321', cro: 'CRO-SP 12345', commission: 40, status: 'active', lastLogin: '2026-03-20T14:30:00' },
-    { id: 'dentist-1', name: 'Dra. Julia Paiva', email: 'dentista@luminaflow.com.br', role: 'dentist', phone: '(11) 99876-5432', cro: 'CRO-SP 54321', commission: 35, status: 'active', lastLogin: '2026-03-20T09:15:00' },
-    { id: 'recep-1', name: 'Fernanda Lima', email: 'recepcao@luminaflow.com.br', role: 'receptionist', phone: '(11) 98765-0001', commission: 0, status: 'active', lastLogin: '2026-03-20T08:00:00' },
+    { id: 'admin-1', name: 'Dr. Lucas Silva', email: 'clinica@clinxia.com.br', role: 'admin', phone: '(11) 98765-4321', cro: 'CRO-SP 12345', commission: 40, status: 'active', lastLogin: '2026-03-20T14:30:00' },
+    { id: 'dentist-1', name: 'Dra. Julia Paiva', email: 'dentista@clinxia.com.br', role: 'dentist', phone: '(11) 99876-5432', cro: 'CRO-SP 54321', commission: 35, status: 'active', lastLogin: '2026-03-20T09:15:00' },
+    { id: 'recep-1', name: 'Fernanda Lima', email: 'recepcao@clinxia.com.br', role: 'receptionist', phone: '(11) 98765-0001', commission: 0, status: 'active', lastLogin: '2026-03-20T08:00:00' },
     { id: 'dentist-2', name: 'Dr. Pedro Santos', email: 'pedro@lumina.com.br', role: 'dentist', phone: '(11) 98765-1111', cro: 'CRO-SP 98765', commission: 30, status: 'active', lastLogin: '2026-03-19T16:45:00' },
     { id: 'aesth-1', name: 'Dra. Amanda Costa', email: 'amanda@lumina.com.br', role: 'aesthetician', phone: '(11) 98765-2222', commission: 25, status: 'active', lastLogin: '2026-03-18T11:20:00' },
   ],
@@ -366,7 +366,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     // Para clínicas reais, a impersonação exigiria um token especial do backend (Supabase auth admin)
     // Como segurança, apenas alertamos por enquanto se não for uma clínica demo.
     const clinicPasswords: Record<string, { email: string; password: string }> = {
-      'clinic-1': { email: 'clinica@luminaflow.com.br', password: 'clinica123' },
+      'clinic-1': { email: 'clinica@clinxia.com.br', password: 'clinica123' },
       'clinic-2': { email: 'camila@esteticapremium.com.br', password: 'premium123' },
       'clinic-3': { email: 'rafael@odontovida.com.br', password: 'odontovida123' },
       'clinic-4': { email: 'amanda@sorrisoperfeito.com.br', password: 'sorriso123' },
@@ -1329,3 +1329,4 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     </div>
   );
 }
+

@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - Google Ads Integration Config
+// clinxia - Google Ads Integration Config
 // ============================================
 
 import React, { useState, useEffect } from 'react';
@@ -221,3 +221,4 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
     </div>
   );
 }
+

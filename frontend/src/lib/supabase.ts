@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP - Supabase Client
+// clinxia ERP - Supabase Client
 // Versão que funciona SEM o pacote @supabase/supabase-js
 // ============================================
 
@@ -35,7 +35,7 @@ const getHeaders = (_token?: string) => ({
 });
 
 // Sessao em memoria e persistencia local
-const STORAGE_KEY = 'luminaflow_supabase_session';
+const STORAGE_KEY = 'clinxia_supabase_session';
 
 const saveSessionToStorage = (session: { access_token: string; user: Record<string, unknown> } | null) => {
   if (typeof window !== 'undefined') {
@@ -488,3 +488,4 @@ export async function createAuthUser(userData: {
     return { error: message };
   }
 }
+

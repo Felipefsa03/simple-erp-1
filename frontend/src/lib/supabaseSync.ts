@@ -45,7 +45,7 @@ const getAuthToken = (): string | null => {
     }
 
     // Tentar 3: Zustand store format (Legacy)
-    const authData = localStorage.getItem('luminaflow-auth');
+    const authData = localStorage.getItem('clinxia-auth');
     if (authData) {
       const parsed = JSON.parse(authData);
       if (parsed?.state?.user?.access_token) {
@@ -903,3 +903,4 @@ async saveTransaction(transaction: any) {
 };
 
 console.log('[SupabaseSync] Módulo carregado, isConfigured:', isConfigured);
+

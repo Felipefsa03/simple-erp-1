@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - Mini WhatsApp Chat Component
+// clinxia - Mini WhatsApp Chat Component
 // Chat customizado que usa Baileys para enviar mensagens
 // ============================================
 
@@ -716,3 +716,4 @@ export function MiniWhatsAppChat({
     </div>
   );
 }
+

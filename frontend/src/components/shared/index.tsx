@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow — Shared UI Components
+// clinxia — Shared UI Components
 // ============================================
 import * as React from 'react';
 import { useState, useEffect, useCallback, type ComponentPropsWithoutRef } from 'react';
@@ -380,3 +380,4 @@ export function SkeletonForm() {
 }
 // ---- Logo ----
 export { Logo } from './Logo';
+

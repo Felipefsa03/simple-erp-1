@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - Integrações Externas
+// clinxia - Integrações Externas
 // Google Calendar, Facebook Ads, Google Ads, Asaas, WhatsApp
 // ============================================
 
@@ -734,3 +734,4 @@ export function Integrations() {
     </div>
   );
 }
+

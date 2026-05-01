@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP - NFe Integration Service
+// clinxia ERP - NFe Integration Service
 // Suporte a provedores reais de emissão de NF-e
 // ============================================
 
@@ -635,3 +635,4 @@ export const NFE_UNIDADES = [
   'UN', 'CX', 'PCT', 'KG', 'G', 'L', 'ML', 'M', 'CM', 'M2', 'M3',
   'PAR', 'DZ', 'HR', 'DI', 'SE', 'MES', 'ANO', 'KT', 'RES',
 ];
+

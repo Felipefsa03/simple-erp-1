@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP — Tipos de Assinatura e Pagamento
+// clinxia ERP — Tipos de Assinatura e Pagamento
 // ============================================
 
 export type PlanType = 'free_trial' | 'basic' | 'pro' | 'ultra';
@@ -210,3 +210,4 @@ export function getDaysRemaining(subscription: ClinicSubscription): number {
 
 // Re-export formatCurrency as formatCurrencyBRL for backward compatibility
 export { formatCurrency as formatCurrencyBRL } from '@/lib/utils';
+

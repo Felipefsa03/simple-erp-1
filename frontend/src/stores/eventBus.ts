@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP — Domain Event Bus
+// clinxia ERP — Domain Event Bus
 // ============================================
 import { create } from 'zustand';
 import type { DomainEvent, DomainEventType } from '@/types';
@@ -46,3 +46,4 @@ export const useEventBus = create<EventBusState>((set, get) => ({
         };
     },
 }));
+

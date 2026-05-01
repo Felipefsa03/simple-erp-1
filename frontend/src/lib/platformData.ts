@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow — Dados fictícios da plataforma
+// clinxia — Dados fictícios da plataforma
 // Usado pelo SuperAdminDashboard para demonstrar
 // a inspeção e impersonação de clínicas
 // ============================================
@@ -90,3 +90,4 @@ export const DEMO_PLATFORM_CLINICS = [
     created_at: '2025-02-01T00:00:00.000Z',
   },
 ];
+

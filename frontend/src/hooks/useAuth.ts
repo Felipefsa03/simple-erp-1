@@ -123,12 +123,12 @@ const DEMO_USERS: {
   clinic: Clinic | null;
 }[] = [
   {
-    email: "admin@luminaflow.com.br",
+    email: "admin@clinxia.com.br",
     password: "admin123",
     user: {
       id: "super-admin-1",
       name: "Administrador Lumina",
-      email: "admin@luminaflow.com.br",
+      email: "admin@clinxia.com.br",
       role: "super_admin",
       phone: "(11) 3333-0000",
       commission_pct: 0,
@@ -139,12 +139,12 @@ const DEMO_USERS: {
     clinic: null,
   },
   {
-    email: "clinica@luminaflow.com.br",
+    email: "clinica@clinxia.com.br",
     password: "clinica123",
     user: {
       id: "admin-clinic-1",
       name: "Dr. Lucas Silva",
-      email: "clinica@luminaflow.com.br",
+      email: "clinica@clinxia.com.br",
       role: "admin",
       clinic_id: "clinic-1",
       phone: "(11) 98765-4321",
@@ -173,12 +173,12 @@ const DEMO_USERS: {
     },
   },
   {
-    email: "dentista@luminaflow.com.br",
+    email: "dentista@clinxia.com.br",
     password: "dentista123",
     user: {
       id: "dentist-1",
       name: "Dra. Julia Paiva",
-      email: "dentista@luminaflow.com.br",
+      email: "dentista@clinxia.com.br",
       role: "dentist",
       clinic_id: "clinic-1",
       phone: "(11) 99876-5432",
@@ -207,12 +207,12 @@ const DEMO_USERS: {
     },
   },
   {
-    email: "recepcao@luminaflow.com.br",
+    email: "recepcao@clinxia.com.br",
     password: "recepcao123",
     user: {
       id: "recep-1",
       name: "Fernanda Lima",
-      email: "recepcao@luminaflow.com.br",
+      email: "recepcao@clinxia.com.br",
       role: "receptionist",
       clinic_id: "clinic-1",
       phone: "(11) 98765-0001",
@@ -787,3 +787,4 @@ export const useAuth = create<AuthState>()(
     }),
   }
 ));
+

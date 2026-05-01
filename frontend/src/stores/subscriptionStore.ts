@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP — Subscription Store (Zustand)
+// clinxia ERP — Subscription Store (Zustand)
 // ============================================
 import { create } from 'zustand';
 import type { 
@@ -312,3 +312,4 @@ export const useSubscriptionStore = create<SubscriptionStore>()((set, get) => ({
         return new Date(current.next_billing_date);
       },
     }));
+

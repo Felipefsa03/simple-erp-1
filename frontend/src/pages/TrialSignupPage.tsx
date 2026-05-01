@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ToastProvider, ErrorBoundary } from '@/components/shared';
+import { Logo } from '@/components/shared/Logo';
 import { useAuth } from '@/hooks/useAuth';
 import { X, FileText, Crown, Check, Sparkles } from 'lucide-react';
 
@@ -198,8 +199,8 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 flex items-center justify-center p-4">
           <div className="w-full max-w-lg">
             <div className="text-center mb-6">
-              <div className="w-14 h-14 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-3 shadow-xl shadow-brand-200/50">
-                <Sparkles className="w-7 h-7" />
+              <div className="flex justify-center mb-4">
+                <Logo variant="icon" size="lg" />
               </div>
               <h1 className="text-xl font-black text-slate-900">Teste Grátis — 7 Dias</h1>
               <p className="text-sm text-slate-500 mt-1">Acesso completo ao plano Premium. Sem cartão de crédito.</p>

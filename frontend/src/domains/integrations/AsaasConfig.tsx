@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - Asaas Integration Config
+// clinxia - Asaas Integration Config
 // ============================================
 
 import React, { useState, useEffect } from 'react';
@@ -222,3 +222,4 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
     </div>
   );
 }
+

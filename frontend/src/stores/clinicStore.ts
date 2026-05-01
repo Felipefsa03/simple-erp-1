@@ -1468,7 +1468,7 @@ export const useClinicStore = create<ClinicStore>()(
                             payment_method: method,
                             installments,
                             payment_reference: t.payment_reference || `PAY-${id.slice(0, 8).toUpperCase()}`,
-                            payment_url: t.payment_url || `https://pay.luminaflow.local/${id}`,
+                            payment_url: t.payment_url || `https://pay.clinxia.local/${id}`,
                             pix_code: method === 'pix' ? t.pix_code || `PIX-${id.slice(0, 10).toUpperCase()}` : t.pix_code,
                         } : t
                     ),
@@ -1846,4 +1846,5 @@ export const useClinicStore = create<ClinicStore>()(
         };
         }
 );
+
 

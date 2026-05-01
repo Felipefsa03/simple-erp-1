@@ -151,11 +151,11 @@ async function apiFetch(url: string, options: RequestInit = {}) {
 }
 
 function campaignCacheKey(clinicId: string) {
-  return `luminaflow:campaigns:${clinicId}`;
+  return `clinxia:campaigns:${clinicId}`;
 }
 
 function settingsCacheKey(clinicId: string) {
-  return `luminaflow:campaign-settings:${clinicId}`;
+  return `clinxia:campaign-settings:${clinicId}`;
 }
 
 function readCachedCampaigns(clinicId: string): CampaignRecord[] {
@@ -1109,3 +1109,4 @@ export function CampaignManager({
     </div>
   );
 }
+

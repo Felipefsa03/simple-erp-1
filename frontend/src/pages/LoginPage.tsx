@@ -71,8 +71,8 @@ export function LoginPage({
   const twoFACard = (
     <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
       <div className="flex flex-col items-center mb-6">
-        <div className="w-14 h-14 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg shadow-brand-200/50">
-          <Shield className="w-7 h-7" />
+        <div className="flex justify-center mb-4">
+          <Logo variant="icon" size="lg" />
         </div>
         <h2 className="text-xl font-black text-slate-900 tracking-tight">
           Verificação em Dois Fatores

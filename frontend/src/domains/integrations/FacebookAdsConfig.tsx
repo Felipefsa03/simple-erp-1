@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - Facebook Ads Configuration
+// clinxia - Facebook Ads Configuration
 // Real integration with Facebook Marketing API
 // ============================================
 
@@ -458,3 +458,4 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
     </div>
   );
 }
+

@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow ERP — Core Type Definitions
+// clinxia ERP — Core Type Definitions
 // ============================================
 
 // --- Plans & Subscription ---
@@ -599,3 +599,4 @@ export interface ClinicIntegration {
     created_at: string;
     updated_at: string;
 }
+

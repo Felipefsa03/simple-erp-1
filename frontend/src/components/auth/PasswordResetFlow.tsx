@@ -3,6 +3,7 @@ import { ArrowLeft, MessageSquare, Lock, Eye, EyeOff, Check, AlertCircle, Loader
 import { cn, uid, formatPhoneForWhatsApp } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 import { useClinicStore } from '@/stores/clinicStore';
+import { Logo } from '@/components/shared/Logo';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
 interface PasswordResetFlowProps {
@@ -18,10 +19,10 @@ const SYSTEM_CLINIC_ID = 'system-global';
 
 // Usuários demo para simulação
 const demoUsers: Record<string, { id: string; name: string; phone: string; password: string }> = {
-  'clinica@luminaflow.com.br': { id: 'user-1', name: 'Dr. Carlos Lima', phone: '11999990001', password: 'demo123' },
-  'recepcao@luminaflow.com.br': { id: 'user-2', name: 'Ana Santos', phone: '11999990002', password: 'demo123' },
-  'dentista@luminaflow.com.br': { id: 'user-3', name: 'Dr. Roberto', phone: '11999990003', password: 'demo123' },
-  'admin@luminaflow.com.br': { id: 'user-4', name: 'Super Admin', phone: '11999990000', password: 'admin123' },
+  'clinica@clinxia.com.br': { id: 'user-1', name: 'Dr. Carlos Lima', phone: '11999990001', password: 'demo123' },
+  'recepcao@clinxia.com.br': { id: 'user-2', name: 'Ana Santos', phone: '11999990002', password: 'demo123' },
+  'dentista@clinxia.com.br': { id: 'user-3', name: 'Dr. Roberto', phone: '11999990003', password: 'demo123' },
+  'admin@clinxia.com.br': { id: 'user-4', name: 'Super Admin', phone: '11999990000', password: 'admin123' },
   'lucas@lumina.com.br': { id: 'user-5', name: 'Dr. Lucas Silva', phone: '5575991517196', password: 'lucas123' },
 };
 
@@ -299,8 +300,8 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-brand-200/50">
-            <span className="text-2xl font-black">L</span>
+          <div className="flex justify-center mb-4">
+            <Logo variant="icon" size="lg" />
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
             {step === 'email' && 'Recuperar Senha'}
@@ -537,3 +538,4 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
     </div>
   );
 }
+

@@ -1,5 +1,5 @@
 // ============================================
-// LuminaFlow - Google Calendar Integration Config
+// clinxia - Google Calendar Integration Config
 // ============================================
 
 import React, { useState, useEffect } from 'react';
@@ -209,3 +209,4 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
     </div>
   );
 }
+
