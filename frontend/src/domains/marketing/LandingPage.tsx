@@ -126,8 +126,8 @@ function Dashboard3D() {
               <p className="text-sm text-slate-500">Bem-vindo de volta</p>
               <p className="text-xl font-bold text-slate-800">Dr. Lucas Silva</p>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-brand-400 to-brand-500 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-brand-500/20">
-              L
+            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-slate-200/50 border border-slate-100">
+              <Logo variant="icon" size="md" />
             </div>
           </div>
 
