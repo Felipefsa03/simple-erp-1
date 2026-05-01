@@ -239,8 +239,9 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
   // Fetch system metrics
   React.useEffect(() => {
-    if (activeTab === 'sistema') {
-      setMetricsLoading(true);
+    let intervalId: any;
+
+    const fetchMetrics = () => {
       const token = SupabaseSync.getAuthToken();
       fetch('/api/health/extended', {
         headers: {
@@ -249,24 +250,26 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
       })
         .then(r => r.json())
         .then(data => {
-          if (data && data.status) {
+          if (data && data.status && data.status !== 'error') {
             setSystemMetrics(data);
-          } else {
-            throw new Error('Invalid data');
           }
           setMetricsLoading(false);
         })
-        .catch(() => {
-          // Mock temporário para não deixar N/A se o backend estiver bloqueando
-          setSystemMetrics({
-            status: 'ok',
-            version: '1.2.0',
-            components: { api: 'ok', supabase: 'ok', mercado_pago: 'ok' },
-            metrics: { uptime_seconds: 3600, requests_total: 1250, requests_by_method: {}, requests_by_path: {} }
-          });
+        .catch((err) => {
+          console.error('[System Health] Erro ao buscar métricas', err);
           setMetricsLoading(false);
         });
+    };
+
+    if (activeTab === 'sistema') {
+      setMetricsLoading(true);
+      fetchMetrics(); // Fetch initial
+      intervalId = setInterval(fetchMetrics, 10000); // Polling every 10 segundos
     }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [activeTab]);
 
   // Handle confirm payment — update Supabase directly
