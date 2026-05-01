@@ -1462,25 +1462,25 @@ app.get("/api/health/extended", (req, res) => {
     const minutesRunning = Math.max(1, uptimeSeconds / 60);
     const rpm = Math.round((runtimeMetrics?.requestsTotal || 0) / minutesRunning);
 
-    // Calcular memória
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
-    const usedMem = totalMem - freeMem;
-    const memoryPercent = totalMem > 0 ? Math.round((usedMem / totalMem) * 100) : 0;
+    // Memória (Restrita ao uso real do processo Node.js atual, em vez do servidor inteiro compartilhado do Render)
+    const memoryUsage = process.memoryUsage();
+    const usedMemBytes = memoryUsage.rss; // Resident Set Size (RAM física usada pelo app)
+    // Assumir um teto visual padrão (ex: 512 MB típicos em hospedagens como Render/Vercel)
+    const allocatedMemBytes = 512 * 1024 * 1024; 
+    const memoryPercent = Math.min(100, Math.round((usedMemBytes / allocatedMemBytes) * 100));
 
-    // Estimativa de CPU (simplificada)
-    const cpus = os.cpus();
-    let cpuUsage = 0;
-    if (cpus && cpus.length > 0) {
-      const core = cpus[0];
-      if (core && core.times) {
-        const total = Object.values(core.times).reduce((acc, tv) => acc + (typeof tv === 'number' ? tv : 0), 0);
-        const idle = core.times.idle || 0;
-        if (total > 0) {
-          cpuUsage = Math.round(100 - ((idle / total) * 100));
-        }
-      }
+    // CPU (Média do uso exclusivo deste app desde o momento em que ligou)
+    // Ao invés de pegar a CPU de todo o host físico (que as vezes bate 50% por causa de outros containers)
+    const cpuUsageMicro = process.cpuUsage();
+    const totalCpuMicroSecs = cpuUsageMicro.user + cpuUsageMicro.system;
+    const uptimeMicroSecs = process.uptime() * 1000000; // Tempo ligado em microsegundos
+    let cpuPercent = 0;
+    if (uptimeMicroSecs > 0) {
+      // Uso de CPU em % (restrito a no máximo 100% de 1 core, na média de tempo)
+      cpuPercent = Math.min(100, Math.round((totalCpuMicroSecs / uptimeMicroSecs) * 100));
     }
+    // Caso a aplicação não esteja fazendo nada, definimos um piso mínimo visual para não ficar 0% cravado
+    const displayCpuPercent = cpuPercent > 0 ? cpuPercent : 1; 
 
     res.json({
       status: "healthy",
@@ -1501,12 +1501,12 @@ app.get("/api/health/extended", (req, res) => {
         requestsPerMinute: rpm
       },
       memory: {
-        used: `${(usedMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
-        total: `${(totalMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
+        used: `${(usedMemBytes / 1024 / 1024).toFixed(1)} MB`,
+        total: `512.0 MB`, // Simulando o capamento do ambiente
         usedPercent: `${memoryPercent}%`
       },
       cpu: {
-        usedPercent: `${cpuUsage}%`
+        usedPercent: `${displayCpuPercent}%`
       }
     });
   } catch (error) {
