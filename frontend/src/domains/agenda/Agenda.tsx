@@ -50,6 +50,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isWaitModalOpen, setIsWaitModalOpen] = useState(false);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [whatsappAppointment, setWhatsappAppointment] = useState<Appointment | null>(null);
 
@@ -70,6 +71,10 @@ export function Agenda({ onNavigate }: AgendaProps) {
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
   const canCreate = hasPermission('create_appointment');
   const canFinalize = hasPermission('finalize_appointment');
+
+  useEffect(() => {
+    if (!selectedApt) setShowDeleteConfirm(false);
+  }, [selectedApt]);
 
   const clinicAppointments = useMemo(
     () => (appointments || []).filter(a => a.clinic_id === clinicId),
@@ -670,28 +675,44 @@ export function Agenda({ onNavigate }: AgendaProps) {
                 </div>
               )}
               {['scheduled', 'confirmed'].includes(selectedApt.status) && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { 
-                      if (confirm('Tem certeza que deseja excluir este agendamento definitivamente? Esta ação não pode ser desfeita.')) {
-                        deleteAppointment(selectedApt.id); 
-                        setSelectedApt(null); 
-                        toast('Agendamento excluído com sucesso!'); 
-                      }
-                    }}
-                    disabled={!canCreate}
-                    className="flex-1 py-2.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl text-sm hover:bg-red-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Excluir
-                  </button>
-                  <button
-                    onClick={() => { updateAppointmentStatus(selectedApt.id, 'no_show'); setSelectedApt(null); toast('Paciente marcado como falta', 'warning'); }}
-                    disabled={!canCreate}
-                    className="flex-1 py-2.5 px-4 bg-slate-50 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    Faltou
-                  </button>
+                <div className="flex flex-col gap-2">
+                  {!showDeleteConfirm ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={!canCreate}
+                        className="flex-1 py-2.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl text-sm hover:bg-red-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Excluir
+                      </button>
+                      <button
+                        onClick={() => { updateAppointmentStatus(selectedApt.id, 'no_show'); setSelectedApt(null); toast('Paciente marcado como falta', 'warning'); }}
+                        disabled={!canCreate}
+                        className="flex-1 py-2.5 px-4 bg-slate-50 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        Faltou
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-red-50 p-4 rounded-2xl border border-red-100 animate-in fade-in zoom-in-95 duration-200">
+                      <p className="text-red-800 text-sm font-bold mb-3 text-center">Confirmar exclusão definitiva deste agendamento?</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { deleteAppointment(selectedApt.id); setSelectedApt(null); toast('Agendamento excluído com sucesso!'); }}
+                          className="flex-1 py-2.5 bg-red-600 text-white text-sm font-bold rounded-xl hover:bg-red-700 transition-all shadow-sm"
+                        >
+                          Sim, Excluir
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="flex-1 py-2.5 bg-white text-slate-600 text-sm font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all"
+                        >
+                          Não, Manter
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
