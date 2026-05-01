@@ -342,6 +342,8 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   };
 
   const handleImpersonateClinic = (clinicId: string) => {
+    // Para clínicas reais, a impersonação exigiria um token especial do backend (Supabase auth admin)
+    // Como segurança, apenas alertamos por enquanto se não for uma clínica demo.
     const clinicPasswords: Record<string, { email: string; password: string }> = {
       'clinic-1': { email: 'clinica@luminaflow.com.br', password: 'clinica123' },
       'clinic-2': { email: 'camila@esteticapremium.com.br', password: 'premium123' },
@@ -351,6 +353,8 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     const credentials = clinicPasswords[clinicId];
     if (credentials) {
       login(credentials.email, credentials.password);
+    } else {
+      alert('Impersonação direta para clínicas reais requer token de super-admin (em desenvolvimento). Por favor, faça login com as credenciais da clínica.');
     }
   };
 
@@ -373,7 +377,12 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     const team = DEMO_CLINIC_TEAMS[clinic.id] || [];
     const stats = DEMO_CLINIC_STATS[clinic.id] || {};
     const admin = team.find((m: any) => m.role === 'admin');
-    const sub = subscriptions.find(s => s.clinic_id === clinic.id);
+    const sub = {
+      plan: clinic.plan || 'basico',
+      amount: clinic.amount || 0,
+      next_billing_date: clinic.expires_at || new Date().toISOString(),
+      status: clinic.status || 'trial'
+    };
 
     return (
       <div className="space-y-6">
