@@ -13,6 +13,9 @@ import { Modal, ConfirmDialog } from '@/components/shared';
 import { useAuth } from '@/hooks/useAuth';
 import type { PlatformSubscription, SecurityLog, ActiveSession } from '@/types';
 import { DEMO_PLATFORM_CLINICS } from '@/lib/platformData';
+import { SupabaseSync } from '@/lib/supabaseSync';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/lib/supabaseConfig';
+import { getSupabaseSession } from '@/lib/supabase';
 
 // Dados fictícios completos de cada clínica
 const DEMO_CLINIC_TEAMS: Record<string, any[]> = {
@@ -145,15 +148,82 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   const [systemMetrics, setSystemMetrics] = useState<any>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
 
-  // Fetch real clinics for subscriptions
+  // Fetch real clinics directly from Supabase
   const fetchRealClinics = React.useCallback(async () => {
     setClinicsLoading(true);
     try {
-      const res = await fetch('/api/super-admin/clinics');
-      const data = await res.json();
-      if (data.ok && data.data) {
-        setRealClinics(data.data);
+      const token = SupabaseSync.getAuthToken();
+      const apiKey = SUPABASE_PUBLISHABLE_KEY;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'apikey': apiKey,
+        'Authorization': `Bearer ${token || apiKey}`,
+      };
+      const baseUrl = `${SUPABASE_URL}/rest/v1`;
+
+      // Fetch all clinics
+      const clinicsRes = await fetch(`${baseUrl}/clinics?select=*&order=created_at.desc`, { headers });
+      if (!clinicsRes.ok) {
+        console.error('[SuperAdmin] Failed to fetch clinics:', clinicsRes.status);
+        setClinicsLoading(false);
+        return;
       }
+      const clinics = await clinicsRes.json();
+
+      if (!clinics || clinics.length === 0) {
+        setRealClinics([]);
+        setClinicsLoading(false);
+        return;
+      }
+
+      // Fetch admin users
+      const clinicIds = clinics.map((c: any) => c.id);
+      const adminsRes = await fetch(
+        `${baseUrl}/users?role=eq.admin&clinic_id=in.(${clinicIds.join(',')})&select=clinic_id,name,email,phone`,
+        { headers }
+      );
+      const admins = adminsRes.ok ? await adminsRes.json() : [];
+
+      const adminMap: Record<string, any> = {};
+      for (const a of admins) {
+        if (!adminMap[a.clinic_id]) adminMap[a.clinic_id] = a;
+      }
+
+      // Count active users per clinic
+      const usersRes = await fetch(
+        `${baseUrl}/users?active=eq.true&clinic_id=in.(${clinicIds.join(',')})&select=clinic_id`,
+        { headers }
+      );
+      const usersList = usersRes.ok ? await usersRes.json() : [];
+      const userCountMap: Record<string, number> = {};
+      for (const u of usersList) {
+        userCountMap[u.clinic_id] = (userCountMap[u.clinic_id] || 0) + 1;
+      }
+
+      // Build enriched data
+      const planPricesMap: Record<string, number> = { basico: 197, profissional: 397, premium: 697 };
+      const enriched = clinics.map((clinic: any) => {
+        const admin = adminMap[clinic.id];
+        const planName = String(clinic.plan || 'basico').toLowerCase();
+        return {
+          id: clinic.id,
+          name: clinic.name || 'Sem nome',
+          plan: clinic.plan || 'basico',
+          status: clinic.status || 'trial',
+          amount: planPricesMap[planName] || 0,
+          email: clinic.email || admin?.email || '',
+          phone: clinic.phone || admin?.phone || '',
+          cnpj: clinic.cnpj || '',
+          users_count: userCountMap[clinic.id] || 0,
+          created_at: clinic.created_at,
+          expires_at: clinic.expires_at || null,
+          last_payment_at: clinic.last_payment_at || null,
+          admin_name: admin?.name || '',
+          admin_email: admin?.email || '',
+        };
+      });
+
+      setRealClinics(enriched);
     } catch (e) {
       console.error('[SuperAdmin] Failed to fetch clinics:', e);
     } finally {
@@ -181,27 +251,47 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     }
   }, [activeTab]);
 
-  // Handle confirm payment
+  // Handle confirm payment — update Supabase directly
   const handleConfirmPayment = async (clinic: any) => {
     setPaymentProcessing(true);
     try {
-      const res = await fetch('/api/super-admin/confirm-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinic_id: clinic.id }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        // Update local state
+      const now = new Date();
+      const nextBilling = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const token = SupabaseSync.getAuthToken();
+      const apiKey = SUPABASE_PUBLISHABLE_KEY;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'apikey': apiKey,
+        'Authorization': `Bearer ${token || apiKey}`,
+        'Prefer': 'return=representation',
+      };
+
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinic.id}`,
+        {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            status: 'active',
+            expires_at: nextBilling.toISOString(),
+            last_payment_at: now.toISOString(),
+          }),
+        }
+      );
+
+      if (res.ok) {
         setRealClinics(prev => prev.map(c => c.id === clinic.id ? {
           ...c,
           status: 'active',
-          expires_at: data.next_billing_date,
-          last_payment_at: data.last_payment_at,
+          expires_at: nextBilling.toISOString(),
+          last_payment_at: now.toISOString(),
         } : c));
         setConfirmPaymentClinic(null);
       } else {
-        alert('Erro ao confirmar pagamento: ' + (data.error || 'Desconhecido'));
+        const errText = await res.text();
+        console.error('[SuperAdmin] Failed to confirm payment:', errText);
+        alert('Erro ao confirmar pagamento. Verifique as permissões RLS.');
       }
     } catch (e: any) {
       alert('Erro de conexão: ' + e.message);
@@ -218,8 +308,17 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   React.useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
 
   const clinics = DEMO_PLATFORM_CLINICS;
-  const totalMRR = clinics.reduce((s, c) => s + c.mrr, 0);
-  const totalUsers = clinics.reduce((s, c) => s + c.users, 0);
+  // KPIs baseados nos dados reais do Supabase
+  const planPricesKpi: Record<string, number> = { basico: 197, profissional: 397, premium: 697 };
+  const totalMRR = realClinics.length > 0 
+    ? realClinics.filter(c => c.status === 'active').reduce((s, c) => s + (c.amount || 0), 0)
+    : clinics.reduce((s, c) => s + c.mrr, 0);
+  const totalUsers = realClinics.length > 0 
+    ? realClinics.reduce((s, c) => s + (c.users_count || 0), 0)
+    : clinics.reduce((s, c) => s + c.users, 0);
+  const totalClinicsActive = realClinics.length > 0
+    ? realClinics.filter(c => c.status === 'active').length
+    : clinics.filter(c => c.status === 'active').length;
   const totalPatients = clinics.reduce((s, c) => s + c.patients, 0);
 
   const filteredLogs = useMemo(() => {
@@ -586,10 +685,10 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Clínicas Ativas', value: clinics.filter(c => c.status === 'active').length, icon: Building2, color: 'from-brand-500 to-brand-600' },
+          { label: 'Clínicas Cadastradas', value: realClinics.length > 0 ? realClinics.length : clinics.length, icon: Building2, color: 'from-brand-500 to-brand-600' },
           { label: 'MRR Total', value: `R$ ${totalMRR.toLocaleString('pt-BR')}`, icon: TrendingUp, color: 'from-emerald-500 to-emerald-600' },
           { label: 'Usuários Totais', value: totalUsers, icon: Users, color: 'from-brand-500 to-brand-600' },
-          { label: 'Pacientes Totais', value: totalPatients, icon: Activity, color: 'from-violet-500 to-violet-600' },
+          { label: 'Clínicas Ativas', value: totalClinicsActive, icon: Activity, color: 'from-violet-500 to-violet-600' },
         ].map((kpi, i) => (
           <motion.div key={kpi.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
             className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
@@ -622,40 +721,61 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
       {(activeTab === 'dashboard' || activeTab === 'clinicas') && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900">Clínicas Cadastradas</h2>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Buscar clínica..." className="pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none w-64" />
+            <h2 className="text-lg font-bold text-slate-900">Clínicas Cadastradas ({realClinics.length > 0 ? realClinics.length : clinics.length})</h2>
+            <div className="flex items-center gap-3">
+              <button onClick={fetchRealClinics} disabled={clinicsLoading}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors">
+                <RefreshCw className={cn("w-3.5 h-3.5", clinicsLoading && "animate-spin")} />
+                {clinicsLoading ? 'Carregando...' : 'Atualizar'}
+              </button>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Buscar clínica..." className="pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm outline-none w-64" />
+              </div>
             </div>
           </div>
+          {clinicsLoading && realClinics.length === 0 ? (
+            <div className="p-12 text-center">
+              <Loader2 className="w-8 h-8 text-brand-500 animate-spin mx-auto mb-3" />
+              <p className="text-sm text-slate-500">Carregando clínicas do banco de dados...</p>
+            </div>
+          ) : (
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Clínica</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Plano</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Usuários</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Pacientes</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">MRR</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {clinics.filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase())).map(c => (
+              {(realClinics.length > 0 ? realClinics : clinics.map(c => ({
+                id: c.id, name: c.name, plan: c.plan, status: c.status,
+                email: c.email, admin_name: c.owner, admin_email: c.email,
+                users_count: c.users, amount: c.mrr,
+              }))).filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase())).map(c => (
                 <tr key={c.id} className="hover:bg-slate-50/50">
                   <td className="px-6 py-4">
                     <p className="font-bold text-sm text-slate-900">{c.name}</p>
-                    <p className="text-xs text-slate-500">{c.owner} • {c.email}</p>
+                    <p className="text-xs text-slate-500">{c.admin_name || c.admin_email || c.email}</p>
                   </td>
-                  <td className="px-6 py-4"><span className={cn("text-xs font-bold uppercase px-2 py-1 rounded-md", c.plan === 'ultra' ? "bg-brand-50 text-brand-700" : c.plan === 'pro' ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-600")}>{c.plan}</span></td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{c.users}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{c.patients}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-slate-900">R$ {c.mrr}</td>
+                  <td className="px-6 py-4"><span className={cn("text-xs font-bold uppercase px-2 py-1 rounded-md",
+                    c.plan === 'premium' || c.plan === 'ultra' ? "bg-brand-50 text-brand-700" :
+                    c.plan === 'profissional' || c.plan === 'pro' ? "bg-brand-50 text-brand-700" :
+                    "bg-slate-100 text-slate-600")}>{c.plan}</span></td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{c.users_count || 0}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900">R$ {(c.amount || 0).toLocaleString('pt-BR')}</td>
                   <td className="px-6 py-4">
-                    <span className={cn("inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full", c.status === 'active' ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>
+                    <span className={cn("inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full",
+                      c.status === 'active' ? "bg-emerald-50 text-emerald-700" :
+                      c.status === 'trial' ? "bg-amber-50 text-amber-700" :
+                      "bg-red-50 text-red-700")}>
                       {c.status === 'active' ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                      {c.status === 'active' ? 'Ativo' : 'Trial'}
+                      {c.status === 'active' ? 'Ativo' : c.status === 'trial' ? 'Trial' : 'Expirado'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
@@ -663,15 +783,13 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                       <button onClick={() => handleInspectClinic(c)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors" title="Inspecionar clínica">
                         <Eye className="w-3.5 h-3.5" />Inspecionar
                       </button>
-                      <button onClick={() => handleImpersonateClinic(c.id)} className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors" title="Impersonar como admin">
-                        <LogIn className="w-3.5 h-3.5" />Impersonar
-                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          )}
         </motion.div>
       )}
 
