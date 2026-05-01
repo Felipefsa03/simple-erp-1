@@ -1450,7 +1450,7 @@ app.use("/api", (req, res, next) => {
   return requireAuth(req, res, next);
 });
 
-app.get("/api/health/extended", (req, res) => {
+app.get("/api/health/extended", async (req, res) => {
   try {
     // Calcular Uptime em string legível
     const uptimeSeconds = Math.floor((Date.now() - (runtimeMetrics?.startedAt || Date.now())) / 1000);
@@ -1462,24 +1462,20 @@ app.get("/api/health/extended", (req, res) => {
     const minutesRunning = Math.max(1, uptimeSeconds / 60);
     const rpm = Math.round((runtimeMetrics?.requestsTotal || 0) / minutesRunning);
 
-    // Memória (Restrita ao uso real do processo Node.js atual, em vez do servidor inteiro compartilhado do Render)
+    // Memória (App)
     const memoryUsage = process.memoryUsage();
-    const usedMemBytes = memoryUsage.rss; // Resident Set Size (RAM física usada pelo app)
-    // Assumir um teto visual padrão (ex: 512 MB típicos em hospedagens como Render/Vercel)
+    const usedMemBytes = memoryUsage.rss;
     const allocatedMemBytes = 512 * 1024 * 1024; 
     const memoryPercent = Math.min(100, Math.round((usedMemBytes / allocatedMemBytes) * 100));
 
-    // CPU (Média do uso exclusivo deste app desde o momento em que ligou)
-    // Ao invés de pegar a CPU de todo o host físico (que as vezes bate 50% por causa de outros containers)
+    // CPU (App)
     const cpuUsageMicro = process.cpuUsage();
     const totalCpuMicroSecs = cpuUsageMicro.user + cpuUsageMicro.system;
-    const uptimeMicroSecs = process.uptime() * 1000000; // Tempo ligado em microsegundos
+    const uptimeMicroSecs = process.uptime() * 1000000;
     let cpuPercent = 0;
     if (uptimeMicroSecs > 0) {
-      // Uso de CPU em % (restrito a no máximo 100% de 1 core, na média de tempo)
       cpuPercent = Math.min(100, Math.round((totalCpuMicroSecs / uptimeMicroSecs) * 100));
     }
-    // Caso a aplicação não esteja fazendo nada, definimos um piso mínimo visual para não ficar 0% cravado
     const displayCpuPercent = cpuPercent > 0 ? cpuPercent : 1; 
 
     // CPU Host (Servidor)
@@ -1501,6 +1497,45 @@ app.get("/api/health/extended", (req, res) => {
     const hostUsedMem = hostTotalMem - os.freemem();
     const hostMemPercent = hostTotalMem > 0 ? Math.round((hostUsedMem / hostTotalMem) * 100) : 0;
 
+    // Supabase Stats (Novas Métricas)
+    let supabaseStats = {
+      clinics: 0,
+      users: 0,
+      appointments: 0,
+      patients: 0
+    };
+
+    try {
+      // Usar a chave service role se disponível para contar registros com precisão
+      const [{ count: cCount }, { count: uCount }, { count: aCount }, { count: pCount }] = await Promise.all([
+        supabaseAdmin.from('clinics').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('users').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('appointments').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('patients').select('*', { count: 'exact', head: true })
+      ]);
+      
+      supabaseStats = {
+        clinics: cCount || 0,
+        users: uCount || 0,
+        appointments: aCount || 0,
+        patients: pCount || 0
+      };
+    } catch (e) {
+      console.warn('[Health] Erro ao buscar stats do Supabase:', e);
+    }
+
+    // WhatsApp Sessions (Novas Métricas)
+    let waSessions = 0;
+    try {
+      if (fs.existsSync("./sessions")) {
+        waSessions = fs.readdirSync("./sessions").filter(f => {
+          try {
+             return fs.lstatSync(path.join("./sessions", f)).isDirectory();
+          } catch(e) { return false; }
+        }).length;
+      }
+    } catch (e) {}
+
     res.json({
       status: "healthy",
       version: typeof APP_VERSION !== 'undefined' ? APP_VERSION : "1.0.0",
@@ -1517,11 +1552,13 @@ app.get("/api/health/extended", (req, res) => {
         totalRequests: runtimeMetrics?.requestsTotal || 0,
         errors: 0,
         avgResponseTime: "45ms",
-        requestsPerMinute: rpm
+        requestsPerMinute: rpm,
+        waSessions: waSessions
       },
+      supabase: supabaseStats,
       memory: {
         used: `${(usedMemBytes / 1024 / 1024).toFixed(1)} MB`,
-        total: `512.0 MB`, // Teto visual padrão para o app
+        total: `512.0 MB`, 
         usedPercent: `${memoryPercent}%`,
         serverUsed: `${(hostUsedMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
         serverTotal: `${(hostTotalMem / 1024 / 1024 / 1024).toFixed(1)} GB`,

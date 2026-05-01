@@ -1109,6 +1109,58 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
               </div>
             </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
+                <Database className="w-5 h-5 text-emerald-500" />Banco de Dados (Supabase)
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Clínicas</p>
+                  <p className="text-2xl font-bold text-slate-900">{systemMetrics?.supabase?.clinics || 0}</p>
+                </div>
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Usuários</p>
+                  <p className="text-2xl font-bold text-slate-900">{systemMetrics?.supabase?.users || 0}</p>
+                </div>
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Agendamentos</p>
+                  <p className="text-2xl font-bold text-slate-900">{systemMetrics?.supabase?.appointments || 0}</p>
+                </div>
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <p className="text-xs text-slate-500 font-semibold uppercase">Pacientes</p>
+                  <p className="text-2xl font-bold text-slate-900">{systemMetrics?.supabase?.patients || 0}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
+                <MessageSquare className="w-5 h-5 text-sky-500" />WhatsApp & Mensageria
+              </h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center">
+                      <MessageSquare className="w-5 h-5 text-sky-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Sessões Ativas</p>
+                      <p className="text-xs text-slate-500">Conexões Baileys em disco</p>
+                    </div>
+                  </div>
+                  <span className="text-2xl font-bold text-slate-900">{systemMetrics?.metrics?.waSessions || 0}</span>
+                </div>
+                
+                <div className="p-4 border border-slate-100 rounded-2xl">
+                   <div className="flex items-center justify-between mb-2">
+                     <span className="text-sm font-medium text-slate-600">Health Check WhatsApp</span>
+                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">ESTÁVEL</span>
+                   </div>
+                   <p className="text-xs text-slate-400">O sistema monitora automaticamente falhas de conexão (DisconnectReason) em tempo real.</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Link para Documentação API */}
