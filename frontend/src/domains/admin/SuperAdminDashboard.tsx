@@ -4,7 +4,8 @@ import {
   Eye, Ban, Edit2, Search, Clock, Globe, Smartphone, Monitor, Lock, Key, FileText,
   DollarSign, Calendar, MoreHorizontal, X, EyeOff, LogIn, UserCheck, ArrowLeft,
   Stethoscope, Phone, Mail, MapPin, CalendarDays, UserPlus,
-  Settings, BarChart3, ClipboardList, FileSignature, Server, Database, HardDrive, Cpu
+  Settings, BarChart3, ClipboardList, FileSignature, Server, Database, HardDrive, Cpu,
+  CheckSquare, RefreshCw, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -132,13 +133,39 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   const { login } = useAuth();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [subscriptions] = useState(DEMO_SUBSCRIPTIONS);
   const [selectedSub, setSelectedSub] = useState<PlatformSubscription | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ sub: PlatformSubscription; action: string } | null>(null);
   const [changePlanModal, setChangePlanModal] = useState<PlatformSubscription | null>(null);
+  // Real clinic data from Supabase
+  const [realClinics, setRealClinics] = useState<any[]>([]);
+  const [clinicsLoading, setClinicsLoading] = useState(false);
+  const [confirmPaymentClinic, setConfirmPaymentClinic] = useState<any | null>(null);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [securityFilter, setSecurityFilter] = useState('all');
   const [systemMetrics, setSystemMetrics] = useState<any>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
+
+  // Fetch real clinics for subscriptions
+  const fetchRealClinics = React.useCallback(async () => {
+    setClinicsLoading(true);
+    try {
+      const res = await fetch('/api/super-admin/clinics');
+      const data = await res.json();
+      if (data.ok && data.data) {
+        setRealClinics(data.data);
+      }
+    } catch (e) {
+      console.error('[SuperAdmin] Failed to fetch clinics:', e);
+    } finally {
+      setClinicsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (activeTab === 'assinaturas' || activeTab === 'dashboard' || activeTab === 'clinicas') {
+      fetchRealClinics();
+    }
+  }, [activeTab, fetchRealClinics]);
 
   // Fetch system metrics
   React.useEffect(() => {
@@ -153,6 +180,35 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
         .catch(() => setMetricsLoading(false));
     }
   }, [activeTab]);
+
+  // Handle confirm payment
+  const handleConfirmPayment = async (clinic: any) => {
+    setPaymentProcessing(true);
+    try {
+      const res = await fetch('/api/super-admin/confirm-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clinic_id: clinic.id }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        // Update local state
+        setRealClinics(prev => prev.map(c => c.id === clinic.id ? {
+          ...c,
+          status: 'active',
+          expires_at: data.next_billing_date,
+          last_payment_at: data.last_payment_at,
+        } : c));
+        setConfirmPaymentClinic(null);
+      } else {
+        alert('Erro ao confirmar pagamento: ' + (data.error || 'Desconhecido'));
+      }
+    } catch (e: any) {
+      alert('Erro de conexão: ' + e.message);
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
 
   // Inspetor de clínica
   const [inspectMode, setInspectMode] = useState(false);
@@ -622,11 +678,12 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
       {/* === ASSINATURAS TAB === */}
       {activeTab === 'assinaturas' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Assinaturas Ativas', value: subscriptions.filter(s => s.status === 'active').length, color: 'text-emerald-600' },
-              { label: 'Receita Mensal', value: `R$ ${subscriptions.filter(s => s.status === 'active').reduce((a, s) => a + s.amount, 0).toLocaleString('pt-BR')}`, color: 'text-brand-600' },
-              { label: 'Inadimplentes', value: subscriptions.filter(s => s.status === 'past_due').length, color: 'text-red-600' },
+              { label: 'Total de Clínicas', value: realClinics.length, color: 'text-brand-600' },
+              { label: 'Ativas', value: realClinics.filter(c => c.status === 'active').length, color: 'text-emerald-600' },
+              { label: 'Receita Mensal', value: `R$ ${realClinics.filter(c => c.status === 'active').reduce((a, c) => a + (c.amount || 0), 0).toLocaleString('pt-BR')}`, color: 'text-brand-600' },
+              { label: 'Trial / Expiradas', value: realClinics.filter(c => c.status === 'trial' || c.status === 'expired').length, color: 'text-amber-600' },
             ].map(card => (
               <div key={card.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{card.label}</p>
@@ -636,108 +693,103 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100"><h2 className="text-lg font-bold text-slate-900">Gerenciar Assinaturas</h2></div>
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50/50 border-b border-slate-100">
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Clínica</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Plano</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Valor</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Próx. Cobrança</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {subscriptions.map(sub => (
-                  <tr key={sub.id} className="hover:bg-slate-50/50">
-                    <td className="px-6 py-4 text-sm font-bold text-slate-900">{sub.clinic_name}</td>
-                    <td className="px-6 py-4"><span className={cn("text-xs font-bold uppercase px-2 py-1 rounded-md", sub.plan === 'ultra' ? "bg-brand-50 text-brand-700" : sub.plan === 'pro' ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-600")}>{sub.plan}</span></td>
-                    <td className="px-6 py-4 text-sm font-bold text-slate-900">R$ {sub.amount}/mês</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{new Date(sub.next_billing_date).toLocaleDateString('pt-BR')}</td>
-                    <td className="px-6 py-4">
-                      <span className={cn("text-xs font-bold px-2 py-1 rounded-full",
-                        sub.status === 'active' ? "bg-emerald-50 text-emerald-700" :
-                          sub.status === 'suspended' ? "bg-amber-50 text-amber-700" :
-                            sub.status === 'cancelled' ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-700"
-                      )}>{sub.status === 'active' ? 'Ativa' : sub.status === 'suspended' ? 'Suspensa' : sub.status === 'cancelled' ? 'Cancelada' : 'Inadimplente'}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setSelectedSub(sub)} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg" title="Ver detalhes"><Eye className="w-4 h-4" /></button>
-                        <button onClick={() => setChangePlanModal(sub)} className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg" title="Alterar plano"><Edit2 className="w-4 h-4" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">Gerenciar Assinaturas</h2>
+              <button onClick={fetchRealClinics} disabled={clinicsLoading}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors">
+                <RefreshCw className={cn("w-3.5 h-3.5", clinicsLoading && "animate-spin")} />
+                {clinicsLoading ? 'Carregando...' : 'Atualizar'}
+              </button>
+            </div>
+            {clinicsLoading && realClinics.length === 0 ? (
+              <div className="p-12 text-center">
+                <Loader2 className="w-8 h-8 text-brand-500 animate-spin mx-auto mb-3" />
+                <p className="text-sm text-slate-500">Carregando clínicas do banco de dados...</p>
+              </div>
+            ) : realClinics.length === 0 ? (
+              <div className="p-12 text-center">
+                <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                <p className="text-sm text-slate-500">Nenhuma clínica cadastrada.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-slate-50/50 border-b border-slate-100">
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Clínica</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Plano</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Valor</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Próx. Cobrança</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Últ. Pagamento</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {realClinics.map(clinic => {
+                      const isExpired = clinic.expires_at && new Date(clinic.expires_at) < new Date();
+                      const effectiveStatus = isExpired && clinic.status !== 'active' ? 'expired' : clinic.status;
+                      return (
+                        <tr key={clinic.id} className="hover:bg-slate-50/50">
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-bold text-slate-900">{clinic.name}</p>
+                            <p className="text-xs text-slate-500">{clinic.admin_name || clinic.admin_email || clinic.email}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={cn("text-xs font-bold uppercase px-2 py-1 rounded-md",
+                              clinic.plan === 'premium' ? "bg-brand-50 text-brand-700" :
+                              clinic.plan === 'profissional' ? "bg-brand-50 text-brand-700" :
+                              "bg-slate-100 text-slate-600"
+                            )}>{clinic.plan}</span>
+                          </td>
+                          <td className="px-6 py-4 text-sm font-bold text-slate-900">
+                            R$ {(clinic.amount || 0).toLocaleString('pt-BR')}/mês
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">
+                            {clinic.expires_at ? new Date(clinic.expires_at).toLocaleDateString('pt-BR') : '—'}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">
+                            {clinic.last_payment_at ? new Date(clinic.last_payment_at).toLocaleDateString('pt-BR') : 'Nunca'}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={cn("text-xs font-bold px-2 py-1 rounded-full",
+                              effectiveStatus === 'active' ? "bg-emerald-50 text-emerald-700" :
+                              effectiveStatus === 'trial' ? "bg-amber-50 text-amber-700" :
+                              effectiveStatus === 'expired' ? "bg-red-50 text-red-700" :
+                              "bg-orange-50 text-orange-700"
+                            )}>
+                              {effectiveStatus === 'active' ? 'Ativa' :
+                               effectiveStatus === 'trial' ? 'Trial' :
+                               effectiveStatus === 'expired' ? 'Expirada' : effectiveStatus}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => setConfirmPaymentClinic(clinic)}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                                title="Confirmar pagamento manual">
+                                <CheckSquare className="w-3.5 h-3.5" />Confirmar Pgto
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          <Modal isOpen={!!selectedSub} onClose={() => setSelectedSub(null)} title={`Assinatura — ${selectedSub?.clinic_name}`} maxWidth="max-w-lg">
-            {selectedSub && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-slate-50 p-3 rounded-xl"><p className="text-[10px] font-bold text-slate-400 uppercase">Plano</p><p className="text-sm font-bold text-slate-900 uppercase">{selectedSub.plan}</p></div>
-                  <div className="bg-slate-50 p-3 rounded-xl"><p className="text-[10px] font-bold text-slate-400 uppercase">Valor</p><p className="text-sm font-bold text-slate-900">R$ {selectedSub.amount}/mês</p></div>
-                  <div className="bg-slate-50 p-3 rounded-xl"><p className="text-[10px] font-bold text-slate-400 uppercase">Próx. Cobrança</p><p className="text-sm font-bold text-slate-900">{new Date(selectedSub.next_billing_date).toLocaleDateString('pt-BR')}</p></div>
-                  <div className="bg-slate-50 p-3 rounded-xl"><p className="text-[10px] font-bold text-slate-400 uppercase">Desde</p><p className="text-sm font-bold text-slate-900">{new Date(selectedSub.created_at).toLocaleDateString('pt-BR')}</p></div>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Histórico de Pagamentos</h4>
-                  {selectedSub.payment_history.length === 0 ? (
-                    <p className="text-xs text-slate-400">Nenhum pagamento registrado.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {selectedSub.payment_history.map(p => (
-                        <div key={p.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                          <div>
-                            <p className="text-sm font-medium text-slate-900">{new Date(p.date).toLocaleDateString('pt-BR')}</p>
-                            <p className="text-xs text-slate-500">{p.method}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-slate-900">R$ {p.amount}</p>
-                            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full", p.status === 'paid' ? "bg-emerald-50 text-emerald-700" : p.status === 'failed' ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700")}>{p.status === 'paid' ? 'Pago' : p.status === 'failed' ? 'Falhou' : 'Pendente'}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </Modal>
-
-          <Modal isOpen={!!changePlanModal} onClose={() => setChangePlanModal(null)} title={`Alterar Plano — ${changePlanModal?.clinic_name}`}>
-            {changePlanModal && (
-              <div className="space-y-3">
-                {(['basic', 'pro', 'ultra'] as const).map(plan => (
-                  <button key={plan} onClick={() => handleChangePlan(changePlanModal, plan)}
-                    disabled={changePlanModal.plan === plan}
-                    className={cn("w-full p-4 rounded-2xl border-2 text-left transition-all",
-                      changePlanModal.plan === plan ? "border-brand-500 bg-brand-50" : "border-slate-100 hover:border-slate-300"
-                    )}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-bold text-slate-900 uppercase">{plan}</p>
-                        <p className="text-xs text-slate-500">{plan === 'basic' ? '5 profissionais, 500 pacientes' : plan === 'pro' ? '15 profissionais, ilimitado' : 'Tudo ilimitado + IA'}</p>
-                      </div>
-                      <p className="text-lg font-bold text-slate-900">R$ {planPrices[plan]}<span className="text-xs font-normal text-slate-400">/mês</span></p>
-                    </div>
-                    {changePlanModal.plan === plan && <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full mt-2 inline-block">PLANO ATUAL</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Modal>
-
+          {/* Confirm Payment Dialog */}
           <ConfirmDialog
-            isOpen={!!confirmAction} onClose={() => setConfirmAction(null)}
-            onConfirm={() => confirmAction && handleSubAction(confirmAction.sub, confirmAction.action)}
-            title={confirmAction?.action === 'suspend' ? 'Suspender Assinatura?' : confirmAction?.action === 'cancel' ? 'Cancelar Assinatura?' : 'Reativar Assinatura?'}
-            message={`Tem certeza que deseja ${confirmAction?.action === 'suspend' ? 'suspender' : confirmAction?.action === 'cancel' ? 'cancelar' : 'reativar'} a assinatura de ${confirmAction?.sub.clinic_name}?`}
-            confirmLabel={confirmAction?.action === 'suspend' ? 'Suspender' : confirmAction?.action === 'cancel' ? 'Cancelar Assinatura' : 'Reativar'}
-            variant={confirmAction?.action === 'cancel' ? 'danger' : undefined}
+            isOpen={!!confirmPaymentClinic}
+            onClose={() => setConfirmPaymentClinic(null)}
+            onConfirm={() => confirmPaymentClinic && handleConfirmPayment(confirmPaymentClinic)}
+            title="Confirmar Pagamento Manual"
+            message={`Confirmar o pagamento mensal de ${confirmPaymentClinic?.name}? A próxima cobrança será adiada em 30 dias e o status será atualizado para "Ativa".`}
+            confirmLabel={paymentProcessing ? 'Processando...' : 'Confirmar Pagamento'}
           />
         </motion.div>
       )}
