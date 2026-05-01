@@ -13,12 +13,12 @@
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/clinxia-brand-icon.png",
+      "src": "/official-clinxia-v9-icon.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/clinxia-brand-icon.png",
+      "src": "/official-clinxia-v9-icon.png",
       "sizes": "512x512",
       "type": "image/png"
     }

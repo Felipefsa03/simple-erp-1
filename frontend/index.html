@@ -11,9 +11,25 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="description" content="Clinxia - Sistema completo de gestão para clínicas odontológicas e estética. Gerencie pacientes, agenda, financeiro e muito mais." />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="icon" type="image/png" href="/clinxia-brand-icon.png?v=v7" />
-  <link rel="apple-touch-icon" href="/clinxia-brand-icon.png?v=v7" />
-  <link rel="apple-touch-startup-image" href="/clinxia-brand-icon.png?v=v7" />
+  <link rel="icon" type="image/png" href="/official-clinxia-v9-icon.png?v=v9" />
+  <link rel="apple-touch-icon" href="/official-clinxia-v9-icon.png?v=v9" />
+  <link rel="apple-touch-startup-image" href="/official-clinxia-v9-icon.png?v=v9" />
+  <script>
+    // Nuclear cache clearer for branding transition
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+    // Force clear old caches
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        for (let name of names) caches.delete(name);
+      });
+    }
+  </script>
   <title>Clinxia - Gestão de Clínicas</title>
 </head>
 

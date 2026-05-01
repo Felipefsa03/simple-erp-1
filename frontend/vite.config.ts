@@ -18,7 +18,8 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['clinxia-brand-icon.png', 'clinxia-brand-logo.png'],
+        injectRegister: 'inline',
+        includeAssets: ['official-clinxia-v9-icon.png', 'official-clinxia-v9-logo.png'],
         manifest: {
           name: 'Clinxia - Sistema de Gestão',
           short_name: 'Clinxia',
@@ -32,17 +33,17 @@ export default defineConfig(({ mode }) => {
           categories: ['business', 'productivity', 'medical'],
           icons: [
             {
-              src: '/clinxia-brand-icon.png',
+              src: '/official-clinxia-v9-icon.png',
               sizes: '192x192',
               type: 'image/png',
             },
             {
-              src: '/clinxia-brand-icon.png',
+              src: '/official-clinxia-v9-icon.png',
               sizes: '512x512',
               type: 'image/png',
             },
             {
-              src: '/clinxia-brand-icon.png',
+              src: '/official-clinxia-v9-icon.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any maskable',

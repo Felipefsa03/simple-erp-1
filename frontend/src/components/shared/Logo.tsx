@@ -15,11 +15,11 @@ export function Logo({ variant = 'full', className, size = 'md' }: LogoProps) {
     xl: variant === 'icon' ? 'w-16 h-16' : 'h-16',
   };
 
-  const version = 'v7';
+  const version = 'v9';
   const logoSrc = 
-    (variant === 'icon' ? '/clinxia-brand-icon.png' : 
-    variant === 'white' ? '/clinxia-brand-white.png' : 
-    '/clinxia-brand-logo.png') + `?v=${version}`;
+    (variant === 'icon' ? '/official-clinxia-v9-icon.png' : 
+    variant === 'white' ? '/official-clinxia-v9-white.png' : 
+    '/official-clinxia-v9-logo.png') + `?v=${version}`;
 
   return (
     <div className={cn("flex items-center", className)}>
@@ -27,7 +27,7 @@ export function Logo({ variant = 'full', className, size = 'md' }: LogoProps) {
         src={logoSrc} 
         alt="Clinxia Logo" 
         className={cn(
-          "object-contain transition-all duration-300",
+          "object-contain",
           sizeMap[size],
           variant === 'white' && "brightness-0 invert"
         )}
