@@ -537,15 +537,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left: Text */}
             <div>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-50 border border-brand-100 rounded-full text-sm text-brand-700 font-medium mb-6"
-              >
-                <Sparkles className="w-4 h-4" />
-                {/* Texto removido conforme solicitado */}
-              </motion.div>
+              {/* Badge removido conforme solicitado */}
 
               <motion.h1
                 initial={{ opacity: 0, y: 30 }}

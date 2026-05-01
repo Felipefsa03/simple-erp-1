@@ -107,8 +107,8 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
       <motion.aside 
         initial={false}
         animate={{ 
-          x: isMobile ? (isOpen ? 0 : -280) : 0,
-          width: isMobile ? 280 : (isOpen ? 256 : 80)
+          x: isMobile ? (isOpen ? 0 : -260) : 0,
+          width: isMobile ? 260 : (isOpen ? 224 : 72)
         }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className={cn(
