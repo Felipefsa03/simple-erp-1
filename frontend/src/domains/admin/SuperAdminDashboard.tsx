@@ -1109,6 +1109,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
               </div>
             </div>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
