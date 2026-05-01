@@ -1450,61 +1450,70 @@ app.use("/api", (req, res, next) => {
 });
 
 app.get("/api/health/extended", (req, res) => {
-  const os = require('os');
-  
-  // Calcular Uptime em string legível
-  const uptimeSeconds = Math.floor((Date.now() - runtimeMetrics.startedAt) / 1000);
-  const h = Math.floor(uptimeSeconds / 3600);
-  const m = Math.floor((uptimeSeconds % 3600) / 60);
-  const uptimeString = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  try {
+    const os = require('os');
+    
+    // Calcular Uptime em string legível
+    const uptimeSeconds = Math.floor((Date.now() - (runtimeMetrics?.startedAt || Date.now())) / 1000);
+    const h = Math.floor(uptimeSeconds / 3600);
+    const m = Math.floor((uptimeSeconds % 3600) / 60);
+    const uptimeString = h > 0 ? `${h}h ${m}m` : `${m}m`;
 
-  // Calcular requests por minuto
-  const minutesRunning = Math.max(1, uptimeSeconds / 60);
-  const rpm = Math.round(runtimeMetrics.requestsTotal / minutesRunning);
+    // Calcular requests por minuto
+    const minutesRunning = Math.max(1, uptimeSeconds / 60);
+    const rpm = Math.round((runtimeMetrics?.requestsTotal || 0) / minutesRunning);
 
-  // Calcular memória
-  const totalMem = os.totalmem();
-  const freeMem = os.freemem();
-  const usedMem = totalMem - freeMem;
-  const memoryPercent = Math.round((usedMem / totalMem) * 100);
+    // Calcular memória
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const memoryPercent = totalMem > 0 ? Math.round((usedMem / totalMem) * 100) : 0;
 
-  // Estimativa de CPU (simplificada)
-  const cpus = os.cpus();
-  let cpuUsage = 0;
-  if (cpus && cpus.length > 0) {
-    const core = cpus[0];
-    const total = Object.values(core.times).reduce((acc, tv) => acc + tv, 0);
-    const idle = core.times.idle;
-    cpuUsage = Math.round(100 - ((idle / total) * 100));
-  }
-
-  res.json({
-    status: "healthy",
-    version: APP_VERSION || "1.0.0",
-    environment: process.env.NODE_ENV || "development",
-    uptime: uptimeString || "1m",
-    timestamp: new Date().toISOString(),
-    components: {
-      api: { status: "healthy" },
-      supabase: { status: SUPABASE_URL && SUPABASE_ANON_KEY ? "healthy" : "unavailable" },
-      mercado_pago: { status: mpAccessToken || process.env.MP_ACCESS_TOKEN ? "healthy" : "unavailable" },
-      database: { status: "healthy" }
-    },
-    metrics: {
-      totalRequests: runtimeMetrics.requestsTotal,
-      errors: 0, // Poderíamos adicionar rastreio de erros depois
-      avgResponseTime: "45ms", // Fixo ou derivado se medirmos depois
-      requestsPerMinute: rpm
-    },
-    memory: {
-      used: `${(usedMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
-      total: `${(totalMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
-      usedPercent: `${memoryPercent}%`
-    },
-    cpu: {
-      usedPercent: `${cpuUsage}%`
+    // Estimativa de CPU (simplificada)
+    const cpus = os.cpus();
+    let cpuUsage = 0;
+    if (cpus && cpus.length > 0) {
+      const core = cpus[0];
+      if (core && core.times) {
+        const total = Object.values(core.times).reduce((acc, tv) => acc + (typeof tv === 'number' ? tv : 0), 0);
+        const idle = core.times.idle || 0;
+        if (total > 0) {
+          cpuUsage = Math.round(100 - ((idle / total) * 100));
+        }
+      }
     }
-  });
+
+    res.json({
+      status: "healthy",
+      version: typeof APP_VERSION !== 'undefined' ? APP_VERSION : "1.0.0",
+      environment: process.env.NODE_ENV || "development",
+      uptime: uptimeString || "1m",
+      timestamp: new Date().toISOString(),
+      components: {
+        api: { status: "healthy" },
+        supabase: { status: typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL ? "healthy" : "unavailable" },
+        mercado_pago: { status: typeof mpAccessToken !== 'undefined' || process.env.MP_ACCESS_TOKEN ? "healthy" : "unavailable" },
+        database: { status: "healthy" }
+      },
+      metrics: {
+        totalRequests: runtimeMetrics?.requestsTotal || 0,
+        errors: 0,
+        avgResponseTime: "45ms",
+        requestsPerMinute: rpm
+      },
+      memory: {
+        used: `${(usedMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
+        total: `${(totalMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
+        usedPercent: `${memoryPercent}%`
+      },
+      cpu: {
+        usedPercent: `${cpuUsage}%`
+      }
+    });
+  } catch (error) {
+    console.error('[Health] Erro ao gerar extended metrics:', error);
+    res.status(500).json({ status: "error", error: String(error) });
+  }
 });
 
 app.get("/api/stats", (req, res) => {
