@@ -1502,23 +1502,36 @@ app.get("/api/health/extended", async (req, res) => {
       clinics: 0,
       users: 0,
       appointments: 0,
-      patients: 0
+      patients: 0,
+      pendingMessages: 0,
+      pendingPayments: 0
     };
 
     try {
       // Usar a chave service role se disponível para contar registros com precisão
-      const [{ count: cCount }, { count: uCount }, { count: aCount }, { count: pCount }] = await Promise.all([
+      const [
+        { count: cCount }, 
+        { count: uCount }, 
+        { count: aCount }, 
+        { count: pCount },
+        { count: pmCount },
+        { count: ppCount }
+      ] = await Promise.all([
         supabaseAdmin.from('clinics').select('*', { count: 'exact', head: true }),
         supabaseAdmin.from('users').select('*', { count: 'exact', head: true }),
         supabaseAdmin.from('appointments').select('*', { count: 'exact', head: true }),
-        supabaseAdmin.from('patients').select('*', { count: 'exact', head: true })
+        supabaseAdmin.from('patients').select('*', { count: 'exact', head: true }),
+        supabaseAdmin.from('whatsapp_messages').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabaseAdmin.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'pending')
       ]);
       
       supabaseStats = {
         clinics: cCount || 0,
         users: uCount || 0,
         appointments: aCount || 0,
-        patients: pCount || 0
+        patients: pCount || 0,
+        pendingMessages: pmCount || 0,
+        pendingPayments: ppCount || 0
       };
     } catch (e) {
       console.warn('[Health] Erro ao buscar stats do Supabase:', e);

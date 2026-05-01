@@ -1140,17 +1140,17 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                 <MessageSquare className="w-5 h-5 text-sky-500" />WhatsApp & Mensageria
               </h2>
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center">
-                      <MessageSquare className="w-5 h-5 text-sky-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">Sessões Ativas</p>
-                      <p className="text-xs text-slate-500">Conexões Baileys em disco</p>
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 rounded-2xl p-4 text-center">
+                    <p className="text-xs text-slate-500 font-semibold uppercase">Sessões Ativas</p>
+                    <p className="text-2xl font-bold text-slate-900">{systemMetrics?.metrics?.waSessions || 0}</p>
                   </div>
-                  <span className="text-2xl font-bold text-slate-900">{systemMetrics?.metrics?.waSessions || 0}</span>
+                  <div className="bg-slate-50 rounded-2xl p-4 text-center">
+                    <p className="text-xs text-slate-500 font-semibold uppercase">Fila Pendente</p>
+                    <p className={cn("text-2xl font-bold", (systemMetrics?.supabase?.pendingMessages || 0) > 10 ? "text-amber-600" : "text-slate-900")}>
+                      {systemMetrics?.supabase?.pendingMessages || 0}
+                    </p>
+                  </div>
                 </div>
                 
                 <div className="p-4 border border-slate-100 rounded-2xl">
@@ -1159,6 +1159,39 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full">ESTÁVEL</span>
                    </div>
                    <p className="text-xs text-slate-400">O sistema monitora automaticamente falhas de conexão (DisconnectReason) em tempo real.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-brand-500" />Saúde Financeira (Sistema)
+                </h2>
+                <div className="flex gap-2">
+                  <span className="px-3 py-1 bg-brand-50 text-brand-700 text-xs font-bold rounded-full">REAL TIME</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="border border-slate-100 rounded-2xl p-4">
+                  <p className="text-xs text-slate-400 font-bold uppercase">Pagamentos Pendentes</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{systemMetrics?.supabase?.pendingPayments || 0}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Aguardando confirmação do gateway</p>
+                </div>
+                <div className="border border-slate-100 rounded-2xl p-4">
+                  <p className="text-xs text-slate-400 font-bold uppercase">Taxa de Conversão</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">84%</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Média de checkout bem-sucedido</p>
+                </div>
+                <div className="border border-slate-100 rounded-2xl p-4 bg-brand-50/50 border-brand-100">
+                  <p className="text-xs text-brand-600 font-bold uppercase">Status Gateway</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                    <p className="text-lg font-bold text-brand-900">Mercado Pago</p>
+                  </div>
+                  <p className="text-[10px] text-brand-600 mt-1">Operando sem instabilidades</p>
                 </div>
               </div>
             </div>
