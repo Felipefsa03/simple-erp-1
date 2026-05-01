@@ -10,6 +10,7 @@ import crypto from "crypto";
 import { Boom } from "@hapi/boom";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import os from "os";
 import { createClient } from '@supabase/supabase-js';
 import makeWASocket, {
   DisconnectReason,
@@ -1451,8 +1452,6 @@ app.use("/api", (req, res, next) => {
 
 app.get("/api/health/extended", (req, res) => {
   try {
-    const os = require('os');
-    
     // Calcular Uptime em string legível
     const uptimeSeconds = Math.floor((Date.now() - (runtimeMetrics?.startedAt || Date.now())) / 1000);
     const h = Math.floor(uptimeSeconds / 3600);
