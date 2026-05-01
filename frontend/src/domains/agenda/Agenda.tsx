@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, Clock, User,
-  X, MapPin, Link2, Repeat, Bell, CalendarPlus, MessageSquare
+  X, MapPin, Link2, Repeat, Bell, CalendarPlus, MessageSquare, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, startOfWeek, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, parseISO, getHours, getMinutes } from 'date-fns';
@@ -43,6 +43,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
   const queueAppointmentConfirmation = useClinicStore.getState().queueAppointmentConfirmation;
   const startAppointment = useClinicStore.getState().startAppointment;
   const updateAppointmentStatus = useClinicStore.getState().updateAppointmentStatus;
+  const deleteAppointment = useClinicStore.getState().deleteAppointment;
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week' | 'month'>('week');
@@ -625,29 +626,29 @@ export function Agenda({ onNavigate }: AgendaProps) {
               <MessageSquare className="w-4 h-4" />
               Abrir WhatsApp com {selectedApt.patient_name.split(' ')[0]}
             </button>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-3">
               {(selectedApt.status === 'scheduled' || selectedApt.status === 'confirmed') && (
-                <>
+                <div className="flex gap-2">
                   <button
                     onClick={() => { updateAppointmentStatus(selectedApt.id, 'confirmed'); setSelectedApt({ ...selectedApt, status: 'confirmed' }); toast('Agendamento confirmado!'); }}
                     disabled={!canCreate}
-                    className="flex-1 py-2.5 bg-brand-50 text-brand-600 font-bold rounded-xl text-sm hover:bg-brand-100 transition-all"
+                    className="flex-1 py-2.5 bg-brand-50 text-brand-600 font-bold rounded-xl text-sm hover:bg-brand-100 transition-all shadow-sm"
                   >
                     Confirmar
                   </button>
                   <button
                     onClick={() => { handleStartAppointment(selectedApt); setSelectedApt(null); }}
                     disabled={!canFinalize}
-                    className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-all"
+                    className="flex-1 py-2.5 bg-brand-600 text-white font-bold rounded-xl text-sm hover:bg-brand-700 transition-all shadow-sm"
                   >
                     Iniciar Atendimento
                   </button>
-                </>
+                </div>
               )}
               {selectedApt.status === 'in_progress' && (
                 <button
                   onClick={() => { onNavigate?.('prontuarios', { patientId: selectedApt.patient_id, appointmentId: selectedApt.id }); setSelectedApt(null); }}
-                  className="flex-1 py-2.5 bg-amber-600 text-white font-bold rounded-xl text-sm hover:bg-amber-700 transition-all"
+                  className="w-full py-2.5 bg-amber-600 text-white font-bold rounded-xl text-sm hover:bg-amber-700 transition-all shadow-sm"
                 >
                   Continuar Atendimento
                 </button>
@@ -656,26 +657,42 @@ export function Agenda({ onNavigate }: AgendaProps) {
                 <div className="flex w-full gap-2">
                   <button
                     onClick={() => { onNavigate?.('prontuarios', { patientId: selectedApt.patient_id, appointmentId: selectedApt.id }); setSelectedApt(null); }}
-                    className="flex-1 py-2.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl text-sm hover:bg-emerald-100 transition-all"
+                    className="flex-1 py-2.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl text-sm hover:bg-emerald-100 transition-all shadow-sm"
                   >
                     Ver Prontuário
                   </button>
                   <button
                     onClick={() => { setNavigationContext({ appointmentId: selectedApt.id, fromModule: 'agenda' }); onNavigate?.('financeiro', { appointmentId: selectedApt.id }); setSelectedApt(null); }}
-                    className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-sm hover:bg-emerald-700 transition-all"
+                    className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-sm hover:bg-emerald-700 transition-all shadow-sm"
                   >
                     Ver no Financeiro
                   </button>
                 </div>
               )}
               {['scheduled', 'confirmed'].includes(selectedApt.status) && (
-                <button
-                  onClick={() => { updateAppointmentStatus(selectedApt.id, 'no_show'); setSelectedApt(null); toast('Paciente marcado como falta', 'warning'); }}
-                  disabled={!canCreate}
-                  className="py-2.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl text-sm hover:bg-red-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  Faltou
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { 
+                      if (confirm('Tem certeza que deseja excluir este agendamento definitivamente? Esta ação não pode ser desfeita.')) {
+                        deleteAppointment(selectedApt.id); 
+                        setSelectedApt(null); 
+                        toast('Agendamento excluído com sucesso!'); 
+                      }
+                    }}
+                    disabled={!canCreate}
+                    className="flex-1 py-2.5 px-4 bg-red-50 text-red-600 font-bold rounded-xl text-sm hover:bg-red-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Excluir
+                  </button>
+                  <button
+                    onClick={() => { updateAppointmentStatus(selectedApt.id, 'no_show'); setSelectedApt(null); toast('Paciente marcado como falta', 'warning'); }}
+                    disabled={!canCreate}
+                    className="flex-1 py-2.5 px-4 bg-slate-50 text-slate-600 font-bold rounded-xl text-sm hover:bg-slate-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    Faltou
+                  </button>
+                </div>
               )}
             </div>
           </div>

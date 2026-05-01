@@ -445,6 +445,7 @@ interface ClinicStore {
     // Appointment Actions
     addAppointment: (a: Omit<Appointment, 'id' | 'created_at'>) => Appointment | null;
     updateAppointmentStatus: (id: string, status: AppointmentStatus) => void;
+    deleteAppointment: (id: string) => void;
     startAppointment: (id: string) => void;
     finalizeAppointment: (id: string, userId: string, userName: string, treatmentItems?: TreatmentPlanItem[]) => boolean;
     createRecurringAppointments: (input: {
@@ -856,6 +857,28 @@ export const useClinicStore = create<ClinicStore>()(
                 const apt = get().appointments.find(a => a.id === id);
                 if (apt) {
                     saveToSupabase('appointment', apt, false).catch(e => console.error('[ClinicStore] Erro ao atualizar status:', e));
+                }
+            },
+            deleteAppointment: (id) => {
+                const apt = get().appointments.find(a => a.id === id);
+                set(s => ({ appointments: s.appointments.filter(a => a.id !== id) }));
+                
+                if (apt) {
+                    saveToSupabase('appointment', { id }, false, true).catch(e => console.error('[ClinicStore] Erro ao excluir agendamento:', e));
+                    
+                    // Audit log
+                    const user = useAuth.getState().user;
+                    if (user) {
+                        get().addAuditLog({
+                            clinic_id: apt.clinic_id,
+                            user_id: user.id,
+                            user_name: user.name,
+                            action: 'DELETE_APPOINTMENT',
+                            entity_type: 'appointment',
+                            entity_id: id,
+                            details: `Agendamento excluído: ${apt.patient_name} - ${apt.service_name || 'Consulta'} em ${new Date(apt.scheduled_at).toLocaleString('pt-BR')}`,
+                        });
+                    }
                 }
             },
             startAppointment: (id) => {
