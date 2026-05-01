@@ -172,13 +172,40 @@ export function AuthenticatedApp() {
         const isDev = import.meta.env.DEV;
         const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
         
-        // Verificar status do pagamento via backend (consulta MercadoPago e banco local usando admin auth)
+        // Verificar status local da clínica primeiro (pode ter sido liberado pelo Super Admin)
+        const { data: clinicData } = await supabase!.from('clinics').select('plan, status, expires_at').eq('id', clinicId).single();
+        let plan = (clinicData as Record<string, string>)?.plan || 'basico';
+        const clinicStatus = (clinicData as Record<string, string>)?.status;
+        const expiresAt = (clinicData as Record<string, string>)?.expires_at;
+
+        if (clinicStatus === 'active') {
+          // Se não tiver data de expiração ou se a data de expiração for no futuro, libera
+          if (!expiresAt || new Date(expiresAt) > new Date()) {
+            console.log('[Subscription] Assinatura ativa no banco de dados local, liberando acesso');
+            setSubscriptionBlocked(false);
+            setSubscriptionInfo(null);
+            return;
+          } else {
+            console.log('[Subscription] Assinatura expirou no banco de dados local.');
+          }
+        }
+
+        // Se não está ativa no banco local, verificar status do pagamento via backend (consulta MercadoPago)
         try {
           const statusRes = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(user?.email || '')}`);
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             if (statusData.ok && statusData.approved) {
-              console.log('[Subscription] Pagamento aprovado encontrado via backend, liberando acesso');
+              console.log('[Subscription] Pagamento aprovado encontrado via backend, liberando acesso e atualizando banco local');
+              // Atualizar status local para não precisar consultar a API na próxima vez
+              const nextBilling = new Date();
+              nextBilling.setDate(nextBilling.getDate() + 30);
+              await supabase!.from('clinics').update({ 
+                status: 'active', 
+                expires_at: nextBilling.toISOString(),
+                last_payment_at: new Date().toISOString()
+              }).eq('id', clinicId);
+              
               setSubscriptionBlocked(false);
               setSubscriptionInfo(null);
               return;
@@ -188,10 +215,8 @@ export function AuthenticatedApp() {
           console.warn('[Subscription] Erro ao verificar pagamento no backend...', e);
         }
         
-        // Se não tem pagamento aprovado, verificar plano e gerar cobrança
+        // Se não tem pagamento aprovado, gerar cobrança
         console.log('[Subscription] Nenhum pagamento aprovado, verificando plano...');
-        const { data: clinics } = await supabase!.from('clinics').select('plan').eq('id', clinicId).single();
-        let plan = (clinics as Record<string, string>)?.plan || 'basico';
         
         // Buscar preços do integration_config global primeiro (antes de normalizar)
         const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
