@@ -200,7 +200,7 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
           <div className="w-full max-w-lg">
             <div className="text-center mb-6">
               <div className="flex justify-center mb-4">
-                <Logo variant="icon" size="lg" />
+                <Logo variant="full" size="lg" />
               </div>
               <h1 className="text-xl font-black text-slate-900">Teste Grátis — 7 Dias</h1>
               <p className="text-sm text-slate-500 mt-1">Acesso completo ao plano Premium. Sem cartão de crédito.</p>

@@ -9,13 +9,13 @@ interface LogoProps {
 
 export function Logo({ variant = 'full', className, size = 'md' }: LogoProps) {
   const sizeMap = {
-    sm: variant === 'icon' ? 'w-8 h-8' : 'h-10',
-    md: variant === 'icon' ? 'w-12 h-12' : 'h-14',
-    lg: variant === 'icon' ? 'w-16 h-16' : 'h-20',
-    xl: variant === 'icon' ? 'w-28 h-28' : 'h-32',
+    sm: variant === 'icon' ? 'w-6 h-6' : 'h-6',
+    md: variant === 'icon' ? 'w-8 h-8' : 'h-8',
+    lg: variant === 'icon' ? 'w-12 h-12' : 'h-12',
+    xl: variant === 'icon' ? 'w-16 h-16' : 'h-16',
   };
 
-  const version = "v6";
+  const version = 'v7';
   const logoSrc = 
     (variant === 'icon' ? '/clinxia-brand-icon.png' : 
     variant === 'white' ? '/clinxia-brand-white.png' : 
