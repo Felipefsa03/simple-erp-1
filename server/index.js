@@ -1482,6 +1482,25 @@ app.get("/api/health/extended", (req, res) => {
     // Caso a aplicação não esteja fazendo nada, definimos um piso mínimo visual para não ficar 0% cravado
     const displayCpuPercent = cpuPercent > 0 ? cpuPercent : 1; 
 
+    // CPU Host (Servidor)
+    const cpus = os.cpus();
+    let hostCpuUsage = 0;
+    if (cpus && cpus.length > 0) {
+      const core = cpus[0];
+      if (core && core.times) {
+        const total = Object.values(core.times).reduce((acc, tv) => acc + (typeof tv === 'number' ? tv : 0), 0);
+        const idle = core.times.idle || 0;
+        if (total > 0) {
+          hostCpuUsage = Math.round(100 - ((idle / total) * 100));
+        }
+      }
+    }
+
+    // Memória Host (Servidor)
+    const hostTotalMem = os.totalmem();
+    const hostUsedMem = hostTotalMem - os.freemem();
+    const hostMemPercent = hostTotalMem > 0 ? Math.round((hostUsedMem / hostTotalMem) * 100) : 0;
+
     res.json({
       status: "healthy",
       version: typeof APP_VERSION !== 'undefined' ? APP_VERSION : "1.0.0",
@@ -1502,11 +1521,15 @@ app.get("/api/health/extended", (req, res) => {
       },
       memory: {
         used: `${(usedMemBytes / 1024 / 1024).toFixed(1)} MB`,
-        total: `512.0 MB`, // Simulando o capamento do ambiente
-        usedPercent: `${memoryPercent}%`
+        total: `512.0 MB`, // Teto visual padrão para o app
+        usedPercent: `${memoryPercent}%`,
+        serverUsed: `${(hostUsedMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
+        serverTotal: `${(hostTotalMem / 1024 / 1024 / 1024).toFixed(1)} GB`,
+        serverPercent: `${hostMemPercent}%`
       },
       cpu: {
-        usedPercent: `${displayCpuPercent}%`
+        usedPercent: `${displayCpuPercent}%`,
+        serverPercent: `${hostCpuUsage}%`
       }
     });
   } catch (error) {
