@@ -1115,7 +1115,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
                 <Database className="w-5 h-5 text-emerald-500" />Banco de Dados (Supabase)
               </h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="bg-slate-50 rounded-2xl p-4">
                   <p className="text-xs text-slate-500 font-semibold uppercase">Clínicas</p>
                   <p className="text-2xl font-bold text-slate-900">{systemMetrics?.supabase?.clinics || 0}</p>
@@ -1131,6 +1131,21 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                 <div className="bg-slate-50 rounded-2xl p-4">
                   <p className="text-xs text-slate-500 font-semibold uppercase">Pacientes</p>
                   <p className="text-2xl font-bold text-slate-900">{systemMetrics?.supabase?.patients || 0}</p>
+                </div>
+              </div>
+
+              <div className="p-4 border border-emerald-100 bg-emerald-50/30 rounded-2xl">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold text-emerald-800 uppercase">Uso de Armazenamento (DB)</span>
+                  <span className="text-xs font-bold text-emerald-800">{systemMetrics?.supabase?.dbPercent || 0}%</span>
+                </div>
+                <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
+                    style={{ width: `${systemMetrics?.supabase?.dbPercent || 0}%` }} />
+                </div>
+                <div className="flex justify-between mt-1">
+                  <p className="text-[10px] text-emerald-600 font-medium">{systemMetrics?.supabase?.dbSizeMB || 0} MB consumidos</p>
+                  <p className="text-[10px] text-emerald-600 font-medium">Limite 500 MB</p>
                 </div>
               </div>
             </div>

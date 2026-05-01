@@ -1525,13 +1525,22 @@ app.get("/api/health/extended", async (req, res) => {
         supabaseAdmin.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'pending')
       ]);
       
+      // Estimativa bruta de tamanho (em KB) para dar uma noção de uso
+      // Valores médios: Clinica (50KB), User (10KB), Appointment (5KB), Patient (15KB)
+      const estimatedSizeKB = (cCount * 50) + (uCount * 10) + (aCount * 5) + (pCount * 15);
+      const estimatedSizeMB = Number((estimatedSizeKB / 1024).toFixed(2));
+      const dbLimitMB = 500; // Limite comum do Supabase Free Tier
+      const dbPercent = Math.min(100, Number(((estimatedSizeMB / dbLimitMB) * 100).toFixed(1)));
+
       supabaseStats = {
         clinics: cCount || 0,
         users: uCount || 0,
         appointments: aCount || 0,
         patients: pCount || 0,
         pendingMessages: pmCount || 0,
-        pendingPayments: ppCount || 0
+        pendingPayments: ppCount || 0,
+        dbSizeMB: estimatedSizeMB,
+        dbPercent: dbPercent
       };
     } catch (e) {
       console.warn('[Health] Erro ao buscar stats do Supabase:', e);
