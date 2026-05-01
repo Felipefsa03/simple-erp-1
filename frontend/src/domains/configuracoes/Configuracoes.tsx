@@ -209,6 +209,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   ]);
   const [newApiKeyName, setNewApiKeyName] = useState("");
   const [generatingKey, setGeneratingKey] = useState(false);
+  const [auditSearch, setAuditSearch] = useState("");
+  const [auditLimit, setAuditLimit] = useState(10);
 
   const canManageSettings = hasPermission("manage_settings");
   const canManageCommissions = hasPermission("manage_commissions");
@@ -2958,17 +2960,30 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
           {/* Auditoria */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-slate-600" />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-slate-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Auditoria de Segurança
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    Histórico detalhado de atividades da conta
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  Auditoria de Segurança
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Histórico de atividades da conta
-                </p>
+              
+              <div className="relative">
+                <Plus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 rotate-45" />
+                <input
+                  type="text"
+                  placeholder="Filtrar por usuário, ação ou detalhe..."
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  className="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 w-full md:w-80"
+                />
               </div>
             </div>
 
@@ -2980,20 +2995,33 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       Data
                     </th>
                     <th className="pb-3 text-xs font-bold text-slate-400 uppercase">
+                      Usuário
+                    </th>
+                    <th className="pb-3 text-xs font-bold text-slate-400 uppercase">
                       Ação
                     </th>
                     <th className="pb-3 text-xs font-bold text-slate-400 uppercase">
-                      IP
+                      IP / Dispositivo
                     </th>
                     <th className="pb-3 text-xs font-bold text-slate-400 uppercase">
-                      Dispositivo
+                      Detalhes
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {store.auditLogs
-                    .filter((log) => log.user_id === user?.id || user?.role === 'super_admin')
-                    .slice(0, 10)
+                    .filter((log) => {
+                      const matchesUser = user?.role === 'super_admin' || log.user_id === user?.id;
+                      if (!matchesUser) return false;
+                      if (!auditSearch) return true;
+                      const search = auditSearch.toLowerCase();
+                      return (
+                        log.user_name.toLowerCase().includes(search) || 
+                        log.action.toLowerCase().includes(search) ||
+                        log.details.toLowerCase().includes(search)
+                      );
+                    })
+                    .slice(0, auditLimit)
                     .map((log) => {
                       const actionInfo = (() => {
                         switch (log.action) {
@@ -3027,6 +3055,11 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                               label: "Permissões",
                               color: "bg-brand-50 text-brand-700",
                             };
+                          case "DELETE_APPOINTMENT":
+                            return {
+                              label: "Exclusão de Agendamento",
+                              color: "bg-red-50 text-red-700",
+                            };
                           default:
                             return {
                               label: log.action,
@@ -3039,33 +3072,48 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       const deviceLabel = (() => {
                         if (!deviceData?.ua) return "Sistema";
                         const ua = deviceData.ua;
-                        if (ua.includes("Chrome")) return "Chrome / Windows";
-                        if (ua.includes("Safari")) return "Safari / macOS";
-                        if (ua.includes("iPhone")) return "iPhone / iOS";
+                        if (ua.includes("Chrome")) return "Chrome/Windows";
+                        if (ua.includes("Safari")) return "Safari/macOS";
+                        if (ua.includes("iPhone")) return "iPhone/iOS";
                         if (ua.includes("Android")) return "Android";
-                        return "Navegador Web";
+                        return "Web";
                       })();
 
                       return (
-                        <tr key={log.id} className="border-b border-slate-50">
-                          <td className="py-3 text-sm text-slate-600">
-                            {new Date(log.created_at).toLocaleString("pt-BR")}
+                        <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3 text-sm text-slate-600 whitespace-nowrap">
+                            {new Date(log.created_at).toLocaleString("pt-BR", {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="py-3">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-900">{log.user_name}</span>
+                              <span className="text-[10px] text-slate-400">{log.user_id.slice(0, 8)}</span>
+                            </div>
                           </td>
                           <td className="py-3">
                             <span
                               className={cn(
-                                "px-2 py-1 text-xs font-bold rounded-full",
+                                "px-2 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider",
                                 actionInfo.color,
                               )}
                             >
                               {actionInfo.label}
                             </span>
                           </td>
-                          <td className="py-3 text-sm text-slate-500">
-                            {log.ip || "Local"}
+                          <td className="py-3">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium text-slate-600">{log.ip || "Local"}</span>
+                              <span className="text-[10px] text-slate-400">{deviceLabel}</span>
+                            </div>
                           </td>
-                          <td className="py-3 text-sm text-slate-500">
-                            {deviceLabel}
+                          <td className="py-3 text-xs text-slate-500 max-w-xs truncate" title={log.details}>
+                            {log.details}
                           </td>
                         </tr>
                       );
@@ -3073,7 +3121,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   {store.auditLogs.length === 0 && (
                     <tr>
                       <td
-                        colSpan={4}
+                        colSpan={5}
                         className="py-10 text-center text-slate-400"
                       >
                         Nenhum histórico disponível
@@ -3083,6 +3131,17 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 </tbody>
               </table>
             </div>
+
+            {store.auditLogs.length > auditLimit && (
+              <div className="pt-4 flex justify-center">
+                <button
+                  onClick={() => setAuditLimit(prev => prev + 20)}
+                  className="px-6 py-2 text-sm font-bold text-brand-600 hover:bg-brand-50 rounded-xl transition-colors border border-brand-100"
+                >
+                  Carregar mais atividades
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

@@ -877,6 +877,7 @@ export const useClinicStore = create<ClinicStore>()(
                             entity_type: 'appointment',
                             entity_id: id,
                             details: `Agendamento excluído: ${apt.patient_name} - ${apt.service_name || 'Consulta'} em ${new Date(apt.scheduled_at).toLocaleString('pt-BR')}`,
+                            old_data: apt,
                         });
                     }
                 }

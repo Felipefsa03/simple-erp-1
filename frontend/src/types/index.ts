@@ -395,6 +395,9 @@ export interface AuditLog {
     entity_type: string;
     entity_id: string;
     details: string;
+    ip?: string;
+    old_data?: any;
+    new_data?: any;
     created_at: string;
 }
 
