@@ -9,6 +9,7 @@ import {
   Quote, Building2, Stethoscope, Activity, CreditCard, Bell, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Logo } from '@/components/shared';
 
 const API_BASE = import.meta.env.VITE_API_BASE || '';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gzcimnredlffqyogxzqq.supabase.co';
@@ -462,10 +463,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/20">
-              <span className="text-xl text-white font-bold">⚕</span>
-            </div>
-            <span className="font-bold text-xl text-slate-800">Clinxia</span>
+            <Logo variant="full" size="sm" />
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-700">
@@ -1050,11 +1048,8 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-4 gap-12">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-xl flex items-center justify-center">
-                  <span className="text-xl text-white font-bold">⚕</span>
-                </div>
-                <span className="font-bold text-xl">Clinxia</span>
+              <div className="flex items-center mb-4">
+                <Logo variant="white" size="sm" />
               </div>
               <p className="text-slate-400 text-sm leading-relaxed">
                 O sistema de gestão mais completo para clínicas de odontologia e estética do Brasil.

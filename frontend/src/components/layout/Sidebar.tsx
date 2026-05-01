@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { motion } from 'motion/react';
+import { Logo } from '@/components/shared';
 
 const clinicMenuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -117,15 +118,11 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
       >
         {/* Logo */}
         <div className="p-5 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/25">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            {(isOpen || !isMobile) && (
-              <div className="flex flex-col">
-                <span className="font-bold text-lg tracking-tight text-slate-900">Clinxia</span>
-                <span className="text-xs text-slate-400">Gestão Inteligente</span>
-              </div>
+          <div className="flex items-center">
+            {isOpen || isMobile ? (
+              <Logo variant="full" size="md" />
+            ) : (
+              <Logo variant="icon" size="md" />
             )}
           </div>
           {isMobile && (

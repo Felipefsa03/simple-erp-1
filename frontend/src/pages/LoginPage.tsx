@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Shield } from "lucide-react";
-import { ToastProvider, ErrorBoundary } from "@/components/shared";
+import { ToastProvider, ErrorBoundary, Logo } from "@/components/shared";
 import { useAuth } from "@/hooks/useAuth";
 
 interface LoginPageProps {
@@ -235,13 +235,8 @@ export function LoginPage({
       <ErrorBoundary key="login-page">
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-brand-50 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-xl shadow-brand-200/50">
-                <span className="text-2xl font-black">C</span>
-              </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                Clinxia
-              </h1>
+            <div className="text-center mb-8 flex flex-col items-center">
+              <Logo variant="full" size="xl" className="mb-2" />
               <p className="text-slate-500 mt-1">
                 A inteligência que sua clínica precisa para brilhar.
               </p>

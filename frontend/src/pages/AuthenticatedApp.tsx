@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { ToastProvider, ErrorBoundary } from '@/components/shared';
+import { ToastProvider, ErrorBoundary, Logo } from '@/components/shared';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/useShared';
 import { usePWAInstall } from '@/hooks/usePWA';
@@ -390,8 +390,7 @@ export function AuthenticatedApp() {
             {isMobile && (
               <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between z-30">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">L</div>
-                  <span className="font-bold text-lg tracking-tight text-slate-900">Clinxia</span>
+                  <Logo variant="full" size="sm" />
                 </div>
                 <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
                   <Menu className="w-6 h-6" />
