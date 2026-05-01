@@ -390,7 +390,7 @@ export function AuthenticatedApp() {
             {isMobile && (
               <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between z-30">
                 <div className="flex items-center gap-2">
-                  <Logo variant="full" size="sm" />
+                  <Logo variant="full" size="md" />
                 </div>
                 <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
                   <Menu className="w-6 h-6" />

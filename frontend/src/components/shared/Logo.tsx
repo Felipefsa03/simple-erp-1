@@ -9,10 +9,10 @@ interface LogoProps {
 
 export function Logo({ variant = 'full', className, size = 'md' }: LogoProps) {
   const sizeMap = {
-    sm: variant === 'icon' ? 'w-10 h-10' : 'h-12',
-    md: variant === 'icon' ? 'w-14 h-14' : 'h-16',
-    lg: variant === 'icon' ? 'w-20 h-20' : 'h-24',
-    xl: variant === 'icon' ? 'w-32 h-32' : 'h-40',
+    sm: variant === 'icon' ? 'w-12 h-12' : 'h-14',
+    md: variant === 'icon' ? 'w-16 h-16' : 'h-20',
+    lg: variant === 'icon' ? 'w-24 h-24' : 'h-28',
+    xl: variant === 'icon' ? 'w-40 h-40' : 'h-48',
   };
 
   const logoSrc = 

@@ -463,7 +463,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Logo variant="full" size="sm" />
+            <Logo variant="full" size="lg" />
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-700">
@@ -1049,7 +1049,7 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
           <div className="grid md:grid-cols-4 gap-12">
             <div>
               <div className="flex items-center mb-4">
-                <Logo variant="white" size="sm" />
+                <Logo variant="white" size="lg" />
               </div>
               <p className="text-slate-400 text-sm leading-relaxed">
                 O sistema de gestão mais completo para clínicas de odontologia e estética do Brasil.

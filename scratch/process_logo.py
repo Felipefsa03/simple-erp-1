@@ -2,28 +2,31 @@ from PIL import Image
 import os
 
 img_path = r'c:\Users\junio\Desktop\Asaas Oportunity\frontend\public\logo-full.png'
-save_path = r'c:\Users\junio\Desktop\Asaas Oportunity\frontend\public\logo-icon.png'
+icon_path = r'c:\Users\junio\Desktop\Asaas Oportunity\frontend\public\logo-icon.png'
 
 if os.path.exists(img_path):
-    img = Image.open(img_path)
-    # The logo has the cross on the left.
-    # Let's crop roughly the first 40% of the width.
+    img = Image.open(img_path).convert("RGBA")
+    
+    # Trim the original logo to remove excessive white space
+    bbox = img.getbbox()
+    if bbox:
+        img = img.crop(bbox)
+        img.save(img_path) # Overwrite with trimmed version
+        print(f"Trimmed logo-full saved")
+    
+    # Now create the icon (just the cross)
     width, height = img.size
-    # Crop the cross (left side)
-    # Assuming the cross is a square-ish aspect ratio on the left
-    icon_width = int(height * 1.2) # A bit wider than height to be safe
+    # The cross is on the left. In the trimmed version, it's the left part.
+    # Let's find the first vertical gap or just crop a square from the left.
+    icon_width = height
     img_icon = img.crop((0, 0, icon_width, height))
     
-    # Trim transparency
-    bbox = img_icon.getbbox()
-    if bbox:
-        img_icon = img_icon.crop(bbox)
+    # Trim icon again
+    bbox_icon = img_icon.getbbox()
+    if bbox_icon:
+        img_icon = img_icon.crop(bbox_icon)
         
-    img_icon.save(save_path)
-    print(f"Icon saved to {save_path}")
-    
-    # Create white version (just invert text if possible, but simpler is just keep as is for now)
-    # Actually, let's try to make it visible on dark backgrounds by adding a slight glow or something
-    # but the user just wants the logo they sent.
+    img_icon.save(icon_path)
+    print(f"Icon saved to {icon_path}")
 else:
     print("Image not found")
