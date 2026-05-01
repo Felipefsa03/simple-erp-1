@@ -1057,26 +1057,56 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
                 <Database className="w-5 h-5 text-brand-500" />Recursos do Sistema
               </h2>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-600">Memória</span>
-                    <span className="font-medium">{systemMetrics?.memory?.usedPercent || '0%'}</span>
+              <div className="space-y-6">
+                
+                {/* === App Metrics === */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-slate-700 border-b pb-1">Uso do Aplicativo (Node.js)</h3>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-slate-600">Memória (App)</span>
+                      <span className="font-medium">{systemMetrics?.memory?.usedPercent || '0%'}</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-500 rounded-full" style={{ width: systemMetrics?.memory?.usedPercent || '0%' }} />
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">{systemMetrics?.memory?.used || '0'} / {systemMetrics?.memory?.total || '0'}</p>
                   </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-brand-500 rounded-full" style={{ width: systemMetrics?.memory?.usedPercent || '0%' }} />
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-slate-600">CPU (App)</span>
+                      <span className="font-medium">{systemMetrics?.cpu?.usedPercent || '0%'}</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: systemMetrics?.cpu?.usedPercent || '0%' }} />
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">{systemMetrics?.memory?.used || '0'} / {systemMetrics?.memory?.total || '0'}</p>
                 </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-600">CPU</span>
-                    <span className="font-medium">{systemMetrics?.cpu?.usedPercent || '0%'}</span>
+
+                {/* === Server Host Metrics === */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-slate-700 border-b pb-1">Uso Global (Servidor Host)</h3>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-slate-600">Memória (Host)</span>
+                      <span className="font-medium">{systemMetrics?.memory?.serverPercent || '0%'}</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-orange-500 rounded-full" style={{ width: systemMetrics?.memory?.serverPercent || '0%' }} />
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">{systemMetrics?.memory?.serverUsed || '0'} / {systemMetrics?.memory?.serverTotal || '0'}</p>
                   </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: systemMetrics?.cpu?.usedPercent || '0%' }} />
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-slate-600">CPU (Host)</span>
+                      <span className="font-medium">{systemMetrics?.cpu?.serverPercent || '0%'}</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-red-500 rounded-full" style={{ width: systemMetrics?.cpu?.serverPercent || '0%' }} />
+                    </div>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
