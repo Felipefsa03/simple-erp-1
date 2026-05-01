@@ -133,7 +133,7 @@ interface SuperAdminDashboardProps {
 }
 
 export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDashboardProps) {
-  const { login } = useAuth();
+  const { login, impersonateClinic } = useAuth();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSub, setSelectedSub] = useState<PlatformSubscription | null>(null);
@@ -362,20 +362,23 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     setInspectTab('overview');
   };
 
-  const handleImpersonateClinic = (clinicId: string) => {
-    // Para clínicas reais, a impersonação exigiria um token especial do backend (Supabase auth admin)
-    // Como segurança, apenas alertamos por enquanto se não for uma clínica demo.
+  const handleImpersonateClinic = async (clinicId: string) => {
+    // Para clínicas reais, a impersonação agora utiliza o método robusto do store
     const clinicPasswords: Record<string, { email: string; password: string }> = {
       'clinic-1': { email: 'clinica@clinxia.com.br', password: 'clinica123' },
       'clinic-2': { email: 'camila@esteticapremium.com.br', password: 'premium123' },
       'clinic-3': { email: 'rafael@odontovida.com.br', password: 'odontovida123' },
       'clinic-4': { email: 'amanda@sorrisoperfeito.com.br', password: 'sorriso123' },
     };
+    
     const credentials = clinicPasswords[clinicId];
     if (credentials) {
       login(credentials.email, credentials.password);
     } else {
-      alert('Impersonação direta para clínicas reais requer token de super-admin (em desenvolvimento). Por favor, faça login com as credenciais da clínica.');
+      const success = await impersonateClinic(clinicId);
+      if (!success) {
+        alert('Falha na impersonação: Verifique se o ID da clínica é válido ou se você possui permissões de super-admin.');
+      }
     }
   };
 

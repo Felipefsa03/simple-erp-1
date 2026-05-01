@@ -736,20 +736,56 @@ export const useClinicStore = create<ClinicStore>()(
                 return patient;
             },
             updatePatient: (id, data) => {
+                const oldPatient = get().patients.find(p => p.id === id);
                 const updatedData = data.phone ? { ...data, phone: formatPhoneForWhatsApp(data.phone) } : data;
+                
                 set(s => ({ patients: s.patients.map(p => p.id === id ? { ...p, ...updatedData } : p) }));
                 
                 // Fire-and-forget Supabase update
                 const patient = get().patients.find(p => p.id === id);
                 if (patient) {
                     saveToSupabase('patient', { ...patient, ...updatedData }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar paciente:', e));
+                    
+                    // Audit Log
+                    const user = useAuth.getState().user;
+                    if (user && oldPatient) {
+                        get().addAuditLog({
+                            clinic_id: patient.clinic_id,
+                            user_id: user.id,
+                            user_name: user.name,
+                            action: 'UPDATE_PATIENT',
+                            entity_type: 'patient',
+                            entity_id: id,
+                            details: `Paciente atualizado: ${patient.name}`,
+                            old_data: oldPatient,
+                            new_data: updatedData,
+                        });
+                    }
                 }
             },
             deletePatient: (id) => {
+                const patient = get().patients.find(p => p.id === id);
                 set(s => ({ patients: s.patients.filter(p => p.id !== id) }));
                 
-                // Fire-and-forget Supabase delete
-                saveToSupabase('patient', { id }, false, true).catch(e => console.error('[ClinicStore] Erro ao excluir paciente:', e));
+                if (patient) {
+                    // Fire-and-forget Supabase delete
+                    saveToSupabase('patient', { id }, false, true).catch(e => console.error('[ClinicStore] Erro ao excluir paciente:', e));
+                    
+                    // Audit Log
+                    const user = useAuth.getState().user;
+                    if (user) {
+                        get().addAuditLog({
+                            clinic_id: patient.clinic_id,
+                            user_id: user.id,
+                            user_name: user.name,
+                            action: 'DELETE_PATIENT',
+                            entity_type: 'patient',
+                            entity_id: id,
+                            details: `Paciente excluído: ${patient.name} (CPF: ${patient.cpf || 'N/A'})`,
+                            old_data: patient,
+                        });
+                    }
+                }
             },
             importPatients: (patients) => {
                 const newPatients = patients.map(p => ({ ...p, id: uid(), created_at: now(), phone: formatPhoneForWhatsApp(p.phone) }));
@@ -1037,6 +1073,8 @@ export const useClinicStore = create<ClinicStore>()(
                     entity_type: 'appointment',
                     entity_id: id,
                     details: `Atendimento finalizado: ${appointment.patient_name} - ${appointment.service_name}`,
+                    old_data: appointment,
+                    new_data: { service_time_min: serviceTimeMin, finished_at: finalApt?.finished_at },
                 });
 
                 emitEvent('APPOINTMENT_FINISHED', {
@@ -1791,17 +1829,48 @@ export const useClinicStore = create<ClinicStore>()(
                     const prefs = get().notificationPrefs;
                     await SupabaseSync.updateClinicSettings(clinicId, { notification_settings: prefs });
                     console.log('[ClinicStore] ✅ Preferências de notificação salvas no Supabase');
+                    
+                    const user = useAuth.getState().user;
+                    if (user) {
+                        get().addAuditLog({
+                            clinic_id: clinicId,
+                            user_id: user.id,
+                            user_name: user.name,
+                            action: 'SETTINGS_CHANGE',
+                            entity_type: 'clinic',
+                            entity_id: clinicId,
+                            details: 'Preferências de notificação alteradas',
+                            new_data: prefs
+                        });
+                    }
                 } catch (e) {
                     console.error('[ClinicStore] Erro ao salvar preferências de notificação:', e);
                     throw e;
                 }
             },
             setIntegrationConfig: (config) => {
+                const oldConfig = get().integrationConfig;
                 set(s => {
                     const next = { ...s.integrationConfig, ...config };
                     const clinicId = useAuth.getState().user?.clinic_id;
                     if (clinicId) {
                         SupabaseSync.updateClinicSettings(clinicId, { integration_config: next })
+                            .then(() => {
+                                const user = useAuth.getState().user;
+                                if (user) {
+                                    get().addAuditLog({
+                                        clinic_id: clinicId,
+                                        user_id: user.id,
+                                        user_name: user.name,
+                                        action: 'SETTINGS_CHANGE',
+                                        entity_type: 'clinic',
+                                        entity_id: clinicId,
+                                        details: 'Configurações de integração alteradas',
+                                        old_data: oldConfig,
+                                        new_data: next
+                                    });
+                                }
+                            })
                             .catch(e => console.error('[ClinicStore] Error saving integration config:', e));
                     }
                     return { integrationConfig: next };

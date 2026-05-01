@@ -837,7 +837,7 @@ async saveTransaction(transaction: any) {
       clinic_id: getClinicId(log.clinic_id),
       user_id: log.user_id,
       action: log.action,
-      entity: log.entity,
+      entity: log.entity_type || log.entity, // Supports both internal name and DB name
       entity_id: log.entity_id,
       old_data: log.old_data,
       new_data: log.new_data,

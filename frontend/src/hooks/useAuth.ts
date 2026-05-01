@@ -44,6 +44,7 @@ interface AuthState {
   confirm2FALogin: (code: string) => Promise<boolean>;
   cancelTwoFA: () => void;
   switchClinic: (clinicId: string) => Promise<void>;
+  impersonateClinic: (clinicId: string) => Promise<boolean>;
 }
 
 const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
@@ -653,6 +654,48 @@ export const useAuth = create<AuthState>()(
         } else {
           console.error('[AuthStore] Error switching clinic:', error || 'Clinic not found');
           // Tentar forçar o carregamento mesmo se falhar o GET (opcional, mas arriscado)
+        }
+      },
+
+      impersonateClinic: async (clinicId: string) => {
+        const state = get();
+        if (state.user?.role !== "super_admin") {
+          console.error('[Auth] Somente super-admins podem impersonar clínicas.');
+          return false;
+        }
+
+        const { data: clinic, error } = await SupabaseSync.loadClinic(clinicId);
+        if (clinic) {
+          console.log('[Auth] Impersonating clinic:', clinic.name);
+          // Atualizar a clínica atual e o clinic_id do usuário no estado
+          const updatedUser = { ...state.user, clinic_id: clinicId };
+          set({ 
+            clinic, 
+            user: updatedUser 
+          });
+
+          // Import dynamicamente para evitar circular dependencies e forçar sync
+          import("../stores/clinicStore").then(({ useClinicStore }) => {
+            const store = useClinicStore.getState();
+            store.clearSyncCache();
+            store.syncWithSupabase();
+            
+            // Log de auditoria para rastrear quem impersonou quem
+            store.addAuditLog({
+              clinic_id: clinicId,
+              user_id: state.user!.id,
+              user_name: state.user!.name,
+              action: "IMPERSONATE",
+              entity_type: "auth",
+              entity_id: clinicId,
+              details: `Super-admin ${state.user!.name} impersonou a clínica ${clinic.name}`,
+              new_data: { impersonated_clinic_id: clinicId, impersonated_clinic_name: clinic.name }
+            });
+          });
+          return true;
+        } else {
+          console.error('[AuthStore] Error impersonating clinic:', error || 'Clinic not found');
+          return false;
         }
       },
 

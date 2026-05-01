@@ -3060,6 +3060,31 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                               label: "Exclusão de Agendamento",
                               color: "bg-red-50 text-red-700",
                             };
+                          case "DELETE_PATIENT":
+                            return {
+                              label: "Exclusão de Paciente",
+                              color: "bg-red-50 text-red-700",
+                            };
+                          case "UPDATE_PATIENT":
+                            return {
+                              label: "Atualização de Paciente",
+                              color: "bg-brand-50 text-brand-700",
+                            };
+                          case "FINALIZE_APPOINTMENT":
+                            return {
+                              label: "Finalização de Consulta",
+                              color: "bg-purple-50 text-purple-700",
+                            };
+                          case "SETTINGS_CHANGE":
+                            return {
+                              label: "Alteração de Config.",
+                              color: "bg-amber-50 text-amber-700",
+                            };
+                          case "IMPERSONATE":
+                            return {
+                              label: "Impersonação (Admin)",
+                              color: "bg-indigo-50 text-indigo-700",
+                            };
                           default:
                             return {
                               label: log.action,
