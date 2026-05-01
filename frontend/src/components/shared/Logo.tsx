@@ -15,7 +15,7 @@ export function Logo({ variant = 'full', className, size = 'md' }: LogoProps) {
     xl: variant === 'icon' ? 'w-28 h-28' : 'h-32',
   };
 
-  const version = "v4";
+  const version = "v5";
   const logoSrc = 
     (variant === 'icon' ? '/logo-icon.png' : 
     variant === 'white' ? '/logo-white.png' : 
