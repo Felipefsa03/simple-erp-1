@@ -5,7 +5,7 @@ import {
   DollarSign, Calendar, MoreHorizontal, X, EyeOff, LogIn, UserCheck, ArrowLeft,
   Stethoscope, Phone, Mail, MapPin, CalendarDays, UserPlus,
   Settings, BarChart3, ClipboardList, FileSignature, Server, Database, HardDrive, Cpu,
-  CheckSquare, RefreshCw, Loader2
+  CheckSquare, RefreshCw, Loader2, MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
