@@ -15,11 +15,11 @@ export function Logo({ variant = 'full', className, size = 'md' }: LogoProps) {
     xl: variant === 'icon' ? 'w-28 h-28' : 'h-32',
   };
 
-  const version = "v5";
+  const version = "v6";
   const logoSrc = 
-    (variant === 'icon' ? '/logo-icon.png' : 
-    variant === 'white' ? '/logo-white.png' : 
-    '/logo-full.png') + `?v=${version}`;
+    (variant === 'icon' ? '/clinxia-brand-icon.png' : 
+    variant === 'white' ? '/clinxia-brand-white.png' : 
+    '/clinxia-brand-logo.png') + `?v=${version}`;
 
   return (
     <div className={cn("flex items-center", className)}>
