@@ -16,6 +16,7 @@ import {
   Stethoscope,
   Shield,
   Link2,
+  ArrowLeft,
   Server
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -54,7 +55,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }: SidebarProps) {
-  const { user, clinic, logout, hasPermission, hasFeature } = useAuth();
+  const { user, clinic, logout, hasPermission, hasFeature, isImpersonating, stopImpersonating } = useAuth();
   
   // Filter menu items based on plan features
   const filteredMenuItems = clinicMenuItems.filter(item => {
@@ -79,7 +80,7 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
     configuracoes: 'manage_settings',
   };
 
-  const baseItems = user?.role === 'super_admin' ? adminMenuItems : filteredMenuItems;
+  const baseItems = (user?.role === 'super_admin' && !isImpersonating) ? adminMenuItems : filteredMenuItems;
   const menuItems = baseItems.filter(item => {
     const perm = permissionByTab[item.id];
     if (!perm) return true;
@@ -137,6 +138,28 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+          {isImpersonating && (
+            <motion.button
+              onClick={() => {
+                stopImpersonating();
+                onTabChange('admin-dashboard');
+              }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-3 mb-4 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-all duration-200 border border-indigo-100 shadow-sm",
+                (!isOpen && !isMobile) && "justify-center"
+              )}
+            >
+              <div className="p-2 rounded-lg bg-indigo-500 text-white shadow-sm">
+                <ArrowLeft className="w-4 h-4" />
+              </div>
+              {(isOpen || !isMobile) && (
+                <span className="font-bold text-xs uppercase tracking-wider">Voltar ao Portal</span>
+              )}
+            </motion.button>
+          )}
+
           {menuItems.map((item) => (
             <motion.button
               key={item.id}

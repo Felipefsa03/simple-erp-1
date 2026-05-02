@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Building2, Users, CreditCard, TrendingUp, Activity, Shield, AlertTriangle, CheckCircle2,
   Eye, Ban, Edit2, Search, Clock, Globe, Smartphone, Monitor, Lock, Key, FileText,
@@ -133,7 +134,8 @@ interface SuperAdminDashboardProps {
 }
 
 export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDashboardProps) {
-  const { login, impersonateClinic } = useAuth();
+  const navigate = useNavigate();
+  const { user, login, impersonateClinic } = useAuth();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSub, setSelectedSub] = useState<PlatformSubscription | null>(null);
@@ -376,7 +378,9 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
       login(credentials.email, credentials.password);
     } else {
       const success = await impersonateClinic(clinicId);
-      if (!success) {
+      if (success) {
+        navigate('/dashboard');
+      } else {
         alert('Falha na impersonação: Verifique se o ID da clínica é válido ou se você possui permissões de super-admin.');
       }
     }

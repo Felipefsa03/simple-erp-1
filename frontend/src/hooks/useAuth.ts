@@ -43,8 +43,9 @@ interface AuthState {
   ) => boolean;
   confirm2FALogin: (code: string) => Promise<boolean>;
   cancelTwoFA: () => void;
-  switchClinic: (clinicId: string) => Promise<void>;
   impersonateClinic: (clinicId: string) => Promise<boolean>;
+  stopImpersonating: () => void;
+  isImpersonating: boolean;
 }
 
 const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
@@ -667,11 +668,18 @@ export const useAuth = create<AuthState>()(
         const { data: clinic, error } = await SupabaseSync.loadClinic(clinicId);
         if (clinic) {
           console.log('[Auth] Impersonating clinic:', clinic.name);
-          // Atualizar a clínica atual e o clinic_id do usuário no estado
+          
+          // Guardar o estado original se ainda não estiver impersonando
+          if (!state.isImpersonating) {
+            // No caso de super_admin, o clinic_id costuma ser o global ou null
+            // Vamos apenas marcar como impersonando
+          }
+
           const updatedUser = { ...state.user, clinic_id: clinicId };
           set({ 
             clinic, 
-            user: updatedUser 
+            user: updatedUser,
+            isImpersonating: true
           });
 
           // Import dynamicamente para evitar circular dependencies e forçar sync
@@ -680,7 +688,7 @@ export const useAuth = create<AuthState>()(
             store.clearSyncCache();
             store.syncWithSupabase();
             
-            // Log de auditoria para rastrear quem impersonou quem
+            // Log de auditoria
             store.addAuditLog({
               clinic_id: clinicId,
               user_id: state.user!.id,
@@ -697,6 +705,32 @@ export const useAuth = create<AuthState>()(
           console.error('[AuthStore] Error impersonating clinic:', error || 'Clinic not found');
           return false;
         }
+      },
+
+      stopImpersonating: () => {
+        const state = get();
+        if (!state.isImpersonating) return;
+
+        console.log('[Auth] Stopping impersonation');
+        
+        // Recarregar os dados do super-admin (clinica global)
+        const originalClinicId = GLOBAL_CLINIC_ID;
+        const updatedUser = { ...state.user!, clinic_id: originalClinicId };
+        
+        // Recarregar clinica global
+        SupabaseSync.loadClinic(originalClinicId).then(({ data: clinic }) => {
+           set({ 
+             clinic: clinic || null, 
+             user: updatedUser,
+             isImpersonating: false
+           });
+           
+           // Limpar store da clínica
+           import("../stores/clinicStore").then(({ useClinicStore }) => {
+             useClinicStore.getState().clearSyncCache();
+             useClinicStore.getState().syncWithSupabase();
+           });
+        });
       },
 
       // Verificar sessão existente

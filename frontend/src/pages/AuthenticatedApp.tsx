@@ -53,7 +53,7 @@ function PageLoader() {
 }
 
 export function AuthenticatedApp() {
-  const { user, clinic, logout, hasPermission, loading } = useAuth();
+  const { user, clinic, logout, hasPermission, loading, isImpersonating, stopImpersonating } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -119,7 +119,7 @@ export function AuthenticatedApp() {
 
   // Keep URL in sync and handle role/permission changes after initial load
   useEffect(() => {
-    if (user?.role === 'super_admin') {
+    if (user?.role === 'super_admin' && !isImpersonating) {
       setActiveTab(prev => {
         const next = (prev.startsWith('admin-') || prev === 'configuracoes') ? prev : 'admin-dashboard';
         if (location.pathname !== `/${next}`) navigate(`/${next}`, { replace: true });
@@ -341,7 +341,7 @@ export function AuthenticatedApp() {
         <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
           <AlertCircle className="w-12 h-12 opacity-20" />
           <p className="text-lg font-medium">Módulo em desenvolvimento</p>
-          <button onClick={() => setActiveTab(user?.role === 'super_admin' ? 'admin-dashboard' : 'dashboard')} className="text-brand-600 font-bold hover:underline">
+          <button onClick={() => setActiveTab((user?.role === 'super_admin' && !isImpersonating) ? 'admin-dashboard' : 'dashboard')} className="text-brand-600 font-bold hover:underline">
             Voltar ao Início
           </button>
         </div>
