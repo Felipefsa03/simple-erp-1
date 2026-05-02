@@ -12,6 +12,8 @@ import { integrationsApi } from '@/lib/integrationsApi';
 import { NFePanel } from './NFePanel';
 import { DREReport } from './DREReport';
 import { AccountsPayableReceivable } from './AccountsPayableReceivable';
+import { FinancialDashboard } from './FinancialDashboard';
+import { CashFlowProjection } from './CashFlowProjection';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { TransacaoSchema, type TransacaoFormData } from './transacao.schema';
@@ -41,7 +43,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   const [chargeInstallments, setChargeInstallments] = useState('1');
   const [highlightedTxnId, setHighlightedTxnId] = useState<string | null>(null);
   const [reconciling, setReconciling] = useState(false);
-  const [activeTab, setActiveTab] = useState<'transactions' | 'dre' | 'commissions' | 'nfe' | 'accounts'>('transactions');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'dre' | 'cashflow' | 'commissions' | 'nfe' | 'accounts'>('dashboard');
   const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7));
   
   // NFe State
@@ -365,8 +367,10 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
       {/* Tabs */}
       <div className="flex bg-white border border-slate-100 rounded-2xl p-1 overflow-x-auto no-scrollbar">
         {[
+          { id: 'dashboard', label: 'Visão Geral', icon: PieChart },
           { id: 'transactions', label: 'Transações', icon: History },
           { id: 'dre', label: 'DRE (Resultados)', icon: FileText },
+          { id: 'cashflow', label: 'Fluxo de Caixa', icon: TrendingUp },
           { id: 'commissions', label: 'Comissões Profissionais', icon: PieChart },
           { id: 'nfe', label: 'NFe', icon: Receipt },
           { id: 'accounts', label: 'Contas', icon: BookOpen }
@@ -386,6 +390,18 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
 
       {/* Tab Content */}
       <AnimatePresence mode="wait">
+        {activeTab === 'dashboard' && (
+          <motion.div key="dash" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+            <FinancialDashboard clinicId={clinicId} />
+          </motion.div>
+        )}
+
+        {activeTab === 'cashflow' && (
+          <motion.div key="cf" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+            <CashFlowProjection clinicId={clinicId} />
+          </motion.div>
+        )}
+
         {activeTab === 'transactions' && (
           <motion.div key="txns" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

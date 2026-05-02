@@ -244,9 +244,20 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
               <input type="date" value={form.due_date || ''} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" />
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Valor Pago</label>
-            <input type="number" step="0.01" min="0" value={form.paid || ''} onChange={e => setForm(f => ({ ...f, paid: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="0,00" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Valor Pago</label>
+              <input type="number" step="0.01" min="0" value={form.paid || ''} onChange={e => setForm(f => ({ ...f, paid: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" placeholder="0,00" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Recorrência</label>
+              <select value={form.recurrence || 'none'} onChange={e => setForm(f => ({ ...f, recurrence: e.target.value as any }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm">
+                <option value="none">Única</option>
+                <option value="monthly">Mensal</option>
+                <option value="weekly">Semanal</option>
+                <option value="yearly">Anual</option>
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Categoria</label>
