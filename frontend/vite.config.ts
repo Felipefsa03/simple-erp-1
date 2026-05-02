@@ -109,6 +109,22 @@ export default defineConfig(({ mode }) => {
       ],
       dedupe: ['react', 'react-dom'],
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-supabase': ['@supabase/supabase-js'],
+            'vendor-motion': ['framer-motion', 'motion', 'motion-dom'],
+            'vendor-ui': ['lucide-react', 'clsx', 'tailwind-merge'],
+            'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
+            'vendor-query': ['@tanstack/react-query'],
+            'vendor-state': ['zustand'],
+            'vendor-dates': ['date-fns'],
+          },
+        },
+      },
+    },
     server: {
       hmr: enableHmr
         ? {
