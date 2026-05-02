@@ -9,7 +9,7 @@ import type {
     TreatmentPlan, TreatmentPlanItem, NavigationContext, User, AppointmentMaterial, DomainEventType,
     WaitingListEntry, AppointmentRecurrence, AppointmentConfirmation, AnamneseFormLink,
     DigitalSignature, ClinicalDocument, AutomationRule, AutomationRun, Lead, FunnelStage, IntegrationConfig,
-    Insurance, Branch,
+    Insurance, Branch, Account, Invoice, FinancialCategory, AccountStatus, InvoiceStatus
 } from '@/types';
 import { useEventBus } from '@/stores/eventBus';
 import { useAuth } from '@/hooks/useAuth';
@@ -164,6 +164,22 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         set({ transactions });
         console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
 
+        // Carregar contas a pagar/receber
+        const accounts = await SupabaseSync.loadAccounts(clinicId);
+        set({ accounts });
+        console.log('[ClinicStore] ✅ Contas carregadas:', accounts.length);
+
+        // Carregar notas fiscais
+        const invoices = await SupabaseSync.loadInvoices(clinicId);
+        set({ invoices });
+        console.log('[ClinicStore] ✅ Notas fiscais carregadas:', invoices.length);
+
+        // Carregar categorias financeiras
+        const financialCategories = await SupabaseSync.loadFinancialCategories(clinicId);
+        set({ financialCategories });
+        console.log('[ClinicStore] ✅ Categorias financeiras carregadas:', financialCategories.length);
+
+
         // Carregar prontuários
         const medicalRecords = await SupabaseSync.loadMedicalRecords(clinicId);
         set({ medicalRecords });
@@ -219,7 +235,7 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 };
 
 // Wrapper para salvar no Supabase e atualizar estado local
-const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan' | 'stock_movement' | 'audit_log', data: any, isNew: boolean = true, isDelete: boolean = false) => {
+const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan' | 'stock_movement' | 'audit_log' | 'account' | 'invoice' | 'financial_category', data: any, isNew: boolean = true, isDelete: boolean = false) => {
     try {
         let result: any = null;
         
@@ -261,6 +277,18 @@ const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' |
                 break;
             case 'audit_log':
                 result = await SupabaseSync.saveAuditLog(data);
+                break;
+            case 'account':
+                if (isDelete) result = await SupabaseSync.deleteAccount(data.id);
+                else result = isNew ? await SupabaseSync.saveAccount(data) : await SupabaseSync.updateAccount(data.id, data);
+                break;
+            case 'invoice':
+                if (isDelete) result = await SupabaseSync.deleteInvoice(data.id);
+                else result = isNew ? await SupabaseSync.saveInvoice(data) : await SupabaseSync.updateInvoice(data.id, data);
+                break;
+            case 'financial_category':
+                if (isDelete) result = await SupabaseSync.deleteFinancialCategory(data.id);
+                else result = isNew ? await SupabaseSync.saveFinancialCategory(data) : { error: 'Update not implemented' };
                 break;
             default:
                 break;
@@ -428,6 +456,9 @@ interface ClinicStore {
     leads: Lead[];
     funnelStages: FunnelStage[];
     integrationConfig: IntegrationConfig;
+    accounts: Account[];
+    invoices: Invoice[];
+    financialCategories: FinancialCategory[];
     navigationContext: NavigationContext;
 
     // Patient Actions
@@ -494,6 +525,21 @@ interface ClinicStore {
     getMonthlyIncome: (clinicId?: string) => number;
     getMonthlyExpenses: (clinicId?: string) => number;
     getBalance: (clinicId?: string) => number;
+    
+    // Account Actions
+    addAccount: (account: Omit<Account, 'id' | 'created_at'>) => Account;
+    updateAccount: (id: string, data: Partial<Account>) => void;
+    deleteAccount: (id: string) => void;
+    markAccountPaid: (id: string, paidAmount?: number) => void;
+
+    // Invoice Actions
+    addInvoice: (invoice: Omit<Invoice, 'id' | 'created_at'>) => Invoice;
+    updateInvoice: (id: string, data: Partial<Invoice>) => void;
+    deleteInvoice: (id: string) => void;
+
+    // Financial Category Actions
+    addFinancialCategory: (category: Omit<FinancialCategory, 'id'>) => FinancialCategory;
+    deleteFinancialCategory: (id: string) => void;
 
     // Service Actions
     addService: (s: Omit<Service, 'id'>) => Service;
@@ -595,6 +641,9 @@ const INITIAL_DATA = useRealData ? {
     services: [],
     stockItems: [],
     transactions: [],
+    accounts: [],
+    invoices: [],
+    financialCategories: [],
 };
 
 console.log(
@@ -618,6 +667,9 @@ export const useClinicStore = create<ClinicStore>()(
             stockItems: INITIAL_DATA.stockItems,
             stockMovements: [],
             transactions: INITIAL_DATA.transactions,
+            accounts: INITIAL_DATA.accounts || [],
+            invoices: INITIAL_DATA.invoices || [],
+            financialCategories: INITIAL_DATA.financialCategories || [],
             medicalRecords: [],
             odontogramData: {},
             anamneseData: {},
@@ -1592,6 +1644,79 @@ export const useClinicStore = create<ClinicStore>()(
                     .filter(t => !clinicId || t.clinic_id === clinicId)
                     .reduce((s, t) => s + t.amount, 0);
                 return income - expenses;
+            },
+
+            // ---- Account Actions ----
+            addAccount: (account) => {
+                const clinic_id = account.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const newAccount: Account = { ...account, clinic_id, id: uid(), created_at: now(), updated_at: now() };
+                set(s => ({ accounts: [newAccount, ...s.accounts] }));
+                saveToSupabase('account', newAccount, true).catch(e => console.error('[ClinicStore] Erro ao salvar conta:', e));
+                return newAccount;
+            },
+            updateAccount: (id, data) => {
+                set(s => ({ accounts: s.accounts.map(a => a.id === id ? { ...a, ...data, updated_at: now() } : a) }));
+                const updatedAccount = get().accounts.find(a => a.id === id);
+                if (updatedAccount) {
+                    saveToSupabase('account', updatedAccount, false).catch(e => console.error('[ClinicStore] Erro ao atualizar conta:', e));
+                }
+            },
+            deleteAccount: (id) => {
+                const account = get().accounts.find(a => a.id === id);
+                if (!account) return;
+                set(s => ({ accounts: s.accounts.filter(a => a.id !== id) }));
+                saveToSupabase('account', account, false, true).catch(e => console.error('[ClinicStore] Erro ao deletar conta:', e));
+            },
+            markAccountPaid: (id, paidAmount) => {
+                const account = get().accounts.find(a => a.id === id);
+                if (!account) return;
+                const newPaid = paidAmount !== undefined ? paidAmount : account.value;
+                const newStatus: AccountStatus = newPaid >= account.value ? 'paid' : (newPaid > 0 ? 'partial' : account.status);
+                
+                set(s => ({
+                    accounts: s.accounts.map(a => a.id === id ? { ...a, paid: newPaid, status: newStatus, updated_at: now() } : a)
+                }));
+                const updatedAccount = get().accounts.find(a => a.id === id);
+                if (updatedAccount) {
+                    saveToSupabase('account', updatedAccount, false).catch(e => console.error('[ClinicStore] Erro ao marcar conta como paga:', e));
+                }
+            },
+
+            // ---- Invoice Actions ----
+            addInvoice: (invoice) => {
+                const clinic_id = invoice.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const newInvoice: Invoice = { ...invoice, clinic_id, id: uid(), created_at: now() };
+                set(s => ({ invoices: [newInvoice, ...s.invoices] }));
+                saveToSupabase('invoice', newInvoice, true).catch(e => console.error('[ClinicStore] Erro ao salvar nota fiscal:', e));
+                return newInvoice;
+            },
+            updateInvoice: (id, data) => {
+                set(s => ({ invoices: s.invoices.map(i => i.id === id ? { ...i, ...data } : i) }));
+                const updatedInvoice = get().invoices.find(i => i.id === id);
+                if (updatedInvoice) {
+                    saveToSupabase('invoice', updatedInvoice, false).catch(e => console.error('[ClinicStore] Erro ao atualizar nota fiscal:', e));
+                }
+            },
+            deleteInvoice: (id) => {
+                const invoice = get().invoices.find(i => i.id === id);
+                if (!invoice) return;
+                set(s => ({ invoices: s.invoices.filter(i => i.id !== id) }));
+                saveToSupabase('invoice', invoice, false, true).catch(e => console.error('[ClinicStore] Erro ao deletar nota fiscal:', e));
+            },
+
+            // ---- Financial Category Actions ----
+            addFinancialCategory: (category) => {
+                const clinic_id = category.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const newCategory: FinancialCategory = { ...category, clinic_id, id: uid(), created_at: now() };
+                set(s => ({ financialCategories: [newCategory, ...s.financialCategories] }));
+                saveToSupabase('financial_category', newCategory, true).catch(e => console.error('[ClinicStore] Erro ao salvar categoria financeira:', e));
+                return newCategory;
+            },
+            deleteFinancialCategory: (id) => {
+                const category = get().financialCategories.find(c => c.id === id);
+                if (!category) return;
+                set(s => ({ financialCategories: s.financialCategories.filter(c => c.id !== id) }));
+                saveToSupabase('financial_category', category, false, true).catch(e => console.error('[ClinicStore] Erro ao deletar categoria financeira:', e));
             },
 
             // ---- Services ----

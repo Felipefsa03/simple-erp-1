@@ -9,7 +9,7 @@ interface DREReportProps {
 
 export function DREReport({ clinicId }: DREReportProps) {
   const [period, setPeriod] = useState('month');
-  const transactions = useClinicStore(s => s.transactions);
+  const { transactions, accounts } = useClinicStore();
 
   const dreData = useMemo(() => {
     const now = new Date();
@@ -24,24 +24,39 @@ export function DREReport({ clinicId }: DREReportProps) {
     }
 
     const periodTransactions = (transactions || []).filter(t => {
+      if (clinicId && t.clinic_id !== clinicId) return false;
       const tDate = new Date(t.created_at || t.due_date || '');
       return tDate >= startDate && tDate <= now;
     });
 
-    const income = periodTransactions.filter(t => t.type === 'income');
-    const expense = periodTransactions.filter(t => t.type === 'expense');
+    const periodAccounts = (accounts || []).filter(a => {
+      if (clinicId && a.clinic_id !== clinicId) return false;
+      if (a.status !== 'paid' && a.status !== 'partial') return false;
+      if (a.transaction_id) return false; // Avoid double counting
+      const aDate = new Date(a.updated_at || a.created_at);
+      return aDate >= startDate && aDate <= now;
+    });
 
-    const totalRevenue = income.reduce((s, t) => s + (t.amount || 0), 0);
-    const totalExpenses = expense.reduce((s, t) => s + (t.amount || 0), 0);
+    const income = [
+      ...periodTransactions.filter(t => t.type === 'income').map(t => ({ amount: t.amount || 0, category: t.category })),
+      ...periodAccounts.filter(a => a.type === 'receivable').map(a => ({ amount: a.paid || 0, category: a.category }))
+    ];
+    const expense = [
+      ...periodTransactions.filter(t => t.type === 'expense').map(t => ({ amount: t.amount || 0, category: t.category })),
+      ...periodAccounts.filter(a => a.type === 'payable').map(a => ({ amount: a.paid || 0, category: a.category }))
+    ];
+
+    const totalRevenue = income.reduce((s, t) => s + t.amount, 0);
+    const totalExpenses = expense.reduce((s, t) => s + t.amount, 0);
     
-    // CPV: calcular baseado em despesas de custo/material (não percentual fixo)
+    // CPV: calcular baseado em despesas de custo/material
     const costExpenses = expense.filter(t => 
       t.category === 'custo' || 
       t.category === 'material' || 
       t.category === 'custo_servico' ||
       t.category === 'supplies'
     );
-    const cogs = costExpenses.reduce((s, t) => s + (t.amount || 0), 0);
+    const cogs = costExpenses.reduce((s, t) => s + t.amount, 0);
     
     const grossProfit = totalRevenue - cogs;
     const operatingExpenses = totalExpenses - cogs; // Despesas operacionais = total - custos
@@ -49,14 +64,14 @@ export function DREReport({ clinicId }: DREReportProps) {
     
     // Impostos: usar categoria "imposto" se existir, senão 0
     const taxExpenses = expense.filter(t => t.category === 'imposto' || t.category === 'tax');
-    const taxes = taxExpenses.reduce((s, t) => s + (t.amount || 0), 0);
+    const taxes = taxExpenses.reduce((s, t) => s + t.amount, 0);
     
     const netProfit = operatingProfit - taxes;
 
     const revenueByCategory: Record<string, number> = {};
     income.forEach(t => {
       const cat = t.category || 'outros';
-      revenueByCategory[cat] = (revenueByCategory[cat] || 0) + (t.amount || 0);
+      revenueByCategory[cat] = (revenueByCategory[cat] || 0) + t.amount;
     });
 
     return {
@@ -68,7 +83,7 @@ export function DREReport({ clinicId }: DREReportProps) {
       netProfit: { value: netProfit, margin: totalRevenue > 0 ? (netProfit / totalRevenue * 100) : 0 },
       taxes: { total: taxes },
     };
-  }, [transactions, period]);
+  }, [transactions, accounts, period, clinicId]);
 
   const metrics = [
     { label: 'Receita Bruta', value: dreData.revenue.total, type: 'positive', icon: ArrowUpRight },

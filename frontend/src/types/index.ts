@@ -385,6 +385,64 @@ export interface AppointmentMaterial {
     qty: number;
 }
 
+// --- Accounts (Contas a Pagar/Receber) ---
+export type AccountStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+
+export interface Account {
+    id: string;
+    clinic_id: string;
+    type: 'receivable' | 'payable';
+    description: string;
+    counterparty: string;
+    category: string;
+    value: number;
+    paid: number;
+    due_date: string;
+    status: AccountStatus;
+    transaction_id?: string;
+    recurrence?: 'none' | 'monthly' | 'weekly' | 'yearly';
+    notes?: string;
+    deleted_at?: string;
+    created_at: string;
+    updated_at?: string;
+}
+
+// --- Invoices (Notas Fiscais) ---
+export type InvoiceStatus = 'pending' | 'authorized' | 'cancelled' | 'processing' | 'rejected';
+
+export interface Invoice {
+    id: string;
+    clinic_id: string;
+    transaction_id?: string;
+    number: string;
+    serie: string;
+    access_key: string;
+    customer_name: string;
+    customer_doc: string;
+    value: number;
+    status: InvoiceStatus;
+    protocol?: string;
+    xml_url?: string;
+    pdf_url?: string;
+    reference?: string;
+    issue_date: string;
+    items?: any[];
+    deleted_at?: string;
+    created_at: string;
+}
+
+// --- Financial Categories ---
+export interface FinancialCategory {
+    id: string;
+    clinic_id: string;
+    name: string;
+    type: 'income' | 'expense';
+    parent_id?: string;
+    color?: string;
+    icon?: string;
+    active: boolean;
+}
+
 // --- Audit Log ---
 export interface AuditLog {
     id: string;

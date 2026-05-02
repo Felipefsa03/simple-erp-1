@@ -225,7 +225,28 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
       if (!nfeData.customerName || !nfeData.value) {
         throw new Error('Preencha os dados obrigatórios');
       }
-      toast(`NFe gerada para ${nfeData.customerName} - ${formatCurrency(nfeData.value)}`);
+      
+      const store = useClinicStore.getState();
+      const invoices = store.invoices;
+      const relevantInvoices = clinicId ? invoices.filter(i => i.clinic_id === clinicId) : invoices;
+      const maxNum = relevantInvoices.reduce((max, i) => Math.max(max, parseInt(i.number) || 0), 0);
+      const nextNumber = String(maxNum + 1).padStart(3, '0');
+
+      store.addInvoice({
+        clinic_id: clinicId,
+        transaction_id: selectedTxnForNfe?.id,
+        number: nextNumber,
+        serie: '1',
+        access_key: '',
+        customer_name: nfeData.customerName,
+        customer_doc: nfeData.customerCpf,
+        value: nfeData.value,
+        status: 'pending',
+        issue_date: new Date().toISOString().split('T')[0],
+        reference: selectedTxnForNfe?.id || '',
+      });
+
+      toast(`NFe criada com sucesso para ${nfeData.customerName}. Acesse a aba NFe para emitir.`);
       setNfeModalOpen(false);
       setSelectedTxnForNfe(null);
     }

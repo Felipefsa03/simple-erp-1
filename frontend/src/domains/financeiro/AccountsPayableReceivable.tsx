@@ -4,36 +4,15 @@ import { cn, uid, formatCurrency } from '@/lib/utils';
 import { useClinicStore } from '@/stores/clinicStore';
 import { toast } from '@/hooks/useShared';
 import { Modal, ConfirmDialog } from '@/components/shared';
+import type { Account, AccountStatus } from '@/types/index';
 
 interface AccountsPayableReceivableProps {
   clinicId?: string;
 }
 
-interface Account {
-  id: string;
-  type: 'receivable' | 'payable';
-  description: string;
-  counterparty: string;
-  value: number;
-  paid: number;
-  dueDate: string;
-  status: 'pending' | 'partial' | 'paid' | 'overdue';
-  category: string;
-  createdAt: string;
-}
-
 export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivableProps) {
+  const { accounts, addAccount, updateAccount, deleteAccount, markAccountPaid } = useClinicStore();
   const [activeTab, setActiveTab] = useState<'receivable' | 'payable'>('receivable');
-  const [accounts, setAccounts] = useState<Account[]>([
-    { id: 'acc-1', type: 'receivable', description: 'Consulta - João Silva', counterparty: 'João Silva', value: 300, paid: 0, dueDate: '2026-03-25', status: 'pending', category: 'consultation', createdAt: '2026-03-20T00:00:00Z' },
-    { id: 'acc-2', type: 'receivable', description: 'Tratamento - Maria Santos', counterparty: 'Maria Santos', value: 2500, paid: 1000, dueDate: '2026-03-20', status: 'partial', category: 'procedure', createdAt: '2026-03-15T00:00:00Z' },
-    { id: 'acc-3', type: 'receivable', description: 'Exame - Pedro Costa', counterparty: 'Pedro Costa', value: 450, paid: 450, dueDate: '2026-03-15', status: 'paid', category: 'exam', createdAt: '2026-03-10T00:00:00Z' },
-    { id: 'acc-4', type: 'receivable', description: 'Consulta - Ana Lima', counterparty: 'Ana Lima', value: 200, paid: 0, dueDate: '2026-03-28', status: 'pending', category: 'consultation', createdAt: '2026-03-22T00:00:00Z' },
-    { id: 'acc-5', type: 'payable', description: 'Aluguel Março', counterparty: 'Imobiliária XYZ', value: 5500, paid: 0, dueDate: '2026-03-30', status: 'pending', category: 'rent', createdAt: '2026-03-01T00:00:00Z' },
-    { id: 'acc-6', type: 'payable', description: 'Fornecedor Dental', counterparty: 'Dental Plus', value: 2300, paid: 0, dueDate: '2026-04-05', status: 'pending', category: 'supplies', createdAt: '2026-03-15T00:00:00Z' },
-    { id: 'acc-7', type: 'payable', description: 'Salário Março', counterparty: 'Funcionários', value: 28000, paid: 28000, dueDate: '2026-03-20', status: 'paid', category: 'salary', createdAt: '2026-03-01T00:00:00Z' },
-    { id: 'acc-8', type: 'payable', description: 'Software', counterparty: 'Clinxia', value: 497, paid: 0, dueDate: '2026-04-01', status: 'pending', category: 'software', createdAt: '2026-03-15T00:00:00Z' },
-  ]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -44,27 +23,28 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
     const today = new Date().toISOString().split('T')[0];
     return accounts.map(a => ({
       ...a,
-      status: a.status !== 'paid' && a.dueDate < today && a.paid < a.value ? 'overdue' as const : a.status
+      status: a.status !== 'paid' && a.due_date < today && a.paid < a.value ? 'overdue' as AccountStatus : a.status
     })).filter(a => {
+      if (clinicId && a.clinic_id !== clinicId) return false;
       if (a.type !== activeTab) return false;
       if (filterStatus !== 'all' && a.status !== filterStatus) return false;
       return true;
     });
-  }, [accounts, activeTab, filterStatus]);
+  }, [accounts, activeTab, filterStatus, clinicId]);
 
   const summary = useMemo(() => {
-    const items = accounts.filter(a => a.type === activeTab);
+    const items = accounts.filter(a => a.type === activeTab && (!clinicId || a.clinic_id === clinicId));
     const total = items.reduce((s, a) => s + a.value, 0);
     const paid = items.filter(a => a.status === 'paid').reduce((s, a) => s + a.paid, 0);
     const pending = items.filter(a => a.status === 'pending').reduce((s, a) => s + (a.value - a.paid), 0);
     const partial = items.filter(a => a.status === 'partial').reduce((s, a) => s + (a.value - a.paid), 0);
     const overdue = items.filter(a => a.status === 'overdue').reduce((s, a) => s + (a.value - a.paid), 0);
     return { total, paid, pending, partial, overdue };
-  }, [accounts, activeTab]);
+  }, [accounts, activeTab, clinicId]);
 
   const openNew = () => {
     setEditing(null);
-    setForm({ type: activeTab, description: '', counterparty: '', value: 0, paid: 0, dueDate: '', status: 'pending', category: activeTab === 'receivable' ? 'consultation' : 'rent' });
+    setForm({ type: activeTab, description: '', counterparty: '', value: 0, paid: 0, due_date: '', status: 'pending', category: activeTab === 'receivable' ? 'consultation' : 'rent' });
     setShowModal(true);
   };
 
@@ -77,28 +57,26 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
   const handleSave = () => {
     if (!form.description?.trim()) { toast('Descrição é obrigatória.', 'error'); return; }
     if (!form.value || form.value <= 0) { toast('Valor deve ser maior que zero.', 'error'); return; }
-    if (!form.dueDate) { toast('Data de vencimento é obrigatória.', 'error'); return; }
+    if (!form.due_date) { toast('Data de vencimento é obrigatória.', 'error'); return; }
 
     const paid = form.paid || 0;
-    const status: Account['status'] = paid >= (form.value || 0) ? 'paid' : paid > 0 ? 'partial' : 'pending';
+    const status: AccountStatus = paid >= (form.value || 0) ? 'paid' : paid > 0 ? 'partial' : 'pending';
 
     if (editing) {
-      setAccounts(prev => prev.map(a => a.id === editing.id ? { ...a, ...form, status } as Account : a));
+      updateAccount(editing.id, { ...form, status });
       toast('Conta atualizada!', 'success');
     } else {
-      const newAcc: Account = {
-        id: uid(),
+      addAccount({
         type: form.type || activeTab,
         description: form.description!,
         counterparty: form.counterparty || '',
         value: form.value!,
         paid: paid,
-        dueDate: form.dueDate!,
+        due_date: form.due_date!,
         status,
         category: form.category || 'other',
-        createdAt: new Date().toISOString(),
-      };
-      setAccounts(prev => [...prev, newAcc]);
+        clinic_id: clinicId || '',
+      });
       toast('Conta cadastrada!', 'success');
     }
     setShowModal(false);
@@ -106,14 +84,14 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
 
   const handleDelete = () => {
     if (deleteId) {
-      setAccounts(prev => prev.filter(a => a.id !== deleteId));
+      deleteAccount(deleteId);
       toast('Conta removida.', 'success');
       setDeleteId(null);
     }
   };
 
   const markAsPaid = (id: string) => {
-    setAccounts(prev => prev.map(a => a.id === id ? { ...a, paid: a.value, status: 'paid' as const } : a));
+    markAccountPaid(id);
     toast('Conta marcada como paga!', 'success');
   };
 
@@ -216,7 +194,7 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
                     <div className="text-xs text-brand-600">Pago: {formatCurrency(acc.paid)}</div>
                   )}
                 </td>
-                <td className="px-4 py-3 text-slate-600">{acc.dueDate.split('-').reverse().join('/')}</td>
+                <td className="px-4 py-3 text-slate-600">{acc.due_date.split('-').reverse().join('/')}</td>
                 <td className="px-4 py-3">
                   <span className={cn("inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold", getStatusColor(acc.status))}>
                     {getStatusLabel(acc.status)}
@@ -263,7 +241,7 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Vencimento *</label>
-              <input type="date" value={form.dueDate || ''} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" />
+              <input type="date" value={form.due_date || ''} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-sm" />
             </div>
           </div>
           <div>

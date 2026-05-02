@@ -900,6 +900,180 @@ async saveTransaction(transaction: any) {
       filters: `?id=eq.${id}`
     });
   },
+
+  // ---- Accounts (Contas a Pagar/Receber) ----
+  async loadAccounts(clinicId: string) {
+    const { data, error } = await supabaseFetch('accounts', {
+      filters: `?clinic_id=eq.${clinicId}&deleted_at=is.null&order=due_date.asc`
+    });
+    if (error || !data) return [];
+    return data.map((a: any) => ({
+      id: a.id,
+      clinic_id: a.clinic_id,
+      type: a.type,
+      description: a.description || '',
+      counterparty: a.counterparty || '',
+      category: a.category || 'other',
+      value: a.value || 0,
+      paid: a.paid || 0,
+      due_date: a.due_date || '',
+      status: a.status || 'pending',
+      transaction_id: a.transaction_id,
+      recurrence: a.recurrence || 'none',
+      notes: a.notes,
+      created_at: a.created_at,
+      updated_at: a.updated_at,
+    }));
+  },
+
+  async saveAccount(account: any) {
+    return supabaseFetch('accounts', {
+      method: 'POST',
+      body: {
+        id: account.id,
+        clinic_id: getClinicId(account.clinic_id),
+        type: account.type,
+        description: account.description,
+        counterparty: account.counterparty || null,
+        category: account.category || null,
+        value: account.value || 0,
+        paid: account.paid || 0,
+        due_date: account.due_date,
+        status: account.status || 'pending',
+        transaction_id: account.transaction_id || null,
+        recurrence: account.recurrence || 'none',
+        notes: account.notes || null,
+      },
+    });
+  },
+
+  async updateAccount(id: string, data: any) {
+    const body: any = {};
+    if (data.description !== undefined) body.description = data.description;
+    if (data.counterparty !== undefined) body.counterparty = data.counterparty;
+    if (data.category !== undefined) body.category = data.category;
+    if (data.value !== undefined) body.value = data.value;
+    if (data.paid !== undefined) body.paid = data.paid;
+    if (data.due_date !== undefined) body.due_date = data.due_date;
+    if (data.status !== undefined) body.status = data.status;
+    if (data.notes !== undefined) body.notes = data.notes;
+    body.updated_at = new Date().toISOString();
+    return supabaseFetch(`accounts?id=eq.${id}`, { method: 'PATCH', body });
+  },
+
+  async deleteAccount(id: string) {
+    return supabaseFetch(`accounts?id=eq.${id}`, {
+      method: 'PATCH',
+      body: { deleted_at: new Date().toISOString() },
+    });
+  },
+
+  // ---- Invoices (Notas Fiscais) ----
+  async loadInvoices(clinicId: string) {
+    const { data, error } = await supabaseFetch('invoices', {
+      filters: `?clinic_id=eq.${clinicId}&deleted_at=is.null&order=created_at.desc`
+    });
+    if (error || !data) return [];
+    return data.map((i: any) => ({
+      id: i.id,
+      clinic_id: i.clinic_id,
+      transaction_id: i.transaction_id,
+      number: i.number || '',
+      serie: i.serie || '1',
+      access_key: i.access_key || '',
+      customer_name: i.customer_name || '',
+      customer_doc: i.customer_doc || '',
+      value: i.value || 0,
+      status: i.status || 'pending',
+      protocol: i.protocol,
+      xml_url: i.xml_url,
+      pdf_url: i.pdf_url,
+      reference: i.reference,
+      issue_date: i.issue_date || '',
+      items: i.items || [],
+      created_at: i.created_at,
+    }));
+  },
+
+  async saveInvoice(invoice: any) {
+    return supabaseFetch('invoices', {
+      method: 'POST',
+      body: {
+        id: invoice.id,
+        clinic_id: getClinicId(invoice.clinic_id),
+        transaction_id: invoice.transaction_id || null,
+        number: invoice.number,
+        serie: invoice.serie || '1',
+        access_key: invoice.access_key || null,
+        customer_name: invoice.customer_name,
+        customer_doc: invoice.customer_doc || null,
+        value: invoice.value || 0,
+        status: invoice.status || 'pending',
+        protocol: invoice.protocol || null,
+        xml_url: invoice.xml_url || null,
+        pdf_url: invoice.pdf_url || null,
+        reference: invoice.reference || null,
+        issue_date: invoice.issue_date || null,
+        items: invoice.items || [],
+      },
+    });
+  },
+
+  async updateInvoice(id: string, data: any) {
+    const body: any = {};
+    if (data.status !== undefined) body.status = data.status;
+    if (data.access_key !== undefined) body.access_key = data.access_key;
+    if (data.protocol !== undefined) body.protocol = data.protocol;
+    if (data.xml_url !== undefined) body.xml_url = data.xml_url;
+    if (data.pdf_url !== undefined) body.pdf_url = data.pdf_url;
+    if (data.reference !== undefined) body.reference = data.reference;
+    return supabaseFetch(`invoices?id=eq.${id}`, { method: 'PATCH', body });
+  },
+
+  async deleteInvoice(id: string) {
+    return supabaseFetch(`invoices?id=eq.${id}`, {
+      method: 'PATCH',
+      body: { deleted_at: new Date().toISOString() },
+    });
+  },
+
+  // ---- Financial Categories ----
+  async loadFinancialCategories(clinicId: string) {
+    const { data, error } = await supabaseFetch('financial_categories', {
+      filters: `?clinic_id=eq.${clinicId}&order=name.asc`
+    });
+    if (error || !data) return [];
+    return data.map((c: any) => ({
+      id: c.id,
+      clinic_id: c.clinic_id,
+      name: c.name,
+      type: c.type,
+      parent_id: c.parent_id,
+      color: c.color,
+      icon: c.icon,
+      active: c.active,
+    }));
+  },
+
+  async saveFinancialCategory(cat: any) {
+    return supabaseFetch('financial_categories', {
+      method: 'POST',
+      body: {
+        id: cat.id,
+        clinic_id: getClinicId(cat.clinic_id),
+        name: cat.name,
+        type: cat.type,
+        parent_id: cat.parent_id || null,
+        color: cat.color || null,
+        icon: cat.icon || null,
+        active: cat.active ?? true,
+      },
+    });
+  },
+
+  async deleteFinancialCategory(id: string) {
+    return supabaseFetch(`financial_categories?id=eq.${id}`, { method: 'DELETE' });
+  },
 };
 
 console.log('[SupabaseSync] Módulo carregado, isConfigured:', isConfigured);

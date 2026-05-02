@@ -1,39 +1,23 @@
 import { useState, useMemo, useEffect } from 'react';
 import { FileText, Plus, Eye, Check, XCircle, Save, Trash2, Edit3, Download, ExternalLink, AlertTriangle } from 'lucide-react';
-import { cn, uid, formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
+import { useClinicStore } from '@/stores/clinicStore';
 import { toast } from '@/hooks/useShared';
 import { Modal, ConfirmDialog, EmptyState } from '@/components/shared';
-import { emitirNFe, cancelarNFe, consultarNFe, isNFeConfigured, loadNFeConfig, type NFeEmissao, type NFeDestinatario, type NFeItem, type NFeResponse } from '@/services/nfe/nfeService';
+import { emitirNFe, cancelarNFe, consultarNFe, isNFeConfigured, loadNFeConfig, type NFeEmissao, type NFeDestinatario, type NFeItem } from '@/services/nfe/nfeService';
+import type { Invoice, InvoiceStatus } from '@/types/index';
 
 interface NFePanelProps {
   clinicId?: string;
 }
 
-interface NFe {
-  id: string;
-  referencia?: string;
-  number: string;
-  serie: string;
-  key: string;
-  customer: string;
-  cpfCnpj: string;
-  value: number;
-  status: 'pending' | 'authorized' | 'cancelled' | 'processing' | 'rejected';
-  date: string;
-  authorizationCode: string | null;
-  protocolo?: string;
-  xmlUrl?: string;
-  pdfUrl?: string;
-  createdAt: string;
-}
-
 export function NFePanel({ clinicId }: NFePanelProps) {
-  const [invoices, setInvoices] = useState<NFe[]>([]);
+  const { invoices, addInvoice, updateInvoice, deleteInvoice } = useClinicStore();
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<NFe | null>(null);
+  const [editing, setEditing] = useState<Invoice | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [emitindo, setEmitindo] = useState(false);
-  const [form, setForm] = useState<Partial<NFe>>({});
+  const [form, setForm] = useState<Partial<Invoice>>({});
   const [itensForm, setItensForm] = useState<NFeItem[]>([{ codigo: '001', descricao: '', ncm: '96190000', cfop: '5102', unidade: 'UN', quantidade: 1, valorUnitario: 0, valorTotal: 0 }]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [nfeConfigured, setNfeConfigured] = useState(false);
@@ -42,37 +26,41 @@ export function NFePanel({ clinicId }: NFePanelProps) {
     setNfeConfigured(isNFeConfigured());
   }, []);
 
-  const saveNfes = (nfes: NFe[]) => {
-    setInvoices(nfes);
-  };
-
   const filtered = useMemo(() => {
-    if (filterStatus === 'all') return invoices;
-    return invoices.filter(i => i.status === filterStatus);
-  }, [invoices, filterStatus]);
+    let filteredInvoices = invoices;
+    if (clinicId) {
+      filteredInvoices = invoices.filter(i => i.clinic_id === clinicId);
+    }
+    if (filterStatus === 'all') return filteredInvoices;
+    return filteredInvoices.filter(i => i.status === filterStatus);
+  }, [invoices, filterStatus, clinicId]);
 
-  const stats = useMemo(() => ({
-    total: invoices.length,
-    authorized: invoices.filter(i => i.status === 'authorized').length,
-    pending: invoices.filter(i => i.status === 'pending').length,
-    processing: invoices.filter(i => i.status === 'processing').length,
-    cancelled: invoices.filter(i => i.status === 'cancelled').length,
-    totalValue: invoices.filter(i => i.status === 'authorized').reduce((s, i) => s + i.value, 0),
-  }), [invoices]);
+  const stats = useMemo(() => {
+    const relevantInvoices = clinicId ? invoices.filter(i => i.clinic_id === clinicId) : invoices;
+    return {
+      total: relevantInvoices.length,
+      authorized: relevantInvoices.filter(i => i.status === 'authorized').length,
+      pending: relevantInvoices.filter(i => i.status === 'pending').length,
+      processing: relevantInvoices.filter(i => i.status === 'processing').length,
+      cancelled: relevantInvoices.filter(i => i.status === 'cancelled').length,
+      totalValue: relevantInvoices.filter(i => i.status === 'authorized').reduce((s, i) => s + i.value, 0),
+    };
+  }, [invoices, clinicId]);
 
   const nextNumber = useMemo(() => {
-    const maxNum = invoices.reduce((max, i) => Math.max(max, parseInt(i.number) || 0), 0);
+    const relevantInvoices = clinicId ? invoices.filter(i => i.clinic_id === clinicId) : invoices;
+    const maxNum = relevantInvoices.reduce((max, i) => Math.max(max, parseInt(i.number) || 0), 0);
     return String(maxNum + 1).padStart(3, '0');
-  }, [invoices]);
+  }, [invoices, clinicId]);
 
   const openNew = () => {
     setEditing(null);
-    setForm({ number: nextNumber, serie: '1', customer: '', cpfCnpj: '', date: new Date().toISOString().split('T')[0] });
+    setForm({ number: nextNumber, serie: '1', customer_name: '', customer_doc: '', issue_date: new Date().toISOString().split('T')[0] });
     setItensForm([{ codigo: '001', descricao: '', ncm: '96190000', cfop: '5102', unidade: 'UN', quantidade: 1, valorUnitario: 0, valorTotal: 0 }]);
     setShowModal(true);
   };
 
-  const openEdit = (nfe: NFe) => {
+  const openEdit = (nfe: Invoice) => {
     setEditing(nfe);
     setForm({ ...nfe });
     setShowModal(true);
@@ -104,47 +92,44 @@ export function NFePanel({ clinicId }: NFePanelProps) {
       toast('Configure a NFe em Configurações > NFe antes de emitir.', 'error');
       return;
     }
-    if (!form.customer?.trim()) { toast('Cliente é obrigatório.', 'error'); return; }
-    if (!form.cpfCnpj?.trim()) { toast('CPF/CNPJ é obrigatório.', 'error'); return; }
+    if (!form.customer_name?.trim()) { toast('Cliente é obrigatório.', 'error'); return; }
+    if (!form.customer_doc?.trim()) { toast('CPF/CNPJ é obrigatório.', 'error'); return; }
 
     const itensValidos = itensForm.filter(i => i.descricao && i.valorTotal > 0);
     if (itensValidos.length === 0) { toast('Adicione pelo menos um item válido.', 'error'); return; }
 
     setEmitindo(true);
 
-    const isCnpj = form.cpfCnpj.replace(/\D/g, '').length > 11;
+    const isCnpj = form.customer_doc.replace(/\D/g, '').length > 11;
     const destinatario: NFeDestinatario = isCnpj
-      ? { cnpj: form.cpfCnpj, razaoSocial: form.customer }
-      : { cpf: form.cpfCnpj, razaoSocial: form.customer };
+      ? { cnpj: form.customer_doc, razaoSocial: form.customer_name }
+      : { cpf: form.customer_doc, razaoSocial: form.customer_name };
 
     const emissao: NFeEmissao = {
-      numero: form.number,
-      serie: form.serie,
+      numero: form.number!,
+      serie: form.serie!,
       naturezaOperacao: 'Venda de serviços',
       destinatario,
       itens: itensValidos,
-      observacoes: form.customer,
+      observacoes: form.customer_name,
     };
 
     const config = loadNFeConfig();
 
     if (!config || config.environment === 'homologacao') {
-      const nfe: NFe = {
-        id: uid(),
-        referencia: `demo-${Date.now()}`,
+      addInvoice({
+        reference: `demo-${Date.now()}`,
         number: form.number || nextNumber,
         serie: form.serie || '1',
-        key: Array.from({ length: 44 }, () => Math.floor(Math.random() * 10)).join(''),
-        customer: form.customer!,
-        cpfCnpj: form.cpfCnpj!,
+        access_key: Array.from({ length: 44 }, () => Math.floor(Math.random() * 10)).join(''),
+        customer_name: form.customer_name!,
+        customer_doc: form.customer_doc!,
         value: itensValidos.reduce((s, i) => s + i.valorTotal, 0),
         status: 'authorized',
-        date: form.date || new Date().toISOString().split('T')[0],
-        authorizationCode: Array.from({ length: 21 }, () => Math.floor(Math.random() * 10)).join(''),
-        protocolo: Array.from({ length: 15 }, () => Math.floor(Math.random() * 10)).join(''),
-        createdAt: new Date().toISOString(),
-      };
-      saveNfes([...invoices, nfe]);
+        issue_date: form.issue_date || new Date().toISOString().split('T')[0],
+        protocol: Array.from({ length: 15 }, () => Math.floor(Math.random() * 10)).join(''),
+        clinic_id: clinicId || '',
+      });
       toast('NFe emitida com sucesso! (Modo homologação)', 'success');
       setShowModal(false);
       setEmitindo(false);
@@ -154,42 +139,36 @@ export function NFePanel({ clinicId }: NFePanelProps) {
     const result = await emitirNFe(emissao);
 
     if (result.sucesso) {
-      const nfe: NFe = {
-        id: uid(),
-        referencia: result.referencia,
+      addInvoice({
+        reference: result.referencia,
         number: result.numero || form.number || nextNumber,
         serie: result.serie || form.serie || '1',
-        key: result.chave || '',
-        customer: form.customer!,
-        cpfCnpj: form.cpfCnpj!,
+        access_key: result.chave || '',
+        customer_name: form.customer_name!,
+        customer_doc: form.customer_doc!,
         value: itensValidos.reduce((s, i) => s + i.valorTotal, 0),
         status: 'authorized',
-        date: form.date || new Date().toISOString().split('T')[0],
-        authorizationCode: result.codigoAutorizacao || null,
-        protocolo: result.protocolo,
-        xmlUrl: result.xmlUrl,
-        pdfUrl: result.pdfUrl,
-        createdAt: new Date().toISOString(),
-      };
-      saveNfes([...invoices, nfe]);
+        issue_date: form.issue_date || new Date().toISOString().split('T')[0],
+        protocol: result.protocolo || result.codigoAutorizacao || '',
+        xml_url: result.xmlUrl,
+        pdf_url: result.pdfUrl,
+        clinic_id: clinicId || '',
+      });
       toast('NFe autorizada pela SEFAZ!', 'success');
       setShowModal(false);
     } else if (result.status === 'processando') {
-      const nfe: NFe = {
-        id: uid(),
-        referencia: result.referencia,
+      addInvoice({
+        reference: result.referencia,
         number: form.number || nextNumber,
         serie: form.serie || '1',
-        key: '',
-        customer: form.customer!,
-        cpfCnpj: form.cpfCnpj!,
+        access_key: '',
+        customer_name: form.customer_name!,
+        customer_doc: form.customer_doc!,
         value: itensValidos.reduce((s, i) => s + i.valorTotal, 0),
         status: 'processing',
-        date: form.date || new Date().toISOString().split('T')[0],
-        authorizationCode: null,
-        createdAt: new Date().toISOString(),
-      };
-      saveNfes([...invoices, nfe]);
+        issue_date: form.issue_date || new Date().toISOString().split('T')[0],
+        clinic_id: clinicId || '',
+      });
       toast('NFe em processamento. Consulte em alguns segundos.', 'info');
       setShowModal(false);
     } else {
@@ -198,35 +177,33 @@ export function NFePanel({ clinicId }: NFePanelProps) {
     setEmitindo(false);
   };
 
-  const handleConsultar = async (nfe: NFe) => {
-    if (!nfe.referencia) return;
-    const result = await consultarNFe(nfe.referencia);
+  const handleConsultar = async (nfe: Invoice) => {
+    if (!nfe.reference) return;
+    const result = await consultarNFe(nfe.reference);
     if (result.sucesso) {
-      saveNfes(invoices.map(i => i.id === nfe.id ? {
-        ...i,
+      updateInvoice(nfe.id, {
         status: 'authorized',
-        key: result.chave || i.key,
-        authorizationCode: result.codigoAutorizacao || i.authorizationCode,
-        protocolo: result.protocolo || i.protocolo,
-        xmlUrl: result.xmlUrl || i.xmlUrl,
-        pdfUrl: result.pdfUrl || i.pdfUrl,
-      } : i));
+        access_key: result.chave || nfe.access_key,
+        protocol: result.protocolo || result.codigoAutorizacao || nfe.protocol,
+        xml_url: result.xmlUrl || nfe.xml_url,
+        pdf_url: result.pdfUrl || nfe.pdf_url,
+      });
       toast('NFe atualizada!', 'success');
     } else {
       toast(`Status: ${result.status} - ${result.mensagem || ''}`, 'info');
     }
   };
 
-  const handleCancelar = async (nfe: NFe) => {
-    if (!nfe.referencia && !nfe.key) {
-      saveNfes(invoices.map(i => i.id === nfe.id ? { ...i, status: 'cancelled' } : i));
+  const handleCancelar = async (nfe: Invoice) => {
+    if (!nfe.reference && !nfe.access_key) {
+      updateInvoice(nfe.id, { status: 'cancelled' });
       toast('NFe cancelada.', 'success');
       return;
     }
     const justificativa = 'Cancelamento solicitado pelo emitente';
-    const result = await cancelarNFe(nfe.referencia || nfe.key, justificativa);
+    const result = await cancelarNFe(nfe.reference || nfe.access_key, justificativa);
     if (result.sucesso) {
-      saveNfes(invoices.map(i => i.id === nfe.id ? { ...i, status: 'cancelled' } : i));
+      updateInvoice(nfe.id, { status: 'cancelled' });
       toast('NFe cancelada junto à SEFAZ.', 'success');
     } else {
       toast(`Erro ao cancelar: ${result.mensagem}`, 'error');
@@ -235,7 +212,7 @@ export function NFePanel({ clinicId }: NFePanelProps) {
 
   const handleDelete = () => {
     if (deleteId) {
-      saveNfes(invoices.filter(i => i.id !== deleteId));
+      deleteInvoice(deleteId);
       toast('NFe removida.', 'success');
       setDeleteId(null);
     }
@@ -342,16 +319,16 @@ export function NFePanel({ clinicId }: NFePanelProps) {
                   <div className="text-xs text-slate-400">Série {inv.serie}</div>
                 </td>
                 <td className="px-4 py-3">
-                  {inv.key ? (
-                    <span className="font-mono text-xs text-slate-500">{inv.key.slice(0, 10)}...{inv.key.slice(-6)}</span>
+                  {inv.access_key ? (
+                    <span className="font-mono text-xs text-slate-500">{inv.access_key.slice(0, 10)}...{inv.access_key.slice(-6)}</span>
                   ) : <span className="text-xs text-slate-400">-</span>}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="font-medium text-slate-900">{inv.customer}</div>
-                  <div className="text-xs text-slate-400">{inv.cpfCnpj}</div>
+                  <div className="font-medium text-slate-900">{inv.customer_name}</div>
+                  <div className="text-xs text-slate-400">{inv.customer_doc}</div>
                 </td>
                 <td className="px-4 py-3 text-right font-semibold text-slate-900">{formatCurrency(inv.value)}</td>
-                <td className="px-4 py-3 text-slate-600">{inv.date.split('-').reverse().join('/')}</td>
+                <td className="px-4 py-3 text-slate-600">{inv.issue_date.split('-').reverse().join('/')}</td>
                 <td className="px-4 py-3">
                   <span className={cn("inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold", getStatusColor(inv.status))}>
                     {getStatusLabel(inv.status)}
@@ -369,13 +346,13 @@ export function NFePanel({ clinicId }: NFePanelProps) {
                         <XCircle className="w-4 h-4" />
                       </button>
                     )}
-                    {inv.pdfUrl && (
-                      <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors" title="Ver DANFE">
+                    {inv.pdf_url && (
+                      <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors" title="Ver DANFE">
                         <ExternalLink className="w-4 h-4" />
                       </a>
                     )}
-                    {inv.xmlUrl && (
-                      <a href={inv.xmlUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Baixar XML">
+                    {inv.xml_url && (
+                      <a href={inv.xml_url} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Baixar XML">
                         <Download className="w-4 h-4" />
                       </a>
                     )}
@@ -409,11 +386,11 @@ export function NFePanel({ clinicId }: NFePanelProps) {
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Cliente *</label>
-            <input type="text" value={form.customer || ''} onChange={e => setForm(f => ({ ...f, customer: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="Nome ou Razão Social" />
+            <input type="text" value={form.customer_name || ''} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="Nome ou Razão Social" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">CPF ou CNPJ *</label>
-            <input type="text" value={form.cpfCnpj || ''} onChange={e => setForm(f => ({ ...f, cpfCnpj: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="000.000.000-00 ou 00.000.000/0000-00" />
+            <input type="text" value={form.customer_doc || ''} onChange={e => setForm(f => ({ ...f, customer_doc: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none text-sm" placeholder="000.000.000-00 ou 00.000.000/0000-00" />
           </div>
 
           <div>
