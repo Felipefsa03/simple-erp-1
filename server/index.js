@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import fs from "fs";
+import { checkBannedIP, createStrictLimiter, loginSlowDown } from "./firewall.js";
 
 import path from "path";
 import pino from "pino";
@@ -995,22 +996,28 @@ app.use(
   }),
 );
 
-// Rate limiting: 500 requests per 15 minutes per IP (increased for health checks)
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 500,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    ok: false,
-    error: "Muitas requisições. Tente novamente em alguns minutos.",
-  },
-  skip: (req) => {
-    const path = req.path || "";
-    return path.startsWith("/health");
-  },
+// Security Firewall & Auto-Protection
+app.use(async (req, res, next) => {
+  await checkBannedIP(req, res, next, supabaseAdmin);
 });
+
+const limiter = createStrictLimiter(supabaseAdmin, async (msg) => {
+  try {
+    const SUPERADMIN_PHONE = process.env.SUPERADMIN_PHONE || "5511999999999";
+    const connectedSocket = Object.values(whatsappSockets).find(s => s?.user);
+    if (connectedSocket) {
+      const jid = `${SUPERADMIN_PHONE.replace(/\D/g, '')}@s.whatsapp.net`;
+      await connectedSocket.sendMessage(jid, { text: msg });
+    }
+  } catch (err) {
+    console.error("[SECURITY] Failed to send WhatsApp alert:", err);
+  }
+});
+
+// Protect auth routes with slow down mechanism to frustrate brute force
+app.use("/api/auth/login", loginSlowDown);
+app.use("/api/auth/verify-2fa", loginSlowDown);
+
 app.use("/api/", limiter);
 
 app.use(express.json({ limit: "10mb" }));

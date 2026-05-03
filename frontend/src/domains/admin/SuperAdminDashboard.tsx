@@ -149,6 +149,9 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   const [securityFilter, setSecurityFilter] = useState('all');
   const [systemMetrics, setSystemMetrics] = useState<any>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [bannedIPs, setBannedIPs] = useState<any[]>([]);
+  const [securityLogs, setSecurityLogs] = useState<any[]>([]);
+  const [securityDataLoading, setSecurityDataLoading] = useState(false);
 
   // Fetch real clinics directly from Supabase
   const fetchRealClinics = React.useCallback(async () => {
@@ -239,6 +242,39 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     }
   }, [activeTab, fetchRealClinics]);
 
+  const fetchSecurityData = React.useCallback(async () => {
+    setSecurityDataLoading(true);
+    try {
+      const token = SupabaseSync.getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_PUBLISHABLE_KEY,
+        'Authorization': `Bearer ${token || SUPABASE_PUBLISHABLE_KEY}`,
+      };
+      const baseUrl = `${SUPABASE_URL}/rest/v1`;
+
+      // Fetch banned IPs
+      const bannedRes = await fetch(`${baseUrl}/banned_ips?select=*`, { headers });
+      if (bannedRes.ok) setBannedIPs(await bannedRes.json());
+
+      // Fetch security logs
+      const logsRes = await fetch(`${baseUrl}/security_logs?select=*&order=created_at.desc&limit=50`, { headers });
+      if (logsRes.ok) setSecurityLogs(await logsRes.json());
+    } catch (e) {
+      console.error('[SuperAdmin] Failed to fetch security data:', e);
+    } finally {
+      setSecurityDataLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (activeTab === 'seguranca') {
+      fetchSecurityData();
+      const interval = setInterval(fetchSecurityData, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, fetchSecurityData]);
+
   // Fetch system metrics
   React.useEffect(() => {
     let intervalId: any;
@@ -320,6 +356,27 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
       alert('Erro de conexão: ' + e.message);
     } finally {
       setPaymentProcessing(false);
+    }
+  };
+
+  const handleUnbanIP = async (ip: string) => {
+    try {
+      const token = SupabaseSync.getAuthToken();
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/banned_ips?ip_address=eq.${ip}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${token || SUPABASE_PUBLISHABLE_KEY}`,
+        }
+      });
+      if (res.ok) {
+        setBannedIPs(prev => prev.filter(b => b.ip_address !== ip));
+      } else {
+        alert('Falha ao desbanir IP.');
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -1240,95 +1297,70 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sessões Ativas</p>
-              <p className="text-2xl font-bold text-brand-600 mt-1">{DEMO_SESSIONS.length}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ataques Mitigados</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{securityLogs.length}</p>
             </div>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tentativas Falhas (24h)</p>
-              <p className="text-2xl font-bold text-red-600 mt-1">{DEMO_SECURITY_LOGS.filter(l => l.action === 'LOGIN_FAILED').length}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">IPs Banidos (Defesa Ativa)</p>
+              <p className="text-2xl font-bold text-red-600 mt-1">{bannedIPs.length}</p>
             </div>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Política de Senhas</p>
-              <p className="text-sm font-bold text-emerald-600 mt-1 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" />Ativa — Mín. 8 caracteres</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status do Escudo</p>
+              <p className="text-sm font-bold text-emerald-600 mt-1 flex items-center gap-1"><Shield className="w-4 h-4" />Ativo e Monitorando</p>
             </div>
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Globe className="w-5 h-5 text-brand-500" />Sessões Ativas</h2>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Ban className="w-5 h-5 text-red-500" />IPs Banidos Automaticamente</h2>
             </div>
             <div className="divide-y divide-slate-100">
-              {DEMO_SESSIONS.map(session => (
-                <div key={session.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50/50">
+              {bannedIPs.map(b => (
+                <div key={b.ip_address} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50/50">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-500 rounded-full flex items-center justify-center text-white font-bold text-sm">{session.user_name.charAt(0)}</div>
+                    <div className="w-10 h-10 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-bold text-sm"><Shield className="w-4 h-4" /></div>
                     <div>
-                      <p className="text-sm font-bold text-slate-900">{session.user_name}</p>
-                      <p className="text-xs text-slate-500">{session.clinic_name} • {session.device}</p>
+                      <p className="text-sm font-bold text-slate-900">{b.ip_address}</p>
+                      <p className="text-xs text-slate-500">Motivo: {b.reason}</p>
                     </div>
                   </div>
                   <div className="text-right flex items-center gap-4">
                     <div>
-                      <p className="text-xs text-slate-500">{session.ip_address}</p>
-                      <p className="text-[10px] text-slate-400 flex items-center gap-1 justify-end"><Clock className="w-3 h-3" />{new Date(session.last_activity).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="text-[10px] text-slate-400">Expira em: {new Date(b.expires_at).toLocaleString('pt-BR')}</p>
                     </div>
-                    <button className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Encerrar sessão"><Ban className="w-4 h-4" /></button>
+                    <button onClick={() => handleUnbanIP(b.ip_address)} className="px-3 py-1 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg">Desbanir</button>
                   </div>
                 </div>
               ))}
+              {bannedIPs.length === 0 && (
+                <div className="p-6 text-center text-slate-500 text-sm">Nenhum IP banido no momento.</div>
+              )}
             </div>
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileText className="w-5 h-5 text-brand-500" />Logs de Auditoria</h2>
-              <div className="flex gap-2">
-                {['all', 'LOGIN', 'LOGIN_FAILED', 'SETTINGS_CHANGE', 'FINALIZE'].map(f => (
-                  <button key={f} onClick={() => setSecurityFilter(f)} className={cn("px-3 py-1 rounded-lg text-xs font-bold transition-all", securityFilter === f ? "bg-brand-50 text-brand-600" : "text-slate-400 hover:text-slate-600")}>
-                    {f === 'all' ? 'Todos' : actionLabels[f] || f}
-                  </button>
-                ))}
-              </div>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileText className="w-5 h-5 text-brand-500" />Logs de Segurança e Ataques</h2>
+              <button onClick={fetchSecurityData} className="text-sm font-bold text-brand-600 flex items-center gap-1">
+                <RefreshCw className={cn("w-3.5 h-3.5", securityDataLoading && "animate-spin")} /> Atualizar
+              </button>
             </div>
             <div className="divide-y divide-slate-50">
-              {filteredLogs.map(log => (
-                <div key={log.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-50/50">
-                  <div className="flex items-center gap-3">
-                    <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap", actionColors[log.action] || 'bg-slate-100 text-slate-600')}>
-                      {actionLabels[log.action] || log.action}
-                    </span>
-                    <div>
-                      <p className="text-sm text-slate-700">{log.details}</p>
-                      <p className="text-xs text-slate-400">{log.user_name} • {log.ip_address}</p>
-                    </div>
+              {securityLogs.map(log => (
+                <div key={log.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-slate-50">
+                  <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap self-start", log.severity === 'high' || log.severity === 'critical' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700')}>
+                    {log.event_type}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-700 font-medium">{log.action_taken ? `Ação: ${log.action_taken}` : log.endpoint || 'Desconhecido'}</p>
+                    <p className="text-[10px] text-slate-400">IP: {log.ip_address} • Payload: {JSON.stringify(log.payload)}</p>
                   </div>
-                  <p className="text-xs text-slate-400 whitespace-nowrap">{new Date(log.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-xs text-slate-400 whitespace-nowrap sm:self-center">{new Date(log.created_at).toLocaleString('pt-BR')}</p>
                 </div>
               ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-6"><Key className="w-5 h-5 text-brand-500" />Política de Senhas</h2>
-            <div className="space-y-4">
-              {[
-                { label: 'Comprimento mínimo', value: '8 caracteres', enabled: true },
-                { label: 'Exigir letra maiúscula', value: 'Obrigatório', enabled: true },
-                { label: 'Exigir número', value: 'Obrigatório', enabled: true },
-                { label: 'Exigir caractere especial', value: 'Opcional', enabled: false },
-                { label: 'Expiração de senha', value: '90 dias', enabled: true },
-                { label: 'Bloqueio após tentativas', value: '5 tentativas', enabled: true },
-              ].map(policy => (
-                <div key={policy.label} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{policy.label}</p>
-                    <p className="text-xs text-slate-500">{policy.value}</p>
-                  </div>
-                  <div className={cn("w-12 h-6 rounded-full transition-all relative", policy.enabled ? "bg-brand-500" : "bg-slate-200")}>
-                    <div className={cn("w-5 h-5 rounded-full bg-white shadow-sm absolute top-0.5 transition-all", policy.enabled ? "left-6" : "left-0.5")} />
-                  </div>
-                </div>
-              ))}
+              {securityLogs.length === 0 && (
+                <div className="p-8 text-center text-slate-400">Nenhum evento de segurança registrado recentemente.</div>
+              )}
             </div>
           </div>
         </motion.div>
