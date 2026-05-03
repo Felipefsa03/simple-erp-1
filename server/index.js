@@ -1446,6 +1446,7 @@ const publicPaths = [
   "/signup/init",
   "/signup/verify-phone",
   "/signup/complete",
+  "/signup/check-availability",
   "/signup/phone/send-code",
   "/signup/phone/verify-code",
   "/signup/provision",
