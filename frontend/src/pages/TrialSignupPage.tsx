@@ -15,6 +15,68 @@ const API_BASE = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_BASE_URL |
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const validateName = (name: string) => {
+  const cleanName = name.trim();
+  if (cleanName.length < 5) return false;
+  if (!cleanName.includes(' ')) return false;
+  const hasVowels = /[aeiouAEIOUáéíóúãõâêîôû]/.test(cleanName);
+  if (!hasVowels) return false;
+  if (/\d/.test(cleanName)) return false;
+  if (/(.)\1{3,}/.test(cleanName)) return false; 
+  return true;
+};
+
+const validateCPF = (cpf: string) => {
+  cpf = cpf.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  let sum = 0;
+  for (let i = 1; i <= 9; i++) sum += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+  let rest = (sum * 10) % 11;
+  if (rest === 10 || rest === 11) rest = 0;
+  if (rest !== parseInt(cpf.substring(9, 10))) return false;
+  sum = 0;
+  for (let i = 1; i <= 10; i++) sum += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+  rest = (sum * 10) % 11;
+  if (rest === 10 || rest === 11) rest = 0;
+  if (rest !== parseInt(cpf.substring(10, 11))) return false;
+  return true;
+};
+
+const validateCNPJ = (cnpj: string) => {
+  cnpj = cnpj.replace(/[^\d]+/g, '');
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+  let size = cnpj.length - 2;
+  let numbers = cnpj.substring(0, size);
+  const digits = cnpj.substring(size);
+  let sum = 0;
+  let pos = size - 7;
+  for (let i = size; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(size - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(0))) return false;
+  size += 1;
+  numbers = cnpj.substring(0, size);
+  sum = 0;
+  pos = size - 7;
+  for (let i = size; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(size - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(1))) return false;
+  return true;
+};
+
+const validateEmail = (email: string) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
+const validatePhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 11;
+};
 const TRIAL_FEATURES = [
   'Profissionais ilimitados',
   'Pacientes ilimitados',
@@ -93,6 +155,15 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
     if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.password) {
       setError('Preencha todos os campos obrigatórios.'); return false;
     }
+    if (!validateName(form.name)) {
+      setError('Por favor, informe seu nome completo e verdadeiro.'); return false;
+    }
+    if (!validateEmail(form.email)) {
+      setError('E-mail em formato inválido.'); return false;
+    }
+    if (!validatePhone(form.phone)) {
+      setError('Telefone inválido. Inclua o DDD (ex: 11 99999-9999).'); return false;
+    }
     if (form.password !== form.confirmPassword) {
       setError('As senhas não coincidem.'); return false;
     }
@@ -106,7 +177,40 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
     if (!form.clinicName.trim() || !form.clinicDoc.trim()) {
       setError('Preencha os dados da clínica.'); return false;
     }
+    if (form.docType === 'cpf' && !validateCPF(form.clinicDoc)) {
+      setError('CPF inválido. Por favor, verifique o documento.'); return false;
+    }
+    if (form.docType === 'cnpj' && !validateCNPJ(form.clinicDoc)) {
+      setError('CNPJ inválido. Por favor, verifique o documento.'); return false;
+    }
     return true;
+  };
+
+  const verifyAvailabilityAndProceed = async () => {
+    if (!validateStep2()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/signup/check-availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          phone: form.phone,
+          clinicDoc: form.clinicDoc,
+        }),
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        setError(data.error || 'Dados já cadastrados no sistema.');
+        return;
+      }
+      goToStep(3);
+    } catch (err) {
+      setError('Erro ao verificar disponibilidade. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSendPhoneCode = async () => {
@@ -269,7 +373,7 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
                   </div>
                   <div className="flex gap-3">
                     <button onClick={() => goToStep(1)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl">Voltar</button>
-                    <button onClick={() => { if (validateStep2()) goToStep(3); }} className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl">Próximo</button>
+                    <button onClick={verifyAvailabilityAndProceed} disabled={loading} className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl disabled:opacity-60">{loading ? 'Verificando...' : 'Próximo'}</button>
                   </div>
                 </div>
               )}

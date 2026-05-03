@@ -51,6 +51,70 @@ const DEFAULT_PLANS: PlanItem[] = [
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const validateName = (name: string) => {
+  const cleanName = name.trim();
+  if (cleanName.length < 5) return false;
+  if (!cleanName.includes(' ')) return false; // Needs at least First and Last name
+  const hasVowels = /[aeiouAEIOUáéíóúãõâêîôû]/.test(cleanName);
+  if (!hasVowels) return false;
+  if (/\d/.test(cleanName)) return false; // No numbers allowed in name
+  // Validate if it's just random repeated chars without sense (basic check)
+  if (/(.)\1{3,}/.test(cleanName)) return false; 
+  return true;
+};
+
+const validateCPF = (cpf: string) => {
+  cpf = cpf.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  let sum = 0;
+  for (let i = 1; i <= 9; i++) sum += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+  let rest = (sum * 10) % 11;
+  if (rest === 10 || rest === 11) rest = 0;
+  if (rest !== parseInt(cpf.substring(9, 10))) return false;
+  sum = 0;
+  for (let i = 1; i <= 10; i++) sum += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+  rest = (sum * 10) % 11;
+  if (rest === 10 || rest === 11) rest = 0;
+  if (rest !== parseInt(cpf.substring(10, 11))) return false;
+  return true;
+};
+
+const validateCNPJ = (cnpj: string) => {
+  cnpj = cnpj.replace(/[^\d]+/g, '');
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+  let size = cnpj.length - 2;
+  let numbers = cnpj.substring(0, size);
+  const digits = cnpj.substring(size);
+  let sum = 0;
+  let pos = size - 7;
+  for (let i = size; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(size - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  let result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(0))) return false;
+  size += 1;
+  numbers = cnpj.substring(0, size);
+  sum = 0;
+  pos = size - 7;
+  for (let i = size; i >= 1; i--) {
+    sum += parseInt(numbers.charAt(size - i)) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  result = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (result !== parseInt(digits.charAt(1))) return false;
+  return true;
+};
+
+const validateEmail = (email: string) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
+const validatePhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 11;
+};
+
 export function SignupPage({ onLoginClick }: SignupPageProps) {
   const { login } = useAuth();
   const [signupStep, setSignupStep] = useState<Step>(1);
@@ -260,11 +324,23 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
 
   const validateStep1 = () => {
     if (!signupForm.name.trim() || !signupForm.email.trim() || !signupForm.phone.trim() || !signupForm.password) {
-      setSignupError('Preencha todos os campos obrigatorios.');
+      setSignupError('Preencha todos os campos obrigatórios.');
+      return false;
+    }
+    if (!validateName(signupForm.name)) {
+      setSignupError('Por favor, informe seu nome completo e verdadeiro.');
+      return false;
+    }
+    if (!validateEmail(signupForm.email)) {
+      setSignupError('E-mail em formato inválido.');
+      return false;
+    }
+    if (!validatePhone(signupForm.phone)) {
+      setSignupError('Telefone inválido. Inclua o DDD (ex: 11 99999-9999).');
       return false;
     }
     if (signupForm.password !== signupForm.confirmPassword) {
-      setSignupError('As senhas nao coincidem.');
+      setSignupError('As senhas não coincidem.');
       return false;
     }
     if (signupForm.password.length < 6) {
@@ -276,10 +352,47 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
 
   const validateStep2 = () => {
     if (!signupForm.clinicName.trim() || !signupForm.clinicDoc.trim()) {
-      setSignupError('Preencha os dados da clinica.');
+      setSignupError('Preencha os dados da clínica.');
+      return false;
+    }
+    if (signupForm.docType === 'cpf' && !validateCPF(signupForm.clinicDoc)) {
+      setSignupError('CPF inválido. Por favor, verifique o documento.');
+      return false;
+    }
+    if (signupForm.docType === 'cnpj' && !validateCNPJ(signupForm.clinicDoc)) {
+      setSignupError('CNPJ inválido. Por favor, verifique o documento.');
       return false;
     }
     return true;
+  };
+
+  const verifyAvailabilityAndProceed = async () => {
+    if (!validateStep2()) return;
+    
+    setSignupLoading(true);
+    setSignupError('');
+    try {
+      const response = await fetch(`${API_BASE}/api/signup/check-availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: signupForm.email,
+          phone: signupForm.phone,
+          clinicDoc: signupForm.clinicDoc,
+        }),
+      });
+      const data = await response.json();
+      if (!data.ok) {
+        setSignupError(data.error || 'Dados já cadastrados no sistema.');
+        return;
+      }
+      // Se tudo estiver OK, avança pro passo de verificar telefone
+      goToStep(3);
+    } catch (err) {
+      setSignupError('Erro ao verificar disponibilidade. Tente novamente.');
+    } finally {
+      setSignupLoading(false);
+    }
   };
 
   const handleSendPhoneCode = async () => {
@@ -607,13 +720,11 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   <div className="flex gap-3">
                     <button onClick={() => goToStep(1)} className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl">Voltar</button>
                     <button
-                      onClick={() => {
-                        if (!validateStep2()) return;
-                        goToStep(3);
-                      }}
-                      className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl"
+                      onClick={verifyAvailabilityAndProceed}
+                      disabled={signupLoading}
+                      className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl disabled:opacity-60"
                     >
-                      Proximo
+                      {signupLoading ? 'Verificando...' : 'Próximo'}
                     </button>
                   </div>
                 </div>

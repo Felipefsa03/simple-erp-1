@@ -3540,6 +3540,60 @@ app.get("/api/system/signup-config", async (_req, res) => {
   }
 });
 
+app.post("/api/signup/check-availability", async (req, res) => {
+  try {
+    const { email, phone, clinicDoc } = req.body;
+    
+    // 1. Validar duplicidade de E-mail
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const { data: userByEmail } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('email', cleanEmail)
+        .limit(1);
+        
+      if (userByEmail && userByEmail.length > 0) {
+        return res.json({ ok: false, error: 'Este e-mail já está cadastrado. Faça login para continuar.' });
+      }
+    }
+    
+    // 2. Validar duplicidade de Telefone
+    if (phone) {
+      const cleanPhone = phone.replace(/\D/g, '');
+      const { data: userByPhone } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .like('phone', `%${cleanPhone}%`)
+        .limit(1);
+        
+      if (userByPhone && userByPhone.length > 0) {
+        return res.json({ ok: false, error: 'Este telefone já está associado a outra conta.' });
+      }
+    }
+    
+    // 3. Validar duplicidade de CPF/CNPJ (Clínica)
+    if (clinicDoc) {
+      const cleanDoc = clinicDoc.replace(/\D/g, '');
+      const { data: clinicByDoc } = await supabaseAdmin
+        .from('clinics')
+        .select('id')
+        .eq('document', cleanDoc)
+        .limit(1);
+        
+      if (clinicByDoc && clinicByDoc.length > 0) {
+        return res.json({ ok: false, error: 'Esta clínica já está cadastrada no sistema com este CPF/CNPJ.' });
+      }
+    }
+    
+    // Tudo certo, não existem dados duplicados
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[SIGNUP] Error checking availability:', err);
+    return res.status(500).json({ ok: false, error: 'Erro ao verificar disponibilidade de dados.' });
+  }
+});
+
 app.post("/api/signup/phone/send-code", async (req, res) => {
   const signupId = String(req.body?.signupId || "").trim();
   const phone = String(req.body?.phone || "").trim();
