@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import fetch from "node-fetch";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config/env.js";
 import { addLog } from "./logger.js";
 

@@ -1,4 +1,3 @@
-import fetch from "node-fetch";
 import { supabaseAdmin } from "./supabase.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from "../config/env.js";
 import { getVerificationSession, setVerificationSession } from "./sessionStore.js";
