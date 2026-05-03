@@ -782,8 +782,11 @@ export const useClinicStore = create<ClinicStore>()(
                 set(s => ({ patients: [patient, ...s.patients] }));
                 emitEvent('PATIENT_CREATED', { patient_id: patient.id, clinic_id: patient.clinic_id });
                 
-                // Fire-and-forget Supabase save
-                saveToSupabase('patient', patient, true).catch(e => console.error('[ClinicStore] Erro ao salvar paciente:', e));
+                // Supabase save with rollback
+                saveToSupabase('patient', patient, true).catch(e => {
+                    console.error('[ClinicStore] Erro ao salvar paciente, revertendo...', e);
+                    set(s => ({ patients: s.patients.filter(p => p.id !== patient.id) }));
+                });
                 
                 return patient;
             },
@@ -793,10 +796,15 @@ export const useClinicStore = create<ClinicStore>()(
                 
                 set(s => ({ patients: s.patients.map(p => p.id === id ? { ...p, ...updatedData } : p) }));
                 
-                // Fire-and-forget Supabase update
+                // Supabase update with rollback
                 const patient = get().patients.find(p => p.id === id);
                 if (patient) {
-                    saveToSupabase('patient', { ...patient, ...updatedData }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar paciente:', e));
+                    saveToSupabase('patient', { ...patient, ...updatedData }, false).catch(e => {
+                        console.error('[ClinicStore] Erro ao atualizar paciente, revertendo...', e);
+                        if (oldPatient) {
+                            set(s => ({ patients: s.patients.map(p => p.id === id ? oldPatient : p) }));
+                        }
+                    });
                     
                     // Audit Log
                     const user = useAuth.getState().user;
@@ -820,8 +828,12 @@ export const useClinicStore = create<ClinicStore>()(
                 set(s => ({ patients: s.patients.filter(p => p.id !== id) }));
                 
                 if (patient) {
-                    // Fire-and-forget Supabase delete
-                    saveToSupabase('patient', { id }, false, true).catch(e => console.error('[ClinicStore] Erro ao excluir paciente:', e));
+                    // Supabase delete with rollback
+                    saveToSupabase('patient', { id }, false, true).catch(e => {
+                        console.error('[ClinicStore] Erro ao excluir paciente, revertendo...', e);
+                        // Re-insere o paciente no array se falhar
+                        set(s => ({ patients: [...s.patients, patient] }));
+                    });
                     
                     // Audit Log
                     const user = useAuth.getState().user;
@@ -920,11 +932,12 @@ export const useClinicStore = create<ClinicStore>()(
                 };
                 set(s => ({ appointments: [...s.appointments, appointment] }));
 
-                // Sync to Supabase — fire-and-forget
+                // Sync to Supabase with rollback
                 if (isSupabaseConfigured()) {
-                    SupabaseSync.saveAppointment(appointment).catch((e: unknown) =>
-                        console.error('[ClinicStore] Erro ao salvar agendamento:', e)
-                    );
+                    SupabaseSync.saveAppointment(appointment).catch((e: unknown) => {
+                        console.error('[ClinicStore] Erro ao salvar agendamento, revertendo...', e);
+                        set(s => ({ appointments: s.appointments.filter(a => a.id !== appointment.id) }));
+                    });
                 }
 
                 emitEvent('APPOINTMENT_CREATED', {
@@ -941,10 +954,16 @@ export const useClinicStore = create<ClinicStore>()(
                 return appointment;
             },
             updateAppointmentStatus: (id, status) => {
+                const oldApt = get().appointments.find(a => a.id === id);
                 set(s => ({ appointments: s.appointments.map(a => a.id === id ? { ...a, status } : a) }));
                 const apt = get().appointments.find(a => a.id === id);
                 if (apt) {
-                    saveToSupabase('appointment', apt, false).catch(e => console.error('[ClinicStore] Erro ao atualizar status:', e));
+                    saveToSupabase('appointment', apt, false).catch(e => {
+                        console.error('[ClinicStore] Erro ao atualizar status, revertendo...', e);
+                        if (oldApt) {
+                            set(s => ({ appointments: s.appointments.map(a => a.id === id ? oldApt : a) }));
+                        }
+                    });
                 }
             },
             deleteAppointment: (id) => {
@@ -952,7 +971,10 @@ export const useClinicStore = create<ClinicStore>()(
                 set(s => ({ appointments: s.appointments.filter(a => a.id !== id) }));
                 
                 if (apt) {
-                    saveToSupabase('appointment', { id }, false, true).catch(e => console.error('[ClinicStore] Erro ao excluir agendamento:', e));
+                    saveToSupabase('appointment', { id }, false, true).catch(e => {
+                        console.error('[ClinicStore] Erro ao excluir agendamento, revertendo...', e);
+                        set(s => ({ appointments: [...s.appointments, apt] }));
+                    });
                     
                     // Audit log
                     const user = useAuth.getState().user;

@@ -21,6 +21,16 @@ import makeWASocket, {
   BufferJSON,
 } from "baileys";
 
+// Global Error Handling for stability
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+  // Log the error but do NOT crash the monolithic server
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught Exception:', error);
+  // Optional: Add to an error reporting service like Sentry here
+});
 
 const app = express();
 app.set("trust proxy", 1);
