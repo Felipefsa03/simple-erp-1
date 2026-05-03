@@ -56,6 +56,8 @@ export const ALLOWED_ORIGINS = (() => {
     "http://localhost:5173",
     "https://clinxia.vercel.app",
     "https://simple-erp-1.vercel.app",
+    "https://www.clinxia.com",
+    "https://clinxia.com",
     process.env.FRONTEND_URL,
   ].filter(Boolean);
 
