@@ -494,7 +494,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     >
                       <option value="">Selecione o profissional</option>
                       {clinicProfessionals.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.role === 'dentist' ? 'Dentista' : p.role === 'esthetician' ? 'Esteticista' : 'Profissional'})</option>
+                        <option key={p.id} value={p.id}>{p.name} ({p.role === 'dentist' ? 'Dentista' : p.role === 'aesthetician' ? 'Esteticista' : 'Profissional'})</option>
                       ))}
                     </select>
                   </div>

@@ -808,7 +808,9 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
 
       {/* Tabs */}
       <div className="flex bg-white border border-slate-100 rounded-2xl p-1 overflow-x-auto no-scrollbar">
-        {tabs.map(tab => (
+        {tabs
+          .filter(tab => !(tab.id === 'odontograma' && user?.role === 'aesthetician'))
+          .map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveSubTab(tab.id)}
@@ -870,7 +872,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
           )}
 
           {/* Odontograma Tab */}
-          {activeSubTab === 'odontograma' && (
+          {activeSubTab === 'odontograma' && user?.role !== 'aesthetician' && (
             <div className="bg-white rounded-3xl border border-slate-100 p-6">
               <h3 className="font-bold text-slate-900 mb-4">Odontograma Digital</h3>
               <p className="text-sm text-slate-500 mb-4">Clique no dente para registrar procedimento. Cores indicam status.</p>
