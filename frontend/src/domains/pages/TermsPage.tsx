@@ -11,110 +11,111 @@ export function TermsPage() {
             <ArrowLeft className="w-5 h-5" />
             Voltar para página inicial
           </Link>
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Termos de Uso</h1>
-          <p className="text-xl text-white/90">Última atualização: 19 de Abril de 2026</p>
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Termos de Uso e Serviço</h1>
+          <p className="text-xl text-white/90">Última atualização: Maio de 2026</p>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-16 space-y-8">
+      <main className="max-w-4xl mx-auto px-6 py-16 space-y-8 text-justify">
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-4">1. Aceitação dos Termos</h2>
-          <p className="text-slate-600 leading-relaxed">
-            Ao acessar e utilizar o sistema Clinxia, você reconhece que leu, compreendeu e concorda em cumprir 
-            estes Termos de Uso e Nossa Política de Privacidade. Se você não concorda com qualquer parte destes 
-            termos, não deverá utilizar nossos serviços.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">2. Descrição do Serviço</h2>
-          <p className="text-slate-600 leading-relaxed">
-            O Clinxia é uma plataforma de gestão para clínicas de odontologia e estética que oferece as seguintes 
-            funcionalidades: agenda online, prontuário eletrônico, gestão financeira, controle de estoque, 
-            comunicação com pacientes via WhatsApp e relatórios gerenciais.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">3. Cadastro e Conta</h2>
           <p className="text-slate-600 leading-relaxed mb-4">
-            Para utilizar nossos serviços, você deve criar uma conta fornecendo informações verdadeiras, completas e atualizadas. 
-            Você é responsável por:
+            Este Contrato de Termos de Uso ("Termos") regula o acesso e a utilização do sistema SaaS 
+            (Software as a Service) denominado <strong>Clinxia</strong> ("Plataforma" ou "Sistema"), bem como 
+            seus módulos de gestão de clínicas e consultórios.
+          </p>
+          <p className="text-slate-600 leading-relaxed">
+            Ao criar uma conta, acessar ou utilizar a Plataforma Clinxia de qualquer forma, você ("Usuário" ou "Cliente") declara que 
+            compreendeu e concorda expressamente em vincular-se a estes Termos de forma irrevogável e irretratável. 
+            Se não concordar com qualquer condição aqui prevista, você não deverá utilizar nossos serviços.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">2. Titularidade e Licenciamento</h2>
+          <p className="text-slate-600 leading-relaxed">
+            A Clinxia, presentemente representada por seus desenvolvedores e mantenedores diretos ("Licenciante"), outorga 
+            ao Cliente uma licença temporária, revogável, não exclusiva e intransferível de uso do software, limitada aos termos 
+            do plano contratado. A Licenciante detém todos e quaisquer direitos de Propriedade Intelectual sobre o código-fonte, 
+            design, banco de dados, marcas, algoritmos e funcionalidades, independentemente da formalização definitiva do CNPJ 
+            da entidade jurídica mantenedora perante os órgãos públicos. É terminantemente proibido tentar realizar engenharia reversa, 
+            copiar, revender ou explorar o software comercialmente sem autorização expressa.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">3. Natureza do Serviço ("AS IS")</h2>
+          <p className="text-slate-600 leading-relaxed">
+            A Plataforma é fornecida "NO ESTADO EM QUE SE ENCONTRA" ("AS IS"), sem qualquer garantia expressa ou implícita 
+            de que será isenta de falhas, interrupções ou vulnerabilidades, embora apliquemos as melhores práticas e esforços do 
+            mercado para garantir a estabilidade e a segurança. A Clinxia não se responsabiliza por prejuízos, perdas de 
+            faturamento, atrasos nos atendimentos da Clínica ou quaisquer danos indiretos e lucros cessantes decorrentes da 
+            indisponibilidade temporária do sistema, manutenções, quedas de provedores parceiros (como gateways de pagamento, 
+            API do WhatsApp, serviços de nuvem) ou de uso indevido pelo próprio Cliente.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">4. Obrigações e Responsabilidade do Cliente</h2>
+          <p className="text-slate-600 leading-relaxed mb-4">
+            O Cliente é o único e exclusivo responsável por:
           </p>
           <ul className="list-disc pl-6 text-slate-600 space-y-2">
-            <li>Manter a confidencialidade de sua senha e informações de conta</li>
-            <li>Todas as atividades que ocorrem sob sua conta</li>
-            <li>Notificar-nos imediatamente sobre qualquer uso não autorizado</li>
+            <li>Garantir a veracidade e a atualização de seus dados cadastrais (ex: CRM, CRO, CPF/CNPJ).</li>
+            <li>Proteger e manter em absoluto sigilo suas senhas de acesso e tokens de integração (ex: WhatsApp, Asaas).</li>
+            <li>Todo e qualquer diagnóstico, prescrição, receituário e tratamentos alimentados no Prontuário, excluindo a Plataforma de qualquer responsabilidade médica ou odontológica.</li>
+            <li>Obter o consentimento legal e expresso de seus próprios pacientes antes de realizar o envio automático de mensagens e notificações via WhatsApp através da ferramenta.</li>
+            <li>Garantir as boas práticas de segurança nos aparelhos (computadores e celulares) nos quais a plataforma é acessada para impedir malwares ou invasões de terceiros.</li>
           </ul>
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">4. Obrigações do Usuário</h2>
-          <p className="text-slate-600 leading-relaxed mb-4">Ao usar o Clinxia, você concorda em:</p>
-          <ul className="list-disc pl-6 text-slate-600 space-y-2">
-            <li>Utilizar o sistema apenas para fins legais e autorizados</li>
-            <li>Não compartilhar sua conta com terceiros</li>
-            <li>Não tentar acessar áreas restritas do sistema</li>
-            <li>Não utilizar o sistema de forma que pueda dañar, sobrecarregar ou impair seu funcionamento</li>
-            <li>Cumprir todas as leis aplicáveis, incluindo a LGPD (Lei Geral de Proteção de Dados)</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">5. Propriedade Intelectual</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">5. Inadimplência e Bloqueio</h2>
           <p className="text-slate-600 leading-relaxed">
-            O Clinxia e todo seu conteúdo, funcionalidades e tecnologia são de propriedade exclusiva da Clinxia e seus 
-            licenciadores. Você não pode copiar, modificar, distribuir, vender ou alugar qualquer parte de nossos serviços 
-            sem autorização prévia por escrito.
+            Em caso de não compensação, atraso ou falta de pagamento da assinatura ou das taxas incidentes sobre os módulos contratados, 
+            a Clinxia reserva-se o direito de realizar o bloqueio preventivo e automático do acesso ao sistema após as notificações 
+            regulamentares. Em cenário de inadimplência prolongada, o armazenamento dos dados de prontuário e histórico financeiro não será 
+            garantido permanentemente após 60 (sessenta) dias, ressalvadas as normas legais pertinentes que permitem ao cliente solicitar 
+            a exportação prévia de seu banco de dados enquanto o contrato estiver vigente.
           </p>
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">6. Limitação de Responsabilidade</h2>
-          <p className="text-slate-600 leading-relaxed">
-            O serviço é fornecido "como encontrado". Não garantimos que o sistema esté siempre disponível, sem erros ou virus. 
-            Não seremos responsáveis por quaisquer danos indiretos, incidentais ou consequenciais decorrentes do uso ou 
-            incapacidade de usar o serviço.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">7. Privacidade e Proteção de Dados</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">6. Privacidade e Tratamento de Dados (LGPD)</h2>
           <p className="text-slate-600 leading-relaxed mb-4">
-            Estamos comprometidos com a proteção de seus dados pessoais de acordo com a LGPD (Lei nº 13.709/2018). 
-            Ao utilizar nossos serviços, você concorda com a coleta e uso de informações conforme descrito em nossa 
-            Política de Privacidade.
+            Para os fins legais e de proteção de dados, o Cliente atua na figura de "Controlador" e a Clinxia na figura estrita de "Operador". 
+            A Clinxia compromete-se a tratar os dados sensíveis dos pacientes unicamente com o fim de permitir a correta operacionalização do 
+            SaaS e mediante infraestrutura segura e criptografada. É de plena responsabilidade do Cliente coletar os dados de forma ética e 
+            legal em seu balcão ou recepção, não havendo culpa solidária da Clinxia caso o próprio Cliente sofra sanções da ANPD por falha na gestão de consentimento de seus pacientes.
           </p>
-          <Link to="/privacidade" className="text-brand-600 hover:underline">Ver Política de Privacidade</Link>
-        </section>
-
-        <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">8. Rescisão</h2>
           <p className="text-slate-600 leading-relaxed">
-            Podemos rescindir ou suspender seu acesso imediatamente, sem aviso prévio, se você violar estes termos 
-            ou se suspeitarmos de atividade fraudulenta ou ilegal.
+            Para mais detalhes de nossa conformidade operacional, leia nossa <Link to="/privacidade" className="text-brand-600 font-semibold hover:underline">Política de Privacidade</Link>.
           </p>
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">9. Alterações nos Termos</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">7. Atualizações dos Termos e do Software</h2>
           <p className="text-slate-600 leading-relaxed">
-            Reservamo-nos o direito de modificar estes termos a qualquer momento. Mudanças significativas serão comunicadas 
-            por email ou através do sistema. O uso contínuo do serviço após alterações constitui aceitação dos novos termos.
+            A Clinxia pode, a seu exclusivo critério, realizar atualizações contínuas de funcionalidades, layout, módulos e precificação 
+            na Plataforma para melhorar a experiência do usuário. Da mesma forma, estes Termos de Uso poderão ser revisados e atualizados 
+            unilateralmente. Mudanças contratuais relevantes serão notificadas via e-mail ou via painel de avisos na própria ferramenta. 
+            A continuidade do uso após a notificação pressupõe aceitação plena aos novos termos.
           </p>
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">10. Lei Aplicável</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-4">8. Foro e Rescisão</h2>
           <p className="text-slate-600 leading-relaxed">
-            Estes termos são regidos pelas leis brasileiras. Quaisquer disputas serão resolvidas no foro da cidade de São Paulo, SP.
+            Este Contrato vigerá por prazo indeterminado, podendo ser rescindido por qualquer das partes mediante solicitação de cancelamento. 
+            Em caso de rescisão, a Clinxia faculta ao usuário ferramentas para exportação de dados (prontuários/relatórios) antes da completa remoção do banco.
+            Estes Termos são regidos integralmente pelas leis da República Federativa do Brasil. Para dirimir qualquer dúvida ou litígio que porventura 
+            não puder ser resolvido amigavelmente, fica eleito o Foro da Comarca de domicílio do desenvolvedor/mantenedor atual da Clinxia, com expressa renúncia a qualquer outro.
           </p>
         </section>
 
-        <section>
-          <h2 className="text-xl font-bold text-slate-900 mb-4">11. Contato</h2>
-          <p className="text-slate-600 leading-relaxed">
-            Em caso de dúvidas sobre estes termos, entre em contato pelo email contato@clinxia.com.br.
+        <section className="pt-6 border-t border-slate-100">
+          <p className="text-slate-500 text-sm">
+            Se possuir alguma dúvida legal ou administrativa sobre estes Termos de Uso, favor contatar o Suporte em: <strong>contato@clinxia.com.br</strong>
           </p>
         </section>
       </main>
