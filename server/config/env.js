@@ -1,5 +1,10 @@
-import dotenv from 'dotenv';
-dotenv.config();
+try {
+  const dotenv = await import('dotenv');
+  dotenv.config();
+} catch (err) {
+  // Ignora o erro se o dotenv não estiver disponível (ex: Render/Produção injeta direto)
+  console.log('[ENV] Dotenv not found or failed to load. Relying on OS environment variables.');
+}
 
 export const cleanEnv = (value) => {
   let cleaned = String(value || "").trim();
