@@ -35,7 +35,6 @@ process.on('uncaughtException', (error) => {
 
 const app = express();
 app.set("trust proxy", 1);
-const PORT = process.env.PORT || 8787;
 console.log("[SERVER] Starting on port:", PORT);
 const APP_VERSION = (() => {
   try {
@@ -60,128 +59,22 @@ const bumpMetric = (metricMap, key) => {
 
 const mapToObject = (metricMap) => Object.fromEntries(metricMap.entries());
 
-// Supabase configuration (supports legacy and new key names)
-const cleanEnv = (value) => {
-  let cleaned = String(value || "").trim();
-  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
-    cleaned = cleaned.slice(1, -1);
-  }
-  return cleaned;
-};
-const pickEnv = (...values) => {
-  for (const value of values) {
-    const cleaned = cleanEnv(value);
-    if (cleaned) return cleaned;
-  }
-  return "";
-};
-const isValidSupabaseKey = (value) => {
-  const token = cleanEnv(value);
-  if (!token) return false;
-  if (token.startsWith("sb_publishable_") || token.startsWith("sb_secret_")) return true;
-  if (token.startsWith("eyJ")) return true; 
-  const parts = token.split(".");
-  return parts.length === 3 && parts.every(p => /^[A-Za-z0-9\-_]+$/.test(p));
-};
 
-const SUPABASE_URL = pickEnv(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_URL_PROD,
-);
-const SUPABASE_ANON_KEY = pickEnv(
-  process.env.SUPABASE_ANON_KEY,
-  process.env.SUPABASE_PUBLISHABLE_KEY,
-  process.env.SUPABASE_ANON_KEY_PROD,
-  process.env.SUPABASE_PUBLISHABLE_KEY_PROD,
-);
-const SUPABASE_SERVICE_ROLE_KEY_RAW = pickEnv(
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  process.env.SUPABASE_SECRET_KEY,
-  process.env.SUPABASE_SERVICE_ROLE_KEY_PROD,
-);
-const SUPABASE_SERVICE_ROLE_KEY = cleanEnv(SUPABASE_SERVICE_ROLE_KEY_RAW);
+import {
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY,
+  PORT,
+  DEFAULT_CLINIC_ID,
+  ASAAS_API_KEY,
+  ALLOWED_ORIGINS
+} from "./config/env.js";
+import { supabaseAdmin, getServerHeaders } from "./services/supabase.js";
+import { addLog, getLogs } from "./services/logger.js";
 
+const debugLogs = getLogs(); // Mantendo referência local para rotas ainda não migradas
 
-// ============================================
-// Startup: validate required environment variables
-// ============================================
-const REQUIRED_ENVS = [
-  ["SUPABASE_URL (ou SUPABASE_URL_PROD)", SUPABASE_URL],
-  ["SUPABASE_PUBLISHABLE_KEY/SUPABASE_ANON_KEY (ou *_PROD)", SUPABASE_ANON_KEY],
-];
-const missingEnvs = REQUIRED_ENVS.filter(([, value]) => !value).map(
-  ([name]) => name,
-);
-
-// Initialize Supabase Admin Client
-console.log("[Supabase] Initializing backend client...");
-console.log("[Supabase] URL:", SUPABASE_URL ? `${SUPABASE_URL.substring(0, 15)}...` : "MISSING");
-console.log("[Supabase] Service Role Key (First 5):", SUPABASE_SERVICE_ROLE_KEY ? `${SUPABASE_SERVICE_ROLE_KEY.substring(0, 5)}...` : "MISSING");
-console.log("[Supabase] Anon Key (First 5):", SUPABASE_ANON_KEY ? `${SUPABASE_ANON_KEY.substring(0, 5)}...` : "MISSING");
-
-if (!SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn("[Supabase] WARNING: SUPABASE_SERVICE_ROLE_KEY is missing. Administrative operations WILL FAIL.");
-}
-
-const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  },
-  db: {
-    schema: 'public'
-  }
-});
-
-
-
-if (missingEnvs.length > 0 && process.env.NODE_ENV !== "development") {
-  for (const key of missingEnvs) {
-    console.error(`[FATAL] Variável de ambiente ausente: ${key}`);
-  }
-  console.error(
-    "[FATAL] Configure as variáveis acima ou defina NODE_ENV=development para modo demo.",
-  );
-  process.exit(1);
-}
-if (missingEnvs.length > 0) {
-  console.warn(
-    `[WARN] Variáveis ausentes: ${missingEnvs.join(", ")}. Rodando em modo DESENVOLVIMENTO.`,
-  );
-}
-
-if (SUPABASE_ANON_KEY && !isValidSupabaseKey(SUPABASE_ANON_KEY)) {
-  console.error("[FATAL] SUPABASE_ANON_KEY configurada não é válida (verifique se copiou a chave certa).");
-}
-
-if (!SUPABASE_SERVICE_ROLE_KEY && process.env.NODE_ENV !== "development") {
-  console.warn(
-    "[WARN] SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY ausente ou não é válida. Operações de backend podem falhar por RLS.",
-  );
-}
-if (SUPABASE_SERVICE_ROLE_KEY_RAW && !SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn(
-    "[WARN] SUPABASE_SERVICE_ROLE_KEY inválida para Auth Admin (esperado formato sb_secret_... ou JWT).",
-  );
-}
-
-// 2FA encryption key — dedicated env var preferred, falls back to service role key
-const TOTP_ENCRYPTION_KEY =
-  process.env.TOTP_ENCRYPTION_KEY || SUPABASE_SERVICE_ROLE_KEY;
-if (!TOTP_ENCRYPTION_KEY && process.env.NODE_ENV !== "development") {
-  console.error(
-    "[WARN] TOTP_ENCRYPTION_KEY não definida. Endpoints 2FA desativados em produção.",
-  );
-}
-
-// Server headers for Supabase REST API (with service role when available)
-const getServerHeaders = (token) => ({
-  "Content-Type": "application/json",
-  apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${token || SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
-  Prefer: "return=representation",
-});
-
+// Utilidades foram extraídas para serviços.
 // Mercado Pago configuration (can be overridden per clinic via Supabase)
 let mpAccessToken = cleanEnv(process.env.MP_ACCESS_TOKEN);
 let mpPublicKey = cleanEnv(process.env.MP_PUBLIC_KEY);
@@ -192,23 +85,23 @@ const DEFAULT_PLAN_PRICES = {
   profissional: 197,
   premium: 397,
 };
+import {
+  getVerificationSession, setVerificationSession, deleteVerificationSession,
+  getPasswordResetSession, setPasswordResetSession, deletePasswordResetSession,
+  getSignupSession, setSignupSession, deleteSignupSession, clearExpiredVerificationSessions
+} from "./services/sessionStore.js";
+
 const SIGNUP_CODE_TTL_MS = 30 * 1000;
 const SIGNUP_VERIFIED_TTL_MS = 30 * 60 * 1000;
 const SIGNUP_CODE_MAX_ATTEMPTS = 3;
 const SIGNUP_BLOCK_MS = 60 * 1000;
 const SIGNUP_MAX_SENDS_PER_WINDOW = 3;
 const SIGNUP_SEND_WINDOW_MS = 10 * 60 * 1000;
-const phoneVerificationSessions = new Map();
 
 // Password Reset Sessions (in-memory, same as signup)
 const PASSWORD_RESET_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 const PASSWORD_RESET_BLOCK_MS = 15 * 60 * 1000;
-const passwordResetSessions = new Map();
-
-const getPasswordResetSession = (email) => passwordResetSessions.get(String(email).toLowerCase());
-const setPasswordResetSession = (email, data) => passwordResetSessions.set(String(email).toLowerCase(), data);
-const deletePasswordResetSession = (email) => passwordResetSessions.delete(String(email).toLowerCase());
 
 const hashPasswordResetCode = (email, code) =>
   crypto.createHash("sha256").update(`${email}:${code}`).digest("hex");
@@ -256,25 +149,6 @@ const hashSignupCode = (signupId, code) =>
 const generateNumericCode = () =>
   String(Math.floor(100000 + Math.random() * 900000));
 
-const getVerificationSession = (signupId) =>
-  phoneVerificationSessions.get(String(signupId));
-
-const setVerificationSession = (signupId, data) =>
-  phoneVerificationSessions.set(String(signupId), data);
-
-const clearExpiredVerificationSessions = () => {
-  const now = Date.now();
-  for (const [key, session] of phoneVerificationSessions.entries()) {
-    const verificationExpired =
-      !session.verifiedAt || now - session.verifiedAt > SIGNUP_VERIFIED_TTL_MS;
-    const codeExpired = !session.expiresAt || now > session.expiresAt;
-    const blockExpired = !session.blockedUntil || now > session.blockedUntil;
-    const shouldDelete = verificationExpired && codeExpired && blockExpired;
-    if (shouldDelete) {
-      phoneVerificationSessions.delete(key);
-    }
-  }
-};
 
 setInterval(clearExpiredVerificationSessions, 5 * 60 * 1000).unref();
 
@@ -925,27 +799,8 @@ const consumePhoneVerification = (signupId) => {
 
 // ============================================
 // Security Middleware
-// =====================================// 1. First, define the CORS origin check logic
-const ALLOWED_ORIGINS = (() => {
-  const envOrigins =
-    process.env.ALLOWED_ORIGINS?.split(",")
-      .map((s) => s.trim())
-      .filter(Boolean) || [];
-
-  const defaultOrigins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://clinxia.vercel.app",
-    "https://simple-erp-1.vercel.app",
-    process.env.FRONTEND_URL,
-  ].filter(Boolean);
-
-  // Allow all Vercel preview URLs
-  const vercelPreview = ["https://*.vercel.app"];
-
-  return [...envOrigins, ...defaultOrigins, ...vercelPreview];
-})();
-
+// =====================================
+// 1. First, define the CORS origin check logic
 const corsOptions = {
   origin: (origin, callback) => {
     // PUBLIC ACCESS: Always allow /api/public requests or requests with no origin
@@ -962,8 +817,8 @@ const corsOptions = {
 
     if (isAllowed) return callback(null, true);
     
-    console.warn(`[CORS] Request from ${origin} - will check if it is a public route`);
-    callback(null, true); // Allow but log for debugging
+    console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}`);
+    callback(new Error('Origin não permitida'), false);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -981,7 +836,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "blob:", "https:"],
@@ -1034,78 +889,11 @@ app.use("/api", (req, res, next) => {
 });
 
 // ============================================
-// Auth Middleware (validates Supabase JWT)
-// ============================================
-const requireAuth = async (req, res, next) => {
-  const authHeader = req.headers.authorization || "";
-  const token = authHeader.replace("Bearer ", "").trim();
-  
-  if (!token) {
-    return res
-      .status(401)
-      .json({ ok: false, error: "Token de autenticação ausente" });
-  }
+// Auth Middleware
+import { requireAuth, requireSuperAdmin, require2FAPermission } from "./middleware/auth.js";
+import authRoutes from "./routes/authRoutes.js";
 
-  // Validate JWT format before calling Supabase
-  const jwtParts = token.split(".");
-  if (jwtParts.length !== 3) {
-    console.error("[Auth] Invalid JWT format:", jwtParts.length, "parts");
-    return res
-      .status(401)
-      .json({ ok: false, error: "Token mal formado" });
-  }
-
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    req.user = { id: "dev-user", role: "admin", clinic_id: "dev-clinic" };
-    return next();
-  }
-
-  try {
-    console.log("[Auth] Calling Supabase /auth/v1/user with token:", token.substring(0, 50) + "...");
-    const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    
-    console.log("[Auth] Supabase /auth/v1/user response status:", userRes.status);
-
-    if (!userRes.ok) {
-      const errorData = await userRes.json().catch(() => ({}));
-      console.error("[Auth] Supabase error:", errorData);
-      return res
-        .status(401)
-        .json({ ok: false, error: "Token inválido ou expirado" });
-    }
-
-    const userData = await userRes.json();
-
-    const profileRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${userData.id}&select=*`,
-      {
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
-
-    if (profileRes.ok) {
-      const profiles = await profileRes.json();
-      req.user = profiles[0] || { id: userData.id, role: "receptionist" };
-    } else {
-      req.user = { id: userData.id, role: "receptionist" };
-    }
-
-    req.token = token;
-    req.clinicId = req.user.clinic_id;
-    next();
-  } catch (error) {
-    console.error("[Auth] Error validating token:", error.message);
-    return res.status(401).json({ ok: false, error: "Erro na autenticação" });
-  }
-};
+app.use("/api", authRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -1454,12 +1242,13 @@ const publicPaths = [
   "/system/signup-config",
   "/mercadopago/create-preference",
   "/mercadopago/payment-status/",
-  "/asaas/",
-  "/integrations/",
-  "/facebook/",
-  "/whatsapp/",
-  "/debug/tail",
   "/public/",
+  // SEGURANÇA: Rotas abaixo foram REMOVIDAS de publicPaths pela auditoria:
+  // "/asaas/"         -> requer auth (SEC-07)
+  // "/integrations/"  -> requer auth (SEC-06)
+  // "/facebook/"      -> requer auth (SEC-06)
+  // "/whatsapp/"      -> requer auth (SEC-03)
+  // "/debug/tail"     -> requer auth + super_admin (SEC-02)
 ];
 
 app.use("/api", (req, res, next) => {
@@ -1946,57 +1735,11 @@ app.post("/api/auth/password/reset-confirm", async (req, res) => {
   }
 });
 
-app.post("/api/auth/password/reset-verify", async (req, res) => {
-  const { email, code } = req.body;
-  
-  const normalizedEmail = String(email).toLowerCase().trim();
-  
-  if (!normalizedEmail || !code) {
-    return res.status(400).json({ ok: false, error: "Email e código são obrigatórios" });
-  }
 
-  try {
-    const session = getPasswordResetSession(normalizedEmail);
-    
-    if (!session) {
-      return res.status(400).json({ ok: false, error: "Nenhum código solicitado para este email." });
-    }
-
-    const now = Date.now();
-    if (session.expiresAt && now > session.expiresAt) {
-      deletePasswordResetSession(normalizedEmail);
-      return res.status(400).json({ ok: false, error: "Código expirado." });
-    }
-
-    const receivedHash = hashPasswordResetCode(normalizedEmail, code);
-    if (receivedHash !== session.codeHash) {
-      return res.status(400).json({ ok: false, error: "Código incorreto" });
-    }
-
-    return res.json({ ok: true, message: "Código validado com sucesso!" });
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message });
-  }
-});
 
 const campaignsByClinic = new Map();
 const antiSpamStatsByNumber = new Map();
 
-app.get("/api/whatsapp/antispam/:number", (req, res) => {
-  const normalizedNumber = String(req.params?.number || "").replace(/\D/g, "");
-  const current = antiSpamStatsByNumber.get(normalizedNumber) || {
-    messages_sent: 0,
-    blocked: false,
-    risk_score: 0,
-    updated_at: new Date().toISOString(),
-  };
-
-  res.json({
-    ok: true,
-    number: normalizedNumber,
-    stats: current,
-  });
-});
 
 app.get("/api/campaigns/clinic/:clinicId", (req, res) => {
   const clinicId = String(req.params?.clinicId || "").trim();
@@ -2145,92 +1888,17 @@ app.post("/api/campaigns/:id/:action", (req, res) => {
   return res.status(404).json({ ok: false, error: "Campanha nao encontrada" });
 });
 
-app.post("/api/asaas/test", async (req, res) => {
-  const apiKey = String(req.body?.apiKey || "").trim();
-  if (!apiKey) {
-    return res.status(400).json({ ok: false, error: "apiKey obrigatoria." });
-  }
-
-  // Buscar da tabela segura primeiro, fallback para env
-  let expectedApiKey = cleanEnv(process.env.ASAAS_API_KEY || "");
-  const serverApiKey = await fetchSystemSecret('asaas_api_key');
-  if (serverApiKey) expectedApiKey = serverApiKey;
-  
-  const acceptedByPattern = /^aact_|^asaas_|^test_/.test(apiKey);
-  const valid = expectedApiKey ? apiKey === expectedApiKey : acceptedByPattern;
-
-  if (!valid) {
-    return res.status(400).json({ ok: false, error: "API key invalida." });
-  }
-
-  return res.json({ ok: true, message: "Conexao com Asaas validada." });
-});
-
-app.get("/api/facebook/credentials/:clinicId", (req, res) => {
-  const clinicId = String(req.params?.clinicId || "").trim();
-  return res.json({
-    ok: true,
-    clinic_id: clinicId,
-    connected: false,
-    has_credentials: false,
-  });
-});
-
-app.post("/api/integrations/rdstation/event", (req, res) => {
-  const event = String(req.body?.event || "").trim();
-  const email = String(req.body?.email || "").trim();
-  if (!event || !email) {
-    return res
-      .status(400)
-      .json({ ok: false, error: "event e email sao obrigatorios." });
-  }
-
-  return res.json({
-    ok: true,
-    event_id: `rd-${crypto.randomUUID()}`,
-    received_at: new Date().toISOString(),
-  });
-});
-
-app.post("/api/integrations/memed/prescription", (req, res) => {
-  const patientName = String(req.body?.patient?.name || "").trim();
-  const physicianName = String(
-    req.body?.prescription?.physician_name || "",
-  ).trim();
-  const medications = Array.isArray(req.body?.prescription?.medications)
-    ? req.body.prescription.medications
-    : [];
-
-  if (!patientName || !physicianName || medications.length === 0) {
-    return res.status(400).json({
-      ok: false,
-      error:
-        "patient.name, prescription.physician_name e medications sao obrigatorios.",
-    });
-  }
-
-  return res.json({
-    ok: true,
-    prescription_id: `memed-${crypto.randomUUID()}`,
-    created_at: new Date().toISOString(),
-  });
-});
+import integrationsRoutes from "./routes/integrationsRoutes.js";
+app.use("/api", integrationsRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Clinxia Backend Running" });
 });
 
-// Helper for logs
-const debugLogs = [];
-const addLog = (msg) => {
-  const timestamp = new Date().toISOString();
-  const formatted = `[${timestamp}] ${msg}`;
-  console.log(formatted);
-  debugLogs.push(formatted);
-  if (debugLogs.length > 500) debugLogs.shift();
-};
+// Logging system uses central service (see top of file)
 
-app.get("/api/debug/tail", (req, res) => {
+app.get("/api/debug/tail", requireAuth, requireSuperAdmin, (req, res) => {
+  // SEC-02: Protegido - apenas super_admin autenticado pode ver logs
   res.json({ logs: debugLogs });
 });
 
@@ -3003,368 +2671,20 @@ const createWhatsAppSocket = async (clinicId) => {
 };
 
 // Connect endpoint - generates QR code or pairing code
-  app.post("/api/whatsapp/reset-session", async (req, res) => {
-    const { clinicId } = req.body;
-    if (!clinicId) return res.status(400).json({ ok: false, error: "clinicId required" });
-    
-    try {
-      addLog(`[System] Reseting session for ${clinicId}...`);
-      if (whatsappSockets[clinicId]) {
-        try { whatsappSockets[clinicId].end(undefined); } catch(e) {}
-        delete whatsappSockets[clinicId];
-      }
-      delete whatsappConnections[clinicId];
-      
-      const authDir = ensureClinicStatus(clinicId);
-      if (fs.existsSync(authDir)) {
-        fs.rmSync(authDir, { recursive: true, force: true });
-      }
-      
-      // Também remover do Supabase se quiser começar do zero absoluto
-      await saveCredentialsToSupabase(clinicId, null);
-      
-      res.json({ ok: true, message: "Sessão resetada com sucesso. Conecte novamente." });
-    } catch (e) {
-      res.status(500).json({ ok: false, error: e.message });
-    }
-  });
-
-  app.post("/api/whatsapp/test-send", async (req, res) => {
-    const { phone, message, clinicId } = req.body;
-    if (!phone || !message) return res.status(400).json({ ok: false, error: "Phone and message required" });
-    
-    try {
-      await sendWhatsAppMessage({ clinicId: clinicId || SYSTEM_WHATSAPP_CLINIC_ID, to: phone, message });
-      res.json({ ok: true, message: "Mensagem de teste enviada com sucesso!" });
-    } catch (e) {
-      res.status(500).json({ ok: false, error: e.message });
-    }
-  });
-
-  app.post("/api/whatsapp/connect", async (req, res) => {
-  const { clinicId, phoneNumber } = req.body;
-
-  try {
-    // Limpar qualquer sessão existente antes de conectar
-    if (whatsappSockets[clinicId]) {
-      try {
-        whatsappSockets[clinicId].end(undefined);
-      } catch (e) {}
-      delete whatsappSockets[clinicId];
-    }
-
-    // Limpar credenciais do Supabase para forçar QR limpo
-    try {
-      await fetch(
-        `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`,
-        {
-          method: "DELETE",
-          headers: {
-            apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
-          },
-        },
-      );
-    } catch (e) {}
-
-    // Limpar auth local
-    try {
-      const authDir = ensureClinicStatus(clinicId);
-      if (fs.existsSync(authDir)) {
-        fs.rmSync(authDir, { recursive: true, force: true });
-        fs.mkdirSync(authDir, { recursive: true });
-      }
-    } catch (e) {}
-
-    whatsappConnections[clinicId] = { status: "connecting" };
-
-    const sock = await ensureSocketConnected(clinicId);
-
-    if (!sock) {
-      throw new Error("Não foi possível inicializar o socket do WhatsApp.");
-    }
-
-    // Generate pairing code if phone provided
-    if (phoneNumber) {
-      const cleanPhone = phoneNumber.replace(/\D/g, "");
-      try {
-        const pairingCode = await sock.requestPairingCode(cleanPhone);
-        whatsappConnections[clinicId] = {
-          status: "pairing",
-          pairingCode: pairingCode,
-          connected: false,
-          qr: null,
-        };
-        return res.json({
-          success: true,
-          status: "pairing",
-          pairingCode: pairingCode,
-          message: "Código de pareamento gerado!",
-        });
-      } catch (pairError) {
-        console.error("Pairing code error:", pairError);
-      }
-    }
-
-    // If already has session, try to reconnect
-    if (sock.authState?.creds?.registered) {
-      whatsappConnections[clinicId] = {
-        status: "connected",
-        connected: true,
-        phoneNumber: sock.user?.id?.replace(":@s.whatsapp.net", ""),
-      };
-      return res.json({ success: true, status: "connected" });
-    }
-
-    // Return connecting status - QR will be generated by polling status
-    whatsappConnections[clinicId] = { status: "connecting" };
-    res.json({
-      success: true,
-      status: "connecting",
-      message: "Aguardando QR Code...",
-    });
-  } catch (error) {
-    console.error("Connect error:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get("/api/whatsapp/status/:clinicId", async (req, res) => {
-  const { clinicId } = req.params;
-
-  if (whatsappConnections[clinicId]) {
-    const conn = whatsappConnections[clinicId];
-
-    // Force generation of Base64 if missing but raw QR exists
-    if (conn.qr && !conn.qrBase64) {
-      try {
-        conn.qrBase64 = await QRCode.toDataURL(conn.qr);
-      } catch (e) {
-        console.error("QR Generate Error:", e);
-      }
-    }
-
-    return res.json({
-      ok: true,
-      ...conn,
-      qrCode: conn.qrBase64,
-    });
-  }
-
-  // Não auto-conectar - apenas retornar estado atual
-  res.json({ ok: true, status: "disconnected" });
-});
-
-const disconnectWhatsAppSession = async (clinicId) => {
-  if (!clinicId) return;
-
-  if (whatsappSockets[clinicId]) {
-    try {
-      whatsappSockets[clinicId].ev.removeAllListeners();
-      whatsappSockets[clinicId].end(undefined);
-    } catch (_e) {}
-    delete whatsappSockets[clinicId];
-  }
-
-  delete whatsappConnections[clinicId];
-  delete whatsappSocketCreationPromises[clinicId];
-
-  try {
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`,
-      {
-        method: "DELETE",
-        headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
-        },
-      },
-    );
-  } catch (_e) {}
-
-  try {
-    const authDir = ensureClinicStatus(clinicId);
-    if (fs.existsSync(authDir)) {
-      await new Promise(r => setTimeout(r, 1000)); // wait for LevelDB to close
-      fs.rmSync(authDir, { recursive: true, force: true });
-    }
-  } catch (e) {
-    console.error(`[Baileys] Erro ao deletar authDir para ${clinicId}:`, e.message);
-  }
-};
-
-// Disconnect endpoint
-app.post("/api/whatsapp/disconnect/:clinicId", async (req, res) => {
-  const { clinicId } = req.params;
-  await disconnectWhatsAppSession(clinicId);
-  res.json({ ok: true, status: "disconnected" });
-});
-
-// Rate limiting for WhatsApp
-const whatsappRateLimit = new Map();
-const RATE_LIMIT_WINDOW = 10000; // 10 seconds
-const RATE_LIMIT_MAX = 5; // 5 messages per window
-
-const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
-  let attempts = 0;
-  const maxAttempts = 2;
-
-  while (attempts < maxAttempts) {
-    attempts++;
-    try {
-      const sock = await ensureSocketConnected(clinicId);
-      
-      // Aguarda conexão (até 15s)
-      let waitCount = 0;
-      while (whatsappConnections[clinicId]?.status === "connecting" && waitCount < 30) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        waitCount++;
-      }
-
-      if (whatsappConnections[clinicId]?.status !== "connected") {
-        throw new Error("Dispositivo não conectado. Status atual: " + (whatsappConnections[clinicId]?.status || "desconhecido"));
-      }
-
-      if (!sock) {
-        throw new Error("Falha ao obter socket do WhatsApp.");
-      }
-
-      const target = await resolveWhatsAppJID(sock, to);
-      const jidsToSend = Array.isArray(target) ? target : [target];
-      
-      let lastResult = null;
-      for (const jid of jidsToSend) {
-        addLog(`[API] Enviando via ${clinicId} para ${jid} (tentativa ${attempts})...`);
-        const result = await sock.sendMessage(jid, { text: message });
-        lastResult = result;
-        
-        // Pequeno delay entre tentativas se houver mais de um JID
-        if (jidsToSend.length > 1) await new Promise(r => setTimeout(r, 1000));
-      }
-
-      const result = lastResult;
-        
-      if (result?.key?.id) {
-          const cleanPhone = String(to || "").replace(/\D/g, "");
-          const targetJid = Array.isArray(target) ? target[0] : target;
-          
-          const msgData = {
-            id: result.key.id,
-            key: targetJid,
-            phone: cleanPhone,
-            text: message,
-            fromMe: true,
-            timestamp: Date.now(),
-          };
-          
-          if (!whatsappConnections[clinicId].messages) {
-            whatsappConnections[clinicId].messages = [];
-          }
-          whatsappConnections[clinicId].messages.push(msgData);
-          
-          // Persistência no Supabase
-          const sendPersistKey = SUPABASE_ANON_KEY;
-          if (SUPABASE_URL && sendPersistKey) {
-            try {
-              const supaRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  apikey: sendPersistKey,
-                  Authorization: `Bearer ${sendPersistKey}`,
-                },
-                body: JSON.stringify({
-                  clinic_id: clinicId === "system-global" ? GLOBAL_CLINIC_ID : clinicId,
-                  phone: cleanPhone,
-                  message_id: result.key.id,
-                  text: message,
-                  status: "sent",
-                  timestamp: new Date().toISOString()
-                })
-              });
-              if (!supaRes.ok) {
-                const supaErr = await supaRes.text();
-                addLog(`[API] Falha ao persistir no Supabase: ${supaErr}`);
-              }
-            } catch (pErr) {
-              addLog(`[API] Erro ao persistir no Supabase: ${pErr.message}`);
-            }
-          }
-          
-          return { success: true, messageId: result.key.id };
-      }
-      
-      throw new Error("Não foi possível obter ID da mensagem após envio.");
-
-    } catch (err) {
-      const isConnectionError = err.message.toLowerCase().includes("fechada") || 
-                               err.message.toLowerCase().includes("closed") || 
-                               err.message.toLowerCase().includes("timed out") ||
-                               err.message.toLowerCase().includes("conflict") ||
-                               err.message.toLowerCase().includes("440");
-      
-      if (isConnectionError && attempts < maxAttempts) {
-        addLog(`[API] Erro de conexão detectado (${err.message}). Tentando novamente em 2s...`);
-        delete whatsappSockets[clinicId]; // Força recriação do socket
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      throw err;
-    }
-  }
-};
-
-app.post("/api/whatsapp/send", async (req, res) => {
-  const { clinicId, to, message } = req.body;
-
-  // Rate limiting
-  const rateKey = `${clinicId}-${to}`;
-  const now = Date.now();
-  const timestamps = whatsappRateLimit.get(rateKey) || [];
-  const windowTimestamps = timestamps.filter(
-    (t) => now - t < RATE_LIMIT_WINDOW,
-  );
-
-  if (windowTimestamps.length >= RATE_LIMIT_MAX) {
-    return res
-      .status(429)
-      .json({ ok: false, error: "Muitas mensagens. Aguarde alguns segundos." });
-  }
-
-  windowTimestamps.push(now);
-  whatsappRateLimit.set(rateKey, windowTimestamps);
-
-  // Clean old entries periodically
-  if (whatsappRateLimit.size > 1000) {
-    for (const [key, timestamps] of whatsappRateLimit.entries()) {
-      if (timestamps.every((t) => now - t > RATE_LIMIT_WINDOW)) {
-        whatsappRateLimit.delete(key);
-      }
-    }
-  }
-
-  try {
-    const sock = await ensureSocketConnected(clinicId);
-
-    // Wait up to 15 seconds if it's connecting
-    let waitCount = 0;
-    while (whatsappConnections[clinicId]?.status === "connecting" && waitCount < 30) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      waitCount++;
-    }
-
-    if (whatsappConnections[clinicId]?.status !== "connected") {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Dispositivo não conectado. Status atual: " + (whatsappConnections[clinicId]?.status || "desconhecido") });
-    }
-    const quickResult = await sendWhatsAppMessage({ clinicId, to, message });
-    return res.json({ ok: true, messageId: quickResult.messageId });
-  } catch (error) {
-    addLog(`[API] Erro ao enviar: ${error.message}`);
-    res.status(400).json({ ok: false, error: error.message });
-  }
-});
+app.use("/api/whatsapp", createWhatsAppRoutes({
+  whatsappConnections,
+  whatsappSockets,
+  ensureSocketConnected,
+  saveCredentialsToSupabase,
+  ensureClinicStatus,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_ANON_KEY,
+  sendWhatsAppMessage,
+  disconnectWhatsAppSession,
+  addLog,
+  antiSpamStatsByNumber
+}));
 
   // Get recent chats for a clinic
   app.get("/api/whatsapp/recent/:clinicId", async (req, res) => {
@@ -4387,380 +3707,9 @@ app.post("/api/webhooks/mercadopago", async (req, res) => {
 // 2FA Endpoints
 // ============================================
 
-const require2FAPermission = (req, res, next) => {
-  const requestedUserId = req.body.userId || req.query.userId;
-  const isSuperAdmin = req.user?.role === "super_admin";
+// 2FA permissions are now in middleware/auth.js
 
-  if (!requestedUserId) {
-    return res.status(400).json({ ok: false, error: "userId é obrigatório" });
-  }
 
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ ok: false, error: "Autenticação requerida" });
-  }
-
-  if (requestedUserId !== req.user.id && !isSuperAdmin) {
-    return res.status(403).json({
-      ok: false,
-      error: "Não autorizado a gerenciar 2FA de outro usuário",
-    });
-  }
-
-  next();
-};
-
-const requireSuperAdmin = (req, res, next) => {
-  if (!req.user || !req.user.id) {
-    return res.status(401).json({ ok: false, error: "Autenticação requerida" });
-  }
-
-  if (req.user.role !== "super_admin") {
-    return res
-      .status(403)
-      .json({ ok: false, error: "Acesso restrito a super_admin" });
-  }
-
-  next();
-};
-
-app.post(
-  "/api/2fa/setup",
-  requireAuth,
-  require2FAPermission,
-  async (req, res) => {
-    try {
-      const userId = req.body.userId || req.query.userId;
-      const userEmail = req.user?.email || "user@clinxia.com";
-      const isSuperAdmin = req.user?.role === "super_admin";
-
-      // Generate cryptographically secure secret (32 chars base32)
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-      let secret = "";
-      const randomBytes = crypto.randomBytes(32);
-      for (let i = 0; i < 32; i++) {
-        secret += chars[randomBytes[i] % chars.length];
-      }
-
-      // Encrypt secret with server key
-      if (!TOTP_ENCRYPTION_KEY) {
-        return res.status(503).json({
-          ok: false,
-          error: "2FA indisponível: chave de criptografia não configurada.",
-        });
-      }
-      const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv(
-        "aes-256-gcm",
-        crypto.scryptSync(TOTP_ENCRYPTION_KEY, "2fa-salt", 32),
-        iv,
-      );
-      let encrypted = cipher.update(secret, "utf8", "hex");
-      encrypted += cipher.final("hex");
-      const authTag = cipher.getAuthTag();
-
-      // Diagnostics — confirm which Supabase key is in use
-      console.log(
-        "[2FA Setup] Using Service Role Key:",
-        SUPABASE_SERVICE_ROLE_KEY
-          ? "YES (service_role)"
-          : "NO (fallback to anon)",
-      );
-      console.log("[2FA Setup] userId:", userId);
-
-      // Upsert 2FA record — avoids the delete+insert race/permission issue
-      const upsertRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/user_2fa?on_conflict=user_id`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
-            Prefer: "resolution=merge-duplicates,return=representation",
-          },
-          body: JSON.stringify({
-            user_id: userId,
-            secret_encrypted: JSON.stringify({
-              encrypted,
-              iv: iv.toString("hex"),
-              authTag: authTag.toString("hex"),
-            }),
-            enabled: false,
-            updated_at: new Date().toISOString(),
-          }),
-        },
-      );
-
-      // CHECK RESPONSE — upsert failure means DB permission/policy problem
-      if (!upsertRes.ok) {
-        const errorText = await upsertRes.text();
-        console.error(
-          "[2FA Setup] Failed to upsert 2FA secret:",
-          upsertRes.status,
-          errorText,
-        );
-        console.error(
-          "[2FA Setup] Service Role Key present:",
-          !!SUPABASE_SERVICE_ROLE_KEY,
-        );
-        return res
-          .status(500)
-          .json({ ok: false, error: "Erro ao salvar 2FA no banco de dados" });
-      }
-
-      // Generate QR code URI for authenticator app
-      const appName = "Clinxia";
-      const otpauthUri = `otpauth://totp/${encodeURIComponent(appName)}:${encodeURIComponent(userEmail)}?secret=${secret}&issuer=${encodeURIComponent(appName)}&algorithm=SHA1&digits=6&period=30`;
-
-      res.json({ ok: true, secret, otpauthUri, mandatory: isSuperAdmin });
-    } catch (error) {
-      console.error("[2FA Setup] Exception:", {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : "",
-        code: error.code || "UNKNOWN",
-      });
-      res.status(500).json({
-        ok: false,
-        error:
-          error instanceof Error ? error.message : "Erro ao configurar 2FA",
-      });
-    }
-  },
-);
-
-app.post(
-  "/api/2fa/verify",
-  requireAuth,
-  require2FAPermission,
-  async (req, res) => {
-    try {
-      const { code, userId } = req.body;
-
-      if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "Código deve ter 6 dígitos" });
-      }
-
-      if (!userId) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "userId é obrigatório" });
-      }
-
-      // Fetch encrypted secret from Supabase
-      const supaRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}&select=*`,
-        {
-          headers: getServerHeaders(),
-        },
-      );
-
-      if (!supaRes.ok) {
-        return res
-          .status(500)
-          .json({ ok: false, error: "Erro ao verificar 2FA" });
-      }
-
-      const data = await supaRes.json();
-      if (!data || data.length === 0) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "2FA não configurado" });
-      }
-
-      // Decrypt secret
-      const parsed = JSON.parse(data[0].secret_encrypted);
-      if (!TOTP_ENCRYPTION_KEY) {
-        return res.status(503).json({
-          ok: false,
-          error: "2FA indisponível: chave de criptografia não configurada.",
-        });
-      }
-      const decipher = crypto.createDecipheriv(
-        "aes-256-gcm",
-        crypto.scryptSync(TOTP_ENCRYPTION_KEY, "2fa-salt", 32),
-        Buffer.from(parsed.iv, "hex"),
-      );
-      decipher.setAuthTag(Buffer.from(parsed.authTag, "hex"));
-      let decrypted = decipher.update(parsed.encrypted, "hex", "utf8");
-      decrypted += decipher.final("utf8");
-
-      // TOTP verification (manual implementation - no external lib needed)
-      function base32Decode(base32) {
-        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-        let bits = "";
-        for (const char of base32.toUpperCase()) {
-          const val = alphabet.indexOf(char);
-          if (val === -1) continue;
-          bits += val.toString(2).padStart(5, "0");
-        }
-        const bytes = [];
-        for (let i = 0; i + 8 <= bits.length; i += 8) {
-          bytes.push(parseInt(bits.substring(i, i + 8), 2));
-        }
-        return Buffer.from(bytes);
-      }
-
-      function generateTOTP(secret, time) {
-        const key = base32Decode(secret);
-        const timeBuffer = Buffer.alloc(8);
-        timeBuffer.writeBigInt64BE(BigInt(time));
-        const hmac = crypto.createHmac("sha1", key).update(timeBuffer).digest();
-        const offset = hmac[hmac.length - 1] & 0x0f;
-        const code =
-          (((hmac[offset] & 0x7f) << 24) |
-            ((hmac[offset + 1] & 0xff) << 16) |
-            ((hmac[offset + 2] & 0xff) << 8) |
-            (hmac[offset + 3] & 0xff)) %
-          1000000;
-        return String(code).padStart(6, "0");
-      }
-
-      const now = Math.floor(Date.now() / 1000 / 30);
-      let isValid = false;
-      // Janela de ±2 (150 segundos de tolerância para clock skew)
-      for (let offset = -2; offset <= 2; offset++) {
-        const expected = generateTOTP(decrypted, now + offset);
-        if (expected === code) {
-          isValid = true;
-          break;
-        }
-      }
-
-      if (isValid) {
-        const updateRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`,
-          {
-            method: "PATCH",
-            headers: getServerHeaders(),
-            body: JSON.stringify({
-              enabled: true,
-              verified_at: new Date().toISOString(),
-            }),
-          },
-        );
-
-        if (!updateRes.ok) {
-          console.error(
-            "[2FA Verify] Failed to update 2FA status:",
-            updateRes.status,
-            await updateRes.text(),
-          );
-          return res
-            .status(500)
-            .json({ ok: false, error: "Erro ao ativar 2FA" });
-        }
-
-        res.json({ ok: true });
-      } else {
-        res.status(400).json({ ok: false, error: "Código inválido" });
-      }
-    } catch (error) {
-      console.error(
-        "[2FA Verify] Exception caught:",
-        error instanceof Error ? error.message : String(error),
-        error instanceof Error ? error.stack : "",
-      );
-      res.status(500).json({ ok: false, error: "Erro ao verificar 2FA" });
-    }
-  },
-);
-
-app.post(
-  "/api/2fa/disable",
-  requireAuth,
-  require2FAPermission,
-  async (req, res) => {
-    try {
-      const { userId } = req.body;
-      if (!userId) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "userId é obrigatório" });
-      }
-      await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
-        method: "DELETE",
-        headers: getServerHeaders(),
-      });
-      res.json({ ok: true });
-    } catch (error) {
-      res.status(500).json({ ok: false, error: "Erro ao desativar 2FA" });
-    }
-  },
-);
-
-app.get("/api/2fa/status", requireAuth, async (req, res) => {
-  try {
-    const userId = req.query.userId;
-    console.log("[2FA Status] userId:", userId, "| req.user.id:", req.user?.id);
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: "userId é obrigatório" });
-    }
-    const supaRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}&select=*`,
-      {
-        headers: getServerHeaders(),
-      },
-    );
-    let enabled = false;
-    if (supaRes.ok) {
-      const data = await supaRes.json();
-      enabled = data?.[0]?.enabled || false;
-    }
-    res.json({ ok: true, enabled });
-  } catch (error) {
-    res.status(500).json({ ok: false, error: "Erro ao verificar status 2FA" });
-  }
-});
-
-// Debug endpoint - test Supabase connectivity for 2FA table
-app.get("/api/2fa/test", async (req, res) => {
-  try {
-    console.log("[2FA Test] Testing Supabase connectivity...");
-    console.log("[2FA Test] SUPABASE_URL:", SUPABASE_URL);
-    console.log(
-      "[2FA Test] Using Service Role Key:",
-      SUPABASE_SERVICE_ROLE_KEY ? "YES" : "NO",
-    );
-
-    const testRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?limit=1`, {
-      headers: getServerHeaders(),
-    });
-
-    const data = await testRes.json();
-
-    console.log("[2FA Test] Response status:", testRes.status);
-    console.log("[2FA Test] Response:", data);
-
-    if (!testRes.ok) {
-      return res.status(testRes.status).json({
-        ok: false,
-        error: data?.message || "Failed to access user_2fa table",
-        status: testRes.status,
-        details: data,
-      });
-    }
-
-    res.json({
-      ok: true,
-      message: "Supabase connection OK",
-      tableExists: true,
-      recordCount: Array.isArray(data) ? data.length : 0,
-      data,
-    });
-  } catch (error) {
-    console.error(
-      "[2FA Test] Exception:",
-      error instanceof Error ? error.message : String(error),
-    );
-    res.status(500).json({
-      ok: false,
-      error: error instanceof Error ? error.message : "Test failed",
-      stack: error instanceof Error ? error.stack : "",
-    });
-  }
-});
 
 // Processador de campanhas em background
 setInterval(async () => {
@@ -4892,127 +3841,8 @@ app.listen(PORT, async () => {
 // ============================================
 // Super Admin — Subscription Management
 // ============================================
-
-// GET /api/super-admin/clinics — List all clinics from Supabase with admin info
-app.get("/api/super-admin/clinics", async (req, res) => {
-  try {
-    // Fetch all clinics
-    const { data: clinics, error: clinicsErr } = await supabaseAdmin
-      .from("clinics")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (clinicsErr) {
-      console.error("[SuperAdmin] Failed to fetch clinics:", clinicsErr.message);
-      return res.status(500).json({ ok: false, error: clinicsErr.message });
-    }
-
-    if (!clinics || clinics.length === 0) {
-      return res.json({ ok: true, data: [] });
-    }
-
-    // Fetch admin users for each clinic
-    const clinicIds = clinics.map(c => c.id);
-    const { data: admins } = await supabaseAdmin
-      .from("users")
-      .select("clinic_id, name, email, phone")
-      .in("clinic_id", clinicIds)
-      .eq("role", "admin");
-
-    const adminMap = {};
-    if (admins) {
-      for (const a of admins) {
-        if (!adminMap[a.clinic_id]) adminMap[a.clinic_id] = a;
-      }
-    }
-
-    // Count users per clinic
-    const { data: userCounts } = await supabaseAdmin
-      .from("users")
-      .select("clinic_id")
-      .in("clinic_id", clinicIds)
-      .eq("active", true);
-
-    const userCountMap = {};
-    if (userCounts) {
-      for (const u of userCounts) {
-        userCountMap[u.clinic_id] = (userCountMap[u.clinic_id] || 0) + 1;
-      }
-    }
-
-    // Build response with enriched data
-    const enriched = clinics.map(clinic => {
-      const admin = adminMap[clinic.id];
-      const planPrices = { basico: 197, profissional: 397, premium: 697 };
-      const planName = String(clinic.plan || "basico").toLowerCase();
-      const amount = planPrices[planName] || 0;
-
-      return {
-        id: clinic.id,
-        name: clinic.name || "Sem nome",
-        plan: clinic.plan || "basico",
-        status: clinic.status || "trial",
-        amount,
-        email: clinic.email || admin?.email || "",
-        phone: clinic.phone || admin?.phone || "",
-        cnpj: clinic.cnpj || "",
-        users_count: userCountMap[clinic.id] || 0,
-        created_at: clinic.created_at,
-        expires_at: clinic.expires_at || null,
-        last_payment_at: clinic.last_payment_at || null,
-        admin_name: admin?.name || "",
-        admin_email: admin?.email || "",
-      };
-    });
-
-    return res.json({ ok: true, data: enriched });
-  } catch (error) {
-    console.error("[SuperAdmin] Error in GET /clinics:", error.message);
-    return res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-// POST /api/super-admin/confirm-payment — Manually confirm a monthly payment
-app.post("/api/super-admin/confirm-payment", async (req, res) => {
-  try {
-    const clinicId = String(req.body?.clinic_id || "").trim();
-    if (!clinicId) {
-      return res.status(400).json({ ok: false, error: "clinic_id é obrigatório" });
-    }
-
-    // Calculate next billing date (30 days from now)
-    const now = new Date();
-    const nextBilling = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-    const updatePayload = {
-      status: "active",
-      expires_at: nextBilling.toISOString(),
-      last_payment_at: now.toISOString(),
-    };
-
-    const { error } = await supabaseAdmin
-      .from("clinics")
-      .update(updatePayload)
-      .eq("id", clinicId);
-
-    if (error) {
-      console.error("[SuperAdmin] Failed to confirm payment:", error.message);
-      return res.status(500).json({ ok: false, error: error.message });
-    }
-
-    addLog(`[SuperAdmin] Pagamento confirmado manualmente para clínica ${clinicId}. Próxima cobrança: ${nextBilling.toLocaleDateString('pt-BR')}`);
-
-    return res.json({
-      ok: true,
-      clinic_id: clinicId,
-      next_billing_date: nextBilling.toISOString(),
-      last_payment_at: now.toISOString(),
-    });
-  } catch (error) {
-    console.error("[SuperAdmin] Error in confirm-payment:", error.message);
-    return res.status(500).json({ ok: false, error: error.message });
-  }
-});
+import superAdminRoutes from "./routes/superAdminRoutes.js";
+app.use("/api/super-admin", superAdminRoutes);
 
 // Graceful shutdown for Cloud environments (Render/Docker)
 const shutdown = () => {
@@ -5027,4 +3857,4 @@ const shutdown = () => {
 
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
-
+

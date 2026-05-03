@@ -4,7 +4,6 @@
 
 import {
   SUPABASE_PUBLISHABLE_KEY,
-  SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_URL,
   isProductionBuild,
   isSupabaseEnvConfigured,
@@ -15,7 +14,12 @@ const SUPABASE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
 const isConfigured = isSupabaseEnvConfigured();
 
-console.log('[SupabaseSync] Using key: PUBLISHABLE_KEY (RLS allows public read)');
+// CODE-05 + SEC-10: Logger condicional
+const isDev = import.meta.env.DEV;
+const devLog = (...args: any[]) => { if (isDev) console.log(...args); };
+const devWarn = (...args: any[]) => { if (isDev) console.warn(...args); };
+
+devLog('[SupabaseSync] Using key: PUBLISHABLE_KEY (RLS allows public read)');
 
 const ensureSupabaseConfigured = (operation: string) => {
   if (isConfigured) return;
@@ -23,7 +27,7 @@ const ensureSupabaseConfigured = (operation: string) => {
   if (isProductionBuild) {
     throw new Error(message);
   }
-  console.warn(message);
+  devWarn(message);
 };
 
 // Obter token JWT do usuario logado (sessao em memoria)
@@ -62,34 +66,26 @@ const getAuthToken = (): string | null => {
       }
     }
   } catch (e) {
-    console.log('[SupabaseSync] Error getting auth token:', e);
+    devLog('[SupabaseSync] Error getting auth token:', e);
   }
   return null;
 };
 
 const getHeaders = (method?: string) => {
   const token = getAuthToken();
-  const hasServiceKey = Boolean(SUPABASE_SERVICE_ROLE_KEY && SUPABASE_SERVICE_ROLE_KEY.length > 10);
   
   let apiKey: string;
   let authHeader: string;
-  let authType: string;
   
   if (token) {
+    // Usuário autenticado: usar JWT
     apiKey = SUPABASE_KEY;
     authHeader = token;
-    authType = 'JWT';
-  } else if (hasServiceKey) {
-    apiKey = SUPABASE_SERVICE_ROLE_KEY;
-    authHeader = SUPABASE_SERVICE_ROLE_KEY;
-    authType = 'service_role';
   } else {
+    // Sem autenticação: usar anon key (respeitando RLS)
     apiKey = SUPABASE_KEY;
     authHeader = SUPABASE_KEY;
-    authType = 'public';
   }
-  
-  console.log('[SupabaseSync] Auth:', authType);
   
   return {
     'Content-Type': 'application/json',
@@ -116,7 +112,7 @@ async function supabaseFetch(table: string, options: {
 
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}/${table}${filters || ''}`;
-  console.log('[SupabaseSync] Fetch URL:', url);
+  devLog('[SupabaseSync] Fetch URL:', url);
 
   try {
     const controller = new AbortController();
@@ -131,7 +127,7 @@ async function supabaseFetch(table: string, options: {
 
     clearTimeout(timeoutId);
 
-    console.log('[SupabaseSync] Response status:', response.status);
+    devLog('[SupabaseSync] Response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -147,13 +143,13 @@ async function supabaseFetch(table: string, options: {
       // Caso a tabela não exista (erro 404 ou código PGRST205 do PostgREST)
       // Retornamos array vazio para não quebrar a aplicação enquanto o usuário não roda o SQL
       if (response.status === 404 || errorData.code === 'PGRST205') {
-        console.warn(`[SupabaseSync] Tabela ${table} não encontrada no banco de dados. Retornando array vazio.`);
+        devWarn(`[SupabaseSync] Tabela ${table} não encontrada no banco de dados. Retornando array vazio.`);
         return { data: [], error: null };
       }
       
       // Se for um erro de rede temporário (502, 503, 504) e ainda houver retries, tentar novamente
       if (retries > 0 && [502, 503, 504].includes(response.status)) {
-        console.log(`[SupabaseSync] Retry on HTTP ${response.status}. Retries left: ${retries}`);
+        devLog(`[SupabaseSync] Retry on HTTP ${response.status}. Retries left: ${retries}`);
         await new Promise(resolve => setTimeout(resolve, backoff));
         return supabaseFetch(table, { ...options, retries: retries - 1, backoff: backoff * 2 });
       }
@@ -167,14 +163,14 @@ async function supabaseFetch(table: string, options: {
     }
 
     const data = await response.json().catch(() => null);
-    console.log('[SupabaseSync] Data received:', Array.isArray(data) ? data.length : data);
+    devLog('[SupabaseSync] Data received:', Array.isArray(data) ? data.length : data);
     return { data, error: null };
   } catch (err: any) {
     console.error(`[SupabaseSync] Exception ${method} ${table}:`, err.message);
     
     // Se for timeout ou erro de rede, tenta novamente com backoff
     if (retries > 0 && (err.name === 'AbortError' || err.message.includes('Failed to fetch'))) {
-      console.log(`[SupabaseSync] Retry on Network/Timeout. Retries left: ${retries}`);
+      devLog(`[SupabaseSync] Retry on Network/Timeout. Retries left: ${retries}`);
       await new Promise(resolve => setTimeout(resolve, backoff));
       return supabaseFetch(table, { ...options, retries: retries - 1, backoff: backoff * 2 });
     }
@@ -188,25 +184,25 @@ const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 
 const getClinicId = (clinicId?: string) => {
   // Log para debug
-  console.log('[SupabaseSync] getClinicId called with:', clinicId);
+  devLog('[SupabaseSync] getClinicId called with:', clinicId);
   
   if (!clinicId) {
-    console.log('[SupabaseSync] No clinicId, using DEFAULT:', DEFAULT_CLINIC_ID);
+    devLog('[SupabaseSync] No clinicId, using DEFAULT:', DEFAULT_CLINIC_ID);
     return DEFAULT_CLINIC_ID;
   }
   
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (uuidRegex.test(clinicId)) {
-    console.log('[SupabaseSync] Valid UUID, using:', clinicId);
+    devLog('[SupabaseSync] Valid UUID, using:', clinicId);
     return clinicId;
   }
   
   if (clinicId === 'clinic-1') {
-    console.log('[SupabaseSync] clinic-1, using DEFAULT:', DEFAULT_CLINIC_ID);
+    devLog('[SupabaseSync] clinic-1, using DEFAULT:', DEFAULT_CLINIC_ID);
     return DEFAULT_CLINIC_ID;
   }
   
-  console.log('[SupabaseSync] Unknown format, using DEFAULT:', DEFAULT_CLINIC_ID);
+  devLog('[SupabaseSync] Unknown format, using DEFAULT:', DEFAULT_CLINIC_ID);
   return DEFAULT_CLINIC_ID;
 };
 
@@ -248,7 +244,7 @@ const mapProfessional = async (p: any): Promise<any> => {
       }
     }
   } catch (e) {
-    console.warn('[SupabaseSync] Could not fetch user name:', e);
+    devWarn('[SupabaseSync] Could not fetch user name:', e);
   }
   return {
     id: p.id,
@@ -373,19 +369,19 @@ export const SupabaseSync = {
 
     const { data, error } = await supabaseFetch('patients', { filters });
     
-    console.log('[SupabaseSync] patients loaded:', data?.length || 0, 'error:', error);
+    devLog('[SupabaseSync] patients loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
     return data.map(mapPatient);
   },
 
   async loadProfessionals(clinicId: string) {
     const uuid = getClinicId(clinicId);
-    console.log('[SupabaseSync] loadProfessionals with clinicId:', clinicId, '-> uuid:', uuid);
+    devLog('[SupabaseSync] loadProfessionals with clinicId:', clinicId, '-> uuid:', uuid);
     
     const { data, error } = await supabaseFetch('professionals', {
       filters: `?clinic_id=eq.${uuid}&select=*,user:user_id(id,name,email,phone,role)&order=created_at.asc`,
     });
-    console.log('[SupabaseSync] professionals loaded:', data?.length || 0, 'error:', error);
+    devLog('[SupabaseSync] professionals loaded:', data?.length || 0, 'error:', error);
     if (error || !data) return [];
     
     return data.map((p: any) => {
@@ -593,7 +589,7 @@ export const SupabaseSync = {
   },
 
   async saveAppointment(appointment: any) {
-    console.log('[SupabaseSync] saveAppointment called with:', appointment);
+    devLog('[SupabaseSync] saveAppointment called with:', appointment);
     const body = {
       id: appointment.id,
       clinic_id: getClinicId(appointment.clinic_id),
@@ -605,9 +601,9 @@ export const SupabaseSync = {
       status: appointment.status || 'scheduled',
       notes: appointment.notes || null,
     };
-    console.log('[SupabaseSync] saveAppointment body:', body);
+    devLog('[SupabaseSync] saveAppointment body:', body);
     const result = await supabaseFetch('appointments', { method: 'POST', body });
-    console.log('[SupabaseSync] saveAppointment result:', result);
+    devLog('[SupabaseSync] saveAppointment result:', result);
     return result;
   },
 
@@ -894,7 +890,7 @@ async saveTransaction(transaction: any) {
   },
 
   async deleteBranch(id: string) {
-    console.log('[SupabaseSync] Deletando filial:', id);
+    devLog('[SupabaseSync] Deletando filial:', id);
     return supabaseFetch('clinics', { 
       method: 'DELETE',
       filters: `?id=eq.${id}`
@@ -1076,5 +1072,5 @@ async saveTransaction(transaction: any) {
   },
 };
 
-console.log('[SupabaseSync] Módulo carregado, isConfigured:', isConfigured);
+devLog('[SupabaseSync] Módulo carregado, isConfigured:', isConfigured);
 

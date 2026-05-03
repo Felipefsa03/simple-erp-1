@@ -16,6 +16,17 @@ build_output.txt
 # OS artifacts
 nul
 
+# Temp/debug files (CODE-03: auditoria)
+old_server.js
+temp_index.js
+test_render.js
+error.txt
+git_log.txt
+git_remote_log.txt
+git_status.txt
+output.txt
+server/temp_index.js
+
 # Python cache
 __pycache__/
 .ruff_cache/

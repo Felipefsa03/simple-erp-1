@@ -16,13 +16,10 @@ export const SUPABASE_PUBLISHABLE_KEY = cleanEnv(
     '',
 );
 
-export const SUPABASE_SERVICE_ROLE_KEY = cleanEnv(
-  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-    import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY_PROD ||
-    import.meta.env.VITE_SUPABASE_SECRET_KEY ||
-    import.meta.env.VITE_SUPABASE_SECRET_KEY_PROD ||
-    '',
-);
+// SEGURANÇA (SEC-05): Service Role Key NUNCA deve ser exposta no frontend.
+// Ela bypassa toda RLS do Supabase. Qualquer operação administrativa
+// deve ser feita exclusivamente pelo backend (Render).
+export const SUPABASE_SERVICE_ROLE_KEY = '';
 
 export const isProductionBuild = import.meta.env.PROD;
 
