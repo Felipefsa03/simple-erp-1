@@ -516,6 +516,9 @@ export function LandingPage({ onLoginClick, onSignupClick }: LandingPageProps) {
                 <a href="/contato" className="block text-slate-700 hover:text-brand-600 font-medium">Contato</a>
                 <a href="/termos" className="block text-slate-700 hover:text-brand-600 font-medium">Termos de Uso</a>
                 <a href="/privacidade" className="block text-slate-700 hover:text-brand-600 font-medium">Privacidade</a>
+                <div className="pt-3 border-t border-slate-100">
+                  <Link to="/login" className="block text-brand-600 hover:text-brand-700 font-bold">Entrar no Sistema</Link>
+                </div>
               </div>
             </motion.div>
           )}
