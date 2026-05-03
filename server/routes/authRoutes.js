@@ -16,7 +16,7 @@ const hashPasswordResetCode = (email, code) =>
 // ============================================
 // Password Reset Endpoints
 // ============================================
-router.post("/auth/password/reset-verify", (req, res) => {
+router.post("/auth/password/reset-verify", async (req, res) => {
   const { email, code } = req.body;
   const normalizedEmail = String(email || "").trim().toLowerCase();
   
@@ -25,7 +25,7 @@ router.post("/auth/password/reset-verify", (req, res) => {
   }
 
   try {
-    const session = getPasswordResetSession(normalizedEmail);
+    const session = await getPasswordResetSession(normalizedEmail);
     
     if (!session) {
       return res.status(400).json({ ok: false, error: "Nenhum código solicitado para este email." });
@@ -33,7 +33,7 @@ router.post("/auth/password/reset-verify", (req, res) => {
 
     const now = Date.now();
     if (session.expiresAt && now > session.expiresAt) {
-      deletePasswordResetSession(normalizedEmail);
+      await deletePasswordResetSession(normalizedEmail);
       return res.status(400).json({ ok: false, error: "Código expirado." });
     }
 
