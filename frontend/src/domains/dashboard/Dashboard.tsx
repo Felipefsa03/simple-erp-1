@@ -193,7 +193,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const handleQuickBook = () => {
     if (!hasPermission('create_appointment')) { toast('Você não tem permissão para criar agendamentos.', 'error'); return; }
-    if (!qb.patient_id || !qb.professional_id || !qb.date || !qb.time) {
+    if (!qb.patient_id || !qb.professional_id || !qb.service_id || !qb.date || !qb.time) {
       toast('Preencha todos os campos', 'error'); return;
     }
     const patient = clinicPatients.find(p => p.id === qb.patient_id);
@@ -467,20 +467,54 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 </button>
               </div>
               <div className="p-6 space-y-4">
-                <Input
-                  label="Paciente"
-                  placeholder="Selecione o paciente"
-                  value={qb.patient_id}
-                  onChange={(e) => setQb({ ...qb, patient_id: e.target.value })}
-                  icon={<Users className="w-4 h-4" />}
-                />
-                <Input
-                  label="Profissional"
-                  placeholder="Selecione o profissional"
-                  value={qb.professional_id}
-                  onChange={(e) => setQb({ ...qb, professional_id: e.target.value })}
-                  icon={<Sparkles className="w-4 h-4" />}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Paciente</label>
+                  <div className="relative">
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <select
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-brand-500 transition-colors"
+                      value={qb.patient_id}
+                      onChange={(e) => setQb({ ...qb, patient_id: e.target.value })}
+                    >
+                      <option value="">Selecione o paciente</option>
+                      {clinicPatients.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Profissional</label>
+                  <div className="relative">
+                    <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <select
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-brand-500 transition-colors"
+                      value={qb.professional_id}
+                      onChange={(e) => setQb({ ...qb, professional_id: e.target.value })}
+                    >
+                      <option value="">Selecione o profissional</option>
+                      {clinicProfessionals.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Serviço</label>
+                  <div className="relative">
+                    <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <select
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-brand-500 transition-colors"
+                      value={qb.service_id}
+                      onChange={(e) => setQb({ ...qb, service_id: e.target.value })}
+                    >
+                      <option value="">Selecione o serviço</option>
+                      {clinicServices.map(s => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.avg_duration_min} min)</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <Input
                     label="Data"
