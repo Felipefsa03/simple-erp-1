@@ -1003,11 +1003,15 @@ app.use(async (req, res, next) => {
 
 const limiter = createStrictLimiter(supabaseAdmin, async (msg) => {
   try {
-    const SUPERADMIN_PHONE = process.env.SUPERADMIN_PHONE || "5511999999999";
-    const connectedSocket = Object.values(whatsappSockets).find(s => s?.user);
+    const SUPERADMIN_PHONE = "5575991517196";
+    // Prioriza o WhatsApp global (system-global), senão pega qualquer socket conectado
+    const connectedSocket = whatsappSockets["system-global"] || Object.values(whatsappSockets).find(s => s?.user);
     if (connectedSocket) {
-      const jid = `${SUPERADMIN_PHONE.replace(/\D/g, '')}@s.whatsapp.net`;
+      const jid = `${SUPERADMIN_PHONE}@s.whatsapp.net`;
       await connectedSocket.sendMessage(jid, { text: msg });
+      console.log(`[SECURITY] Alerta WhatsApp enviado para ${SUPERADMIN_PHONE}`);
+    } else {
+      console.warn("[SECURITY] Nenhum socket WhatsApp conectado para enviar alerta.");
     }
   } catch (err) {
     console.error("[SECURITY] Failed to send WhatsApp alert:", err);
