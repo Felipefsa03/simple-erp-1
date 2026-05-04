@@ -934,7 +934,12 @@ export const useClinicStore = create<ClinicStore>()(
 
                 // Sync to Supabase with rollback
                 if (isSupabaseConfigured()) {
-                    SupabaseSync.saveAppointment(appointment).catch((e: unknown) => {
+                    const prof = state.professionals.find(p => p.id === appointment.professional_id);
+                    const syncApt = {
+                        ...appointment,
+                        professional_id: prof?.user_id || appointment.professional_id
+                    };
+                    SupabaseSync.saveAppointment(syncApt).catch((e: unknown) => {
                         console.error('[ClinicStore] Erro ao salvar agendamento, revertendo...', e);
                         set(s => ({ appointments: s.appointments.filter(a => a.id !== appointment.id) }));
                     });
@@ -1107,6 +1112,7 @@ export const useClinicStore = create<ClinicStore>()(
                         patient_id: appointment.patient_id,
                         patient_name: appointment.patient_name,
                         professional_id: appointment.professional_id,
+                        professional_user_id: (state.professionals.find(p => p.id === appointment.professional_id) as any)?.user_id,
                         professional_name: appointment.professional_name,
                         type: 'income',
                         category: 'Atendimento',
@@ -1328,6 +1334,7 @@ export const useClinicStore = create<ClinicStore>()(
                     const newRecord = {
                         id: uid(), appointment_id: appointmentId || undefined, clinic_id: clinicId,
                         patient_id: patientId, professional_id: professionalId,
+                        professional_user_id: (get().professionals.find(p => p.id === professionalId) as any)?.user_id,
                         content, locked: false, created_at: now(), updated_at: now(),
                     };
                     saveToSupabase('medical_record', newRecord, true).catch(e => console.error('[ClinicStore] Erro ao salvar novo prontuário:', e));

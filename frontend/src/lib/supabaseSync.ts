@@ -263,7 +263,7 @@ const mapProfessional = async (p: any): Promise<any> => {
 
 const mapAppointment = (a: any, patients: any[] = [], professionals: any[] = []) => {
   const patient = patients.find(p => p.id === a.patient_id);
-  const professional = professionals.find(p => p.id === a.professional_id);
+  const professional = professionals.find(p => p.id === a.professional_id || p.user_id === a.professional_id);
   return {
     id: a.id,
     clinic_id: a.clinic_id,
@@ -398,6 +398,7 @@ export const SupabaseSync = {
         commission_pct: Number(p.commission) || 0,
         active: p.active !== false,
         created_at: p.created_at,
+        user_id: user?.id || p.user_id || null
       };
     });
   },
@@ -706,8 +707,8 @@ async saveTransaction(transaction: any) {
     };
     // Somente envia professional_id se for um UUID válido diferente do user_id (que causaria erro de FK)
     // O ideal seria o frontend mapear user_id para professional_id antes.
-    if (transaction.professional_id && transaction.professional_id !== transaction.user_id) {
-        body.professional_id = transaction.professional_id;
+    if (transaction.professional_id) {
+        body.professional_id = transaction.professional_user_id || transaction.professional_id;
     }
     
     return supabaseFetch('transactions', { method: 'POST', body });
@@ -749,8 +750,8 @@ async saveTransaction(transaction: any) {
     // Let's just remove professional_id from the payload for now to avoid the 409 conflict,
     // or check if it matches a known user pattern. Actually, the easiest fix is to just not send it
     // if it's causing FK issues, because professional_id is nullable.
-    if (record.professional_id && record.professional_id !== record.user_id) {
-      // body.professional_id = record.professional_id; // temporarily disabled to avoid FK error
+    if (record.professional_id) {
+      body.professional_id = record.professional_user_id || record.professional_id;
     }
     
     if (record.locked !== undefined) body.locked = Boolean(record.locked);
