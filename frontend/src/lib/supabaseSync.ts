@@ -697,7 +697,7 @@ async saveTransaction(transaction: any) {
       category: transaction.category || null,
       description: transaction.description || null,
       amount: transaction.amount || 0,
-      status: transaction.status || 'pending',
+      status: transaction.status === 'awaiting_payment' ? 'pending' : (transaction.status || 'pending'),
       method: transaction.payment_method || null,
       reference: transaction.reference || null,
       pix: transaction.pix_code || null,
@@ -705,10 +705,12 @@ async saveTransaction(transaction: any) {
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
     };
-    // Somente envia professional_id se for um UUID válido diferente do user_id (que causaria erro de FK)
-    // O ideal seria o frontend mapear user_id para professional_id antes.
-    if (transaction.professional_id) {
-        body.professional_id = transaction.professional_user_id || transaction.professional_id;
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    
+    if (transaction.professional_id && isUuid(transaction.professional_id)) {
+        body.professional_id = transaction.professional_id;
+    } else if (transaction.professional_user_id && isUuid(transaction.professional_user_id)) {
+        body.professional_id = transaction.professional_user_id;
     }
     
     return supabaseFetch('transactions', { method: 'POST', body });
@@ -716,14 +718,13 @@ async saveTransaction(transaction: any) {
 
   async updateTransaction(id: string, transaction: any) {
     const body: any = {
-      status: transaction.status || 'pending',
+      status: transaction.status === 'awaiting_payment' ? 'pending' : (transaction.status || 'pending'),
       method: transaction.payment_method || null,
       reference: transaction.reference || null,
       pix: transaction.pix_code || null,
       asaas_id: transaction.asaas_payment_id || null,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
-      updated_at: new Date().toISOString(),
     };
     return supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body });
   },
@@ -740,18 +741,12 @@ async saveTransaction(transaction: any) {
       updated_at: new Date().toISOString(),
     };
     
-    // The frontend passes user.id as professional_id, but the database expects professional_id from professionals table.
-    // If the ID passed is not found in the professionals table, it causes a foreign key constraint error.
-    // To prevent this, we only set professional_id if it's explicitly a professional_id, 
-    // or we fetch the professional_id based on user_id. For now, we'll avoid sending it if it's a user_id 
-    // or just let the database ignore it if we omit it (it's nullable).
-    // Better yet, since we don't have the professional mapping here, we can omit it if it's the current user's ID
-    // or we can just send it and if it fails, catch it. Wait, the user asked to FIX it.
-    // Let's just remove professional_id from the payload for now to avoid the 409 conflict,
-    // or check if it matches a known user pattern. Actually, the easiest fix is to just not send it
-    // if it's causing FK issues, because professional_id is nullable.
-    if (record.professional_id) {
-      body.professional_id = record.professional_user_id || record.professional_id;
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    
+    if (record.professional_id && isUuid(record.professional_id)) {
+      body.professional_id = record.professional_id;
+    } else if (record.professional_user_id && isUuid(record.professional_user_id)) {
+      body.professional_id = record.professional_user_id;
     }
     
     if (record.locked !== undefined) body.locked = Boolean(record.locked);
