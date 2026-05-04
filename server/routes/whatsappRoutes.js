@@ -50,8 +50,12 @@ export const createWhatsAppRoutes = ({
   const RATE_LIMIT_WINDOW = 10000; // 10 seconds
   const RATE_LIMIT_MAX = 5; // 5 messages per window
 
-  // Endpoint antispam
+  // Endpoint antispam (requer autenticação por segurança, para evitar vazamento de dados de bloqueio)
   router.get("/antispam/:number", (req, res) => {
+    // Validar permissão básica (somente usuários autenticados deveriam ver isso)
+    if (!req.user) {
+      return res.status(401).json({ ok: false, error: "Não autorizado" });
+    }
     const normalizedNumber = String(req.params?.number || "").replace(/\D/g, "");
     const current = antiSpamStatsByNumber.get(normalizedNumber) || {
       messages_sent: 0,

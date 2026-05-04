@@ -192,7 +192,11 @@ export function AuthenticatedApp() {
 
         // Se não está ativa no banco local, verificar status do pagamento via backend (consulta MercadoPago)
         try {
-          const statusRes = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(user?.email || '')}`);
+          const { data: sessionData } = await supabase!.auth.getSession();
+          const accessToken = sessionData?.session?.access_token || '';
+          const statusRes = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(user?.email || '')}`, {
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+          });
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             if (statusData.ok && statusData.approved) {

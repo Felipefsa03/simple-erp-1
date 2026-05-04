@@ -37,6 +37,95 @@ export const createBillingRoutes = ({
   SUPABASE_SERVICE_ROLE_KEY,
 }) => {
   const router = express.Router();
+  const paymentStatusSecret =
+    String(
+      process.env.PAYMENT_STATUS_TOKEN_SECRET ||
+      SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.JWT_SECRET ||
+      "",
+    ).trim();
+
+  const toBase64Url = (value) =>
+    Buffer.from(value, "utf8").toString("base64url");
+  const fromBase64Url = (value) =>
+    Buffer.from(String(value || ""), "base64url").toString("utf8");
+
+  const signStatusToken = (clinicId, email, expiresInSeconds = 60 * 60 * 6) => {
+    if (!paymentStatusSecret) return null;
+    const now = Math.floor(Date.now() / 1000);
+    const payloadObj = {
+      cid: String(clinicId || "").trim(),
+      em: String(email || "").toLowerCase().trim(),
+      iat: now,
+      exp: now + Math.max(60, Number(expiresInSeconds) || 0),
+    };
+    const payload = toBase64Url(JSON.stringify(payloadObj));
+    const signature = crypto
+      .createHmac("sha256", paymentStatusSecret)
+      .update(payload)
+      .digest("base64url");
+    return `${payload}.${signature}`;
+  };
+
+  const verifyStatusToken = (token, clinicId, email) => {
+    if (!paymentStatusSecret) return true; // fallback controlado para não quebrar ambientes sem secret
+    if (!token || String(token).split(".").length !== 2) return false;
+    const [payload, receivedSig] = String(token).split(".");
+    const expectedSig = crypto
+      .createHmac("sha256", paymentStatusSecret)
+      .update(payload)
+      .digest("base64url");
+
+    const sameLength = receivedSig.length === expectedSig.length;
+    if (!sameLength) return false;
+    const isValidSig = crypto.timingSafeEqual(
+      Buffer.from(receivedSig),
+      Buffer.from(expectedSig),
+    );
+    if (!isValidSig) return false;
+
+    try {
+      const decoded = JSON.parse(fromBase64Url(payload));
+      const now = Math.floor(Date.now() / 1000);
+      const tokenClinicId = String(decoded?.cid || "").trim();
+      const tokenEmail = String(decoded?.em || "").toLowerCase().trim();
+      const targetClinicId = String(clinicId || "").trim();
+      const targetEmail = String(email || "").toLowerCase().trim();
+      if (!tokenClinicId || tokenClinicId !== targetClinicId) return false;
+      if (!tokenEmail || tokenEmail !== targetEmail) return false;
+      if (!decoded?.exp || Number(decoded.exp) < now) return false;
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  };
+
+  const verifyBearerForClinic = async (authorizationHeader, clinicId, email) => {
+    const raw = String(authorizationHeader || "");
+    if (!raw.toLowerCase().startsWith("bearer ")) return false;
+    const bearerToken = raw.slice(7).trim();
+    if (!bearerToken || !SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
+    try {
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${bearerToken}`,
+        },
+      });
+      if (!response.ok) return false;
+      const authUser = await response.json();
+      const userEmail = String(authUser?.email || "").toLowerCase().trim();
+      const userClinicId = String(authUser?.user_metadata?.clinic_id || authUser?.app_metadata?.clinic_id || "").trim();
+      const userRole = String(authUser?.user_metadata?.role || authUser?.app_metadata?.role || "").toLowerCase().trim();
+      const targetClinicId = String(clinicId || "").trim();
+      const targetEmail = String(email || "").toLowerCase().trim();
+      if (!userEmail || userEmail !== targetEmail) return false;
+      if (userRole === "super_admin") return true;
+      return Boolean(userClinicId && userClinicId === targetClinicId);
+    } catch (_error) {
+      return false;
+    }
+  };
 
   const resolveGatewayForClinic = async (clinicId, req) => {
     const preferred = getPreferredGateway();
@@ -142,6 +231,7 @@ export const createBillingRoutes = ({
           qr_code: qrCodePayload?.payload || "",
           qr_code_base64: qrCodePayload?.encodedImage || "",
           point_of_interaction_url: payment.invoiceUrl,
+          payment_status_token: signStatusToken(normalizedClinicId, email),
         });
       }
 
@@ -220,6 +310,7 @@ export const createBillingRoutes = ({
         qr_code: qrCode,
         qr_code_base64: qrCodeBase64,
         point_of_interaction_url: pointOfInteractionUrl,
+        payment_status_token: signStatusToken(normalizedClinicId, email),
       });
 
     } catch (error) {
@@ -230,9 +321,20 @@ export const createBillingRoutes = ({
   router.get("/payment-status/:clinicId", async (req, res) => {
     const clinicId = String(req.params?.clinicId || "").trim();
     const email = String(req.query?.email || "").trim();
+    const statusToken = String(req.query?.token || "").trim();
 
     if (!clinicId || !isUuid(clinicId)) {
       return res.status(400).json({ ok: false, error: "clinicId invalido." });
+    }
+    if (!email) {
+      return res.status(400).json({ ok: false, error: "email é obrigatório." });
+    }
+    const tokenAuthorized = verifyStatusToken(statusToken, clinicId, email);
+    const bearerAuthorized = tokenAuthorized
+      ? false
+      : await verifyBearerForClinic(req.headers?.authorization, clinicId, email);
+    if (!tokenAuthorized && !bearerAuthorized) {
+      return res.status(401).json({ ok: false, error: "Token de consulta inválido ou expirado." });
     }
 
     try {
@@ -249,7 +351,7 @@ export const createBillingRoutes = ({
             if (Array.isArray(localPayments) && localPayments.length > 0) localPayment = localPayments[0];
           }
         }
-        if (localPayment) return res.json({ ok: true, status: "approved", payment: { id: localPayment.mp_payment_id, status: localPayment.status } });
+        if (localPayment) return res.json({ ok: true, approved: true, status: "approved", payment: { id: localPayment.mp_payment_id, status: localPayment.status } });
 
         const searchUrl = `${baseUrl}/payments?externalReference=${encodeURIComponent(clinicId)}&limit=1`;
         const searchRes = await fetch(searchUrl, { headers: { access_token: token } });
@@ -259,10 +361,10 @@ export const createBillingRoutes = ({
           if (first) {
             const approved = isAsaasPaymentApproved(first);
             if (approved) await persistAsaasPayment(first, clinicId);
-            return res.json({ ok: true, status: approved ? "approved" : "pending", payment: first });
+            return res.json({ ok: true, approved, status: approved ? "approved" : "pending", payment: first });
           }
         }
-        return res.json({ ok: true, status: "pending", payment: null });
+        return res.json({ ok: true, approved: false, status: "pending", payment: null });
       }
 
       // Mercado Pago Fallback/Logic
@@ -292,12 +394,12 @@ export const createBillingRoutes = ({
         }
       }
 
-      if (!payment) return res.json({ ok: true, status: "pending", payment: null });
+      if (!payment) return res.json({ ok: true, approved: false, status: "pending", payment: null });
 
       const approved = isMercadoPagoApproved(payment);
       if (approved) await persistMercadoPagoPayment(payment, clinicId);
 
-      return res.json({ ok: true, status: approved ? "approved" : "pending", payment });
+      return res.json({ ok: true, approved, status: approved ? "approved" : "pending", payment });
 
     } catch (error) {
       return res.status(500).json({ ok: false, error: error.message });
@@ -320,7 +422,12 @@ export const createBillingRoutes = ({
       }
 
       // 2. Otherwise assume MercadoPago Webhook
-      const { token, webhookSecret } = await resolveMercadoPagoCredentials();
+      // Para o webhook receber chamadas tanto do global quanto de clinicas, 
+      // precisamos idealmente resolver dinamicamente, mas por segurança aceitamos se a assinatura
+      // bater com o secret Global ou com o secret da clínica especificada (no webhook não vem clinicId claro na URL por padrão, 
+      // precisariamos extrair do corpo da notificação).
+      // Por simplicidade, vamos usar o token Global para verificar webhooks de cadastro principal.
+      const { token, webhookSecret } = await resolveMercadoPagoCredentials(null, { allowEnvFallback: true });
       if (webhookSecret) {
         const rawSignatureHeader = String(req.headers["x-signature"] || "");
         const requestId = String(req.headers["x-request-id"] || req.body?.id || "");

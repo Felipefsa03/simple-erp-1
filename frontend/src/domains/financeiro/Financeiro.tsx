@@ -392,13 +392,13 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
       <AnimatePresence mode="wait">
         {activeTab === 'dashboard' && (
           <motion.div key="dash" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-            <FinancialDashboard clinicId={clinicId} />
+            <FinancialDashboard />
           </motion.div>
         )}
 
         {activeTab === 'cashflow' && (
           <motion.div key="cf" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-            <CashFlowProjection clinicId={clinicId} />
+            <CashFlowProjection />
           </motion.div>
         )}
 

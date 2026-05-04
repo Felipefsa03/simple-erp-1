@@ -148,6 +148,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   const [qrCodeImage, setQrCodeImage] = useState<string>('');
   const [pollingPayment, setPollingPayment] = useState(false);
   const [paymentApproved, setPaymentApproved] = useState(false);
+  const [paymentStatusToken, setPaymentStatusToken] = useState('');
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const idsRef = useRef<{ signupId: string; clinicId: string }>({
@@ -176,7 +177,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   const checkPaymentStatus = async () => {
     const clinicId = idsRef.current.clinicId;
     const email = signupForm.email;
-    const response = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(email)}`);
+    const tokenQuery = paymentStatusToken ? `&token=${encodeURIComponent(paymentStatusToken)}` : '';
+    const response = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(email)}${tokenQuery}`);
     const data = await response.json();
     if (!data.ok) {
       throw new Error(data.error || 'Erro ao verificar pagamento.');
@@ -519,6 +521,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
         qr_code: data.qr_code || '',
         qr_code_base64: data.qr_code_base64 || ''
       });
+      setPaymentStatusToken(String(data.payment_status_token || ''));
       setQrCodeImage(qrImage);
       setPixGenerated(true);
 

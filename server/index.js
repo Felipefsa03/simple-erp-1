@@ -362,6 +362,41 @@ app.use("/api/auth/verify-2fa", loginSlowDown);
 
 app.use("/api/", limiter);
 
+const paymentStatusLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 80,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Muitas consultas de status. Tente novamente em alguns minutos." },
+});
+const createPreferenceLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Muitas tentativas de cobrança. Aguarde e tente novamente." },
+});
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Webhook rate limited." },
+});
+const passwordResetLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: "Muitas solicitações de recuperação. Tente novamente depois." },
+});
+
+app.use("/api/mercadopago/payment-status", paymentStatusLimiter);
+app.use("/api/mercadopago/create-preference", createPreferenceLimiter);
+app.use("/api/webhooks/mercadopago", webhookLimiter);
+app.use("/api/auth/password/reset-request", passwordResetLimiter);
+app.use("/api/auth/password/reset-confirm", passwordResetLimiter);
+
 app.use(express.json({ limit: "10mb" }));
 app.use("/api", (req, res, next) => {
   runtimeMetrics.requestsTotal += 1;

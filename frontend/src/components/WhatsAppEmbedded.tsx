@@ -10,6 +10,12 @@ import { format } from 'date-fns';
 const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
+const getAuthToken = async (): Promise<string | null> => {
+  if (!supabase?.auth?.getSession) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+};
+
 interface WhatsAppEmbeddedProps {
   isOpen: boolean;
   onClose: () => void;
@@ -69,8 +75,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
   const fetchRecent = useCallback(async () => {
     setLoadingRecent(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = await getAuthToken();
       
       const res = await fetch(`${API_BASE}/api/whatsapp/recent/${clinicId}`, {
         headers: { 
@@ -159,7 +164,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
             isMinimized ? "w-0 opacity-0 overflow-hidden" : "w-auto opacity-100"
           )}>
             <h3 className="font-bold whitespace-nowrap">
-              {selectedPatient?.name ? `Chat: ${selectedPatient.name.split(' ')[0]}` : 'WhatsApp'}
+              WhatsApp
             </h3>
             <p className="text-[10px] text-white/70">Status: Conectado</p>
           </div>

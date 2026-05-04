@@ -169,7 +169,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     google_calendar_email: integrationConfig?.google_calendar_email || "",
     mp_access_token: integrationConfig?.mp_access_token || "",
     mp_public_key: integrationConfig?.mp_public_key || "",
-    mp_webhook_secret: integrationConfig?.mp_webhook_secret || "",
+    mp_webhook_secret: (integrationConfig as any)?.mp_webhook_secret || "",
     plan_price_basico: String(integrationConfig?.plan_price_basico ?? ""),
     plan_price_profissional: String(
       integrationConfig?.plan_price_profissional ?? "",
@@ -316,7 +316,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       google_calendar_email: integrationConfig.google_calendar_email || "",
       mp_access_token: integrationConfig.mp_access_token || "",
       mp_public_key: integrationConfig.mp_public_key || "",
-      mp_webhook_secret: integrationConfig.mp_webhook_secret || "",
+      mp_webhook_secret: (integrationConfig as any).mp_webhook_secret || "",
       plan_price_basico: String(integrationConfig.plan_price_basico ?? ""),
       plan_price_profissional: String(
         integrationConfig.plan_price_profissional ?? "",
@@ -445,11 +445,13 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     
     // Log de auditoria
     store.addAuditLog({
-      user_id: user?.id,
-      clinic_id: clinic?.id,
+      user_id: user?.id || "",
+      user_name: user?.name || "System",
+      details: "Atualização das configurações",
+      clinic_id: clinic?.id || "",
       action: "UPDATE_SETTINGS",
-      entity: "clinic",
-      entity_id: clinic?.id,
+      entity_type: "clinic",
+      entity_id: clinic?.id || "",
     });
 
     toast("Configurações da clínica salvas com sucesso!");
@@ -762,11 +764,13 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
       // Log de auditoria
       store.addAuditLog({
-        user_id: user?.id,
-        clinic_id: clinic?.id,
+        user_id: user?.id || "",
+        user_name: user?.name || "System",
+        details: "Senha alterada",
+        clinic_id: clinic?.id || "",
         action: "PASSWORD_CHANGE",
-        entity: "user",
-        entity_id: user?.id,
+        entity_type: "user",
+        entity_id: user?.id || "",
       });
 
       toast("Senha alterada com sucesso!", "success");
@@ -803,11 +807,13 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
           // Log de auditoria
           store.addAuditLog({
-            user_id: user?.id,
-            clinic_id: clinic?.id,
+            user_id: user?.id || "",
+            user_name: user?.name || "System",
+            details: "2FA desativado",
+            clinic_id: clinic?.id || "",
             action: "2FA_DISABLE",
-            entity: "user",
-            entity_id: user?.id,
+            entity_type: "user",
+            entity_id: user?.id || "",
           });
 
           toast("2FA desativado com sucesso!", "success");
@@ -883,11 +889,13 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
         // Log de auditoria
         store.addAuditLog({
-          user_id: user?.id,
-          clinic_id: clinic?.id,
+          user_id: user?.id || "",
+          user_name: user?.name || "System",
+          details: "2FA ativado",
+          clinic_id: clinic?.id || "",
           action: "2FA_ENABLE",
-          entity: "user",
-          entity_id: user?.id,
+          entity_type: "user",
+          entity_id: user?.id || "",
         });
 
         setShowTwoFAModal(false);
@@ -3288,7 +3296,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     plan_price_premium: parsedPremium,
                     mp_access_token: integrationForm.mp_access_token,
                     mp_public_key: integrationForm.mp_public_key,
-                    mp_webhook_secret: integrationForm.mp_webhook_secret,
+                    mp_webhook_secret: (integrationForm as any).mp_webhook_secret,
                   };
 
                   const upsertRes = await fetch(
@@ -3318,8 +3326,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                     plan_price_premium: parsedPremium,
                     mp_access_token: integrationForm.mp_access_token,
                     mp_public_key: integrationForm.mp_public_key,
-                    mp_webhook_secret: integrationForm.mp_webhook_secret,
-                  });
+                    mp_webhook_secret: (integrationForm as any).mp_webhook_secret,
+                  } as any);
                   toast("Preços e credenciais salvos com sucesso!");
                 } catch (e: any) {
                   toast("Erro ao salvar: " + e.message, "error");
@@ -3421,30 +3429,32 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
 
                       let error;
                       if (existing) {
+                        const payloadUpdate: any = {
+                          mp_access_token: integrationForm.mp_access_token,
+                          mp_public_key: integrationForm.mp_public_key,
+                          mp_webhook_secret: (integrationForm as any).mp_webhook_secret,
+                        };
                         ({ error } = await supabase
                           .from("integration_config")
-                          .update({
-                            mp_access_token: integrationForm.mp_access_token,
-                            mp_public_key: integrationForm.mp_public_key,
-                            mp_webhook_secret: integrationForm.mp_webhook_secret,
-                          })
+                          .update(payloadUpdate)
                           .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID));
                       } else {
+                        const payloadInsert: any = {
+                          clinic_id: SYSTEM_GLOBAL_CLINIC_ID,
+                          mp_access_token: integrationForm.mp_access_token,
+                          mp_public_key: integrationForm.mp_public_key,
+                          mp_webhook_secret: (integrationForm as any).mp_webhook_secret,
+                        };
                         ({ error } = await supabase
                           .from("integration_config")
-                          .insert({
-                            clinic_id: SYSTEM_GLOBAL_CLINIC_ID,
-                            mp_access_token: integrationForm.mp_access_token,
-                            mp_public_key: integrationForm.mp_public_key,
-                            mp_webhook_secret: integrationForm.mp_webhook_secret,
-                          }));
+                          .insert(payloadInsert));
                       }
                       if (error) throw error;
                       setIntegrationConfig({
                         mp_access_token: integrationForm.mp_access_token,
                         mp_public_key: integrationForm.mp_public_key,
-                        mp_webhook_secret: integrationForm.mp_webhook_secret,
-                      });
+                        mp_webhook_secret: (integrationForm as any).mp_webhook_secret,
+                      } as any);
                       toast("Credenciais do Mercado Pago salvas!");
                     } catch (e: any) {
                       toast("Erro ao salvar: " + e.message, "error");

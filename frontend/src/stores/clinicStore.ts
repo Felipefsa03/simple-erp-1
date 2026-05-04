@@ -928,7 +928,6 @@ export const useClinicStore = create<ClinicStore>()(
                   clinic_id, 
                   source: a.source || 'internal', 
                   id: uid(), 
-                  professional_user_id: (state.professionals.find(p => p.id === a.professional_id) as any)?.user_id,
                   created_at: now() 
                 };
                 set(s => ({ appointments: [...s.appointments, appointment] }));
@@ -1108,7 +1107,6 @@ export const useClinicStore = create<ClinicStore>()(
                         patient_id: appointment.patient_id,
                         patient_name: appointment.patient_name,
                         professional_id: appointment.professional_id,
-                        professional_user_id: (state.professionals.find(p => p.id === appointment.professional_id) as any)?.user_id,
                         professional_name: appointment.professional_name,
                         type: 'income',
                         category: 'Atendimento',
@@ -1732,7 +1730,7 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Financial Category Actions ----
             addFinancialCategory: (category) => {
                 const clinic_id = category.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
-                const newCategory: FinancialCategory = { ...category, clinic_id, id: uid(), created_at: now() };
+                const newCategory: FinancialCategory = { ...category, clinic_id, id: uid() } as FinancialCategory;
                 set(s => ({ financialCategories: [newCategory, ...s.financialCategories] }));
                 saveToSupabase('financial_category', newCategory, true).catch(e => console.error('[ClinicStore] Erro ao salvar categoria financeira:', e));
                 return newCategory;

@@ -55,7 +55,7 @@ export const parsePlanPrice = (value, fallback) => {
 };
 
 export const maskPhone = (rawPhone) => {
-  const digits = String(rawPhone || "").replace(/\\D/g, "");
+  const digits = String(rawPhone || "").replace(/\D/g, "");
   if (digits.length < 4) return "(**) *****-****";
   return `(**) *****-${digits.slice(-4)}`;
 };
@@ -83,7 +83,7 @@ export const safeJson = async (response) => {
 // Brazilian Phone Number Normalization
 // ============================================
 export function brazilianPhoneCandidates(rawPhone) {
-  let digits = String(rawPhone).replace(/\\D/g, "");
+  let digits = String(rawPhone).replace(/\D/g, "");
 
   // Remove leading zeros
   while (digits.startsWith("0")) digits = digits.slice(1);
@@ -112,22 +112,22 @@ export function brazilianPhoneCandidates(rawPhone) {
 
   if (local.length === 8 && ["6", "7", "8", "9"].includes(local[0])) {
     if (is9DigitJID) {
-      results.push(\`\${country}\${ddd}9\${local}\`);
-      results.push(\`\${country}\${ddd}\${local}\`);
+      results.push(`${country}${ddd}9${local}`);
+      results.push(`${country}${ddd}${local}`);
     } else {
-      results.push(\`\${country}\${ddd}\${local}\`);
-      results.push(\`\${country}\${ddd}9\${local}\`);
+      results.push(`${country}${ddd}${local}`);
+      results.push(`${country}${ddd}9${local}`);
     }
   } else if (local.length === 9 && local[0] === "9") {
     if (is9DigitJID) {
-      results.push(\`\${country}\${ddd}\${local}\`);
-      results.push(\`\${country}\${ddd}\${local.slice(1)}\`);
+      results.push(`${country}${ddd}${local}`);
+      results.push(`${country}${ddd}${local.slice(1)}`);
     } else {
-      results.push(\`\${country}\${ddd}\${local.slice(1)}\`);
-      results.push(\`\${country}\${ddd}\${local}\`);
+      results.push(`${country}${ddd}${local.slice(1)}`);
+      results.push(`${country}${ddd}${local}`);
     }
   } else {
-    results.push(\`\${country}\${ddd}\${local}\`);
+    results.push(`${country}${ddd}${local}`);
   }
 
   return [...new Set(results)];
@@ -139,7 +139,7 @@ export function brazilianPhoneCandidates(rawPhone) {
 const debugLogs = [];
 export const addLog = (msg) => {
   const timestamp = new Date().toISOString();
-  const formatted = \`[\${timestamp}] \${msg}\`;
+  const formatted = `[${timestamp}] ${msg}`;
   console.log(formatted);
   debugLogs.push(formatted);
   if (debugLogs.length > 500) debugLogs.shift();

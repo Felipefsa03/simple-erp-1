@@ -57,7 +57,12 @@ export function SubscriptionBlockPage({ user, subscriptionInfo, onPaymentConfirm
               try {
                 const isDev = import.meta.env.DEV;
                 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
-                const res = await fetch(`${API_BASE}/api/mercadopago/payment-status/${user?.clinic_id}?email=${encodeURIComponent(user?.email || '')}`);
+                const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+                const { data: sessionData } = isSupabaseConfigured() ? await supabase!.auth.getSession() : { data: { session: null } };
+                const accessToken = sessionData?.session?.access_token || '';
+                const res = await fetch(`${API_BASE}/api/mercadopago/payment-status/${user?.clinic_id}?email=${encodeURIComponent(user?.email || '')}`, {
+                  headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+                });
                 if (res.ok) {
                   const data = await res.json();
                   if (data.ok && data.approved) {

@@ -284,6 +284,7 @@ export const useAuth = create<AuthState>()(
       user: null,
       clinic: null,
       loading: true,
+      isImpersonating: false,
       twoFARequired: false,
       twoFAPendingUserId: null,
       permissions: clonePermissions(),
@@ -393,12 +394,14 @@ export const useAuth = create<AuthState>()(
                     const store = useClinicStore.getState();
                     store.syncWithSupabase();
                     store.addAuditLog({
-                      clinic_id: clinicId,
-                      user_id: user.id,
-                      action: "LOGIN",
-                      entity: "auth",
-                      entity_id: user.id,
-                    });
+                        clinic_id: clinicId,
+                        user_id: user.id,
+                        user_name: user.name || "System",
+                        details: "Login efetuado com sucesso",
+                        action: "LOGIN",
+                        entity_type: "auth",
+                        entity_id: user.id,
+                      });
                   });
                 }
 
@@ -459,12 +462,14 @@ export const useAuth = create<AuthState>()(
         if (user) {
           import("../stores/clinicStore").then(({ useClinicStore }) => {
             useClinicStore.getState().addAuditLog({
-              clinic_id: clinic?.id || user.clinic_id || "00000000-0000-0000-0000-000000000001",
-              user_id: user.id,
-              action: "LOGOUT",
-              entity: "auth",
-              entity_id: user.id,
-            });
+                clinic_id: clinic?.id || user.clinic_id || "00000000-0000-0000-0000-000000000001",
+                user_id: user.id,
+                user_name: user.name || "System",
+                details: "Logout efetuado",
+                action: "LOGOUT",
+                entity_type: "auth",
+                entity_id: user.id,
+              });
           });
         }
         if (isSupabaseConfigured()) {
@@ -572,13 +577,15 @@ export const useAuth = create<AuthState>()(
                     console.log('[Auth] Permissions synced to Supabase successfully');
                     import("../stores/clinicStore").then(({ useClinicStore }) => {
                         useClinicStore.getState().addAuditLog({
-                            clinic_id: state.clinic!.id,
-                            user_id: state.user!.id,
-                            action: "UPDATE_PERMISSIONS",
-                            entity: "settings",
-                            entity_id: state.clinic!.id,
-                            new_data: { action, role, allowed }
-                        });
+                              clinic_id: state.clinic!.id,
+                              user_id: state.user!.id,
+                              user_name: state.user!.name || "System",
+                              details: `Permissão atualizada: ${role} - ${action} (${allowed ? 'permitido' : 'negado'})`,
+                              action: "UPDATE_PERMISSIONS",
+                              entity_type: "settings",
+                              entity_id: state.clinic!.id,
+                              new_data: { action, role, allowed }
+                          });
                     });
                 }
               });

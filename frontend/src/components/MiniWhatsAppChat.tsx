@@ -16,6 +16,12 @@ import { supabase } from '@/lib/supabase';
 const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
+const getAuthToken = async (): Promise<string | null> => {
+  if (!supabase?.auth?.getSession) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+};
+
 interface MiniWhatsAppChatProps {
   isOpen: boolean;
   onClose: () => void;
@@ -285,8 +291,7 @@ export function MiniWhatsAppChat({
       // Try to send via API
       let data = null;
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = await getAuthToken();
 
         const response = await fetch(`${API_BASE}/api/whatsapp/send`, {
           method: 'POST',
@@ -308,9 +313,12 @@ export function MiniWhatsAppChat({
         data = await response.json();
         console.log('[MiniChat] Response data:', data);
       } catch (apiError) {
-        // API not available - use demo mode
-        console.log('[MiniChat] API not available, using demo mode');
-        data = { ok: true, messageId: 'demo-' + Date.now(), demo: true };
+        if (import.meta.env.DEV) {
+          // Em desenvolvimento, permite simulação local sem backend.
+          data = { ok: true, messageId: 'demo-' + Date.now(), demo: true };
+        } else {
+          throw apiError;
+        }
       }
 
       if (!data?.ok) {
@@ -367,8 +375,7 @@ export function MiniWhatsAppChat({
   // Fetch messages from backend
   const fetchMessages = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = await getAuthToken();
       
       const phoneForApi = formatPhoneForWhatsApp(patientPhone);
       const res = await fetch(`${API_BASE}/api/whatsapp/messages/${clinicId}/${phoneForApi}`, {

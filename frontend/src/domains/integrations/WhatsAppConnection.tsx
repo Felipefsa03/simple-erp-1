@@ -178,16 +178,15 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
     setErrorMsg(null);
     connectedNotifiedRef.current = false;
 
-    // Check if API is available first - if not, use demo mode automatically
+    // Check if API is available first
     if (!isDev) {
       const apiOk = await isApiAvailable();
       if (!apiOk) {
-        console.log('[WhatsApp] API not available, using demo mode');
-        setUiStatus('connected');
-        setWhatsAppConnected(clinicId, true, '', '5511999999999');
-        if (onStatusChange) onStatusChange(true);
-        setDeviceInfo({ name: 'WhatsApp Demo', id: '', platform: 'Modo Simulação', lastSync: new Date().toLocaleString('pt-BR') });
-        toast('Modo demo ativado - API não disponível', 'info');
+        setUiStatus('error');
+        setWhatsAppConnected(clinicId, false);
+        if (onStatusChange) onStatusChange(false);
+        setErrorMsg('API de WhatsApp indisponível. Verifique o backend no Render.');
+        toast('WhatsApp indisponível no momento. Tente novamente em instantes.', 'error');
         return;
       }
     }

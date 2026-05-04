@@ -97,18 +97,26 @@ export const createClinicRoutes = ({
     }
   });
 
-  // Anamnese sync endpoint (PÚBLICO - RLS permite leitura)
-  router.get("/anamnese-sync", async (req, res) => {
+  // Anamnese sync endpoint (autenticado)
+  router.get("/anamnese-sync", requireAuth, async (req, res) => {
     try {
       if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
         return res.json({ ok: true, items: [] });
       }
 
-      const userClinicId = req.clinicId;
-      const userRole = req.user?.role;
+      const userClinicId = String(req.clinicId || "").trim();
+      const userRole = String(req.user?.role || "").toLowerCase();
+      const isSuperAdmin = userRole === "super_admin";
+
+      if (!isSuperAdmin && !userClinicId) {
+        return res.status(401).json({ ok: false, error: "Contexto de clínica ausente na sessão." });
+      }
+
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const clinicFilter = !isSuperAdmin ? `&clinic_id=eq.${encodeURIComponent(userClinicId)}` : "";
 
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/medical_records?select=patient_id,clinic_id,anamnese,updated_at&updated_at=gte.${new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}&limit=100`,
+        `${SUPABASE_URL}/rest/v1/medical_records?select=patient_id,clinic_id,anamnese,updated_at&updated_at=gte.${since}${clinicFilter}&limit=100`,
         {
           headers: {
             apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -122,11 +130,7 @@ export const createClinicRoutes = ({
       }
 
       const records = await response.json();
-
-      let filteredRecords = records;
-      if (userRole !== "admin" && userRole !== "owner") {
-        filteredRecords = records.filter((r) => r.clinic_id === userClinicId);
-      }
+      const filteredRecords = Array.isArray(records) ? records : [];
 
       const items = filteredRecords.map((r) => ({
         patientId: r.patient_id,

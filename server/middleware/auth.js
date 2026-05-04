@@ -20,8 +20,22 @@ export const requireAuth = async (req, res, next) => {
   }
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    req.user = { id: "dev-user", role: "admin", clinic_id: "dev-clinic" };
-    return next();
+    const allowDevBypass =
+      process.env.NODE_ENV !== "production" &&
+      String(process.env.ALLOW_DEV_AUTH_BYPASS || "").toLowerCase() === "true";
+
+    if (allowDevBypass) {
+      req.user = { id: "dev-user", role: "admin", clinic_id: "dev-clinic" };
+      req.token = token;
+      req.clinicId = req.user.clinic_id;
+      return next();
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error:
+        "Configuração de autenticação incompleta no servidor. Defina SUPABASE_URL e SUPABASE_PUBLISHABLE_KEY.",
+    });
   }
 
   try {

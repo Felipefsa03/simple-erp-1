@@ -717,11 +717,11 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                 <p className="text-3xl font-black text-amber-700 mt-1">R$ {(stats.ticketMedio || 0).toLocaleString('pt-BR')}</p>
               </div>
             </div>
-            {sub && sub.payment_history && sub.payment_history.length > 0 && (
+            {sub && (sub as any).payment_history && (sub as any).payment_history.length > 0 && (
               <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-900">Histórico de Pagamentos</h3></div>
                 <div className="divide-y divide-slate-100">
-                  {sub.payment_history.map(payment => (
+                  {(sub as any).payment_history.map((payment: any) => (
                     <div key={payment.id} className="p-4 flex items-center justify-between">
                       <div>
                         <p className="font-bold text-slate-900">{new Date(payment.date).toLocaleDateString('pt-BR')}</p>
