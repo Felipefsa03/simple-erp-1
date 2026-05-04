@@ -17,17 +17,15 @@ import {
   persistAsaasPayment
 } from "../services/paymentGateway.js";
 
-// Helper para descobrir qual gateway está ativo
-const getActiveGateway = () => {
+// Helper para descobrir gateway preferencial via ENV
+const getPreferredGateway = () => {
   const active = cleanEnv(process.env.ACTIVE_PAYMENT_GATEWAY || "").toLowerCase();
   if (active === "asaas") return "asaas";
   if (active === "mercadopago") return "mercadopago";
-  
-  if (cleanEnv(process.env.ASAAS_API_KEY)) return "asaas";
-  if (cleanEnv(process.env.MP_ACCESS_TOKEN)) return "mercadopago";
-  
   return null;
 };
+
+const isSuperAdmin = (req) => String(req.user?.role || "").toLowerCase() === "super_admin";
 
 export const createBillingRoutes = ({
   addLog,
@@ -40,6 +38,38 @@ export const createBillingRoutes = ({
 }) => {
   const router = express.Router();
 
+  const resolveGatewayForClinic = async (clinicId, req) => {
+    const preferred = getPreferredGateway();
+    const superAdmin = isSuperAdmin(req);
+    const isPublicFlow = !req?.user;
+    const [asaasCreds, mpCreds] = await Promise.all([
+      resolveAsaasCredentials(clinicId, { allowEnvFallback: false }),
+      resolveMercadoPagoCredentials(clinicId, {
+        allowClinicConfig: false,
+        allowEnvFallback: superAdmin || isPublicFlow,
+      }),
+    ]);
+
+    if (preferred === "asaas" && asaasCreds?.token) {
+      return { gateway: "asaas", asaasCreds, mpCreds };
+    }
+    if ((superAdmin || isPublicFlow) && preferred === "mercadopago" && mpCreds?.token) {
+      return { gateway: "mercadopago", asaasCreds, mpCreds };
+    }
+
+    // Regra padrão:
+    // - Clínica usa apenas Asaas da própria clínica (sem ENV global)
+    // - MercadoPago é exclusivo do super_admin
+    if (asaasCreds?.token) {
+      return { gateway: "asaas", asaasCreds, mpCreds };
+    }
+    if ((superAdmin || isPublicFlow) && mpCreds?.token) {
+      return { gateway: "mercadopago", asaasCreds, mpCreds };
+    }
+
+    return { gateway: null, asaasCreds, mpCreds };
+  };
+
   router.post("/create-preference", async (req, res) => {
     const {
       clinicName, email, name, phone, plan, amount,
@@ -51,7 +81,7 @@ export const createBillingRoutes = ({
       if (!email || !name || !clinicName) return res.status(400).json({ ok: false, error: "Dados obrigatorios ausentes." });
 
       const normalizedClinicId = String(clinicId).trim();
-      const gateway = getActiveGateway();
+      const { gateway, asaasCreds, mpCreds } = await resolveGatewayForClinic(normalizedClinicId, req);
 
       if (!gateway) {
         return res.status(503).json({ ok: false, error: "Nenhum gateway de pagamento (Mercado Pago ou Asaas) está configurado no servidor." });
@@ -66,8 +96,9 @@ export const createBillingRoutes = ({
       // FLUXO ASAAS
       // ============================================
       if (gateway === "asaas") {
-        const { token, baseUrl } = await resolveAsaasCredentials();
+        const { token, baseUrl, source } = asaasCreds;
         if (!token) return res.status(503).json({ ok: false, error: "Asaas configurado mas sem token válido." });
+        addLog(`[Billing] Gateway selecionado: asaas (source=${source}) clinicId=${normalizedClinicId}`);
 
         let customerId = "";
         try {
@@ -117,8 +148,9 @@ export const createBillingRoutes = ({
       // ============================================
       // FLUXO MERCADO PAGO (ORIGINAL)
       // ============================================
-      const { token } = await resolveMercadoPagoCredentials();
+      const { token, source } = mpCreds;
       if (!token) return res.status(503).json({ ok: false, error: "Mercado Pago configurado mas sem token." });
+      addLog(`[Billing] Gateway selecionado: mercadopago (source=${source}) clinicId=${normalizedClinicId}`);
 
       const preference = {
         items: [{ id: selectedPlan, title: `Clinxia - ${clinicName}`, quantity: 1, unit_price: unitAmount, currency_id: "BRL" }],
@@ -204,10 +236,11 @@ export const createBillingRoutes = ({
     }
 
     try {
-      const gateway = getActiveGateway();
+      const { gateway, asaasCreds, mpCreds } = await resolveGatewayForClinic(clinicId, req);
 
       if (gateway === "asaas") {
-        const { token, baseUrl } = await resolveAsaasCredentials();
+        const { token, baseUrl } = asaasCreds;
+        if (!token) return res.status(503).json({ ok: false, error: "Asaas sem credencial válida para esta clínica." });
         let localPayment = null;
         if (SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)) {
           const localRes = await fetch(`${SUPABASE_URL}/rest/v1/payments?clinic_id=eq.${clinicId}&status=in.(received,confirmed)&select=*&limit=1`, { headers: getSupabaseAdminHeaders() });
@@ -233,7 +266,7 @@ export const createBillingRoutes = ({
       }
 
       // Mercado Pago Fallback/Logic
-      const { token } = await resolveMercadoPagoCredentials();
+      const { token } = mpCreds;
       if (!token) return res.status(503).json({ ok: false, error: "Mercado Pago não configurado." });
 
       let payment = await fetchLatestMercadoPagoPaymentByClinic(clinicId, token);
@@ -289,15 +322,42 @@ export const createBillingRoutes = ({
       // 2. Otherwise assume MercadoPago Webhook
       const { token, webhookSecret } = await resolveMercadoPagoCredentials();
       if (webhookSecret) {
-        const signature = req.headers["x-signature"];
-        const timestamp = req.headers["x-timestamp"];
-        if (signature && timestamp) {
-          const data = timestamp + (req.body.id || "") + (req.body.live_mode || "");
-          const expectedSignature = crypto.createHmac("sha256", webhookSecret).update(data).digest("hex");
-          if (signature !== expectedSignature) {
-            console.warn("[MP Webhook] Assinatura inválida");
-            return res.status(200).json({ ok: true });
-          }
+        const rawSignatureHeader = String(req.headers["x-signature"] || "");
+        const requestId = String(req.headers["x-request-id"] || req.body?.id || "");
+        const dataId = String(req.body?.data?.id || req.body?.id || "");
+
+        const parsedPairs = rawSignatureHeader
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .reduce((acc, part) => {
+            const [k, v] = part.split("=");
+            if (k && v) acc[k.trim()] = v.trim();
+            return acc;
+          }, {});
+
+        const timestamp = parsedPairs.ts || String(req.headers["x-timestamp"] || "");
+        const receivedV1 = parsedPairs.v1 || "";
+
+        if (!timestamp || !receivedV1) {
+          console.warn("[MP Webhook] Assinatura ausente ou malformada");
+          return res.status(200).json({ ok: true });
+        }
+
+        const manifest = `id:${dataId};request-id:${requestId};ts:${timestamp};`;
+        const expectedV1 = crypto
+          .createHmac("sha256", webhookSecret)
+          .update(manifest)
+          .digest("hex");
+
+        const validLength = receivedV1.length === expectedV1.length;
+        const isValidSignature =
+          validLength &&
+          crypto.timingSafeEqual(Buffer.from(receivedV1), Buffer.from(expectedV1));
+
+        if (!isValidSignature) {
+          console.warn("[MP Webhook] Assinatura inválida");
+          return res.status(200).json({ ok: true });
         }
       }
 

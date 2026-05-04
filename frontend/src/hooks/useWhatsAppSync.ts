@@ -16,6 +16,12 @@ let lastSyncTime = 0;
 let globalLastStatus: WhatsAppStatus | null = null;
 let hasInitialized = false;
 
+const getAccessToken = async () => {
+  if (!supabase) return "";
+  const session = (await supabase.auth.getSession()).data.session;
+  return session?.access_token || "";
+};
+
 export function useWhatsAppSync(
   clinicId: string, 
   onStatusChange?: (connected: boolean, status?: WhatsAppStatus) => void
@@ -44,10 +50,11 @@ export function useWhatsAppSync(
     setIsSyncing(true);
     
     try {
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
         headers: { 
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`
+          'Authorization': `Bearer ${token}`
         }
       });
       const data: WhatsAppStatus = await res.json();
@@ -95,10 +102,11 @@ export function useWhatsAppStatus() {
   
   const checkStatus = useCallback(async (clinicId: string) => {
     try {
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
         headers: { 
           'ngrok-skip-browser-warning': 'true',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`
+          'Authorization': `Bearer ${token}`
         }
       });
       const data: WhatsAppStatus = await res.json();

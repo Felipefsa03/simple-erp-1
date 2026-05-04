@@ -729,7 +729,19 @@ app.get("/api/stats", (req, res) => {
 
 app.post("/api/auth/password/reset-request", async (req, res) => {
   const { email } = req.body;
-  console.log(`[PasswordReset] Solicitação recebida para: ${email}`);
+  const maskEmail = (value) => {
+    const normalized = String(value || "").toLowerCase().trim();
+    const [local, domain] = normalized.split("@");
+    if (!local || !domain) return "***";
+    const visible = local.slice(0, 2);
+    return `${visible}***@${domain}`;
+  };
+  const maskPhoneLog = (value) => {
+    const digits = String(value || "").replace(/\D/g, "");
+    if (digits.length < 4) return "***";
+    return `***${digits.slice(-4)}`;
+  };
+  console.log(`[PasswordReset] Solicitação recebida para: ${maskEmail(email)}`);
 
   if (!email) return res.status(400).json({ ok: false, error: "Email é obrigatório" });
 
@@ -742,7 +754,7 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     // Fetch user early to know if they exist
     const user = await fetchUserByEmail(normalizedEmail);
     if (!user) {
-      console.log(`[PasswordReset] Email não encontrado na base de dados: ${normalizedEmail}`);
+      console.log(`[PasswordReset] Email não encontrado na base de dados: ${maskEmail(normalizedEmail)}`);
       return res.json({ 
         ok: true, 
         message: "Se este email estiver cadastrado, você receberá um código.",
@@ -771,7 +783,7 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
     const normalizedPhone = normalizePhoneForSignup(rawPhone);
     
     if (!normalizedPhone || normalizedPhone.length < 10) {
-      console.log(`[PasswordReset] Usuário encontrado mas sem telefone válido: ${normalizedEmail}, fone: ${rawPhone}`);
+      console.log(`[PasswordReset] Usuário sem telefone válido: email=${maskEmail(normalizedEmail)}, fone=${maskPhoneLog(rawPhone)}`);
       return res.status(400).json({ 
         ok: false, 
         error: "Este usuário não possui um telefone celular cadastrado para recuperação via WhatsApp. Entre em contato com o suporte." 
@@ -1652,7 +1664,7 @@ const createWhatsAppSocket = async (clinicId) => {
           whatsappConnections[clinicId].messages.push(msgData);
 
           // Persist to Supabase
-          const persistKey = SUPABASE_ANON_KEY;
+          const persistKey = SUPABASE_SERVICE_ROLE_KEY;
           if (SUPABASE_URL && persistKey) {
             try {
               const persistBody = {
@@ -1847,7 +1859,7 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
         }
         whatsappConnections[clinicId].messages.push(msgData);
 
-        const sendPersistKey = SUPABASE_ANON_KEY;
+        const sendPersistKey = SUPABASE_SERVICE_ROLE_KEY;
         if (SUPABASE_URL && sendPersistKey) {
           try {
             const supaRes = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_messages`, {
@@ -1913,12 +1925,39 @@ app.use("/api/whatsapp", createWhatsAppRoutes({
   antiSpamStatsByNumber
 }));
 
+const canAccessClinicData = (req, requestedClinicId) => {
+  const actorRole = String(req.user?.role || "").toLowerCase();
+  const actorClinicId = String(req.clinicId || req.user?.clinic_id || "").trim();
+  const targetClinicId = String(requestedClinicId || "").trim();
+
+  if (!actorClinicId && actorRole !== "super_admin") {
+    return { ok: false, status: 401, error: "Contexto de clínica ausente na sessão" };
+  }
+
+  if (actorRole === "super_admin") {
+    if (!targetClinicId) {
+      return { ok: false, status: 400, error: "clinicId é obrigatório para super_admin" };
+    }
+    return { ok: true, clinicId: targetClinicId };
+  }
+
+  if (targetClinicId && targetClinicId !== actorClinicId) {
+    return { ok: false, status: 403, error: "Acesso negado para outra clínica" };
+  }
+
+  return { ok: true, clinicId: actorClinicId };
+};
+
   // Get recent chats for a clinic
   app.get("/api/whatsapp/recent/:clinicId", async (req, res) => {
-    const { clinicId } = req.params;
+    const auth = canAccessClinicData(req, req.params.clinicId);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ ok: false, error: auth.error });
+    }
+    const clinicId = auth.clinicId;
   
     try {
-      const queryKey = SUPABASE_ANON_KEY;
+      const queryKey = SUPABASE_SERVICE_ROLE_KEY;
       if (SUPABASE_URL && queryKey) {
         // Since Supabase doesn't support SELECT DISTINCT ON natively via REST easily without RPC,
         // we'll fetch the last 200 messages ordered by timestamp DESC and distinct by phone in memory.
@@ -1974,7 +2013,12 @@ app.use("/api/whatsapp", createWhatsAppRoutes({
 
 // Get messages for a specific phone
 app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
-  const { clinicId, phone } = req.params;
+  const auth = canAccessClinicData(req, req.params.clinicId);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ ok: false, error: auth.error });
+  }
+  const clinicId = auth.clinicId;
+  const { phone } = req.params;
 
   try {
     // Generate phone candidates (with and without the 9th digit for Brazilian numbers)
@@ -1994,7 +2038,7 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
     let messages = [];
 
     // Load from Supabase first (filter by clinic_id AND phone)
-    const queryKey = SUPABASE_ANON_KEY;
+    const queryKey = SUPABASE_SERVICE_ROLE_KEY;
     if (SUPABASE_URL && queryKey) {
       try {
         const supaRes = await fetch(

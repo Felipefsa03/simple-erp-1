@@ -28,12 +28,18 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
     loadConfig();
   }, [clinicId]);
 
+  const getAccessToken = async () => {
+    if (!supabase) return '';
+    const session = (await supabase.auth.getSession()).data.session;
+    return session?.access_token || '';
+  };
+
   const loadConfig = async () => {
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/google-ads/credentials/${clinicId}`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
       const data = await res.json();
@@ -59,12 +65,12 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
 
     setLoading(true);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/google-ads/credentials`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           clinicId,
@@ -94,12 +100,12 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
     setTestResult(null);
     
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/google-ads/test`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ clinicId })
       });
@@ -120,11 +126,11 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
 
   const handleDisconnect = async () => {
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       await fetch(`${API_BASE}/api/integrations/google-ads/credentials/${clinicId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
       setDeveloperToken('');

@@ -55,27 +55,36 @@ EXCEPTION
         RAISE NOTICE 'Constraint already exists or cannot be created: %', SQLERRM;
 END $$;
 
--- Desabilitar RLS para que o backend possa inserir com qualquer chave
 ALTER TABLE whatsapp_messages ENABLE ROW LEVEL SECURITY;
 
--- Policy para service_role ter acesso total
+-- Remover policies permissivas legadas
 DROP POLICY IF EXISTS "Service role full access" ON whatsapp_messages;
-CREATE POLICY "Service role full access" ON whatsapp_messages
-    FOR ALL
-    USING (true)
-    WITH CHECK (true);
-
--- Policy para leitura via anon key (para fallback)
 DROP POLICY IF EXISTS "Anon read access" ON whatsapp_messages;
-CREATE POLICY "Anon read access" ON whatsapp_messages
-    FOR SELECT
-    USING (true);
-
--- Policy para inserção via anon key (para fallback)
 DROP POLICY IF EXISTS "Anon insert access" ON whatsapp_messages;
-CREATE POLICY "Anon insert access" ON whatsapp_messages
+
+-- Service role: acesso total
+DROP POLICY IF EXISTS "whatsapp_messages_service_role_all" ON whatsapp_messages;
+CREATE POLICY "whatsapp_messages_service_role_all" ON whatsapp_messages
+    FOR ALL
+    USING (auth.role() = 'service_role')
+    WITH CHECK (auth.role() = 'service_role');
+
+-- Usuário autenticado: acesso apenas aos dados da própria clínica
+DROP POLICY IF EXISTS "whatsapp_messages_user_select_own_clinic" ON whatsapp_messages;
+CREATE POLICY "whatsapp_messages_user_select_own_clinic" ON whatsapp_messages
+    FOR SELECT
+    USING (
+      auth.role() = 'authenticated'
+      AND clinic_id::text = COALESCE(auth.jwt() ->> 'clinic_id', '')
+    );
+
+DROP POLICY IF EXISTS "whatsapp_messages_user_insert_own_clinic" ON whatsapp_messages;
+CREATE POLICY "whatsapp_messages_user_insert_own_clinic" ON whatsapp_messages
     FOR INSERT
-    WITH CHECK (true);
+    WITH CHECK (
+      auth.role() = 'authenticated'
+      AND clinic_id::text = COALESCE(auth.jwt() ->> 'clinic_id', '')
+    );
 
 -- Verificar estrutura final
 SELECT column_name, data_type, is_nullable 

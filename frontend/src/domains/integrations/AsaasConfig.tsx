@@ -27,12 +27,18 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
     loadConfig();
   }, [clinicId]);
 
+  const getAccessToken = async () => {
+    if (!supabase) return '';
+    const session = (await supabase.auth.getSession()).data.session;
+    return session?.access_token || '';
+  };
+
   const loadConfig = async () => {
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/asaas/credentials/${clinicId}`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
       const data = await res.json();
@@ -56,12 +62,12 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
 
     setLoading(true);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/asaas/credentials`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           clinicId,
@@ -89,12 +95,12 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
     setTestResult(null);
     
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/asaas/test`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           apiKey,
@@ -120,11 +126,11 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
 
   const handleDisconnect = async () => {
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       await fetch(`${API_BASE}/api/integrations/asaas/credentials/${clinicId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
       setApiKey('');

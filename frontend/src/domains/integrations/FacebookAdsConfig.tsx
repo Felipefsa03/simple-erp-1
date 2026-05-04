@@ -59,13 +59,19 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
     loadConnectionStatus();
   }, [clinicId]);
 
+  const getAccessToken = async () => {
+    if (!supabase) return '';
+    const session = (await supabase.auth.getSession()).data.session;
+    return session?.access_token || '';
+  };
+
   const loadConnectionStatus = async () => {
     setIsLoading(true);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const response = await fetch(`${API_BASE}/api/integrations/facebook/credentials/${clinicId}`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
       const data = await response.json();
@@ -93,12 +99,12 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
 
     setIsSaving(true);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const response = await fetch(`${API_BASE}/api/integrations/facebook/credentials`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           clinicId,
@@ -135,12 +141,12 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
     try {
       const tokenToTest = credentials.accessToken || config.hasAccessToken ? 'existing' : '';
       
-      const session = (await supabase.auth.getSession()).data.session;
-      const response = await fetch(`${API_BASE}/api/facebook/test`, {
+      const token = await getAccessToken();
+      const response = await fetch(`${API_BASE}/api/integrations/facebook/test`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           clinicId,
@@ -173,11 +179,11 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
 
   const handleDisconnect = async () => {
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      const response = await fetch(`${API_BASE}/api/facebook/credentials/${clinicId}`, {
+      const token = await getAccessToken();
+      const response = await fetch(`${API_BASE}/api/integrations/facebook/credentials/${clinicId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
       

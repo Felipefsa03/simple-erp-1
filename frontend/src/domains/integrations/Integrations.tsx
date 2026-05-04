@@ -34,15 +34,14 @@ interface Integration {
   lockReason?: string;
 }
 
-const PLAN_ORDER = { basic: 1, professional: 2, premium: 3 };
+const PLAN_ORDER = { basic: 1, professional: 2, profissional: 2, premium: 3 };
 
 export function Integrations() {
   const { user, getPlan } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
   
   // Obter plano da clínica atual - do useAuth
-  const clinicPlan = getPlan() as 'basic' | 'profissional' | 'premium';
-  console.log('[Integrations] user clinic_id:', user?.clinic_id, 'plan from getPlan():', clinicPlan);
+  const clinicPlan = getPlan() as 'basic' | 'professional' | 'profissional' | 'premium';
   
   // Função para verificar se integração está liberada
   const isIntegrationAllowed = (minPlan?: string) => {
@@ -50,7 +49,6 @@ export function Integrations() {
     if (!minPlan) return true;
     const currentPlanLevel = PLAN_ORDER[clinicPlan as keyof typeof PLAN_ORDER] || 0;
     const requiredPlanLevel = PLAN_ORDER[minPlan as keyof typeof PLAN_ORDER] || 0;
-    console.log('[Integrations] isIntegrationAllowed:', clinicPlan, 'level:', currentPlanLevel, 'required:', minPlan, 'level:', requiredPlanLevel, 'allowed:', currentPlanLevel >= requiredPlanLevel);
     return currentPlanLevel >= requiredPlanLevel;
   };
   

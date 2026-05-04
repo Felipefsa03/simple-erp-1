@@ -18,6 +18,33 @@ export const createWhatsAppRoutes = ({
 }) => {
   const router = express.Router();
 
+  const resolveAuthorizedClinicId = (req, requestedClinicId) => {
+    const actorRole = String(req.user?.role || "").toLowerCase();
+    const actorClinicId = String(req.clinicId || req.user?.clinic_id || "").trim();
+    const targetClinicId = String(requestedClinicId || "").trim();
+
+    if (!actorClinicId && actorRole !== "super_admin") {
+      return { ok: false, status: 401, error: "Contexto de clínica ausente na sessão" };
+    }
+
+    if (actorRole === "super_admin") {
+      if (!targetClinicId) {
+        return { ok: false, status: 400, error: "clinicId é obrigatório para super_admin" };
+      }
+      return { ok: true, clinicId: targetClinicId };
+    }
+
+    if (!targetClinicId) {
+      return { ok: true, clinicId: actorClinicId };
+    }
+
+    if (targetClinicId !== actorClinicId) {
+      return { ok: false, status: 403, error: "Acesso negado para outra clínica" };
+    }
+
+    return { ok: true, clinicId: actorClinicId };
+  };
+
   // Rate limiting para o WhatsApp Send
   const whatsappRateLimit = new Map();
   const RATE_LIMIT_WINDOW = 10000; // 10 seconds
@@ -41,8 +68,9 @@ export const createWhatsAppRoutes = ({
   });
 
   router.post("/reset-session", async (req, res) => {
-    const { clinicId } = req.body;
-    if (!clinicId) return res.status(400).json({ ok: false, error: "clinicId required" });
+    const auth = resolveAuthorizedClinicId(req, req.body?.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    const clinicId = auth.clinicId;
     
     try {
       addLog(`[System] Reseting session for ${clinicId}...`);
@@ -67,13 +95,13 @@ export const createWhatsAppRoutes = ({
   });
 
   router.post("/test-send", async (req, res) => {
-    const { phone, message, clinicId } = req.body;
+    const { phone, message, clinicId: requestedClinicId } = req.body;
     if (!phone || !message) return res.status(400).json({ ok: false, error: "Phone and message required" });
+    const auth = resolveAuthorizedClinicId(req, requestedClinicId || req.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     
     try {
-      // Nota: SYSTEM_WHATSAPP_CLINIC_ID e GLOBAL_CLINIC_ID eram defaults no index.js
-      // Assumimos que 'system-global' será tratado dentro de sendWhatsAppMessage ou clinicId virá preenchido.
-      await sendWhatsAppMessage({ clinicId: clinicId || 'system-global', to: phone, message });
+      await sendWhatsAppMessage({ clinicId: auth.clinicId, to: phone, message });
       res.json({ ok: true, message: "Mensagem de teste enviada com sucesso!" });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
@@ -81,7 +109,10 @@ export const createWhatsAppRoutes = ({
   });
 
   router.post("/connect", async (req, res) => {
-    const { clinicId, phoneNumber } = req.body;
+    const { clinicId: requestedClinicId, phoneNumber } = req.body;
+    const auth = resolveAuthorizedClinicId(req, requestedClinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    const clinicId = auth.clinicId;
 
     try {
       // Limpar qualquer sessão existente antes de conectar
@@ -169,7 +200,9 @@ export const createWhatsAppRoutes = ({
   });
 
   router.get("/status/:clinicId", async (req, res) => {
-    const { clinicId } = req.params;
+    const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    const clinicId = auth.clinicId;
 
     if (whatsappConnections[clinicId]) {
       const conn = whatsappConnections[clinicId];
@@ -195,13 +228,18 @@ export const createWhatsAppRoutes = ({
   });
 
   router.post("/disconnect/:clinicId", async (req, res) => {
-    const { clinicId } = req.params;
+    const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    const clinicId = auth.clinicId;
     await disconnectWhatsAppSession(clinicId);
     res.json({ ok: true, status: "disconnected" });
   });
 
   router.post("/send", async (req, res) => {
-    const { clinicId, to, message } = req.body;
+    const { clinicId: requestedClinicId, to, message } = req.body;
+    const auth = resolveAuthorizedClinicId(req, requestedClinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    const clinicId = auth.clinicId;
 
     // Rate limiting
     const rateKey = `${clinicId}-${to}`;

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config/env.js";
 import { addLog } from "./logger.js";
+import { supabaseAdmin } from "./supabase.js";
 
 const DEFAULT_PLAN_PRICES = {
   basico: 97.0,
@@ -16,6 +17,34 @@ const parsePlanPrice = (val, fallback) => {
 const cleanEnv = (v) => String(v || "").trim();
 const sanitizePlan = (p) => String(p || "basico").toLowerCase().trim();
 
+const getClinicIntegrationConfig = async (clinicId) => {
+  const normalizedClinicId = String(clinicId || "").trim();
+  if (!normalizedClinicId) return null;
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("integration_config")
+      .select("*")
+      .eq("clinic_id", normalizedClinicId)
+      .maybeSingle();
+    if (error) {
+      addLog(`[Gateway] Falha ao buscar integração da clínica ${normalizedClinicId}: ${error.message}`);
+      return null;
+    }
+    return data || null;
+  } catch (error) {
+    addLog(`[Gateway] Erro ao buscar integração da clínica ${normalizedClinicId}: ${error.message}`);
+    return null;
+  }
+};
+
+const pickString = (...values) => {
+  for (const value of values) {
+    const normalized = cleanEnv(value);
+    if (normalized) return normalized;
+  }
+  return "";
+};
+
 const getSupabaseWriteHeaders = () => ({
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -27,17 +56,35 @@ const getSupabaseWriteHeaders = () => ({
 // MERCADO PAGO GATEWAY
 // ============================================
 
-export const resolveMercadoPagoCredentials = async () => {
-  let token = cleanEnv(process.env.MP_ACCESS_TOKEN);
-  let publicKey = cleanEnv(process.env.MP_PUBLIC_KEY);
-  let webhookSecret = cleanEnv(process.env.MP_WEBHOOK_SECRET);
-  let config = null;
+export const resolveMercadoPagoCredentials = async (clinicId = "", options = {}) => {
+  const { allowClinicConfig = true, allowEnvFallback = true } = options;
+  const config = allowClinicConfig ? await getClinicIntegrationConfig(clinicId) : null;
+  const mpClinicConfig =
+    config?.mercadopago ||
+    config?.mercado_pago ||
+    config?.mercadoPago ||
+    null;
 
-  // Tentar buscar da tabela segura system_secrets primeiro (assumindo que implementaremos esse fetch)
-  // Como `fetchSystemSecret` não foi migrado do index.js ainda se não existir, precisaremos garanti-lo.
-  // Temporariamente as credentials vem de ENV.
+  const token = pickString(
+    ...(allowClinicConfig ? [mpClinicConfig?.access_token, mpClinicConfig?.accessToken] : []),
+    ...(allowEnvFallback ? [process.env.MP_ACCESS_TOKEN] : []),
+  );
+  const publicKey = pickString(
+    ...(allowClinicConfig ? [mpClinicConfig?.public_key, mpClinicConfig?.publicKey] : []),
+    ...(allowEnvFallback ? [process.env.MP_PUBLIC_KEY] : []),
+  );
+  const webhookSecret = pickString(
+    ...(allowClinicConfig ? [mpClinicConfig?.webhook_secret, mpClinicConfig?.webhookSecret] : []),
+    ...(allowEnvFallback ? [process.env.MP_WEBHOOK_SECRET] : []),
+  );
 
-  return { token, publicKey, webhookSecret, config };
+  const source = mpClinicConfig
+    ? "clinic"
+    : token || publicKey || webhookSecret
+      ? "env"
+      : "none";
+
+  return { token, publicKey, webhookSecret, config: mpClinicConfig, source };
 };
 
 export const getPlanPricesFromConfig = (config) => ({
@@ -169,14 +216,27 @@ export const persistAsaasPayment = async (payment, clinicIdOverride = "", metada
 // ASAAS GATEWAY
 // ============================================
 
-export const resolveAsaasCredentials = async () => {
-  let token = cleanEnv(process.env.ASAAS_API_KEY);
-  const environment = cleanEnv(process.env.ASAAS_ENV) || 'sandbox'; // sandbox ou production
+export const resolveAsaasCredentials = async (clinicId = "", options = {}) => {
+  const { allowEnvFallback = false } = options;
+  const config = await getClinicIntegrationConfig(clinicId);
+  const asaasConfig = config?.asaas || null;
+
+  const token = pickString(
+    asaasConfig?.api_key,
+    asaasConfig?.apiKey,
+    ...(allowEnvFallback ? [process.env.ASAAS_API_KEY] : []),
+  );
+  const environment = pickString(
+    asaasConfig?.environment,
+    asaasConfig?.env,
+    ...(allowEnvFallback ? [process.env.ASAAS_ENV] : []),
+  ) || "sandbox";
   const baseUrl = environment === 'production' 
     ? 'https://api.asaas.com/v3'
     : 'https://api-sandbox.asaas.com/v3';
 
-  return { token, baseUrl };
+  const source = asaasConfig ? "clinic" : token ? "env" : "none";
+  return { token, baseUrl, source, config: asaasConfig };
 };
 
 const asaasRequest = async (endpoint, options = {}, token, baseUrl) => {
@@ -255,4 +315,3 @@ export const isAsaasPaymentApproved = (payment) => {
   const status = String(payment?.status || "").toUpperCase();
   return status === "RECEIVED" || status === "CONFIRMED";
 };
-

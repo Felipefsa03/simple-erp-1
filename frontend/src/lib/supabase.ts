@@ -34,28 +34,55 @@ const getHeaders = (_token?: string) => ({
   'Prefer': 'return=representation',
 });
 
-// Sessao em memoria e persistencia local
+// Sessao em memoria e persistencia local.
+// Padrão: localStorage para suportar frontend/backend em domínios diferentes (Vercel + Render).
+// Opcional: VITE_SESSION_STORAGE_MODE=session para ambientes específicos.
 const STORAGE_KEY = 'clinxia_supabase_session';
+const STORAGE_MODE = (import.meta.env.VITE_SESSION_STORAGE_MODE || 'local').toLowerCase();
+
+const getStorage = (): Storage | null => {
+  if (typeof window === 'undefined') return null;
+  if (STORAGE_MODE === 'session') return window.sessionStorage;
+  return window.localStorage;
+};
 
 const saveSessionToStorage = (session: { access_token: string; user: Record<string, unknown> } | null) => {
-  if (typeof window !== 'undefined') {
-    if (session) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  const storage = getStorage();
+  if (!storage) return;
+
+  if (session) {
+    storage.setItem(STORAGE_KEY, JSON.stringify(session));
+    // Mantém apenas um local de persistência ativo.
+    if (storage === window.localStorage) {
+      window.sessionStorage.removeItem(STORAGE_KEY);
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      window.localStorage.removeItem(STORAGE_KEY);
     }
+  } else {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.sessionStorage.removeItem(STORAGE_KEY);
   }
 };
 
 const loadSessionFromStorage = () => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return null;
+  if (typeof window === 'undefined') return null;
+  const storage = getStorage();
+  const primary = storage?.getItem(STORAGE_KEY);
+  const fallback = storage === window.localStorage
+    ? window.sessionStorage.getItem(STORAGE_KEY)
+    : window.localStorage.getItem(STORAGE_KEY);
+  const stored = primary || fallback;
+
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      // Migra para o storage selecionado caso tenha vindo do fallback.
+      if (!primary) {
+        saveSessionToStorage(parsed);
       }
+      return parsed;
+    } catch {
+      return null;
     }
   }
   return null;

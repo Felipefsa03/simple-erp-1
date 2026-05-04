@@ -32,12 +32,18 @@ export function EmailMarketingConfig({ clinicId, isConnected, onConnectionChange
     loadConfig();
   }, [clinicId]);
 
+  const getAccessToken = async () => {
+    if (!supabase) return '';
+    const session = (await supabase.auth.getSession()).data.session;
+    return session?.access_token || '';
+  };
+
   const loadConfig = async () => {
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/email-marketing/credentials/${clinicId}`, {
         headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
       const data = await res.json();
@@ -65,12 +71,12 @@ export function EmailMarketingConfig({ clinicId, isConnected, onConnectionChange
 
     setLoading(true);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/email-marketing/credentials`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           clinicId,
@@ -102,12 +108,12 @@ export function EmailMarketingConfig({ clinicId, isConnected, onConnectionChange
     setTestResult(null);
     
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/integrations/email-marketing/test`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ clinicId })
       });
@@ -128,11 +134,11 @@ export function EmailMarketingConfig({ clinicId, isConnected, onConnectionChange
 
   const handleDisconnect = async () => {
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const token = await getAccessToken();
       await fetch(`${API_BASE}/api/integrations/email-marketing/credentials/${clinicId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${session?.access_token || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
       setApiKey('');

@@ -152,42 +152,11 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
     );
   }
 
-  // Preferred path: admin API with service role.
+  // Segurança: criação de usuário no Auth exige service_role no backend.
   if (!SUPABASE_SERVICE_ROLE_KEY) {
-    console.log('[createSupabaseAuthUser] No service role key, trying public signup...');
-    const signupResponse = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-      method: "POST",
-      headers: getSupabaseAdminHeaders(SUPABASE_ANON_KEY),
-      body: JSON.stringify({
-        email,
-        password,
-        data: { name },
-      }),
-    });
-    const signupPayload = await safeJson(signupResponse);
-    console.log('[createSupabaseAuthUser] Signup response:', signupResponse.status, signupPayload);
-
-    if (signupResponse.ok && (signupPayload?.user?.id || signupPayload?.id)) {
-      const newUserId = signupPayload?.user?.id || signupPayload?.id;
-      console.log('[createSupabaseAuthUser] Public signup success:', newUserId);
-      return { userId: newUserId, created: true };
-    }
-
-    const fallbackMessage = String(
-      signupPayload?.msg ||
-        signupPayload?.message ||
-        signupPayload?.error_description ||
-        signupPayload?.error ||
-        "Erro ao criar usuario auth",
+    throw new Error(
+      "Provisionamento de usuários bloqueado: SUPABASE_SERVICE_ROLE_KEY ausente. Configure no Render para evitar fluxo inseguro com chave pública."
     );
-    if (/already|registered|exists|duplicat/i.test(fallbackMessage)) {
-      console.log('[createSupabaseAuthUser] User already exists, finding by email...');
-      const existingUser = await fetchUserByEmail(email);
-      if (existingUser?.id) {
-        return { userId: existingUser.id, created: false };
-      }
-    }
-    throw new Error(fallbackMessage);
   }
 
   const updateExistingAuthUser = async (userId) => {
