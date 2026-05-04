@@ -447,6 +447,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                         <td className="px-6 py-4">
                           <p className="text-sm font-bold text-slate-900">{t.description}</p>
                           {t.patient_name && <p className="text-[10px] font-medium text-slate-400">Paciente: {t.patient_name}</p>}
+                          {t.commission_amount > 0 && <p className="text-[10px] font-medium text-brand-600 mt-0.5">Comissão Prof: {formatCurrency(t.commission_amount)}</p>}
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-bold">{t.category}</span>

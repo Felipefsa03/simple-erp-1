@@ -1892,7 +1892,11 @@ export const useClinicStore = create<ClinicStore>()(
             },
             getProfessionalCommissions: (professionalId, month) => {
                 const state = get();
-                const prof = state.users.find(p => p.id === professionalId) || state.professionals.find(p => p.id === professionalId);
+                // Ensure users array exists before calling find
+                const usersList = state.users || [];
+                const profList = state.professionals || [];
+                
+                const prof = usersList.find(p => p.id === professionalId) || profList.find(p => p.id === professionalId);
                 if (!prof) return { total_produced: 0, commission_amount: 0, appointment_count: 0, pending_commission: 0 };
 
                 const txns = state.transactions.filter(t =>
