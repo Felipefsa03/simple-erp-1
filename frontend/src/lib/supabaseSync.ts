@@ -595,7 +595,7 @@ export const SupabaseSync = {
       id: appointment.id,
       clinic_id: getClinicId(appointment.clinic_id),
       patient_id: appointment.patient_id || null,
-      professional_id: appointment.professional_id || null,
+      professional_id: appointment.professional_user_id || appointment.professional_id || null,
       service_id: appointment.service_id || null,
       scheduled: appointment.scheduled_at || null,
       duration: appointment.duration_min || 30,

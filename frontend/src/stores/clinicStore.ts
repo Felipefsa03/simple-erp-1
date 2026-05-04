@@ -928,18 +928,14 @@ export const useClinicStore = create<ClinicStore>()(
                   clinic_id, 
                   source: a.source || 'internal', 
                   id: uid(), 
+                  professional_user_id: (state.professionals.find(p => p.id === a.professional_id) as any)?.user_id,
                   created_at: now() 
                 };
                 set(s => ({ appointments: [...s.appointments, appointment] }));
 
                 // Sync to Supabase with rollback
                 if (isSupabaseConfigured()) {
-                    const prof = state.professionals.find(p => p.id === appointment.professional_id);
-                    const syncApt = {
-                        ...appointment,
-                        professional_id: prof?.user_id || appointment.professional_id
-                    };
-                    SupabaseSync.saveAppointment(syncApt).catch((e: unknown) => {
+                    SupabaseSync.saveAppointment(appointment).catch((e: unknown) => {
                         console.error('[ClinicStore] Erro ao salvar agendamento, revertendo...', e);
                         set(s => ({ appointments: s.appointments.filter(a => a.id !== appointment.id) }));
                     });
