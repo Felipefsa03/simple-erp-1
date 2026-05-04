@@ -52,7 +52,7 @@ const saveIntegrationConfig = async (clinicId, provider, config) => {
 };
 
 // Generic routes for all integrations
-const providers = ['google', 'google_ads', 'facebook', 'asaas', 'email_marketing', 'rd_station', 'memed'];
+const providers = ['google', 'google_ads', 'facebook', 'asaas', 'email_marketing', 'rd_station', 'memed', 'meta_pixel'];
 
 providers.forEach(provider => {
   const routeName = provider.replace('_', '-');
