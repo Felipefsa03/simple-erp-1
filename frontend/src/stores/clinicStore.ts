@@ -1101,6 +1101,11 @@ export const useClinicStore = create<ClinicStore>()(
                     const treatmentValue = treatmentItems.reduce((sum, i) => sum + i.estimated_price, 0);
                     chargeAmount += treatmentValue;
 
+                    // Calculate explicit commission amount based on professional's current rate
+                    const professional = state.users.find(u => u.id === appointment.professional_id || u.email === appointment.professional_name);
+                    const profPct = professional ? (Number(professional.commission_pct) || 0) / 100 : 0;
+                    const commissionAmount = chargeAmount * profPct;
+
                     get().addTransaction({
                         clinic_id: appointment.clinic_id,
                         appointment_id: id,
@@ -1115,6 +1120,7 @@ export const useClinicStore = create<ClinicStore>()(
                         status: 'awaiting_payment',
                         items: materialsToConsume.map(m => m.stock_item_name),
                         material_cost: materialCost,
+                        commission_amount: commissionAmount,
                         service_time_min: serviceTimeMin,
                         idempotency_key: `apt:${id}:income`,
                     });
@@ -1886,17 +1892,17 @@ export const useClinicStore = create<ClinicStore>()(
             },
             getProfessionalCommissions: (professionalId, month) => {
                 const state = get();
-                const prof = state.professionals.find(p => p.id === professionalId);
+                const prof = state.users.find(p => p.id === professionalId) || state.professionals.find(p => p.id === professionalId);
                 if (!prof) return { total_produced: 0, commission_amount: 0, appointment_count: 0, pending_commission: 0 };
 
                 const txns = state.transactions.filter(t =>
-                    t.professional_id === professionalId &&
+                    (t.professional_id === professionalId || t.professional_name === prof.name || t.professional_name === prof.email) &&
                     t.type === 'income' &&
                     (!month || t.created_at.startsWith(month))
                 );
 
                 const aptsCount = state.appointments.filter(a =>
-                    a.professional_id === professionalId &&
+                    (a.professional_id === professionalId || a.professional_name === prof.name || a.professional_name === prof.email) &&
                     a.status === 'done' &&
                     (!month || a.scheduled_at.startsWith(month))
                 ).length;
@@ -1906,8 +1912,9 @@ export const useClinicStore = create<ClinicStore>()(
                 
                 const pct = (prof.commission_pct || 0) / 100;
                 const total_produced = txns.reduce((sum, t) => sum + t.amount, 0);
-                const commission_amount = paid_txns.reduce((sum, t) => sum + (t.amount * pct), 0);
-                const pending_commission = pending_txns.reduce((sum, t) => sum + (t.amount * pct), 0);
+                // Se a transação já tem o valor de comissão gravado, usamos ele. Senão, calculamos na hora com a % atual.
+                const commission_amount = paid_txns.reduce((sum, t) => sum + (t.commission_amount !== undefined ? t.commission_amount : t.amount * pct), 0);
+                const pending_commission = pending_txns.reduce((sum, t) => sum + (t.commission_amount !== undefined ? t.commission_amount : t.amount * pct), 0);
 
                 return {
                     total_produced,

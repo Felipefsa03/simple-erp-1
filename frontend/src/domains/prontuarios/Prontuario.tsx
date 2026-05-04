@@ -229,7 +229,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
     }, 0);
     
     // Buscar comissão real do profissional
-    const professional = clinicProfessionals.find(p => p.id === appointment?.professional_id);
+    const professional = clinicProfessionals.find(p => p.id === appointment?.professional_id || p.name === appointment?.professional_name || p.email === appointment?.professional_name);
     const commissionPct = (professional?.commission_pct || 0) / 100;
     const professionalCommission = totalGeral * commissionPct;
     
