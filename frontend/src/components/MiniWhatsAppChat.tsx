@@ -11,6 +11,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 import { useWhatsAppSync } from '@/hooks/useWhatsAppSync';
+import { supabase } from '@/lib/supabase';
 
 const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
@@ -284,9 +285,16 @@ export function MiniWhatsAppChat({
       // Try to send via API
       let data = null;
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
         const response = await fetch(`${API_BASE}/api/whatsapp/send`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+          headers: { 
+            'Content-Type': 'application/json', 
+            'ngrok-skip-browser-warning': 'true',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
           body: JSON.stringify({
             clinicId,
             to: phoneDigits,
@@ -359,8 +367,16 @@ export function MiniWhatsAppChat({
   // Fetch messages from backend
   const fetchMessages = useCallback(async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
       const phoneForApi = formatPhoneForWhatsApp(patientPhone);
-      const res = await fetch(`${API_BASE}/api/whatsapp/messages/${clinicId}/${phoneForApi}`);
+      const res = await fetch(`${API_BASE}/api/whatsapp/messages/${clinicId}/${phoneForApi}`, {
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
       const data = await res.json();
       
       if (data.messages && data.messages.length > 0) {

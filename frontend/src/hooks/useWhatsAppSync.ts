@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
@@ -44,7 +45,10 @@ export function useWhatsAppSync(
     
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`
+        }
       });
       const data: WhatsAppStatus = await res.json();
       
@@ -92,7 +96,10 @@ export function useWhatsAppStatus() {
   const checkStatus = useCallback(async (clinicId: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ""}`
+        }
       });
       const data: WhatsAppStatus = await res.json();
       setStatus(data);

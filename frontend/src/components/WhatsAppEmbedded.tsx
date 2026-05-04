@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { X, Minimize2, Maximize2, MessageSquare, Search, Users, Check, CheckCheck } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 import { MiniWhatsAppChat } from './MiniWhatsAppChat';
@@ -68,7 +69,15 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
   const fetchRecent = useCallback(async () => {
     setLoadingRecent(true);
     try {
-      const res = await fetch(`${API_BASE}/api/whatsapp/recent/${clinicId}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      
+      const res = await fetch(`${API_BASE}/api/whatsapp/recent/${clinicId}`, {
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.ok) {
