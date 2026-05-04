@@ -4,6 +4,7 @@
 // ============================================
 
 import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { 
   Facebook, Settings, CheckCircle2, AlertCircle, 
   Eye, EyeOff, ExternalLink, Loader2, RefreshCw, X
@@ -60,7 +61,12 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
   const loadConnectionStatus = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/facebook/credentials/${clinicId}`);
+      const session = (await supabase.auth.getSession()).data.session;
+      const response = await fetch(`${API_BASE}/api/facebook/credentials/${clinicId}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
+      });
       const data = await response.json();
       
       if (data.ok) {
@@ -86,9 +92,13 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
 
     setIsSaving(true);
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       const response = await fetch(`${API_BASE}/api/facebook/credentials`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           clinicId,
           accessToken: credentials.accessToken,
@@ -124,9 +134,13 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
     try {
       const tokenToTest = credentials.accessToken || config.hasAccessToken ? 'existing' : '';
       
+      const session = (await supabase.auth.getSession()).data.session;
       const response = await fetch(`${API_BASE}/api/facebook/test`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           clinicId,
           accessToken: tokenToTest === 'existing' ? undefined : credentials.accessToken,
@@ -158,8 +172,12 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
 
   const handleDisconnect = async () => {
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       const response = await fetch(`${API_BASE}/api/facebook/credentials/${clinicId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
       });
       
       const data = await response.json();

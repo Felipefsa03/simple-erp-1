@@ -3,6 +3,7 @@
 // ============================================
 
 import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { Calendar, CheckCircle2, AlertCircle, Loader2, Key, Globe } from 'lucide-react';
 import { toast } from '@/hooks/useShared';
 
@@ -27,7 +28,12 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
 
   const loadConfig = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/integrations/google/credentials/${clinicId}`);
+      const session = (await supabase.auth.getSession()).data.session;
+      const res = await fetch(`${API_BASE}/api/integrations/google/credentials/${clinicId}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
+      });
       const data = await res.json();
       if (data.credentials) {
         setApiKey(data.credentials.api_key || '');
@@ -49,9 +55,13 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
 
     setLoading(true);
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(`${API_BASE}/api/integrations/google/credentials`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           clinicId,
           api_key: apiKey,
@@ -78,9 +88,13 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
     setTestResult(null);
     
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(`${API_BASE}/api/integrations/google/calendar/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           clinicId,
           action: 'test'
@@ -105,8 +119,12 @@ export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange
 
   const handleDisconnect = async () => {
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       await fetch(`${API_BASE}/api/integrations/google/credentials/${clinicId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
       });
       setApiKey('');
       setCalendarId('primary');

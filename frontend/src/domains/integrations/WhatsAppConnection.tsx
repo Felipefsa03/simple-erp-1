@@ -4,6 +4,7 @@
 // ============================================
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Smartphone, RefreshCw, CheckCircle2, AlertTriangle,
   X, Loader2, Wifi, Signal, Clock, Shield, Link2, Key
@@ -16,8 +17,12 @@ const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://cli
 
 const isApiAvailable = async (): Promise<boolean> => {
   try {
+    const session = (await supabase.auth.getSession()).data.session;
     const res = await fetch(`${API_BASE}/api/health`, { 
       method: 'GET',
+      headers: { 
+        'Authorization': `Bearer ${session?.access_token || ''}`
+      },
       signal: AbortSignal.timeout(5000)
     });
     return res.ok;
@@ -80,9 +85,13 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
 
     const poll = async () => {
       try {
+        const session = (await supabase.auth.getSession()).data.session;
         const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
           cache: 'no-store',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          }
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -179,7 +188,11 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
 
     try {
       // In professional mode, we first check status. The backend auto-connects if needed.
+      const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(`${API_BASE}/api/health`, {
+        headers: { 
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         signal: AbortSignal.timeout(5000)
       });
       
@@ -197,8 +210,12 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
 
     // Now try to get WhatsApp status
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
       });
       const data = await res.json();
 
@@ -225,9 +242,13 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
       // If disconnected, need to connect to get QR code
       if (data.status === 'disconnected' || data.status === 'disconnected') {
         try {
+          const session = (await supabase.auth.getSession()).data.session;
           const connectRes = await fetch(`${API_BASE}/api/whatsapp/connect`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token || ''}`
+            },
             body: JSON.stringify({ clinicId })
           });
           const connectData = await connectRes.json();
@@ -306,9 +327,14 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
   const handleDisconnect = useCallback(async () => {
     try {
       // Endpoint logic handled by backend cleanup
+      const session = (await supabase.auth.getSession()).data.session;
       await fetch(`${API_BASE}/api/whatsapp/disconnect/${clinicId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' }
+        headers: { 
+          'Content-Type': 'application/json', 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
       });
       stopTimers();
       setUiStatus('disconnected');
@@ -566,8 +592,12 @@ export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: {
 
   const checkStatus = useCallback(async () => {
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
       });
       const data = await res.json();
       
@@ -622,9 +652,13 @@ export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: {
 
   const handleDisconnect = async () => {
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       await fetch(`${API_BASE}/api/whatsapp/disconnect/${clinicId}`, {
         method: 'POST',
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
       });
       setIsConnected(false);
       setWhatsAppConnected(clinicId, false);

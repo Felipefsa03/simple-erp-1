@@ -3,6 +3,7 @@
 // ============================================
 
 import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { Target, CheckCircle2, AlertCircle, Loader2, Key, Globe } from 'lucide-react';
 import { toast } from '@/hooks/useShared';
 
@@ -28,7 +29,12 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
 
   const loadConfig = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/integrations/google-ads/credentials/${clinicId}`);
+      const session = (await supabase.auth.getSession()).data.session;
+      const res = await fetch(`${API_BASE}/api/integrations/google-ads/credentials/${clinicId}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
+      });
       const data = await res.json();
       if (data.credentials) {
         setDeveloperToken(data.credentials.developer_token || '');
@@ -52,9 +58,13 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
 
     setLoading(true);
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(`${API_BASE}/api/integrations/google-ads/credentials`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
           clinicId,
           developer_token: developerToken,
@@ -83,9 +93,13 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
     setTestResult(null);
     
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       const res = await fetch(`${API_BASE}/api/integrations/google-ads/test`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({ clinicId })
       });
       const data = await res.json();
@@ -105,8 +119,12 @@ export function GoogleAdsConfig({ clinicId, isConnected, onConnectionChange }: G
 
   const handleDisconnect = async () => {
     try {
+      const session = (await supabase.auth.getSession()).data.session;
       await fetch(`${API_BASE}/api/integrations/google-ads/credentials/${clinicId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        }
       });
       setDeveloperToken('');
       setClientId('');
