@@ -13,7 +13,8 @@ interface GoogleCalendarConfigProps {
   onConnectionChange: (connected: boolean) => void;
 }
 
-const API_BASE = '';
+const isDev = import.meta.env.DEV;
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
 export function GoogleCalendarConfig({ clinicId, isConnected, onConnectionChange }: GoogleCalendarConfigProps) {
   const [apiKey, setApiKey] = useState('');

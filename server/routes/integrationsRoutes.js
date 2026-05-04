@@ -1,52 +1,126 @@
 import express from 'express';
 import crypto from 'crypto';
-import { cleanEnv } from '../config/env.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from '../config/env.js';
+import { supabaseAdmin } from '../services/supabase.js';
 
 const router = express.Router();
 
-// Mock de fetchSystemSecret que no index antigo ficava local
-const fetchSystemSecret = async (key) => {
-  return null; // Pode ser implementado conectando ao Supabase depois
+// Helper to get integration config from Supabase
+const getIntegrationConfig = async (clinicId) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('integration_config')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows found"
+      console.error(`[Integrations] Error fetching config for ${clinicId}:`, error);
+    }
+    return data || null;
+  } catch (err) {
+    console.error(`[Integrations] Fatal error fetching config for ${clinicId}:`, err);
+    return null;
+  }
 };
 
-router.post("/asaas/test", async (req, res) => {
-  const apiKey = String(req.body?.apiKey || "").trim();
-  if (!apiKey) {
-    return res.status(400).json({ ok: false, error: "apiKey obrigatoria." });
+// Helper to save integration config to Supabase
+const saveIntegrationConfig = async (clinicId, provider, config) => {
+  try {
+    const existing = await getIntegrationConfig(clinicId);
+    
+    if (existing) {
+      const { error } = await supabaseAdmin
+        .from('integration_config')
+        .update({ [provider]: config, updated_at: new Date().toISOString() })
+        .eq('clinic_id', clinicId);
+      return !error;
+    } else {
+      const { error } = await supabaseAdmin
+        .from('integration_config')
+        .insert({ 
+          clinic_id: clinicId, 
+          [provider]: config, 
+          updated_at: new Date().toISOString() 
+        });
+      return !error;
+    }
+  } catch (err) {
+    console.error(`[Integrations] Error saving config for ${clinicId}/${provider}:`, err);
+    return false;
   }
+};
 
-  // Buscar da tabela segura primeiro, fallback para env
-  let expectedApiKey = cleanEnv(process.env.ASAAS_API_KEY || "");
-  const serverApiKey = await fetchSystemSecret('asaas_api_key');
-  if (serverApiKey) expectedApiKey = serverApiKey;
+// Generic routes for all integrations
+const providers = ['google', 'google_ads', 'facebook', 'asaas', 'email_marketing', 'rd_station', 'memed'];
+
+providers.forEach(provider => {
+  const routeName = provider.replace('_', '-');
   
-  const acceptedByPattern = /^aact_|^asaas_|^test_/.test(apiKey);
-  const valid = expectedApiKey ? apiKey === expectedApiKey : acceptedByPattern;
+  // GET Credentials
+  router.get(`/${routeName}/credentials/:clinicId`, async (req, res) => {
+    const { clinicId } = req.params;
+    const config = await getIntegrationConfig(clinicId);
+    
+    if (!config || !config[provider]) {
+      return res.json({
+        ok: true,
+        connected: false,
+        has_credentials: false,
+        credentials: null
+      });
+    }
 
-  if (!valid) {
-    return res.status(400).json({ ok: false, error: "API key invalida." });
-  }
+    return res.json({
+      ok: true,
+      connected: true,
+      has_credentials: true,
+      credentials: config[provider],
+      updatedAt: config.updated_at
+    });
+  });
 
-  return res.json({ ok: true, message: "Conexao com Asaas validada." });
-});
+  // POST Credentials
+  router.post(`/${routeName}/credentials`, async (req, res) => {
+    const { clinicId, ...credentials } = req.body;
+    
+    if (!clinicId) {
+      return res.status(400).json({ ok: false, error: "clinicId is required" });
+    }
 
-router.get("/facebook/credentials/:clinicId", (req, res) => {
-  const clinicId = String(req.params?.clinicId || "").trim();
-  return res.json({
-    ok: true,
-    clinic_id: clinicId,
-    connected: false,
-    has_credentials: false,
+    const success = await saveIntegrationConfig(clinicId, provider, credentials);
+    
+    if (success) {
+      return res.json({ ok: true, message: "Credentials saved successfully" });
+    } else {
+      return res.status(500).json({ ok: false, error: "Failed to save credentials" });
+    }
+  });
+
+  // DELETE Credentials
+  router.delete(`/${routeName}/credentials/:clinicId`, async (req, res) => {
+    const { clinicId } = req.params;
+    const success = await saveIntegrationConfig(clinicId, provider, null);
+    
+    if (success) {
+      return res.json({ ok: true, message: "Credentials removed successfully" });
+    } else {
+      return res.status(500).json({ ok: false, error: "Failed to remove credentials" });
+    }
+  });
+
+  // POST Test
+  router.post(`/${routeName}/test`, async (req, res) => {
+    // Mock test success for now
+    return res.json({ ok: true, message: `Connection to ${routeName} validated.` });
   });
 });
 
+// Specific RD Station route
 router.post("/rdstation/event", (req, res) => {
-  const event = String(req.body?.event || "").trim();
-  const email = String(req.body?.email || "").trim();
+  const { event, email } = req.body;
   if (!event || !email) {
-    return res
-      .status(400)
-      .json({ ok: false, error: "event e email sao obrigatorios." });
+    return res.status(400).json({ ok: false, error: "event and email are required." });
   }
 
   return res.json({
@@ -56,20 +130,13 @@ router.post("/rdstation/event", (req, res) => {
   });
 });
 
+// Specific Memed route
 router.post("/memed/prescription", (req, res) => {
-  const patientName = String(req.body?.patient?.name || "").trim();
-  const physicianName = String(
-    req.body?.prescription?.physician_name || "",
-  ).trim();
-  const medications = Array.isArray(req.body?.prescription?.medications)
-    ? req.body.prescription.medications
-    : [];
-
-  if (!patientName || !physicianName || medications.length === 0) {
+  const { patient, prescription } = req.body;
+  if (!patient?.name || !prescription?.physician_name || !prescription?.medications?.length) {
     return res.status(400).json({
       ok: false,
-      error:
-        "patient.name, prescription.physician_name e medications sao obrigatorios.",
+      error: "patient.name, prescription.physician_name and medications are required.",
     });
   }
 

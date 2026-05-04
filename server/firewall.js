@@ -77,7 +77,7 @@ export const banIp = async (ip, reason, durationMinutes, supabaseAdmin, sendAler
 export const createStrictLimiter = (supabaseAdmin, sendAlert) => {
   return rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 50, // SEC-12: Reduzido de 100 para 50 por auditoria de segurança
+    max: 1000, // Aumentado para evitar banimentos falsos em uso normal (polling, etc)
     standardHeaders: true,
     legacyHeaders: false,
     handler: async (req, res, next, options) => {

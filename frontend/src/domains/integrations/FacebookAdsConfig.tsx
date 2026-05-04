@@ -12,7 +12,8 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
 
-const API_BASE = '';
+const isDev = import.meta.env.DEV;
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
 interface FacebookConfigProps {
   clinicId: string;
@@ -62,7 +63,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
     setIsLoading(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const response = await fetch(`${API_BASE}/api/facebook/credentials/${clinicId}`, {
+      const response = await fetch(`${API_BASE}/api/integrations/facebook/credentials/${clinicId}`, {
         headers: {
           'Authorization': `Bearer ${session?.access_token || ''}`
         }
@@ -93,7 +94,7 @@ export function FacebookAdsConfig({ clinicId, isConnected, onConnectionChange }:
     setIsSaving(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const response = await fetch(`${API_BASE}/api/facebook/credentials`, {
+      const response = await fetch(`${API_BASE}/api/integrations/facebook/credentials`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

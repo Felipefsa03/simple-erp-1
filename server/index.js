@@ -21,6 +21,7 @@ import makeWASocket, {
   downloadMediaMessage,
   BufferJSON,
 } from "baileys";
+import integrationsRoutes from "./routes/integrationsRoutes.js";
 
 // Global Error Handling for stability
 process.on('unhandledRejection', (reason, promise) => {
@@ -969,8 +970,9 @@ app.use("/api/clinic", createClinicRoutes({
 }));
 
 
-import integrationsRoutes from "./routes/integrationsRoutes.js";
-app.use("/api", integrationsRoutes);
+
+app.use("/api/integrations", integrationsRoutes);
+
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Clinxia Backend Running" });

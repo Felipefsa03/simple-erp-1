@@ -13,7 +13,8 @@ interface AsaasConfigProps {
   onConnectionChange: (connected: boolean) => void;
 }
 
-const API_BASE = '';
+const isDev = import.meta.env.DEV;
+const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 
 export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: AsaasConfigProps) {
   const [apiKey, setApiKey] = useState('');
@@ -29,7 +30,7 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
   const loadConfig = async () => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${API_BASE}/api/asaas/credentials/${clinicId}`, {
+      const res = await fetch(`${API_BASE}/api/integrations/asaas/credentials/${clinicId}`, {
         headers: {
           'Authorization': `Bearer ${session?.access_token || ''}`
         }
@@ -56,7 +57,7 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
     setLoading(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${API_BASE}/api/asaas/credentials`, {
+      const res = await fetch(`${API_BASE}/api/integrations/asaas/credentials`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -89,7 +90,7 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
     
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(`${API_BASE}/api/asaas/test`, {
+      const res = await fetch(`${API_BASE}/api/integrations/asaas/test`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -120,7 +121,7 @@ export function AsaasConfig({ clinicId, isConnected, onConnectionChange }: Asaas
   const handleDisconnect = async () => {
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      await fetch(`${API_BASE}/api/asaas/credentials/${clinicId}`, {
+      await fetch(`${API_BASE}/api/integrations/asaas/credentials/${clinicId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session?.access_token || ''}`
