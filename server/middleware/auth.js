@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config/env.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from "../config/env.js";
 
 export const requireAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization || "";
@@ -9,6 +9,15 @@ export const requireAuth = async (req, res, next) => {
       .status(401)
       .json({ ok: false, error: "Token de autenticação ausente" });
   }
+
+  // Bypass para integração máquina a máquina (MAX Renove / M2M) usando o Service Role Key
+  if (SUPABASE_SERVICE_ROLE_KEY && token === SUPABASE_SERVICE_ROLE_KEY) {
+    req.user = { id: "m2m-service-user", role: "super_admin", clinic_id: "max-renove" };
+    req.token = token;
+    req.clinicId = "max-renove";
+    return next();
+  }
+
 
   // Validate JWT format before calling Supabase
   const jwtParts = token.split(".");
