@@ -294,5 +294,35 @@ export const createWhatsAppRoutes = ({
     }
   });
 
+  router.post("/presence", async (req, res) => {
+    const { clinicId: requestedClinicId, to, presence } = req.body;
+    if (!to) return res.status(400).json({ ok: false, error: "to é obrigatório" });
+    const auth = resolveAuthorizedClinicId(req, requestedClinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    const clinicId = auth.clinicId;
+
+    try {
+      const sock = await ensureSocketConnected(clinicId);
+      let waitCount = 0;
+      while (whatsappConnections[clinicId]?.status === "connecting" && waitCount < 30) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        waitCount++;
+      }
+      if (whatsappConnections[clinicId]?.status !== "connected") {
+        return res.status(400).json({ ok: false, error: "Dispositivo não conectado" });
+      }
+
+      const target = await resolveWhatsAppJID(sock, to);
+      const jid = Array.isArray(target) ? target[0] : target;
+      if (!jid) return res.status(400).json({ ok: false, error: "JID não encontrado para " + to });
+
+      await sock.sendPresenceUpdate(presence || "composing", jid);
+      return res.json({ ok: true });
+    } catch (error) {
+      addLog(`[API] Erro ao enviar presença: ${error.message}`);
+      return res.json({ ok: false, error: error.message });
+    }
+  });
+
   return router;
 };
