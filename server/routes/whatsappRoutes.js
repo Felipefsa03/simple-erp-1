@@ -12,6 +12,7 @@ export const createWhatsAppRoutes = ({
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_ANON_KEY,
   sendWhatsAppMessage,
+  sendWhatsAppImage,
   disconnectWhatsAppSession,
   addLog,
   antiSpamStatsByNumber
@@ -107,6 +108,23 @@ export const createWhatsAppRoutes = ({
     try {
       await sendWhatsAppMessage({ clinicId: auth.clinicId, to: phone, message });
       res.json({ ok: true, message: "Mensagem de teste enviada com sucesso!" });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  router.post("/send-image", async (req, res) => {
+    const { phone, imageUrl, caption, clinicId: requestedClinicId } = req.body;
+    if (!phone || !imageUrl) return res.status(400).json({ ok: false, error: "Phone and imageUrl required" });
+    const auth = resolveAuthorizedClinicId(req, requestedClinicId || req.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+
+    try {
+      if (!sendWhatsAppImage) {
+        return res.status(501).json({ ok: false, error: "Envio de imagem não suportado nesta versão." });
+      }
+      await sendWhatsAppImage({ clinicId: auth.clinicId, to: phone, imageUrl, caption: caption || '' });
+      res.json({ ok: true, message: "Imagem enviada com sucesso!" });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }
@@ -240,7 +258,7 @@ export const createWhatsAppRoutes = ({
   });
 
   router.post("/send", async (req, res) => {
-    const { clinicId: requestedClinicId, to, message } = req.body;
+    const { clinicId: requestedClinicId, to, message, media, fileName, mimeType } = req.body;
     const auth = resolveAuthorizedClinicId(req, requestedClinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     const clinicId = auth.clinicId;
@@ -286,6 +304,33 @@ export const createWhatsAppRoutes = ({
           .status(400)
           .json({ ok: false, error: "Dispositivo não conectado. Status atual: " + (whatsappConnections[clinicId]?.status || "desconhecido") });
       }
+
+      if (media) {
+        const buf = Buffer.from(media, "base64");
+        const target = await resolveWhatsAppJID(sock, to);
+        const jidsToSend = Array.isArray(target) ? target : [target];
+        let lastResult = null;
+        for (const jid of jidsToSend) {
+          addLog(`[API] Enviando mídia via ${clinicId} para ${jid}...`);
+          const msgPayload = { mimetype: mimeType || "image/jpeg" };
+          if (mimeType && mimeType.startsWith("image")) {
+            msgPayload.image = buf;
+          } else if (mimeType && mimeType.startsWith("video")) {
+            msgPayload.video = buf;
+          } else if (mimeType && mimeType.startsWith("audio")) {
+            msgPayload.audio = buf;
+            msgPayload.ptt = false;
+          } else {
+            msgPayload.document = buf;
+            msgPayload.fileName = fileName || "file";
+          }
+          if (message) msgPayload.caption = message;
+          lastResult = await sock.sendMessage(jid, msgPayload);
+          if (jidsToSend.length > 1) await new Promise(r => setTimeout(r, 1000));
+        }
+        return res.json({ ok: true, messageId: lastResult?.key?.id });
+      }
+
       const quickResult = await sendWhatsAppMessage({ clinicId, to, message });
       return res.json({ ok: true, messageId: quickResult.messageId });
     } catch (error) {

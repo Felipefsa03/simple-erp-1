@@ -1947,6 +1947,61 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
   }
 };
 
+const sendWhatsAppImage = async ({ clinicId, to, imageUrl, caption }) => {
+  let attempts = 0;
+  const maxAttempts = 2;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const sock = await ensureSocketConnected(clinicId);
+
+      let waitCount = 0;
+      while (whatsappConnections[clinicId]?.status === "connecting" && waitCount < 30) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        waitCount++;
+      }
+
+      if (whatsappConnections[clinicId]?.status !== "connected") {
+        throw new Error("Dispositivo não conectado.");
+      }
+
+      if (!sock) {
+        throw new Error("Falha ao obter socket do WhatsApp.");
+      }
+
+      const target = await resolveWhatsAppJID(sock, to);
+      const jidsToSend = Array.isArray(target) ? target : [target];
+
+      let lastResult = null;
+      for (const jid of jidsToSend) {
+        addLog(`[API] Enviando imagem via ${clinicId} para ${jid}...`);
+        const msgPayload = { image: { url: imageUrl } };
+        if (caption) msgPayload.caption = caption;
+        const result = await sock.sendMessage(jid, msgPayload);
+        lastResult = result;
+        if (jidsToSend.length > 1) await new Promise(r => setTimeout(r, 1000));
+      }
+
+      return { success: true, messageId: lastResult?.key?.id };
+
+    } catch (err) {
+      const isConnectionError = err.message.toLowerCase().includes("fechada") ||
+                               err.message.toLowerCase().includes("closed") ||
+                               err.message.toLowerCase().includes("timed out") ||
+                               err.message.toLowerCase().includes("conflict");
+
+      if (isConnectionError && attempts < maxAttempts) {
+        addLog(`[API] Erro de conexão ao enviar imagem. Tentando novamente...`);
+        delete whatsappSockets[clinicId];
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      throw err;
+    }
+  }
+};
+
 app.use("/api/whatsapp", createWhatsAppRoutes({
   whatsappConnections,
   whatsappSockets,
@@ -1957,6 +2012,7 @@ app.use("/api/whatsapp", createWhatsAppRoutes({
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_ANON_KEY,
   sendWhatsAppMessage,
+  sendWhatsAppImage,
   disconnectWhatsAppSession,
   addLog,
   antiSpamStatsByNumber
