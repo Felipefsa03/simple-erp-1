@@ -2006,6 +2006,7 @@ app.use("/api/whatsapp", createWhatsAppRoutes({
   whatsappConnections,
   whatsappSockets,
   ensureSocketConnected,
+  resolveWhatsAppJID,
   saveCredentialsToSupabase,
   ensureClinicStatus,
   SUPABASE_URL,
