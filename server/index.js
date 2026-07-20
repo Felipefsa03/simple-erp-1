@@ -1682,6 +1682,7 @@ const createWhatsAppSocket = async (clinicId) => {
             id: msg.key.id,
             key: from,
             phone: cleanPhone,
+            pushName: msg.pushName || '',
             text: text,
             fromMe: false,
             timestamp: (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
@@ -1707,6 +1708,7 @@ const createWhatsAppSocket = async (clinicId) => {
                 phone: cleanPhone,
                 message_id: msg.key.id,
                 text: text,
+                push_name: msg.pushName || '',
                 from_me: false,
                 timestamp: new Date(
                   (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
@@ -2129,6 +2131,87 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
     messages.sort((a, b) => a.timestamp - b.timestamp);
 
     res.json({ ok: true, messages });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Get WhatsApp contact names (phone -> pushName map) for a clinic
+app.get("/api/whatsapp/contacts/:clinicId", async (req, res) => {
+  const auth = canAccessClinicData(req, req.params.clinicId);
+  if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+  const clinicId = auth.clinicId;
+
+  try {
+    const contacts = {};
+    const unknownPhones = new Set();
+
+    // 1) From in-memory messages (pushName)
+    const conn = whatsappConnections[clinicId];
+    if (conn?.messages) {
+      for (const m of conn.messages) {
+        if (m.pushName && m.phone) {
+          contacts[m.phone] = m.pushName;
+        } else if (m.phone) {
+          unknownPhones.add(m.phone);
+        }
+      }
+    }
+
+    // 2) From Baileys socket store
+    const sock = whatsappSockets[clinicId];
+    if (sock?.store?.contacts) {
+      for (const [jid, c] of Object.entries(sock.store.contacts)) {
+        const phone = jid.replace(/@s\.whatsapp\.net$/, '').replace(/@.*$/, '');
+        if (phone && /^\d{10,13}$/.test(phone)) {
+          if (c.name || c.notify) {
+            contacts[phone] = c.name || c.notify;
+          } else {
+            unknownPhones.add(phone);
+          }
+        }
+      }
+    }
+
+    // 3) Actively resolve unknowns via sock.getName()
+    if (sock && unknownPhones.size > 0) {
+      const toResolve = Array.from(unknownPhones).slice(0, 50);
+      for (const phone of toResolve) {
+        if (contacts[phone]) continue;
+        try {
+          const jid = phone + '@s.whatsapp.net';
+          const name = await Promise.race([
+            sock.getName(jid),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000))
+          ]);
+          if (name && name !== phone) {
+            contacts[phone] = name;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // 4) From Supabase messages (fallback: push_name column)
+    const queryKey = SUPABASE_SERVICE_ROLE_KEY;
+    if (SUPABASE_URL && queryKey) {
+      try {
+        const supaRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&select=phone,push_name&order=timestamp.desc&limit=500`,
+          { headers: { apikey: queryKey, Authorization: `Bearer ${queryKey}` } }
+        );
+        if (supaRes.ok) {
+          const rows = await supaRes.json();
+          for (const r of rows) {
+            const clean = String(r.phone || '').replace(/\D/g, '');
+            if (clean && r.push_name && !contacts[clean]) {
+              contacts[clean] = r.push_name;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    res.json({ ok: true, contacts });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
