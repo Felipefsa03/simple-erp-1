@@ -1315,12 +1315,9 @@ const createWhatsAppSocket = async (clinicId) => {
 
   const connect = async () => {
     try {
-      // Fecha e limpa qualquer socket anterior antes de criar novo (evita múltiplos sockets)
-      const prevSock = whatsappSockets[clinicId];
-      if (prevSock) {
-        try { prevSock.end(undefined); } catch(eClose) {}
-        if (whatsappSockets[clinicId] === prevSock) delete whatsappSockets[clinicId];
-      }
+      // Nota: NÃO fechamos prevSock aqui — o socket antigo pode estar sendo usado
+      // pelo ensureSocketConnected durante o janela de reconexão (428).
+      // O novo socket simplesmente substitui o antigo no mapa ao conectar.
 
       const { version, isLatest } = await _getCachedWaVersion();
       addLog(
@@ -1411,14 +1408,13 @@ const createWhatsAppSocket = async (clinicId) => {
           retryCount++;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
 
-          // Remove este socket do mapa imediatamente (evita que ensureSocketConnected retorne socket morto)
-          if (whatsappSockets[clinicId] === sock) {
-            delete whatsappSockets[clinicId];
-          }
-
           if (shouldReconnect) {
             if (isStreamConflict) {
-              // 440 = outra sessão assumiu. Aguarda mais e só reconecta se não houver socket ativo
+              // 440 = outra sessão assumiu. Remove socket do mapa e aguarda 20-30s antes de reconectar.
+              // (Remove do mapa aqui pois é conflito real — queremos forçar nova conexão)
+              if (whatsappSockets[clinicId] === sock) {
+                delete whatsappSockets[clinicId];
+              }
               const conflictDelay = 20000 + Math.floor(Math.random() * 10000); // 20-30s
               addLog(`[Baileys] Conflito 440 para ${clinicId}. Aguardando ${conflictDelay}ms antes de tentar reconectar...`);
               setTimeout(async () => {
@@ -1433,6 +1429,9 @@ const createWhatsAppSocket = async (clinicId) => {
                 }
               }, conflictDelay);
             } else {
+              // 428 = timeout de keepalive — NÃO remove do mapa.
+              // Durante os ~7s de reconexão, sends que chegarem vão receber erro gracioso
+              // ao invés de criar um socket novo que conflita com o reconnect agendado.
               const randomDelay = Math.floor(Math.random() * 5000);
               const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000) + randomDelay;
               addLog(`[Baileys] Reconectando ${clinicId} em ${delay}ms (incluindo jitter)...`);
