@@ -1101,8 +1101,18 @@ function brazilianPhoneCandidates(rawPhone) {
   return [...new Set(results)];
 }
 
+// Cache de JID por número — evita 5 lookups repetidos por cliente (TTL: 24h)
+const _jidCache = new Map(); // key: rawPhone → { jid, ts }
+const _JID_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
+
 // Resolve WhatsApp JID by checking which candidate actually exists
 async function resolveWhatsAppJID(sock, rawPhone) {
+  // Retorna do cache se ainda válido
+  const cached = _jidCache.get(rawPhone);
+  if (cached && (Date.now() - cached.ts) < _JID_CACHE_TTL_MS) {
+    return cached.jid; // retorno instantâneo (~0ms)
+  }
+
   const candidates = brazilianPhoneCandidates(rawPhone);
   addLog(`[Phone] Resolving JID for "${rawPhone}" → candidates: ${candidates.join(", ")}`);
 
@@ -1117,6 +1127,7 @@ async function resolveWhatsAppJID(sock, rawPhone) {
 
       if (result?.exists) {
         addLog(`[Phone] JID confirmed: ${result.jid}`);
+        _jidCache.set(rawPhone, { jid: result.jid, ts: Date.now() });
         return result.jid;
       }
     } catch (e) {
@@ -1126,7 +1137,10 @@ async function resolveWhatsAppJID(sock, rawPhone) {
 
   // Se nenhum foi confirmado, retornamos a lista de candidatos para o remetente decidir
   addLog(`[Phone] Nenhum JID confirmado para "${rawPhone}". Retornando lista de candidatos.`);
-  return candidates.map(c => c + "@s.whatsapp.net");
+  const fallback = candidates.map(c => c + "@s.whatsapp.net");
+  // Cacheia por 1h mesmo os não confirmados (evita loops de retentativa)
+  _jidCache.set(rawPhone, { jid: fallback, ts: Date.now() - (_JID_CACHE_TTL_MS - 60 * 60 * 1000) });
+  return fallback;
 }
 
 // Ensure auth directories exist (fallback for local dev)
