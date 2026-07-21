@@ -1001,6 +1001,19 @@ const whatsappConnections = {};
 const whatsappSocketCreationPromises = {}; // Mapa para evitar criação de múltiplos sockets simultâneos
 const whatsappMessagesQueue = {}; // Fila para mensagens em espera se necessário
 
+// Cache da versão WA — evita HTTP extra a cada reconnect (renovado a cada 6h)
+let _waVersionCache = null;
+let _waVersionCacheTime = 0;
+const _getCachedWaVersion = async () => {
+  const now = Date.now();
+  if (_waVersionCache && (now - _waVersionCacheTime) < 6 * 60 * 60 * 1000) {
+    return _waVersionCache;
+  }
+  _waVersionCache = await fetchLatestBaileysVersion();
+  _waVersionCacheTime = now;
+  return _waVersionCache;
+};
+
 const campaignsByClinic = new Map();
 const antiSpamStatsByNumber = new Map();
 
@@ -1288,7 +1301,14 @@ const createWhatsAppSocket = async (clinicId) => {
 
   const connect = async () => {
     try {
-      const { version, isLatest } = await fetchLatestBaileysVersion();
+      // Fecha e limpa qualquer socket anterior antes de criar novo (evita múltiplos sockets)
+      const prevSock = whatsappSockets[clinicId];
+      if (prevSock) {
+        try { prevSock.end(undefined); } catch(eClose) {}
+        if (whatsappSockets[clinicId] === prevSock) delete whatsappSockets[clinicId];
+      }
+
+      const { version, isLatest } = await _getCachedWaVersion();
       addLog(
         `[Baileys] Usando versão WA v${version.join(".")}, isLatest: ${isLatest}`,
       );
@@ -1377,12 +1397,33 @@ const createWhatsAppSocket = async (clinicId) => {
           retryCount++;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
 
+          // Remove este socket do mapa imediatamente (evita que ensureSocketConnected retorne socket morto)
+          if (whatsappSockets[clinicId] === sock) {
+            delete whatsappSockets[clinicId];
+          }
+
           if (shouldReconnect) {
-            // Adiciona um atraso aleatório para evitar loops de conflito 440 entre instâncias
-            const randomDelay = Math.floor(Math.random() * 5000);
-            const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000) + randomDelay;
-            addLog(`[Baileys] Reconectando ${clinicId} em ${delay}ms (incluindo jitter)...`);
-            setTimeout(connect, delay);
+            if (isStreamConflict) {
+              // 440 = outra sessão assumiu. Aguarda mais e só reconecta se não houver socket ativo
+              const conflictDelay = 20000 + Math.floor(Math.random() * 10000); // 20-30s
+              addLog(`[Baileys] Conflito 440 para ${clinicId}. Aguardando ${conflictDelay}ms antes de tentar reconectar...`);
+              setTimeout(async () => {
+                const existing = whatsappSockets[clinicId];
+                const wsState = existing?.ws?.readyState;
+                const isAlreadyOpen = wsState === 1; // WebSocket.OPEN
+                if (isAlreadyOpen) {
+                  addLog(`[Baileys] Socket já ativo para ${clinicId} após 440. Reconexão cancelada.`);
+                } else {
+                  addLog(`[Baileys] Reconectando ${clinicId} após conflito 440...`);
+                  connect();
+                }
+              }, conflictDelay);
+            } else {
+              const randomDelay = Math.floor(Math.random() * 5000);
+              const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000) + randomDelay;
+              addLog(`[Baileys] Reconectando ${clinicId} em ${delay}ms (incluindo jitter)...`);
+              setTimeout(connect, delay);
+            }
           } else {
             addLog(
               `[Baileys] Sessão expirada/inválida para ${clinicId}. Limpando...`,
