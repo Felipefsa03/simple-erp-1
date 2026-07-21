@@ -1135,12 +1135,10 @@ async function resolveWhatsAppJID(sock, rawPhone) {
     }
   }
 
-  // Se nenhum foi confirmado, retornamos a lista de candidatos para o remetente decidir
+  // Se nenhum foi confirmado (ex: Connection Closed durante 428), retorna os candidatos SEM cachear.
+  // Próxima chamada tentará verificar novamente (evita duplo-envio persistente por cache de fallback).
   addLog(`[Phone] Nenhum JID confirmado para "${rawPhone}". Retornando lista de candidatos.`);
-  const fallback = candidates.map(c => c + "@s.whatsapp.net");
-  // Cacheia por 1h mesmo os não confirmados (evita loops de retentativa)
-  _jidCache.set(rawPhone, { jid: fallback, ts: Date.now() - (_JID_CACHE_TTL_MS - 60 * 60 * 1000) });
-  return fallback;
+  return candidates.map(c => c + "@s.whatsapp.net");
 }
 
 // Ensure auth directories exist (fallback for local dev)
