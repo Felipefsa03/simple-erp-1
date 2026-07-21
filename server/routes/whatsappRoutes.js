@@ -1,6 +1,94 @@
 import express from "express";
 import fs from "fs";
 import QRCode from "qrcode";
+import crypto from "crypto";
+
+/**
+ * ── ANTI-BAN: Media Fingerprint ──────────────────────────────────────────────
+ * Modifica o hash binário da imagem de forma imperceptível antes de cada envio.
+ * O WhatsApp usa o hash MD5/SHA da mídia para detectar envios em massa.
+ * Com fingerprint único por cliente, cada hash é diferente.
+ *
+ * JPEG: insere segmento de comentário (0xFFFE) com 12 bytes aleatórios após SOI.
+ * PNG:  modifica os bytes do chunk tEXt privado.
+ * Outros: appenda bytes no final.
+ */
+function addMediaFingerprint(base64Data, mimeType) {
+  try {
+    const buf = Buffer.from(base64Data, "base64");
+    const randBytes = crypto.randomBytes(12);
+
+    // ── JPEG ──────────────────────────────────────────────────────────────────
+    if (mimeType.includes("jpeg") || mimeType.includes("jpg")) {
+      if (buf[0] !== 0xFF || buf[1] !== 0xD8) return base64Data; // not JPEG
+
+      // JPEG comment segment: FF FE [uint16-BE length] [data]
+      // length = 2 (for length field itself) + data.length
+      const commentSeg = Buffer.alloc(2 + 2 + randBytes.length);
+      commentSeg[0] = 0xFF;
+      commentSeg[1] = 0xFE;
+      commentSeg.writeUInt16BE(2 + randBytes.length, 2);
+      randBytes.copy(commentSeg, 4);
+
+      const fingerprintedBuf = Buffer.concat([
+        buf.slice(0, 2),  // SOI: FF D8
+        commentSeg,        // comment segment com bytes únicos
+        buf.slice(2),      // resto do JPEG
+      ]);
+      return fingerprintedBuf.toString("base64");
+    }
+
+    // ── PNG ───────────────────────────────────────────────────────────────────
+    if (mimeType.includes("png")) {
+      const PNG_SIG = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+      if (!buf.slice(0, 8).equals(PNG_SIG)) return base64Data;
+
+      // Chunk tEXt privado logo após assinatura PNG (antes do IHDR)
+      // Estrutura: [uint32-BE length][chunk type 4b][data][crc 4b]
+      const keyword = Buffer.from("Comment\0"); // keyword + null separator
+      const comment = randBytes;
+      const chunkData = Buffer.concat([keyword, comment]);
+      const chunkType = Buffer.from("tEXt");
+      const lengthBuf = Buffer.alloc(4);
+      lengthBuf.writeUInt32BE(chunkData.length, 0);
+
+      // CRC cobre tipo + data
+      const crcInput = Buffer.concat([chunkType, chunkData]);
+      const crcValue = crc32(crcInput);
+      const crcBuf = Buffer.alloc(4);
+      crcBuf.writeUInt32BE(crcValue >>> 0, 0);
+
+      const chunk = Buffer.concat([lengthBuf, chunkType, chunkData, crcBuf]);
+
+      // Insere após assinatura PNG (8 bytes), antes do IHDR
+      const fingerprintedBuf = Buffer.concat([
+        buf.slice(0, 8), // PNG signature
+        chunk,
+        buf.slice(8),
+      ]);
+      return fingerprintedBuf.toString("base64");
+    }
+
+    // ── Outros formatos: append de bytes ─────────────────────────────────────
+    return Buffer.concat([buf, randBytes]).toString("base64");
+
+  } catch (e) {
+    return base64Data; // fallback seguro — envia original
+  }
+}
+
+/** CRC32 para chunks PNG */
+function crc32(buf) {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) {
+    crc ^= buf[i];
+    for (let j = 0; j < 8; j++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+    }
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
 
 export const createWhatsAppRoutes = ({
   whatsappConnections,
@@ -307,7 +395,11 @@ export const createWhatsAppRoutes = ({
       }
 
       if (media) {
-        const buf = Buffer.from(media, "base64");
+        // ── CAMADA 1: Fingerprint de imagem ───────────────────────────────────
+        // Insere bloco de comentário JPEG único por envio (muda o hash da mídia)
+        // sem alterar a imagem visível. Impede detecção de mídia duplicada em massa.
+        const fingerprintedMedia = addMediaFingerprint(media, mimeType || "image/jpeg");
+        const buf = Buffer.from(fingerprintedMedia, "base64");
         const target = await resolveWhatsAppJID(sock, to);
         const jidsToSend = Array.isArray(target) ? target : [target];
         let lastResult = null;
