@@ -1244,10 +1244,42 @@ const loadCredentialsFromSupabase = async (clinicId) => {
 };
 
 // Custom auth state that uses Supabase
+// Global timeouts map for debouncing Supabase writes
+const saveCredsTimeouts = {};
+
 const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
   let credentials = initialCredentials?.creds || null;
   let keys = initialCredentials?.keys || {};
-  let saveCount = 0;
+  let isDirty = false;
+
+  const flushToSupabase = async () => {
+    if (!isDirty) return;
+    try {
+      const current = (await loadCredentialsFromSupabase(clinicId)) || {};
+      const credsToSave = credentials || whatsappConnections[clinicId]?.creds;
+      await saveCredentialsToSupabase(clinicId, {
+        ...current,
+        creds: credsToSave || current.creds,
+        keys: keys
+      });
+      isDirty = false;
+    } catch (e) {
+      console.error(`[Baileys] Erro ao debulhar (flush) credenciais para Supabase (${clinicId}):`, e.message);
+      // Mantém dirty se falhou para tentar novamente
+    }
+  };
+
+  const scheduleSave = () => {
+    isDirty = true;
+    if (saveCredsTimeouts[clinicId]) {
+      clearTimeout(saveCredsTimeouts[clinicId]);
+    }
+    // Debounce de 3 segundos para evitar spam no Supabase durante muitas mensagens
+    saveCredsTimeouts[clinicId] = setTimeout(() => {
+      flushToSupabase();
+      delete saveCredsTimeouts[clinicId];
+    }, 3000);
+  };
 
   return {
     state: {
@@ -1266,23 +1298,12 @@ const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
         },
         set: async (type, data) => {
           keys = { ...keys, [type]: data };
-          const current = (await loadCredentialsFromSupabase(clinicId)) || {};
-          await saveCredentialsToSupabase(clinicId, { ...current, keys });
+          scheduleSave();
         },
       },
     },
     saveCreds: async () => {
-      saveCount++;
-      // Save every time for now to ensure persistence
-      const credsToSave = credentials || whatsappConnections[clinicId]?.creds;
-      if (credsToSave) {
-        const current = (await loadCredentialsFromSupabase(clinicId)) || {};
-        await saveCredentialsToSupabase(clinicId, {
-          ...current,
-          creds: credsToSave,
-          keys,
-        });
-      }
+      scheduleSave();
     },
   };
 };
