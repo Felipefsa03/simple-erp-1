@@ -1255,11 +1255,10 @@ const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
   const flushToSupabase = async () => {
     if (!isDirty) return;
     try {
-      const current = (await loadCredentialsFromSupabase(clinicId)) || {};
       const credsToSave = credentials || whatsappConnections[clinicId]?.creds;
+      // Não fazemos loadCredentials aqui para evitar sobrecarga (já temos a memória recente).
       await saveCredentialsToSupabase(clinicId, {
-        ...current,
-        creds: credsToSave || current.creds,
+        creds: credsToSave,
         keys: keys
       });
       isDirty = false;
@@ -1286,18 +1285,18 @@ const useSupabaseAuthState = (clinicId, initialCredentials = null) => {
       creds: credentials,
       keys: {
         get: async (type, ids) => {
-          if (keys && keys[type]) {
-            return keys[type];
-          }
-          const data = await loadCredentialsFromSupabase(clinicId);
-          if (data && data.keys) {
-            keys = data.keys;
-            return data.keys[type] || {};
-          }
-          return {};
+          // Mantemos a fonte da verdade apenas em memória! 
+          // Não fazer fetch do Supabase no GET, pois causa DDoS (loop de carregamento em chaves ausentes).
+          const dict = keys[type] || {};
+          return ids.reduce((acc, id) => {
+            if (dict[id]) acc[id] = dict[id];
+            return acc;
+          }, {});
         },
         set: async (type, data) => {
-          keys = { ...keys, [type]: data };
+          if (!keys[type]) keys[type] = {};
+          // Merge dos novos dados com o dicionário existente do tipo
+          keys[type] = { ...keys[type], ...data };
           scheduleSave();
         },
       },
