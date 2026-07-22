@@ -1310,6 +1310,7 @@ const ensureSocketConnected = async (clinicId) => {
 const createWhatsAppSocket = async (clinicId) => {
   let retryCount = 0;
   let hasFailed401 = false;
+  let hasValidCreds = false; // Rastreia se a sessão tem credenciais reais
 
   const connect = async () => {
     try {
@@ -1333,6 +1334,7 @@ const createWhatsAppSocket = async (clinicId) => {
         const supabaseAuth = useSupabaseAuthState(clinicId, supabaseCreds);
         state = supabaseAuth.state;
         saveCreds = supabaseAuth.saveCreds;
+        hasValidCreds = true;
       } else {
         // Fallback to local file system or fresh auth
         addLog(`[Baileys] Usando auth limpo para ${clinicId}`);
@@ -1340,6 +1342,7 @@ const createWhatsAppSocket = async (clinicId) => {
         const fileAuth = await useMultiFileAuthState(authDir);
         state = fileAuth.state;
         saveCreds = fileAuth.saveCreds;
+        hasValidCreds = false;
       }
 
       const logger = pino({ level: "silent" }); // Completely silent to avoid session errors
@@ -1405,6 +1408,28 @@ const createWhatsAppSocket = async (clinicId) => {
           const shouldReconnect = !isLoggedOut;
           retryCount++;
           addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
+
+          // ── PROTEÇÃO CONTRA SESSÕES FANTASMAS ──────────────────────────────
+          // Se a sessão não tem credenciais válidas (auth limpo) e já falhou
+          // mais de 5 vezes, é uma sessão fantasma. Mata permanentemente.
+          const MAX_RETRY_NO_CREDS = 5;
+          if (!hasValidCreds && retryCount > MAX_RETRY_NO_CREDS) {
+            addLog(`[Baileys] ⛔ Sessão fantasma detectada: ${clinicId} (sem creds, retry ${retryCount}). Destruindo permanentemente.`);
+            delete whatsappSockets[clinicId];
+            delete whatsappSocketCreationPromises[clinicId];
+            whatsappConnections[clinicId] = { status: 'disconnected', qr: null, qrBase64: null };
+            return; // NÃO reconecta
+          }
+          // Mesmo com credenciais, limitar a 15 retries para evitar loops infinitos
+          const MAX_RETRY_WITH_CREDS = 15;
+          if (retryCount > MAX_RETRY_WITH_CREDS) {
+            addLog(`[Baileys] ⛔ Limite máximo de retries atingido para ${clinicId} (${retryCount}). Parando reconexão.`);
+            delete whatsappSockets[clinicId];
+            delete whatsappSocketCreationPromises[clinicId];
+            whatsappConnections[clinicId] = { status: 'disconnected', qr: null, qrBase64: null };
+            return; // NÃO reconecta
+          }
+          // ── FIM DA PROTEÇÃO ─────────────────────────────────────────────────
 
           if (shouldReconnect) {
             if (isStreamConflict) {
@@ -2467,13 +2492,35 @@ app.listen(PORT, async () => {
       if (res.ok) {
         const credentials = await res.json();
         if (Array.isArray(credentials) && credentials.length > 0) {
-          // Reconectar todas as sessoes, INCLUINDO o system-global.
-          // Se system-global e uma clinica usam o mesmo numero, pode causar 440,
-          // porem remover o auto-reconnect do system-global o deixa sempre inativo
-          // a nao ser que o admin reconecte manualmente toda vez.
-          const clinicCreds = credentials; // Modificado: agora reconecta todos
+          // ── FILTRO ANTI-FANTASMA: só reconecta sessões que TÊM credenciais reais ──
+          const clinicCreds = credentials.filter(cred => {
+            // Rejeita sessões sem credenciais reais salvas
+            if (!cred.credentials) {
+              console.log(`🚫 Ignorando sessão sem credenciais: ${cred.clinic_id}`);
+              return false;
+            }
+            // Rejeita sessões com IDs genéricos/inválidos
+            const invalidIds = ['00000000-0000-0000-0000-000000000001', 'jpb-wpp'];
+            if (invalidIds.includes(cred.clinic_id)) {
+              console.log(`🚫 Ignorando sessão com ID inválido/genérico: ${cred.clinic_id}`);
+              return false;
+            }
+            // Rejeita sessões cujas credenciais não contêm creds registradas
+            try {
+              const parsed = typeof cred.credentials === 'string' ? JSON.parse(cred.credentials) : cred.credentials;
+              if (!parsed?.creds?.me?.id) {
+                console.log(`🚫 Ignorando sessão não-registrada: ${cred.clinic_id}`);
+                return false;
+              }
+            } catch(e) {
+              console.log(`🚫 Ignorando sessão com credenciais corrompidas: ${cred.clinic_id}`);
+              return false;
+            }
+            return true;
+          });
+          // ── FIM DO FILTRO ──────────────────────────────────────────────────
           console.log(
-            `🔄 Auto-reconnecting ${clinicCreds.length} WhatsApp session(s)...`,
+            `🔄 Auto-reconnecting ${clinicCreds.length} valid WhatsApp session(s) (filtered from ${credentials.length} total)...`,
           );
           for (const cred of clinicCreds) {
             try {
