@@ -25,11 +25,21 @@ import integrationsRoutes from "./routes/integrationsRoutes.js";
 
 // Global Error Handling for stability
 process.on('unhandledRejection', (reason, promise) => {
+  const errString = String(reason);
+  if (errString.includes('Bad MAC') || errString.includes('libsignal') || errString.includes('Session error')) {
+    // Suppress noisy Baileys/libsignal decryption errors that flood the logs
+    return;
+  }
   console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
   // Log the error but do NOT crash the monolithic server
 });
 
 process.on('uncaughtException', (error) => {
+  const errString = String(error);
+  if (errString.includes('Bad MAC') || errString.includes('libsignal') || errString.includes('Session error')) {
+    // Suppress noisy Baileys/libsignal decryption errors
+    return;
+  }
   console.error('[FATAL] Uncaught Exception:', error);
   // Optional: Add to an error reporting service like Sentry here
 });
@@ -2412,9 +2422,9 @@ setInterval(async () => {
       const contact = campaign.contacts[currentIndex];
       const sock = whatsappSockets[clinicId];
       
-      if (!sock) {
-        addLog(`[Campaign] WhatsApp não conectado para clínica ${clinicId}. Falha ao enviar para ${contact.name}`);
-        campaign.stats.failed += 1;
+      if (!sock || !whatsappConnections[clinicId] || whatsappConnections[clinicId].status !== 'connected') {
+        addLog(`[Campaign] WhatsApp offline para clínica ${clinicId}. Aguardando reconexão...`);
+        continue;
       } else {
         try {
           const number = String(contact.phone).replace(/\D/g, "");
