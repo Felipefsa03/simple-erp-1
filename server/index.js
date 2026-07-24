@@ -1338,6 +1338,24 @@ const ensureSocketConnected = async (clinicId) => {
 
 // Updated QR generation to support Base64
 const createWhatsAppSocket = async (clinicId) => {
+  // ── MATA SESSÕES FANTASMAS ──────────────────────────────────────────────
+  // Se existe uma sessão com mesmo prefixo mas COM sufixo (mais longa), este clinicId é o fantasma.
+  // Ex: 'jpb-wpp' é fantasma se 'jpb-wpp-mrz3xm1o' já existe e está conectado.
+  for (const [existingId, existingConn] of Object.entries(whatsappConnections)) {
+    if (existingId !== clinicId && existingId.startsWith(clinicId + '-') && existingConn.status === 'connected') {
+      addLog(`[Baileys] ⛔ ${clinicId} é sessão fantasma (real: ${existingId}). Ignorando criação.`);
+      return { dummy: true };
+    }
+    // Inverso: se este clinicId tem sufixo e já existe um sem sufixo conectado, mata o antigo
+    if (existingId !== clinicId && clinicId.startsWith(existingId + '-') && (existingConn.status === 'connected' || existingConn.status === 'qr' || existingConn.status === 'connecting')) {
+      addLog(`[Baileys] ⛔ Mata sessão antiga ${existingId} (substituída por ${clinicId})`);
+      try { whatsappSockets[existingId]?.end(undefined); } catch(e) {}
+      delete whatsappSockets[existingId];
+      delete whatsappConnections[existingId];
+      delete whatsappSocketCreationPromises[existingId];
+    }
+  }
+
   let retryCount = 0;
   let hasFailed401 = false;
   let hasValidCreds = false;
@@ -1447,8 +1465,8 @@ const createWhatsAppSocket = async (clinicId) => {
 
           // ── PROTEÇÃO CONTRA SESSÕES FANTASMAS ──────────────────────────────
           // Se a sessão não tem credenciais válidas (auth limpo) e já falhou
-          // mais de 5 vezes, é uma sessão fantasma. Mata permanentemente.
-          const MAX_RETRY_NO_CREDS = 10;
+          // mais de 3 vezes, é uma sessão fantasma. Mata permanentemente.
+          const MAX_RETRY_NO_CREDS = 3;
           if (!hasValidCreds && retryCount > MAX_RETRY_NO_CREDS) {
             addLog(`[Baileys] ⛔ Sessão fantasma detectada: ${clinicId} (sem creds, retry ${retryCount}). Destruindo permanentemente.`);
             delete whatsappSockets[clinicId];

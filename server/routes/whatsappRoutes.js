@@ -177,6 +177,10 @@ export const createWhatsAppRoutes = ({
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     const clinicId = auth.clinicId;
 
+    if (clinicId === "jpb-wpp") {
+      return res.status(400).json({ ok: false, error: "Conexão manual à sessão antiga jpb-wpp foi desativada. Use a multi-sessão." });
+    }
+
     try {
       // Limpar qualquer sessão existente antes de conectar
       if (whatsappSockets[clinicId]) {
