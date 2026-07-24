@@ -1340,11 +1340,17 @@ const ensureSocketConnected = async (clinicId) => {
 const createWhatsAppSocket = async (clinicId) => {
   let retryCount = 0;
   let hasFailed401 = false;
-  let hasValidCreds = false; // Rastreia se a sessão tem credenciais reais
+  let hasValidCreds = false;
+  let isReconnecting = false; // Trava contra connect() simultâneas
 
   const connect = async () => {
+    if (isReconnecting) {
+      addLog(`[Baileys] connect() ignorada para ${clinicId} - já reconectando`);
+      return;
+    }
+    isReconnecting = true;
     try {
-      // Nota: NÃO fechamos prevSock aqui — o socket antigo pode estar sendo usado
+    // Nota: NÃO fechamos prevSock aqui — o socket antigo pode estar sendo usado
       // pelo ensureSocketConnected durante o janela de reconexão (428).
       // O novo socket simplesmente substitui o antigo no mapa ao conectar.
 
@@ -1483,8 +1489,14 @@ const createWhatsAppSocket = async (clinicId) => {
               }, conflictDelay);
             } else {
               // 428 = timeout de keepalive — NÃO remove do mapa.
-              // Durante os ~7s de reconexão, sends que chegarem vão receber erro gracioso
-              // ao invés de criar um socket novo que conflita com o reconnect agendado.
+              // Verificar se já existe socket ativo para evitar reconexão desnecessária
+              const existingSock = whatsappSockets[clinicId];
+              const wsState = existingSock?.ws?.readyState;
+              if (wsState === 1) { // WebSocket.OPEN
+                addLog(`[Baileys] Socket ainda ativo para ${clinicId} (428). Reconexão ignorada.`);
+                retryCount = 0;
+                return;
+              }
               const randomDelay = Math.floor(Math.random() * 5000);
               const delay = Math.min(5000 * Math.pow(2, retryCount - 1), 60000) + randomDelay;
               addLog(`[Baileys] Reconectando ${clinicId} em ${delay}ms (incluindo jitter)...`);
@@ -1523,7 +1535,8 @@ const createWhatsAppSocket = async (clinicId) => {
           }
         } else if (connection === "open") {
           retryCount = 0;
-          hasValidCreds = true; // Conexão aberta com sucesso = credenciais são válidas
+          hasValidCreds = true;
+          hasFailed401 = false; // Reset: conexão OK = credenciais válidas, permitir reload do Supabase
           const existingMessages =
             whatsappConnections[clinicId]?.messages || [];
           whatsappConnections[clinicId] = {
@@ -1856,8 +1869,10 @@ const createWhatsAppSocket = async (clinicId) => {
         }
       });
 
+      isReconnecting = false;
       return sock;
     } catch (err) {
+      isReconnecting = false;
       addLog(`[Baileys] Erro: ${err.message}`);
       
       // Se for erro de MAC (sessão corrompida), limpa APENAS auth local para poder gerar novo QR
