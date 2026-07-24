@@ -1442,7 +1442,7 @@ const createWhatsAppSocket = async (clinicId) => {
           // ── PROTEÇÃO CONTRA SESSÕES FANTASMAS ──────────────────────────────
           // Se a sessão não tem credenciais válidas (auth limpo) e já falhou
           // mais de 5 vezes, é uma sessão fantasma. Mata permanentemente.
-          const MAX_RETRY_NO_CREDS = 5;
+          const MAX_RETRY_NO_CREDS = 10;
           if (!hasValidCreds && retryCount > MAX_RETRY_NO_CREDS) {
             addLog(`[Baileys] ⛔ Sessão fantasma detectada: ${clinicId} (sem creds, retry ${retryCount}). Destruindo permanentemente.`);
             delete whatsappSockets[clinicId];
@@ -1523,6 +1523,7 @@ const createWhatsAppSocket = async (clinicId) => {
           }
         } else if (connection === "open") {
           retryCount = 0;
+          hasValidCreds = true; // Conexão aberta com sucesso = credenciais são válidas
           const existingMessages =
             whatsappConnections[clinicId]?.messages || [];
           whatsappConnections[clinicId] = {
@@ -1859,10 +1860,10 @@ const createWhatsAppSocket = async (clinicId) => {
     } catch (err) {
       addLog(`[Baileys] Erro: ${err.message}`);
       
-      // Se for erro de MAC (sessão corrompida), limpa a sessão para poder gerar novo QR
+      // Se for erro de MAC (sessão corrompida), limpa APENAS auth local para poder gerar novo QR
+      // NÃO deleta credenciais do Supabase nem marca hasFailed401 (Bad MAC não é 401)
       if (err.message && (err.message.includes('MAC') || err.message.includes('mac'))) {
-        addLog(`[Baileys] Sessão corrompida (Bad MAC). Limpando sessão do clinicId ${clinicId}...`);
-        hasFailed401 = true;
+        addLog(`[Baileys] Sessão corrompida (Bad MAC). Limpando apenas auth local do clinicId ${clinicId}...`);
         
         if (whatsappSockets[clinicId]) {
           try { whatsappSockets[clinicId].end(undefined); } catch (e) {}
@@ -1874,19 +1875,6 @@ const createWhatsAppSocket = async (clinicId) => {
           qr: null,
           qrBase64: null,
         };
-        
-        try {
-          await fetch(
-            `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`,
-            {
-              method: "DELETE",
-              headers: {
-                apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
-              },
-            }
-          );
-        } catch (e) {}
         
         try {
           const authDir = ensureClinicStatus(clinicId);
