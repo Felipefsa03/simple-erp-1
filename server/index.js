@@ -1659,9 +1659,41 @@ const createWhatsAppSocket = async (clinicId) => {
             continue;
           }
 
-          // Skip messages sent by us (already tracked via sendWhatsAppMessage)
-          if (msg.key.fromMe) {
-            addLog(`[Baileys] SKIP fromMe=true de ${from}`);
+          // Handle reactions: store as reaction on parent message, not as standalone message
+          if (msg.message?.reactionMessage) {
+            const reaction = msg.message.reactionMessage;
+            const reactedToId = reaction.key?.id;
+            const reactionEmoji = reaction.text;
+            if (reactedToId && reactionEmoji) {
+              addLog(`[Baileys] Reação "${reactionEmoji}" de ${from} para msg ${reactedToId}`);
+              // Try to update the reacted message in Supabase to attach the reaction
+              if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+                try {
+                  const reactBody = { reaction_from_me: !!msg.key.fromMe, reaction_emoji: reactionEmoji };
+                  await fetch(
+                    `${SUPABASE_URL}/rest/v1/whatsapp_messages?message_id=eq.${reactedToId}&clinic_id=eq.${clinicId}`,
+                    {
+                      method: "PATCH",
+                      headers: {
+                        "Content-Type": "application/json",
+                        apikey: SUPABASE_SERVICE_ROLE_KEY,
+                        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                      },
+                      body: JSON.stringify(reactBody),
+                    }
+                  );
+                } catch (_) {}
+              }
+              // Store in memory too
+              const conn2 = whatsappConnections[clinicId];
+              if (conn2?.messages) {
+                const parent = conn2.messages.find(m => m.id === reactedToId);
+                if (parent) {
+                  parent.reaction_emoji = reactionEmoji;
+                  parent.reaction_from_me = !!msg.key.fromMe;
+                }
+              }
+            }
             continue;
           }
 
@@ -1823,7 +1855,7 @@ const createWhatsAppSocket = async (clinicId) => {
             phone: cleanPhone,
             pushName: msg.pushName || '',
             text: text,
-            fromMe: false,
+            fromMe: !!msg.key.fromMe,
             timestamp: (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
             media_url: mediaUrl,
             media_type: mediaType,
@@ -1848,7 +1880,7 @@ const createWhatsAppSocket = async (clinicId) => {
                 message_id: msg.key.id,
                 text: text,
                 push_name: msg.pushName || '',
-                from_me: false,
+                from_me: !!msg.key.fromMe,
                 timestamp: new Date(
                   (msg.messageTimestamp || Math.floor(Date.now() / 1000)) * 1000,
                 ).toISOString(),
@@ -2033,12 +2065,14 @@ const sendWhatsAppMessage = async ({ clinicId, to, message }) => {
                 "Content-Type": "application/json",
                 apikey: sendPersistKey,
                 Authorization: `Bearer ${sendPersistKey}`,
+                Prefer: "resolution=merge-duplicates",
               },
               body: JSON.stringify({
                 clinic_id: clinicId === "system-global" ? GLOBAL_CLINIC_ID : clinicId,
                 phone: cleanPhone,
                 message_id: result.key.id,
                 text: message,
+                from_me: true,
                 status: "sent",
                 timestamp: new Date().toISOString()
               })
@@ -2184,7 +2218,7 @@ const canAccessClinicData = (req, requestedClinicId) => {
         // Since Supabase doesn't support SELECT DISTINCT ON natively via REST easily without RPC,
         // we'll fetch the last 200 messages ordered by timestamp DESC and distinct by phone in memory.
         const supaRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&order=timestamp.desc&limit=200`,
+          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&order=timestamp.desc&limit=500`,
           {
             headers: {
               apikey: queryKey,
@@ -2264,7 +2298,7 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
     if (SUPABASE_URL && queryKey) {
       try {
         const supaRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&phone=in.(${phoneFilter})&order=timestamp.asc&limit=100`,
+          `${SUPABASE_URL}/rest/v1/whatsapp_messages?clinic_id=eq.${encodeURIComponent(clinicId)}&phone=in.(${phoneFilter})&order=timestamp.asc&limit=500`,
           {
             headers: {
               apikey: queryKey,
@@ -2283,6 +2317,8 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
             timestamp: new Date(m.timestamp).getTime(),
             media_url: m.media_url || null,
             media_type: m.media_type || null,
+            reaction_emoji: m.reaction_emoji || null,
+            reaction_from_me: m.reaction_from_me || false,
           }));
           addLog(`[API] ${supaData.length} mensagens carregadas do Supabase para ${cleanPhone}`);
         } else {
@@ -2525,7 +2561,27 @@ app.use("/api/webhooks", billingRouter);
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 WhatsApp API ready for connections [v2.0.1-no-ping]`);
+  console.log(`📱 WhatsApp API ready for connections [v2.0.2-reactions]`);
+
+  // Ensure reaction columns exist in whatsapp_messages
+  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      // Try using Supabase Management-like approach via SQL RPC
+      const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+        body: JSON.stringify({ query: "ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS reaction_emoji TEXT; ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS reaction_from_me BOOLEAN DEFAULT false;" })
+      });
+      if (rpcRes.ok) {
+        console.log('✅ Reaction columns ensured in whatsapp_messages');
+      } else {
+        // Columns may already exist or exec_sql not available — not critical
+        console.log(`⚠️ Reaction columns migration skipped (status ${rpcRes.ok ? 'ok' : rpcRes.status}). Columns may already exist.`);
+      }
+    } catch (e) {
+      console.log(`⚠️ Reaction column migration skipped: ${e.message}`);
+    }
+  }
 
   // Auto-reconnect all saved WhatsApp sessions on startup
   if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
