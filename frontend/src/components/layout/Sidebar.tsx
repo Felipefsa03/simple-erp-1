@@ -17,7 +17,14 @@ import {
   Shield,
   Link2,
   ArrowLeft,
-  Server
+  Server,
+  TrendingUp,
+  BarChart3,
+  Brain,
+  Copy,
+  Activity,
+  History,
+  Newspaper
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,11 +37,23 @@ const clinicMenuItems = [
   { id: 'pacientes', label: 'Pacientes', icon: Users },
   { id: 'prontuarios', label: 'Prontuários', icon: Stethoscope },
   { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+  { id: 'mercado', label: 'Mercado', icon: TrendingUp },
   { id: 'insurance', label: 'Convênios', icon: Shield },
   { id: 'branches', label: 'Filiais', icon: Building2 },
   { id: 'estoque', label: 'Estoque', icon: Package },
   { id: 'marketing', label: 'Marketing & IA', icon: Sparkles },
   { id: 'configuracoes', label: 'Configurações', icon: Settings },
+];
+
+const mercadoSubItems = [
+  { id: 'mercado', label: 'Dashboard', icon: BarChart3 },
+  { id: 'mercado-trading', label: 'Trading', icon: Activity },
+  { id: 'mercado-estrategias', label: 'Estratégias', icon: Brain },
+  { id: 'mercado-analise', label: 'Análise', icon: TrendingUp },
+  { id: 'mercado-copy', label: 'Copy Trading', icon: Copy },
+  { id: 'mercado-noticias', label: 'Notícias', icon: Newspaper },
+  { id: 'mercado-historico', label: 'Histórico', icon: History },
+  { id: 'mercado-config', label: 'Config', icon: Settings },
 ];
 
 const adminMenuItems = [
@@ -63,6 +82,7 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
     if (item.id === 'estoque') return hasFeature('hasStock');
     if (item.id === 'marketing') return hasFeature('hasMarketing');
     if (item.id === 'branches') return hasFeature('hasMultiClinic');
+    if (item.id === 'mercado') return true; // always available
     return true;
   });
   
@@ -158,6 +178,42 @@ export function Sidebar({ activeTab, onTabChange, isOpen, setIsOpen, isMobile }:
                 <span className="font-bold text-xs uppercase tracking-wider">Voltar ao Portal</span>
               )}
             </motion.button>
+          )}
+
+          {/* Mercado Sub-items (appear only when inside Mercado module) */}
+          {activeTab.startsWith('mercado') && (
+            <div className="mb-2">
+              <div className="px-3 py-2">
+                <p className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Mercado</p>
+              </div>
+              {mercadoSubItems.map((item) => (
+                <motion.button
+                  key={item.id}
+                  onClick={() => handleTabClick(item.id)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group",
+                    activeTab === item.id
+                      ? "bg-gradient-to-r from-brand-50 to-brand-100/50 text-brand-700 shadow-sm"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                  )}
+                >
+                  <div className={cn(
+                    "p-1.5 rounded-lg transition-all duration-200",
+                    activeTab === item.id
+                      ? "bg-brand-500 text-white shadow-md"
+                      : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600"
+                  )}>
+                    <item.icon className="w-3.5 h-3.5" />
+                  </div>
+                  {(isOpen || !isMobile) && (
+                    <span className="font-medium text-xs">{item.label}</span>
+                  )}
+                </motion.button>
+              ))}
+              <div className="mx-3 my-2 border-t border-slate-100" />
+            </div>
           )}
 
           {menuItems.map((item) => (

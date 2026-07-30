@@ -14,6 +14,7 @@ export interface PlanLimits {
   hasMarketing: boolean;
   hasProntuarios: boolean;
   hasMultiClinic: boolean;
+  hasMercado: boolean;
   hasReports: boolean;
   hasAPI: boolean;
   hasPrioritySupport: boolean;
@@ -30,6 +31,7 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasMarketing: false,
     hasProntuarios: true,
     hasMultiClinic: false,
+    hasMercado: true,
     hasReports: false,
     hasAPI: false,
     hasPrioritySupport: false,
@@ -44,6 +46,7 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasMarketing: true,
     hasProntuarios: true,
     hasMultiClinic: false,
+    hasMercado: true,
     hasReports: true,
     hasAPI: false,
     hasPrioritySupport: false,
@@ -58,6 +61,7 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasMarketing: true,
     hasProntuarios: true,
     hasMultiClinic: true,
+    hasMercado: true,
     hasReports: true,
     hasAPI: true,
     hasPrioritySupport: true,

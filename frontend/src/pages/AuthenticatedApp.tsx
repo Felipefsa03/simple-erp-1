@@ -26,6 +26,7 @@ const SuperAdminDashboard = lazy(() => import('@/domains/admin/SuperAdminDashboa
 const InsurancePanel = lazy(() => import('@/domains/insurance/InsurancePanel').then(m => ({ default: m.InsurancePanel })));
 const BranchPanel = lazy(() => import('@/domains/branches/BranchPanel').then(m => ({ default: m.BranchPanel })));
 const WhatsAppTest = lazy(() => import('@/domains/testes/WhatsAppTest').then(m => ({ default: m.WhatsAppTest })));
+const Mercado = lazy(() => import('@/domains/mercado/Mercado').then(m => ({ default: m.Mercado })));
 
 const tabPermissions: Record<string, string | null> = {
   dashboard: 'view_dashboard',
@@ -33,6 +34,14 @@ const tabPermissions: Record<string, string | null> = {
   pacientes: 'view_patients',
   prontuarios: 'view_patients',
   financeiro: 'view_financial',
+  mercado: null,
+  'mercado-trading': null,
+  'mercado-estrategias': null,
+  'mercado-analise': null,
+  'mercado-copy': null,
+  'mercado-noticias': null,
+  'mercado-historico': null,
+  'mercado-config': null,
   insurance: 'view_patients',
   branches: 'manage_settings',
   estoque: 'manage_stock',
@@ -41,7 +50,7 @@ const tabPermissions: Record<string, string | null> = {
 };
 
 const CLINIC_TABS_PRIORITY = [
-  'dashboard', 'agenda', 'pacientes', 'prontuarios', 'financeiro', 'estoque', 'configuracoes'
+  'dashboard', 'agenda', 'pacientes', 'prontuarios', 'financeiro', 'mercado', 'estoque', 'configuracoes'
 ];
 
 function PageLoader() {
@@ -336,6 +345,15 @@ export function AuthenticatedApp() {
       case 'marketing': return <Marketing />;
       case 'configuracoes': return <Configuracoes onNavigate={handleNavigate} />;
       case 'testes-whatsapp': return <WhatsAppTest />;
+      case 'mercado':
+      case 'mercado-trading':
+      case 'mercado-estrategias':
+      case 'mercado-analise':
+      case 'mercado-copy':
+      case 'mercado-noticias':
+      case 'mercado-historico':
+      case 'mercado-config':
+        return <Mercado subTab={activeTab} onSubTabChange={(tab) => handleNavigate(tab)} />;
       case 'admin-dashboard': return <SuperAdminDashboard initialTab="dashboard" />;
       case 'admin-clinicas': return <SuperAdminDashboard initialTab="clinicas" />;
       case 'admin-assinaturas': return <SuperAdminDashboard initialTab="assinaturas" />;
