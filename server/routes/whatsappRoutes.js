@@ -56,7 +56,8 @@ export const createWhatsAppRoutes = ({
   sendWhatsAppImage,
   disconnectWhatsAppSession,
   addLog,
-  antiSpamStatsByNumber
+  antiSpamStatsByNumber,
+  whiskey
 }) => {
   const router = express.Router();
 
@@ -416,6 +417,216 @@ export const createWhatsAppRoutes = ({
       addLog(`[API] Erro ao enviar presença: ${error.message}`);
       return res.json({ ok: false, error: error.message });
     }
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  // AI Integration
+  // ════════════════════════════════════════════════════════════════
+  router.post("/ai/config", (req, res) => {
+    const { clinicId: cid } = req.body;
+    const auth = resolveAuthorizedClinicId(req, cid);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    const config = req.body.config || req.body;
+    if (config.enabled !== undefined) {
+      whiskey.setAIConfig(auth.clinicId, {
+        enabled: config.enabled,
+        provider: config.provider || "openai",
+        triggerWords: config.triggerWords || [],
+        onlyGroups: config.onlyGroups || false,
+      });
+    }
+    return res.json({ ok: true, config: whiskey.getAIConfig(auth.clinicId) });
+  });
+
+  router.get("/ai/config/:clinicId", (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    return res.json({ ok: true, config: whiskey.getAIConfig(auth.clinicId) });
+  });
+
+  router.post("/ai/ask", async (req, res) => {
+    const { clinicId: cid, message } = req.body;
+    const auth = resolveAuthorizedClinicId(req, cid);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    if (!message) return res.status(400).json({ ok: false, error: "message é obrigatório" });
+    try {
+      const reply = await whiskey._askAI(message, req.body.provider || "openai");
+      return res.json({ ok: true, reply: reply || "Sem resposta da IA" });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  // Group Management
+  // ════════════════════════════════════════════════════════════════
+  const requireGroupJid = (req, res) => {
+    if (!req.body.groupJid && !req.params.groupJid) {
+      res.status(400).json({ ok: false, error: "groupJid é obrigatório" });
+      return false;
+    }
+    return true;
+  };
+
+  router.post("/group/kick", async (req, res) => {
+    if (!requireGroupJid(req, res)) return;
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      await whiskey.groupKick(auth.clinicId, req.body.groupJid, req.body.participants);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  router.post("/group/add", async (req, res) => {
+    if (!requireGroupJid(req, res)) return;
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      await whiskey.groupAdd(auth.clinicId, req.body.groupJid, req.body.participants);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  router.post("/group/promote", async (req, res) => {
+    if (!requireGroupJid(req, res)) return;
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      await whiskey.groupPromote(auth.clinicId, req.body.groupJid, req.body.participants);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  router.post("/group/demote", async (req, res) => {
+    if (!requireGroupJid(req, res)) return;
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      await whiskey.groupDemote(auth.clinicId, req.body.groupJid, req.body.participants);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  router.post("/group/setting", async (req, res) => {
+    if (!requireGroupJid(req, res)) return;
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      await whiskey.groupToggle(auth.clinicId, req.body.groupJid, req.body.setting);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  router.get("/group/info/:clinicId/:groupJid", async (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      const info = await whiskey.groupInfo(auth.clinicId, req.params.groupJid);
+      res.json({ ok: true, data: info });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  router.get("/group/list/:clinicId", async (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      const groups = await whiskey.groupList(auth.clinicId);
+      res.json({ ok: true, data: groups });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  // Bot Config (autoread, always online, prefix, anti-link, etc)
+  // ════════════════════════════════════════════════════════════════
+  router.post("/bot/config", async (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    const cfg = req.body.config || req.body;
+    whiskey.setBotConfig(auth.clinicId, cfg);
+    if (cfg.autoread !== undefined) await whiskey.setAutoRead(auth.clinicId, cfg.autoread);
+    if (cfg.alwaysOnline !== undefined) await whiskey.setAlwaysOnline(auth.clinicId, cfg.alwaysOnline);
+    res.json({ ok: true, config: whiskey.getBotConfig(auth.clinicId) });
+  });
+
+  router.get("/bot/config/:clinicId", (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    res.json({ ok: true, config: whiskey.getBotConfig(auth.clinicId) });
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  // Anti-Delete / Anti-Edit
+  // ════════════════════════════════════════════════════════════════
+  router.get("/deleted/:clinicId", (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      const deleted = whiskey.getDeletedMessages(auth.clinicId);
+      res.json({ ok: true, data: deleted });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  // Downloaders
+  // ════════════════════════════════════════════════════════════════
+  router.post("/download/youtube", async (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    if (!req.body.url) return res.status(400).json({ ok: false, error: "url é obrigatório" });
+    try {
+      const result = await whiskey.downloadYoutube(req.body.url, req.body.format || "audio");
+      res.json({ ok: true, data: result });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  router.post("/download/tiktok", async (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    if (!req.body.url) return res.status(400).json({ ok: false, error: "url é obrigatório" });
+    try {
+      const result = await whiskey.downloadTiktok(req.body.url);
+      res.json({ ok: true, data: result });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  router.post("/download/instagram", async (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    if (!req.body.url) return res.status(400).json({ ok: false, error: "url é obrigatório" });
+    try {
+      const result = await whiskey.downloadInstagram(req.body.url);
+      res.json({ ok: true, data: result });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+
+  // ════════════════════════════════════════════════════════════════
+  // Sessions overview
+  // ════════════════════════════════════════════════════════════════
+  router.get("/sessions/:clinicId", (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
+    try {
+      const all = whiskey.getAllConnections();
+      res.json({ ok: true, data: all });
+    } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
   return router;

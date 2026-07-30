@@ -117,6 +117,7 @@ import {
   assertPhoneVerificationValid,
   consumePhoneVerification
 } from './services/dbService.js';
+import { WhiskeyService } from './services/whiskeyService.js';
 import {
   resolveMercadoPagoCredentials,
   persistMercadoPagoPayment,
@@ -2164,6 +2165,13 @@ const sendWhatsAppImage = async ({ clinicId, to, imageUrl, caption }) => {
   }
 };
 
+const whiskey = new WhiskeyService({
+  supabaseUrl: SUPABASE_URL,
+  supabaseKey: SUPABASE_SERVICE_ROLE_KEY,
+  supabaseAnonKey: SUPABASE_ANON_KEY,
+  addLog,
+});
+
 app.use("/api/whatsapp", createWhatsAppRoutes({
   whatsappConnections,
   whatsappSockets,
@@ -2178,7 +2186,8 @@ app.use("/api/whatsapp", createWhatsAppRoutes({
   sendWhatsAppImage,
   disconnectWhatsAppSession,
   addLog,
-  antiSpamStatsByNumber
+  antiSpamStatsByNumber,
+  whiskey,
 }));
 
 const canAccessClinicData = (req, requestedClinicId) => {
