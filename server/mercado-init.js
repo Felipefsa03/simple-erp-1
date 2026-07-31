@@ -41,7 +41,10 @@ async function initMercado() {
     const backtest = new BacktestEngine();
 
     console.log('[Mercado] Connecting to IQ Option...');
-    const connected = await iqOption.connect();
+    const connected = await Promise.race([
+      iqOption.connect(),
+      new Promise(resolve => setTimeout(() => { console.log('[Mercado] Connection timeout (5s). Continuing in offline mode.'); resolve(false); }, 5000)),
+    ]);
     if (connected) {
       console.log('[Mercado] Connected to IQ Option successfully');
     } else {
