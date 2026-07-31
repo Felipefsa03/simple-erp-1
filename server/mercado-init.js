@@ -11,20 +11,20 @@ async function initMercado() {
   }
 
   try {
-    const { createMercadoRoutes } = await import('../backend/mercado/routes.js');
-    const { IQOptionService } = await import('../backend/mercado/iqoption.service.js');
-    const { TradingService } = await import('../backend/mercado/trading.service.js');
-    const { TradingEngine } = await import('../backend/mercado/strategies/engine.js');
-    const { SentimentService } = await import('../backend/mercado/sentiment.service.js');
-    const { GuruTracker } = await import('../backend/mercado/copy-trading/guru-tracker.service.js');
-    const { CopyTradingService } = await import('../backend/mercado/copy-trading/copy-trading.service.js');
-    const { LSTMPredictor } = await import('../backend/mercado/ai/lstm-predictor.js');
-    const { NewsSentimentAnalyzer } = await import('../backend/mercado/ai/news-sentiment.js');
-    const { NewsScraper } = await import('../backend/mercado/ai/news-scraper.js');
-    const { BacktestEngine } = await import('../backend/mercado/backtesting/backtest.engine.js');
-    const { CircuitBreaker } = await import('../backend/mercado/risk-management/circuit-breaker.js');
-    const { StopLossManager } = await import('../backend/mercado/risk-management/stop-loss.js');
-    const { PositionSizingKelly } = await import('../backend/mercado/risk-management/position-sizing.js');
+    const { createMercadoRoutes } = await import('../backend/mercado/routes');
+    const { IQOptionService } = await import('../backend/mercado/iqoption.service');
+    const { TradingService } = await import('../backend/mercado/trading.service');
+    const { TradingEngine } = await import('../backend/mercado/strategies/engine');
+    const { SentimentService } = await import('../backend/mercado/sentiment.service');
+    const { GuruTracker } = await import('../backend/mercado/copy-trading/guru-tracker.service');
+    const { CopyTradingService } = await import('../backend/mercado/copy-trading/copy-trading.service');
+    const { LSTMPredictor } = await import('../backend/mercado/ai/lstm-predictor');
+    const { NewsSentimentAnalyzer } = await import('../backend/mercado/ai/news-sentiment');
+    const { NewsScraper } = await import('../backend/mercado/ai/news-scraper');
+    const { BacktestEngine } = await import('../backend/mercado/backtesting/backtest.engine');
+    const { CircuitBreaker } = await import('../backend/mercado/risk-management/circuit-breaker');
+    const { StopLossManager } = await import('../backend/mercado/risk-management/stop-loss');
+    const { PositionSizingKelly } = await import('../backend/mercado/risk-management/position-sizing');
 
     const iqOption = new IQOptionService(IQ_OPTION_EMAIL, IQ_OPTION_PASSWORD);
     const sentimentService = new SentimentService(iqOption);
@@ -77,4 +77,4 @@ function getMercadoRouter() {
   return mercadoRouter;
 }
 
-module.exports = { initMercado, getMercadoRouter };
+export { initMercado, getMercadoRouter };

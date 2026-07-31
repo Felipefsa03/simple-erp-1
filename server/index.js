@@ -2569,14 +2569,20 @@ app.use("/api/mercadopago", billingRouter);
 app.use("/api/webhooks", billingRouter);
 
 // Mercado Financeiro Module (IQ Option Trading)
-const { initMercado, getMercadoRouter } = require('./mercado-init');
-initMercado().then(() => {
-  const mr = getMercadoRouter();
-  if (mr) {
-    app.use("/api/mercado", mr);
-    console.log('[Mercado] Routes registered at /api/mercado');
+const startMercado = async () => {
+  try {
+    const { initMercado, getMercadoRouter } = await import('./mercado-init.js');
+    await initMercado();
+    const mr = getMercadoRouter();
+    if (mr) {
+      app.use("/api/mercado", mr);
+      console.log('[Mercado] Routes registered at /api/mercado');
+    }
+  } catch (err) {
+    console.error('[Mercado] Init failed:', err.message);
   }
-}).catch(err => console.error('[Mercado] Init failed:', err.message));
+};
+startMercado();
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
