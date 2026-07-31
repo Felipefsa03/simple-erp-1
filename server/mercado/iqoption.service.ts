@@ -46,12 +46,12 @@ export class IQOptionService extends EventEmitter {
     } catch (error) {
       console.error('[IQOption] Connection failed:', error);
       this.connected = false;
-      await this.handleReconnect();
+      this.startReconnectLoop();
       return false;
     }
   }
 
-  private async handleReconnect() {
+  private async startReconnectLoop() {
     if (this.reconnectAttempts >= this.MAX_RECONNECT) {
       this.emit('error', new Error('Max reconnect attempts reached'));
       return;
@@ -59,7 +59,16 @@ export class IQOptionService extends EventEmitter {
     this.reconnectAttempts++;
     console.log(`[IQOption] Reconnecting attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT}...`);
     await new Promise(r => setTimeout(r, this.RECONNECT_DELAY * this.reconnectAttempts));
-    await this.connect();
+    try {
+      this.api = new IQOptionApi(this.email, this.password);
+      this.profile = await this.api.connectAsync();
+      this.connected = true;
+      this.reconnectAttempts = 0;
+      this.emit('connected', { profile: this.profile, balance: this.balance });
+    } catch (error) {
+      console.error('[IQOption] Reconnection failed, attempt', this.reconnectAttempts);
+      await this.startReconnectLoop();
+    }
   }
 
   private setupOptionCloseStream() {
