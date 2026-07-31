@@ -2,8 +2,9 @@ services:
   - type: web
     name: clinxia-backend
     env: node
-    buildCommand: npm install && cd server && npm install
-    startCommand: tsx server/index.js
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
