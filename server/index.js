@@ -591,6 +591,8 @@ const publicPaths = [
   "/mercadopago/create-preference",
   "/mercadopago/payment-status/",
   "/public/",
+  "/mercado/",
+  "/mercado",
   // SEGURANÇA: Rotas abaixo foram REMOVIDAS de publicPaths pela auditoria:
   // "/asaas/"         -> requer auth (SEC-07)
   // "/integrations/"  -> requer auth (SEC-06)
