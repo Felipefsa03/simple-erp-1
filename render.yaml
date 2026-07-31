@@ -3,7 +3,7 @@ services:
     name: clinxia-backend
     env: node
     rootDir: server
-    buildCommand: npm install
+    buildCommand: cd .. && npm install && cd server && npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
