@@ -3,7 +3,7 @@ services:
     name: clinxia-backend
     env: node
     rootDir: server
-    buildCommand: npm install --no-audit --no-fund --loglevel=http || (echo '--- NPM DEBUG LOG ---'; cat /opt/render/.cache/_logs/*-debug-0.log 2>/dev/null; exit 1)
+    buildCommand: npm ci --no-audit --no-fund
     startCommand: npm start
     envVars:
       - key: NODE_ENV
