@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx index.js",
     "dev": "tsx --watch index.js",
+    "preinstall": "node -e \"require('node:fs').rmSync('node_modules',{recursive:true,force:true})\"",
     "postinstall": "node patch-iq-proxy.cjs"
   },
   "dependencies": {
