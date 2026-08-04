@@ -1018,12 +1018,24 @@ const whatsappMessagesQueue = {}; // Fila para mensagens em espera se necessári
 // Cache da versão WA — evita HTTP extra a cada reconnect (renovado a cada 6h)
 let _waVersionCache = null;
 let _waVersionCacheTime = 0;
+// Versão atual do WhatsApp Web (2026-08). Usada como fallback pois a versão
+// bundled do baileys 6.7.21 (2.3000.1023223821) é rejeitada com erro 405.
+const _FALLBACK_WA_VERSION = [2, 3000, 1043857760];
 const _getCachedWaVersion = async () => {
   const now = Date.now();
   if (_waVersionCache && (now - _waVersionCacheTime) < 30 * 60 * 1000) {
     return _waVersionCache;
   }
-  _waVersionCache = await fetchLatestBaileysVersion();
+  try {
+    const fetched = await fetchLatestBaileysVersion();
+    if (fetched?.isLatest && fetched?.version) {
+      _waVersionCache = fetched;
+    } else {
+      _waVersionCache = { version: _FALLBACK_WA_VERSION, isLatest: false };
+    }
+  } catch {
+    _waVersionCache = { version: _FALLBACK_WA_VERSION, isLatest: false };
+  }
   _waVersionCacheTime = now;
   return _waVersionCache;
 };

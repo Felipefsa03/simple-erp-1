@@ -35,8 +35,20 @@ export class WhiskeyService {
   async _getCachedWaVersion() {
     const now = Date.now();
     if (this._waVersionCache && now - this._waVersionCacheTime < 21600000) return this._waVersionCache;
-    const { fetchLatestBaileysVersion } = await import("baileys");
-    this._waVersionCache = await fetchLatestBaileysVersion();
+    // Versão atual do WhatsApp Web (2026-08). Fallback pois a bundled do baileys
+    // 6.7.21 (2.3000.1023223821) é rejeitada com erro 405.
+    const FALLBACK_WA_VERSION = [2, 3000, 1043857760];
+    try {
+      const { fetchLatestBaileysVersion } = await import("baileys");
+      const fetched = await fetchLatestBaileysVersion();
+      if (fetched?.isLatest && fetched?.version) {
+        this._waVersionCache = fetched;
+      } else {
+        this._waVersionCache = { version: FALLBACK_WA_VERSION, isLatest: false };
+      }
+    } catch {
+      this._waVersionCache = { version: FALLBACK_WA_VERSION, isLatest: false };
+    }
     this._waVersionCacheTime = now;
     return this._waVersionCache;
   }
