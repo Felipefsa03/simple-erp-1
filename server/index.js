@@ -20,6 +20,7 @@ import makeWASocket, {
   makeCacheableSignalKeyStore,
   downloadMediaMessage,
   BufferJSON,
+  Browsers,
 } from "baileys";
 import integrationsRoutes from "./routes/integrationsRoutes.js";
 
@@ -1019,7 +1020,7 @@ let _waVersionCache = null;
 let _waVersionCacheTime = 0;
 const _getCachedWaVersion = async () => {
   const now = Date.now();
-  if (_waVersionCache && (now - _waVersionCacheTime) < 6 * 60 * 60 * 1000) {
+  if (_waVersionCache && (now - _waVersionCacheTime) < 30 * 60 * 1000) {
     return _waVersionCache;
   }
   _waVersionCache = await fetchLatestBaileysVersion();
@@ -1426,7 +1427,7 @@ const createWhatsAppSocket = async (clinicId) => {
         },
         version: version,
         printQRInTerminal: false,
-        browser: ["Clinxia", "Chrome", "122.0.0.0"],
+        browser: Browsers.ubuntu("Chrome"),
         connectTimeoutMs: 120000,
         keepAliveIntervalMs: 60000,
         logger: logger,
@@ -1462,8 +1463,22 @@ const createWhatsAppSocket = async (clinicId) => {
           const isLoggedOut =
             statusCode === DisconnectReason.loggedOut || statusCode === 401;
           const isStreamConflict = statusCode === 440;
+          const is405 = statusCode === 405;
           const shouldReconnect = !isLoggedOut;
-          retryCount++;
+
+          // Erro 405 = versão ou fingerprint bloqueado pelo WhatsApp
+          // Invalidar cache de versão e forçar refresh na próxima tentativa
+          if (is405) {
+            _waVersionCache = null;
+            _waVersionCacheTime = 0;
+            addLog(`[Baileys] ⚠️ Erro 405 para ${clinicId} - cache de versão invalidado, forçando refresh`);
+          }
+
+          // Não incrementar retryCount para erros 405 em sessões novas (sem creds)
+          // pois o problema é do servidor/versão, não da sessão
+          if (!(is405 && !hasValidCreds)) {
+            retryCount++;
+          }
           addLog(`[Baileys] Conexão FECHADA: ${statusCode} (clinicId: ${clinicId}, retry: ${retryCount})`);
 
           // ── PROTEÇÃO CONTRA SESSÕES FANTASMAS ──────────────────────────────
