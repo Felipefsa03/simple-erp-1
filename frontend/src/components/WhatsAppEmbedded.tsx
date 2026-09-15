@@ -36,7 +36,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
   patientPhone = '',
   patientName = '',
   appointmentId = '',
-  clinicId = 'clinic-1',
+  clinicId = '',
   onScheduleNew,
   onConfirm,
   onCancel,
@@ -50,11 +50,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
   const [loadingRecent, setLoadingRecent] = useState(false);
 
   const patients = useClinicStore(s => s.patients);
-  const clinicPatients = patients.filter(p => 
-    p.clinic_id === clinicId || 
-    p.clinic_id === 'clinic-1' || 
-    p.clinic_id === '00000000-0000-0000-0000-000000000001'
-  );
+  const clinicPatients = clinicId ? patients.filter(p => p.clinic_id === clinicId) : [];
   const filteredPatients = clinicPatients.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.phone?.includes(searchQuery)
@@ -73,6 +69,7 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
   }, [isOpen]);
 
   const fetchRecent = useCallback(async () => {
+    if (!clinicId) return;
     setLoadingRecent(true);
     try {
       const token = await getAuthToken();
@@ -108,6 +105,18 @@ const WhatsAppEmbedded = memo(function WhatsAppEmbedded({
   }, [patientPhone, patientName]);
 
   if (!isOpen) return null;
+
+  if (!clinicId) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+        <div className="rounded-2xl bg-white p-6 text-center shadow-xl">
+          <p className="font-semibold text-slate-900">Clínica não identificada</p>
+          <p className="mt-1 text-sm text-slate-500">Faça login novamente para abrir o WhatsApp.</p>
+          <button type="button" onClick={onClose} className="mt-4 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Fechar</button>
+        </div>
+      </div>
+    );
+  }
 
   const handlePatientSelect = (patient: { phone: string; name: string }) => {
     setSelectedPatient(patient);

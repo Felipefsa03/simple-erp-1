@@ -16,6 +16,7 @@ import type { OdontogramEntry, TreatmentPlanItem, AppointmentMaterial } from '@/
 import { integrationsApi } from '@/lib/integrationsApi';
 import { generateCertificateHTML, generatePrescriptionHTML, generateConsentHTML } from '@/lib/documentTemplates';
 import { useEventBus } from '@/stores/eventBus';
+import { getSupabaseSession } from '@/lib/supabase';
 
 // FDI Tooth Numbering System - Visual representation
 const UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11];
@@ -92,7 +93,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
 
   const addStockMovement = useClinicStore.getState().addStockMovement;
 
-  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
+  const clinicId = useAuth(s => s.getClinicId()) || '';
   const clinicPatients = useMemo(() => {
     const matrixId = user?.clinic_id;
     return (patients || []).filter(p => p.clinic_id === clinicId || p.clinic_id === matrixId);
@@ -363,13 +364,23 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
 
   const handleGenerateAnamneseLink = async () => {
     if (!patientId || !user) return;
-    const link = generateAnamneseLink(patientId, user.id, 72);
-    const share = `${window.location.origin}/#anamnese-form?token=${link.token}`;
     try {
+      const session = getSupabaseSession();
+      const response = await fetch('/api/clinic/anamnese-links', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ patientId, hoursValid: 72 }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.token) throw new Error(result.error || 'Não foi possível gerar o link.');
+      const share = `${window.location.origin}/anamnese-form?token=${encodeURIComponent(result.token)}`;
       await navigator.clipboard.writeText(share);
       toast('Link de anamnese copiado para envio ao paciente!');
-    } catch {
-      toast('Link gerado. Copie manualmente na lista abaixo.', 'info');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Não foi possível gerar o link.', 'error');
     }
   };
 

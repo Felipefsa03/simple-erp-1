@@ -7,7 +7,8 @@ import {
   upsertClinicRecord,
   upsertClinicAdminUser,
   assertPhoneVerificationValid,
-  consumePhoneVerification
+  consumePhoneVerification,
+  deleteSupabaseAuthUser,
 } from "../services/dbService.js";
 import {
   resolveMercadoPagoCredentials,
@@ -67,15 +68,52 @@ export const createSignupRoutes = ({
   const generateNumericCode = () =>
     String(Math.floor(100000 + Math.random() * 900000));
 
+  const loadSignupIntent = async (signupId) => {
+    const { data, error } = await supabaseAdmin
+      .from('signup_provision_intents')
+      .select('signup_id, clinic_id, expires_at, consumed_at')
+      .eq('signup_id', String(signupId || '').trim())
+      .is('consumed_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  };
+
+  const consumeSignupIntent = async (signupId) => {
+    const { error } = await supabaseAdmin
+      .from('signup_provision_intents')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('signup_id', String(signupId || '').trim())
+      .is('consumed_at', null);
+    if (error) throw error;
+  };
+
   // ---- Routes ----
+
+  router.post("/init", async (_req, res) => {
+    try {
+      const signupId = crypto.randomUUID();
+      const clinicId = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      const { error } = await supabaseAdmin.from('signup_provision_intents').insert({
+        signup_id: signupId,
+        clinic_id: clinicId,
+        expires_at: expiresAt,
+      });
+      if (error) throw error;
+      return res.json({ ok: true, signup_id: signupId, clinic_id: clinicId, expires_at: expiresAt });
+    } catch (error) {
+      console.error('[SignupInit] Falha ao reservar cadastro:', error.message);
+      return res.status(503).json({ ok: false, error: 'Não foi possível iniciar o cadastro.' });
+    }
+  });
 
   router.get("/config", async (_req, res) => {
     try {
       console.log("[SignupConfig] Endpoint called");
       const globalConfig = await fetchGlobalIntegrationConfig();
-      console.log("[SignupConfig] globalConfig:", globalConfig);
       const planPrices = getPlanPricesFromConfig(globalConfig);
-      console.log("[SignupConfig] planPrices:", planPrices);
       const { token, publicKey } = await resolveMercadoPagoCredentials();
       const whatsappConnected =
         whatsappConnections[SYSTEM_WHATSAPP_CLINIC_ID]?.status === "connected";
@@ -88,7 +126,8 @@ export const createSignupRoutes = ({
         whatsapp_system_connected: whatsappConnected,
       });
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message });
+      console.error("[SignupConfig] Failed to load configuration:", error.message);
+      return res.status(503).json({ ok: false, error: "Configuração de cadastro temporariamente indisponível." });
     }
   });
 
@@ -247,7 +286,7 @@ export const createSignupRoutes = ({
     ].join("\n");
 
     try {
-      addLog(`[Signup] Attempting to send code to ${normalizedPhone} via ${SYSTEM_WHATSAPP_CLINIC_ID}`);
+      addLog(`[Signup] Attempting to send code to ${maskPhone(normalizedPhone)}`);
 
       const delay = Math.floor(Math.random() * 2000) + 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -257,12 +296,12 @@ export const createSignupRoutes = ({
         to: normalizedPhone,
         message,
       });
-      addLog(`[Signup] Code sent successfully to ${normalizedPhone}`);
+      addLog(`[Signup] Code sent successfully to ${maskPhone(normalizedPhone)}`);
     } catch (error) {
-      addLog(`[Signup] Error sending code: ${error.message}`);
-      return res.status(500).json({
+      addLog("[Signup] Error sending verification code");
+      return res.status(502).json({
         ok: false,
-        error: error.message,
+        error: "Não foi possível enviar o código pelo WhatsApp.",
         details: "Verifique se o WhatsApp Global está conectado no painel de Super Admin."
       });
     }
@@ -271,9 +310,6 @@ export const createSignupRoutes = ({
       ok: true,
       expires_in_seconds: Math.round(SIGNUP_CODE_TTL_MS / 1000),
       masked_phone: maskPhone(normalizedPhone),
-      destination_name: name || "",
-      debug_jid: session.phone + "@s.whatsapp.net",
-      sender_id: SYSTEM_WHATSAPP_CLINIC_ID
     });
   });
 
@@ -363,12 +399,33 @@ export const createSignupRoutes = ({
       return res.status(400).json({ ok: false, error: "Senha deve ter ao menos 6 caracteres." });
     }
 
+    let authUserId = null;
+    let authUserCreated = false;
+    let clinicCreated = false;
     try {
-      assertPhoneVerificationValid({ signupId, phone });
+      await assertPhoneVerificationValid({ signupId, phone });
+
+      const signupIntent = await loadSignupIntent(signupId);
+      if (!signupIntent || String(signupIntent.clinic_id) !== String(clinicId)) {
+        return res.status(403).json({ ok: false, error: "Sessão de provisionamento inválida ou expirada." });
+      }
 
       const { token } = await resolveMercadoPagoCredentials();
       if (!token) {
         return res.status(503).json({ ok: false, error: "Mercado Pago nao configurado." });
+      }
+
+      // O provisionamento pago é somente para um tenant novo. Mesmo com um
+      // pagamento válido, nunca atualize uma clínica existente a partir de
+      // valores controlados pelo navegador.
+      const { data: existingClinic, error: existingClinicError } = await supabaseAdmin
+        .from('clinics')
+        .select('id')
+        .eq('id', clinicId)
+        .maybeSingle();
+      if (existingClinicError) throw existingClinicError;
+      if (existingClinic) {
+        return res.status(409).json({ ok: false, error: "O provisionamento pago só pode criar uma clínica nova." });
       }
 
       const { fetchLatestMercadoPagoPaymentByClinic, isPaymentApproved, persistMercadoPagoPayment } = await import("../services/paymentGateway.js");
@@ -378,6 +435,11 @@ export const createSignupRoutes = ({
           ok: false,
           error: "Pagamento ainda nao aprovado. Aguarde a confirmacao do Mercado Pago.",
         });
+      }
+
+      const paymentMetadata = payment.metadata || {};
+      if (String(paymentMetadata.signup_id || '') !== String(signupId) || String(paymentMetadata.clinic_id || '') !== String(clinicId)) {
+        return res.status(403).json({ ok: false, error: "Pagamento não corresponde a esta sessão de cadastro." });
       }
 
       await persistMercadoPagoPayment(payment, clinicId);
@@ -397,9 +459,10 @@ export const createSignupRoutes = ({
         password: String(password),
         name: String(name),
       });
-      const authUserId = authResult.userId;
+      authUserId = authResult.userId;
+      authUserCreated = Boolean(authResult.created);
 
-      await upsertClinicRecord({
+      const clinicResult = await upsertClinicRecord({
         clinicId,
         clinicName: String(clinicName).trim(),
         docType: String(docType || "cpf").trim(),
@@ -409,6 +472,7 @@ export const createSignupRoutes = ({
         phone: normalizedPhone,
         email: normalizedEmail,
       });
+      clinicCreated = Boolean(clinicResult.created);
 
       const userResult = await upsertClinicAdminUser({
         userId: authUserId,
@@ -418,7 +482,8 @@ export const createSignupRoutes = ({
         phone: normalizedPhone,
       });
 
-      consumePhoneVerification(signupId);
+      await consumePhoneVerification(signupId);
+      await consumeSignupIntent(signupId);
 
       return res.json({
         ok: true,
@@ -429,34 +494,47 @@ export const createSignupRoutes = ({
       });
     } catch (error) {
       console.error("[Provision] Error:", error.message);
-      if (error.message.includes("invalid JWT") || error.message.includes("unable to parse") || error.message.includes("assinatura inválida")) {
-        return res.status(400).json({ ok: false, error: "ERRO CRÍTICO NO BACKEND: Sua chave SUPABASE_SERVICE_ROLE_KEY configurada no Render (variáveis de ambiente) está desatualizada ou incorreta. Vá no painel do Supabase > Project Settings > API > role: service_role, copie a chave e atualize no Render." });
+      if (clinicCreated) {
+        await supabaseAdmin.from('clinics').delete().eq('id', clinicId);
       }
-      return res.status(400).json({ ok: false, error: error.message });
+      if (authUserCreated) {
+        await supabaseAdmin.from('users').delete().eq('id', authUserId);
+        await deleteSupabaseAuthUser(authUserId);
+      }
+      return res.status(500).json({ ok: false, error: "Não foi possível concluir o provisionamento." });
     }
   });
 
   router.post("/provision-trial", async (req, res) => {
     const {
-      signupId, clinicId, name, email, phone, password,
+      signupId, name, email, phone, password,
       clinicName, clinicDoc, docType, modality,
     } = req.body || {};
 
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       return res.status(503).json({ ok: false, error: "Supabase nao configurado no backend." });
     }
-    if (!signupId || !clinicId || !name || !email || !phone || !password || !clinicName) {
+    if (!signupId || !name || !email || !phone || !password || !clinicName) {
       return res.status(400).json({ ok: false, error: "Campos obrigatorios ausentes." });
-    }
-    if (!isUuid(clinicId)) {
-      return res.status(400).json({ ok: false, error: "clinicId invalido." });
     }
     if (String(password).length < 6) {
       return res.status(400).json({ ok: false, error: "Senha deve ter ao menos 6 caracteres." });
     }
 
+    let authUserId = null;
+    let clinicId = null;
+    let authUserCreated = false;
+    let clinicCreated = false;
     try {
-      assertPhoneVerificationValid({ signupId, phone });
+      await assertPhoneVerificationValid({ signupId, phone });
+
+      // O identificador foi reservado pelo servidor em /signup/init. Nunca
+      // aceite UUID arbitrário enviado pelo navegador em um novo tenant.
+      const signupIntent = await loadSignupIntent(signupId);
+      if (!signupIntent) {
+        return res.status(403).json({ ok: false, error: "Sessão de provisionamento inválida ou expirada." });
+      }
+      clinicId = String(signupIntent.clinic_id);
 
       const normalizedEmail = String(email).trim().toLowerCase();
       const normalizedPhone = normalizePhoneForSignup(phone) || String(phone).replace(/\D/g, "");
@@ -473,7 +551,8 @@ export const createSignupRoutes = ({
         password: String(password),
         name: String(name),
       });
-      const authUserId = authResult.userId;
+      authUserId = authResult.userId;
+      authUserCreated = Boolean(authResult.created);
 
       const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -489,28 +568,17 @@ export const createSignupRoutes = ({
         created_at: new Date().toISOString(),
       };
 
-      console.log("[TrialProvision] Clinic payload:", JSON.stringify(clinicPayload));
+      console.log("[TrialProvision] Creating clinic");
 
-      const existingClinic = await fetchClinicById(clinicId);
-      if (existingClinic) {
-        const { error: clinicErr } = await supabaseAdmin.from("clinics").update(clinicPayload).eq("id", clinicId);
-        if (clinicErr) {
-          console.error("[TrialProvision] UPDATE clinic failed:", clinicErr);
-          if (clinicErr.message?.includes('clinics_cnpj_key') || clinicErr.code === '23505') {
-            throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
-          }
-          throw new Error(clinicErr.message || "Erro ao atualizar clinica trial.");
+      const { error: clinicErr } = await supabaseAdmin.from("clinics").insert(clinicPayload);
+      if (clinicErr) {
+        console.error("[TrialProvision] INSERT clinic failed:", clinicErr);
+        if (clinicErr.message?.includes('clinics_cnpj_key') || clinicErr.code === '23505') {
+          throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
         }
-      } else {
-        const { error: clinicErr } = await supabaseAdmin.from("clinics").insert(clinicPayload);
-        if (clinicErr) {
-          console.error("[TrialProvision] INSERT clinic failed:", clinicErr);
-          if (clinicErr.message?.includes('clinics_cnpj_key') || clinicErr.code === '23505') {
-            throw new Error("Este CPF/CNPJ já está cadastrado em outra clínica.");
-          }
-          throw new Error(clinicErr.message || "Erro ao criar clinica trial.");
-        }
+        throw new Error(clinicErr.message || "Erro ao criar clinica trial.");
       }
+      clinicCreated = true;
 
       const userPayload = {
         id: authUserId,
@@ -523,7 +591,7 @@ export const createSignupRoutes = ({
         updated_at: new Date().toISOString(),
       };
 
-      console.log("[TrialProvision] User payload:", JSON.stringify(userPayload));
+      console.log("[TrialProvision] Creating admin user");
 
       // Upsert com onConflict id: o trigger de auth pode já ter criado a
       // linha em users (clinic_id null) — sem isso ocorre
@@ -536,9 +604,10 @@ export const createSignupRoutes = ({
         throw new Error(usrErr.message || "Erro ao criar usuario admin trial.");
       }
 
-      consumePhoneVerification(signupId);
+      await consumePhoneVerification(signupId);
+      await consumeSignupIntent(signupId);
 
-      console.log(`[TrialProvision] Trial account created: clinic=${clinicId}, user=${authUserId}, trial_ends=${trialEndsAt}`);
+      console.log(`[TrialProvision] Trial account created: trial_ends=${trialEndsAt}`);
 
       return res.json({
         ok: true,
@@ -550,10 +619,16 @@ export const createSignupRoutes = ({
       });
     } catch (error) {
       console.error("[TrialProvision] Error:", error.message);
-      if (error.message.includes("invalid JWT") || error.message.includes("unable to parse") || error.message.includes("assinatura inválida")) {
-        return res.status(400).json({ ok: false, error: "ERRO CRÍTICO NO BACKEND: Sua chave SUPABASE_SERVICE_ROLE_KEY configurada no Render (variáveis de ambiente) está desatualizada ou incorreta. Atualize-a no Render copiando do Supabase." });
+      if (clinicCreated) {
+        const { error: rollbackError } = await supabaseAdmin.from('clinics').delete().eq('id', clinicId);
+        if (rollbackError) console.error('[TrialProvision] Clinic rollback failed:', rollbackError.message);
       }
-      return res.status(400).json({ ok: false, error: error.message });
+      if (authUserCreated) {
+        const { error: userRollbackError } = await supabaseAdmin.from('users').delete().eq('id', authUserId);
+        if (userRollbackError) console.error('[TrialProvision] User rollback failed:', userRollbackError.message);
+        await deleteSupabaseAuthUser(authUserId);
+      }
+      return res.status(500).json({ ok: false, error: "Não foi possível criar a conta trial." });
     }
   });
 

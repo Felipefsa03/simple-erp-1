@@ -408,7 +408,7 @@ describe('Componentes - Toast', () => {
 
   function showToast(message: string, type: Toast['type'] = 'success'): Toast {
     return {
-      id: `toast-${Date.now()}`,
+      id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
       message,
       type,
     };

@@ -44,7 +44,7 @@ router.post("/auth/password/reset-verify", async (req, res) => {
 
     return res.json({ ok: true, message: "Código validado com sucesso!" });
   } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({ ok: false, error: "Não foi possível validar o código." });
   }
 });
 

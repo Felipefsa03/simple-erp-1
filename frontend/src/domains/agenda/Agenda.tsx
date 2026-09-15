@@ -69,7 +69,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
   });
   const swipeStartX = useRef<number | null>(null);
   const rescheduleSourceRef = useRef<string | null>(null);
-  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
+  const clinicId = useAuth(s => s.getClinicId()) || '';
   const canCreate = hasPermission('create_appointment');
   const canFinalize = hasPermission('finalize_appointment');
 

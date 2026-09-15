@@ -13,15 +13,17 @@ export function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
-    
-    const mailtoLink = `mailto:${CLINEMAIL}?subject=${encodeURIComponent(`[Clinxia Contato] ${formData.subject}: ${formData.name}`)}&body=${encodeURIComponent(`Nome: ${formData.name}\nEmail: ${formData.email}\nTelefone: ${formData.phone}\n\nMensagem:\n${formData.message}`)}`;
-    
-    window.location.href = mailtoLink;
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setSending(false);
-    setSent(true);
-    setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+    try {
+      const response = await fetch('/api/public/contact', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(formData),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível registrar a mensagem.');
+      setSent(true);
+      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Não foi possível registrar a mensagem.');
+    } finally { setSending(false); }
   };
 
   return (

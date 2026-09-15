@@ -50,8 +50,10 @@ export function InsurancePanel({ clinicId }: InsurancePanelProps) {
     if (!form.name?.trim()) { toast('Nome é obrigatório.', 'error'); return; }
     if (!form.code?.trim()) { toast('Código é obrigatório.', 'error'); return; }
 
+    const activeClinicId = clinicId || user?.clinic_id || '';
+    if (!activeClinicId) { toast('Clínica não identificada. Faça login novamente.', 'error'); return; }
     const data = {
-      clinic_id: clinicId || user?.clinic_id || 'clinic-1',
+      clinic_id: activeClinicId,
       name: form.name!,
       code: form.code!,
       contact_phone: form.contact_phone || '',

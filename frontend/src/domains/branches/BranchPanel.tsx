@@ -50,8 +50,10 @@ export function BranchPanel({ clinicId }: BranchPanelProps) {
     if (!form.name?.trim()) { toast('Nome da filial é obrigatório.', 'error'); return; }
     if (!form.address?.trim()) { toast('Endereço é obrigatório.', 'error'); return; }
 
+    const activeClinicId = clinicId || user?.clinic_id || '';
+    if (!activeClinicId) { toast('Clínica não identificada. Faça login novamente.', 'error'); return; }
     const data = {
-      clinic_id: user?.clinic_id || 'clinic-1',
+      clinic_id: activeClinicId,
       name: form.name!,
       plan: clinic?.plan || 'basico',
       address: form.address!,

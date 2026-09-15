@@ -17,7 +17,7 @@ export function now(): string {
 export function formatCurrency(value: number | string): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   if (isNaN(num)) return 'R$ 0,00';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num).replace(/\u00a0/g, ' ');
 }
 
 export function formatDateBR(dateStr: string): string {

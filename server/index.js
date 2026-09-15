@@ -32,7 +32,8 @@ process.on('unhandledRejection', (reason, promise) => {
     return;
   }
   console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
-  // Log the error but do NOT crash the monolithic server
+  process.exitCode = 1;
+  setTimeout(() => process.exit(1), 100);
 });
 
 process.on('uncaughtException', (error) => {
@@ -42,7 +43,8 @@ process.on('uncaughtException', (error) => {
     return;
   }
   console.error('[FATAL] Uncaught Exception:', error);
-  // Optional: Add to an error reporting service like Sentry here
+  process.exitCode = 1;
+  setTimeout(() => process.exit(1), 100);
 });
 
 const app = express();
@@ -79,7 +81,8 @@ import {
   PORT,
   DEFAULT_CLINIC_ID,
   ASAAS_API_KEY,
-  ALLOWED_ORIGINS
+  ALLOWED_ORIGINS,
+  ANAMNESE_TOKEN_SECRET
 } from "./config/env.js";
 import { supabaseAdmin, getServerHeaders } from "./services/supabase.js";
 import { addLog, getLogs } from "./services/logger.js";
@@ -108,6 +111,7 @@ import { createCampaignRoutes } from './routes/campaignRoutes.js';
 import { createClinicRoutes } from './routes/clinicRoutes.js';
 import { createPublicRoutes } from './routes/publicRoutes.js';
 import { createWhatsAppRoutes } from './routes/whatsappRoutes.js';
+import { createNFeRoutes } from './routes/nfeRoutes.js';
 import {
   fetchUserByEmail,
   fetchClinicById,
@@ -443,7 +447,7 @@ app.get("/api/health", (req, res) => {
 // Public Booking Endpoints
 // ============================================
 
-app.use("/api", createPublicRoutes({ SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, supabaseAdmin, isUuid, SYSTEM_WHATSAPP_CLINIC_ID }));
+app.use("/api", createPublicRoutes({ SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, supabaseAdmin, isUuid, SYSTEM_WHATSAPP_CLINIC_ID, ANAMNESE_TOKEN_SECRET }));
 
 
 // Helper for UUID validation
@@ -915,15 +919,15 @@ app.post("/api/auth/password/reset-request", async (req, res) => {
       console.error("[PasswordReset] Erro ao enviar WhatsApp:", waError.message);
       addLog(`[PasswordReset] FALHA no envio para ${normalizedPhone}: ${waError.message}`);
       
-      return res.status(500).json({ 
-        ok: false, 
-        error: waError.message,
+      return res.status(502).json({
+        ok: false,
+        error: "Não foi possível enviar o código pelo WhatsApp.",
         details: "Verifique se o WhatsApp Global está conectado."
       });
     }
   } catch (error) {
     console.error("[ResetRequest] Erro Fatal:", error.message);
-    return res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({ ok: false, error: "Não foi possível concluir a redefinição de senha." });
   }
 });
 
@@ -1002,7 +1006,7 @@ app.post("/api/auth/password/reset-confirm", async (req, res) => {
 
   } catch (error) {
     console.error("[ResetConfirm] Erro:", error.message);
-    return res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({ ok: false, error: "Não foi possível concluir a redefinição de senha." });
   }
 });
 
@@ -1041,8 +1045,57 @@ const _getCachedWaVersion = async () => {
 const campaignsByClinic = new Map();
 const antiSpamStatsByNumber = new Map();
 
+const persistCampaignProgress = async (clinicId, campaign) => {
+  if (!supabaseAdmin || !campaign?.id) return;
+  const clinic_id = campaign.clinic_id || campaign.clinicId || clinicId;
+  const updated_at = campaign.updated_at || new Date().toISOString();
+  const { error } = await supabaseAdmin.from("marketing_campaigns").upsert({
+    id: campaign.id,
+    clinic_id,
+    status: campaign.status || "draft",
+    payload: { ...campaign, clinic_id, clinicId: clinic_id, updated_at },
+    created_at: campaign.created_at || campaign.createdAt || new Date().toISOString(),
+    updated_at,
+  }, { onConflict: "id" });
+  if (error) throw error;
+};
 
-app.use("/api/campaigns", createCampaignRoutes({ campaignsByClinic }));
+const normalizeCampaignPhone = (value) => String(value || '').replace(/\D/g, '');
+
+const readCampaignRecipient = async (campaignId, phone) => {
+  if (!supabaseAdmin || !campaignId || !phone) return null;
+  const { data, error } = await supabaseAdmin
+    .from('marketing_campaign_recipients')
+    .select('status, attempts, sent_at')
+    .eq('campaign_id', campaignId)
+    .eq('phone', phone)
+    .maybeSingle();
+  if (error) {
+    console.error('[Campaign] Não foi possível ler o estado do destinatário:', error.message);
+    return null;
+  }
+  return data || null;
+};
+
+const persistCampaignRecipient = async ({ campaign, contact, phone, status, errorMessage = null, providerMessageId = null }) => {
+  if (!supabaseAdmin || !campaign?.id || !phone) return;
+  const { error } = await supabaseAdmin.from('marketing_campaign_recipients').upsert({
+    campaign_id: campaign.id,
+    clinic_id: campaign.clinic_id || campaign.clinicId,
+    phone,
+    name: String(contact?.name || '').slice(0, 160),
+    status,
+    attempts: status === 'sending' ? 1 : undefined,
+    provider_message_id: providerMessageId,
+    last_error: errorMessage ? String(errorMessage).slice(0, 500) : null,
+    sent_at: status === 'sent' ? new Date().toISOString() : null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'campaign_id,phone' });
+  if (error) console.error('[Campaign] Persistência do destinatário falhou:', error.message);
+};
+
+
+app.use("/api/campaigns", createCampaignRoutes({ campaignsByClinic, supabaseAdmin }));
 app.use("/api/clinic", createClinicRoutes({ 
   requireAuth, 
   isUuid, 
@@ -1050,12 +1103,15 @@ app.use("/api/clinic", createClinicRoutes({
   createSupabaseAuthUser, 
   upsertClinicTeamUser, 
   SUPABASE_URL, 
-  SUPABASE_SERVICE_ROLE_KEY 
+  SUPABASE_SERVICE_ROLE_KEY,
+  ANAMNESE_TOKEN_SECRET,
+  supabaseAdmin,
 }));
 
 
 
 app.use("/api/integrations", integrationsRoutes);
+app.use("/api/nfe", createNFeRoutes({ supabaseAdmin, requireAuth }));
 
 
 app.get("/", (req, res) => {
@@ -2299,7 +2355,7 @@ const canAccessClinicData = (req, requestedClinicId) => {
       res.json({ ok: true, data: [] });
     } catch (error) {
       console.error("[WhatsApp] Error fetching recent chats:", error);
-      res.status(500).json({ ok: false, error: error.message });
+      res.status(500).json({ ok: false, error: "Não foi possível carregar as conversas." });
     }
   });
 
@@ -2389,7 +2445,7 @@ app.get("/api/whatsapp/messages/:clinicId/:phone", async (req, res) => {
 
     res.json({ ok: true, messages });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    res.status(500).json({ ok: false, error: "Não foi possível carregar os contatos." });
   }
 });
 
@@ -2470,13 +2526,81 @@ app.get("/api/whatsapp/contacts/:clinicId", async (req, res) => {
 
     res.json({ ok: true, contacts });
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    res.status(500).json({ ok: false, error: "Não foi possível carregar os contatos." });
   }
 });
 
-// Notifications endpoint (placeholder for future implementation)
 app.post("/api/notifications/send", async (req, res) => {
-  res.json({ ok: true, message: "Notification sent (placeholder)" });
+  const actorClinicId = String(req.user?.clinic_id || req.clinicId || '').trim();
+  const requestedClinicId = String(req.body?.clinicId || actorClinicId).trim();
+  const role = String(req.user?.role || '').toLowerCase();
+  if (!req.user || !actorClinicId) return res.status(401).json({ ok: false, error: 'Contexto de clínica ausente.' });
+  if (role !== 'super_admin' && requestedClinicId !== actorClinicId) return res.status(403).json({ ok: false, error: 'Acesso negado para outra clínica.' });
+  if (!['admin', 'owner', 'super_admin'].includes(role)) return res.status(403).json({ ok: false, error: 'Apenas administradores podem disparar notificações.' });
+
+  const channel = String(req.body?.channel || '').toLowerCase();
+  const recipients = Array.isArray(req.body?.recipients) ? req.body.recipients.slice(0, 50) : [];
+  const message = String(req.body?.message || '').trim();
+  if (!recipients.length || !message || message.length > 4000) return res.status(400).json({ ok: false, error: 'Canal, destinatários e mensagem válidos são obrigatórios.' });
+
+  if (channel !== 'whatsapp') {
+    return res.status(501).json({ ok: false, delivered: false, error: 'Canal ainda não configurado no servidor.' });
+  }
+
+  let sent = 0;
+  const failures = [];
+  const requestKey = String(req.body?.idempotencyKey || '').trim().slice(0, 160) || crypto.createHash('sha256')
+    .update(`${requestedClinicId}|${channel}|${message}|${JSON.stringify(recipients)}`)
+    .digest('hex');
+  for (const recipient of recipients) {
+    const normalizedRecipient = String(recipient).replace(/\D/g, '');
+    const deliveryKey = `${requestKey}:${normalizedRecipient}`.slice(0, 240);
+    if (supabaseAdmin && normalizedRecipient) {
+      const { data: previousDelivery } = await supabaseAdmin
+        .from('notification_deliveries')
+        .select('status')
+        .eq('idempotency_key', deliveryKey)
+        .maybeSingle();
+      if (previousDelivery?.status === 'sent') {
+        sent += 1;
+        continue;
+      }
+      await supabaseAdmin.from('notification_deliveries').upsert({
+        idempotency_key: deliveryKey,
+        clinic_id: requestedClinicId === 'system-global' ? GLOBAL_CLINIC_ID : requestedClinicId,
+        channel,
+        recipient: normalizedRecipient,
+        message,
+        status: 'sending',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'idempotency_key' });
+    }
+    try {
+      const result = await sendWhatsAppMessage({ clinicId: requestedClinicId, to: normalizedRecipient || String(recipient), message });
+      if (supabaseAdmin && normalizedRecipient) {
+        await supabaseAdmin.from('notification_deliveries').update({
+          status: 'sent',
+          provider_message_id: result?.messageId || null,
+          updated_at: new Date().toISOString(),
+        }).eq('idempotency_key', deliveryKey);
+      }
+      sent += 1;
+    } catch (error) {
+      if (supabaseAdmin && normalizedRecipient) {
+        await supabaseAdmin.from('notification_deliveries').update({
+          status: 'failed',
+          last_error: 'Falha no provedor WhatsApp',
+          updated_at: new Date().toISOString(),
+        }).eq('idempotency_key', deliveryKey);
+      }
+      failures.push({ recipient: String(recipient), error: 'Falha no provedor WhatsApp' });
+    }
+  }
+  return res.status(sent > 0 ? 200 : 502).json({
+    ok: sent > 0,
+    delivered: sent === recipients.length,
+    details: { requested: recipients.length, sent, failed: failures.length, failures },
+  });
 });
 
 
@@ -2499,6 +2623,8 @@ setInterval(async () => {
       if (!campaign.contacts || campaign.contacts.length === 0) {
         campaign.status = 'completed';
         campaign.completedAt = new Date().toISOString();
+        campaign.updated_at = new Date().toISOString();
+        try { await persistCampaignProgress(clinicId, campaign); } catch (error) { console.error('[Campaign] Persistência falhou:', error.message); }
         continue;
       }
       
@@ -2509,18 +2635,41 @@ setInterval(async () => {
       if (currentIndex >= campaign.contacts.length) {
         campaign.status = 'completed';
         campaign.completedAt = new Date().toISOString();
+        campaign.updated_at = new Date().toISOString();
+        try { await persistCampaignProgress(clinicId, campaign); } catch (error) { console.error('[Campaign] Persistência falhou:', error.message); }
         continue;
       }
       
       const contact = campaign.contacts[currentIndex];
       const sock = whatsappSockets[clinicId];
+      const number = normalizeCampaignPhone(contact?.phone);
+
+      if (!number) {
+        campaign.stats.failed += 1;
+        campaign.stats.pending = campaign.contacts.length - (campaign.stats.sent + campaign.stats.failed);
+        campaign.updated_at = new Date().toISOString();
+        try { await persistCampaignRecipient({ campaign, contact, phone: `invalid-${currentIndex}`, status: 'failed', errorMessage: 'Telefone ausente ou inválido.' }); } catch (_) {}
+        try { await persistCampaignProgress(clinicId, campaign); } catch (error) { console.error('[Campaign] Persistência falhou:', error.message); }
+        continue;
+      }
+
+      const previousRecipient = await readCampaignRecipient(campaign.id, number);
+      if (previousRecipient?.status === 'sent') {
+        // Recuperação após restart: não dispara novamente um destinatário já
+        // confirmado como enviado no banco.
+        campaign.stats.sent += 1;
+        campaign.stats.pending = campaign.contacts.length - (campaign.stats.sent + campaign.stats.failed);
+        campaign.progress = Math.round(((campaign.stats.sent + campaign.stats.failed) / campaign.contacts.length) * 100);
+        campaign.updated_at = new Date().toISOString();
+        try { await persistCampaignProgress(clinicId, campaign); } catch (error) { console.error('[Campaign] Persistência falhou:', error.message); }
+        continue;
+      }
       
       if (!sock || !whatsappConnections[clinicId] || whatsappConnections[clinicId].status !== 'connected') {
         addLog(`[Campaign] WhatsApp offline para clínica ${clinicId}. Aguardando reconexão...`);
         continue;
       } else {
         try {
-          const number = String(contact.phone).replace(/\D/g, "");
           const jid = (number.startsWith("55") && number.length === 13)
             ? `${number.slice(0, 4)}${number.slice(5)}@s.whatsapp.net` 
             : `${number}@s.whatsapp.net`;
@@ -2528,12 +2677,15 @@ setInterval(async () => {
           let finalMessage = campaign.message || "";
           finalMessage = finalMessage.replace(/\{nome\}/g, contact.name || "Cliente");
           
+          await persistCampaignRecipient({ campaign, contact, phone: number, status: 'sending' });
           await sock.sendMessage(jid, { text: finalMessage });
           addLog(`[Campaign] Mensagem enviada para ${jid}`);
           campaign.stats.sent += 1;
+          await persistCampaignRecipient({ campaign, contact, phone: number, status: 'sent' });
         } catch (e) {
           addLog(`[Campaign] Erro ao enviar mensagem para ${contact.phone}: ${e.message}`);
           campaign.stats.failed += 1;
+          await persistCampaignRecipient({ campaign, contact, phone: number, status: 'failed', errorMessage: e.message });
         }
       }
       
@@ -2542,6 +2694,11 @@ setInterval(async () => {
       campaign.updated_at = new Date().toISOString();
       
       campaignsByClinic.set(clinicId, campaigns);
+      try {
+        await persistCampaignProgress(clinicId, campaign);
+      } catch (error) {
+        console.error('[Campaign] Persistência falhou:', error.message);
+      }
     }
   }
 }, 5000).unref(); // roda a cada 5 segundos para processar 1 mensagem por vez
@@ -2559,10 +2716,7 @@ app.use((err, req, res, next) => {
     res.setHeader("Access-Control-Allow-Credentials", "true");
   }
 
-  res.status(500).json({
-    ok: false,
-    error: err.message || "Erro interno no servidor",
-  });
+  res.status(500).json({ ok: false, error: "Erro interno no servidor." });
 });
 
 

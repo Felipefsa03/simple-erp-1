@@ -152,11 +152,30 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const idsRef = useRef<{ signupId: string; clinicId: string }>({
-    signupId: crypto.randomUUID(),
-    clinicId: crypto.randomUUID(),
+    signupId: '',
+    clinicId: '',
   });
+  const [signupReady, setSignupReady] = useState(false);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/signup/init`, { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok || !data.ok || !data.signup_id || !data.clinic_id) throw new Error(data.error || 'Falha ao reservar o cadastro.');
+        if (!cancelled) {
+          idsRef.current = { signupId: String(data.signup_id), clinicId: String(data.clinic_id) };
+          setSignupReady(true);
+        }
+      } catch (error) {
+        if (!cancelled) setSignupError(error instanceof Error ? error.message : 'Não foi possível iniciar o cadastro.');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const selectedPlan = useMemo(
     () => dynamicPlans.find(plan => plan.id === signupForm.plan) || DEFAULT_PLANS[0],
@@ -398,6 +417,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   };
 
   const handleSendPhoneCode = async () => {
+    if (!signupReady) { setSignupError('Aguarde a inicialização segura do cadastro.'); return; }
     if (!signupForm.phone.trim()) {
       setSignupError('Informe o telefone para validacao.');
       return;
@@ -473,6 +493,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   };
 
   const handleGeneratePayment = async () => {
+    if (!signupReady) { setSignupError('Aguarde a inicialização segura do cadastro.'); return; }
     if (phoneVerificationEnabled && !phoneVerified) {
       setSignupError('Valide o telefone antes de gerar o pagamento.');
       return;
@@ -546,6 +567,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   };
 
   const handleProvisionAccount = async () => {
+    if (!signupReady) { setSignupError('Aguarde a inicialização segura do cadastro.'); return; }
     setSignupLoading(true);
     setSignupError('');
     try {

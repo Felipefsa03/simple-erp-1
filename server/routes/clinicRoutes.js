@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "crypto";
 
 export const createClinicRoutes = ({
   requireAuth,
@@ -7,13 +8,50 @@ export const createClinicRoutes = ({
   createSupabaseAuthUser,
   upsertClinicTeamUser,
   SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY
+  SUPABASE_SERVICE_ROLE_KEY,
+  ANAMNESE_TOKEN_SECRET,
+  supabaseAdmin
 }) => {
   const router = express.Router();
 
+  const encodeToken = (payload) => {
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = crypto.createHmac('sha256', ANAMNESE_TOKEN_SECRET || 'development-only-anamnese-secret').update(body).digest('base64url');
+    return `${body}.${signature}`;
+  };
+
+  const canManageAnamnese = (req) => ['admin', 'owner', 'super_admin', 'professional', 'dentist'].includes(String(req.user?.role || '').toLowerCase());
+
+  router.post("/anamnese-links", requireAuth, async (req, res) => {
+    if (!canManageAnamnese(req)) return res.status(403).json({ ok: false, error: "Sem permissão para gerar link de anamnese." });
+    const patientId = String(req.body?.patientId || '').trim();
+    const clinicId = String(req.clinicId || '').trim();
+    const hours = Math.min(168, Math.max(1, Number(req.body?.hoursValid || 72)));
+    if (!isUuid(patientId) || !isUuid(clinicId)) return res.status(400).json({ ok: false, error: "Paciente ou clínica inválidos." });
+
+    try {
+      const { data: patient, error: patientError } = await supabaseAdmin
+        .from('patients').select('id, clinic_id').eq('id', patientId).eq('clinic_id', clinicId).maybeSingle();
+      if (patientError || !patient) return res.status(404).json({ ok: false, error: "Paciente não encontrado." });
+
+      const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+      const jti = crypto.randomUUID();
+      const token = encodeToken({ p: patientId, c: clinicId, e: expiresAt.toISOString(), j: jti });
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const { error } = await supabaseAdmin.from('anamnese_public_tokens').insert({
+        jti, token_hash: tokenHash, patient_id: patientId, clinic_id: clinicId,
+        expires_at: expiresAt.toISOString(), created_by: req.user.id,
+      });
+      if (error) throw error;
+      return res.json({ ok: true, token, patient_id: patientId, clinic_id: clinicId, expires_at: expiresAt.toISOString() });
+    } catch (error) {
+      console.error('[AnamneseLink] Erro:', error.message);
+      return res.status(500).json({ ok: false, error: 'Não foi possível gerar o link de anamnese.' });
+    }
+  });
+
   router.post("/users", requireAuth, async (req, res) => {
     console.log('[POST /api/clinic/users] Request received');
-    console.log('[POST /api/clinic/users] req.user:', JSON.stringify(req.user));
     try {
       const actor = req.user || {};
       const actorRole = String(actor.role || "").toLowerCase();
@@ -46,7 +84,7 @@ export const createClinicRoutes = ({
             ? requestedRole
             : "receptionist");
 
-      console.log('[POST /api/clinic/users] email:', email, 'name:', name);
+      console.log('[POST /api/clinic/users] Creating clinic team user');
 
       if (!email || !password || !name) {
         console.log('[POST /api/clinic/users] Validation failed - missing required fields');
@@ -72,16 +110,12 @@ export const createClinicRoutes = ({
               ? requestedClinicId
               : GLOBAL_CLINIC_ID;
 
-      console.log('[POST /api/clinic/users] clinicId:', clinicId);
-
       console.log('[POST /api/clinic/users] Calling createSupabaseAuthUser...');
       const authResult = await createSupabaseAuthUser({
         email,
         password,
         name,
       });
-      console.log('[POST /api/clinic/users] authResult:', JSON.stringify(authResult));
-
       console.log('[POST /api/clinic/users] Calling upsertClinicTeamUser...');
       const userResult = await upsertClinicTeamUser({
         userId: authResult.userId,
@@ -93,7 +127,6 @@ export const createClinicRoutes = ({
         commissionPct,
         token: req.token,
       });
-      console.log('[POST /api/clinic/users] userResult:', JSON.stringify(userResult));
 
       return res.json({
         ok: true,
@@ -102,7 +135,7 @@ export const createClinicRoutes = ({
     } catch (err) {
       console.error("[POST /api/clinic/users] Error:", err.message);
       console.error(err.stack);
-      return res.status(500).json({ ok: false, error: err.message });
+      return res.status(500).json({ ok: false, error: "Não foi possível criar o usuário." });
     }
   });
 
@@ -110,7 +143,7 @@ export const createClinicRoutes = ({
   router.get("/anamnese-sync", requireAuth, async (req, res) => {
     try {
       if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-        return res.json({ ok: true, items: [] });
+        return res.status(503).json({ ok: false, error: "Sincronização de anamnese indisponível." });
       }
 
       const userClinicId = String(req.clinicId || "").trim();
@@ -135,7 +168,7 @@ export const createClinicRoutes = ({
       );
 
       if (!response.ok) {
-        return res.json({ ok: true, items: [] });
+        return res.status(502).json({ ok: false, error: "Falha ao consultar anamneses." });
       }
 
       const records = await response.json();
@@ -150,7 +183,8 @@ export const createClinicRoutes = ({
 
       res.json({ ok: true, items });
     } catch (error) {
-      res.json({ ok: true, items: [] });
+      console.error("[AnamneseSync] Erro:", error.message);
+      res.status(500).json({ ok: false, error: "Falha ao sincronizar anamneses." });
     }
   });
 

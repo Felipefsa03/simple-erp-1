@@ -89,6 +89,13 @@ function OnlineBookingPageWrapper() {
   );
 }
 
+function PublicAnamnesePageWrapper() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const token = new URLSearchParams(location.search).get('token') || '';
+  return <PublicAnamneseForm token={token} onBack={() => navigate('/')} />;
+}
+
 export default function App() {
   const { user, loading, checkSession } = useAuth();
 
@@ -123,6 +130,7 @@ export default function App() {
         {/* Public booking and anamnese */}
         <Route path="/book/:clinicId" element={<OnlineBookingPageWrapper />} />
         <Route path="/book" element={<OnlineBookingPageWrapper />} />
+        <Route path="/anamnese-form" element={<PublicAnamnesePageWrapper />} />
         
         {/* Root route - shows landing for visitors, app for authenticated users */}
         <Route path="/" element={

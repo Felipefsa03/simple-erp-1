@@ -40,7 +40,9 @@ export const SUPABASE_SERVICE_ROLE_KEY = cleanEnv(pickEnv(
   process.env.SUPABASE_SERVICE_ROLE_KEY_PROD,
 ));
 
-export const TOTP_ENCRYPTION_KEY = process.env.TOTP_ENCRYPTION_KEY || SUPABASE_SERVICE_ROLE_KEY;
+export const TOTP_ENCRYPTION_KEY = cleanEnv(process.env.TOTP_ENCRYPTION_KEY || "");
+export const ANAMNESE_TOKEN_SECRET = cleanEnv(process.env.ANAMNESE_TOKEN_SECRET || "");
+export const PAYMENT_STATUS_TOKEN_SECRET = cleanEnv(process.env.PAYMENT_STATUS_TOKEN_SECRET || "");
 
 export const PORT = parseInt(process.env.PORT || "8787", 10);
 export const DEFAULT_CLINIC_ID = process.env.DEFAULT_CLINIC_ID || "00000000-0000-0000-0000-000000000001";
@@ -72,6 +74,21 @@ const REQUIRED_ENVS = [
   ["SUPABASE_URL (ou SUPABASE_URL_PROD)", SUPABASE_URL],
   ["SUPABASE_PUBLISHABLE_KEY/SUPABASE_ANON_KEY (ou *_PROD)", SUPABASE_ANON_KEY],
 ];
+
+if (!TOTP_ENCRYPTION_KEY && process.env.NODE_ENV === "production") {
+  console.error("[FATAL] TOTP_ENCRYPTION_KEY é obrigatória em produção.");
+  process.exit(1);
+}
+
+if (!ANAMNESE_TOKEN_SECRET && process.env.NODE_ENV === "production") {
+  console.error("[FATAL] ANAMNESE_TOKEN_SECRET é obrigatória em produção.");
+  process.exit(1);
+}
+
+if (!PAYMENT_STATUS_TOKEN_SECRET && process.env.NODE_ENV === "production") {
+  console.error("[FATAL] PAYMENT_STATUS_TOKEN_SECRET é obrigatória em produção.");
+  process.exit(1);
+}
 
 const missingEnvs = REQUIRED_ENVS.filter(([, value]) => !value).map(([name]) => name);
 

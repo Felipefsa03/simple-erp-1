@@ -4,9 +4,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useShared';
-import { configureNFe, loadNFeConfig, isNFeConfigured, type NFeConfig, type NFeProvider } from '@/services/nfe/nfeService';
+import { configureNFe, loadNFeServerConfig, saveNFeServerConfig, testNFeConnection, type NFeConfig, type NFeProvider } from '@/services/nfe/nfeService';
+import { useAuth } from '@/hooks/useAuth';
 
 export function NFeSettings() {
+  const { user } = useAuth();
   const [form, setForm] = useState<NFeConfig>({
     provider: 'focus_nfe',
     apiKey: '',
@@ -30,15 +32,18 @@ export function NFeSettings() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const config = loadNFeConfig();
-    if (config) {
-      setForm(config);
-      setConnected(true);
-    }
-  }, []);
+    loadNFeServerConfig(user?.clinic_id)
+      .then(config => {
+        if (config?.configured) {
+          setForm(current => ({ ...current, ...config, apiKey: current.apiKey || '' }));
+          setConnected(true);
+        }
+      })
+      .catch(() => setConnected(false));
+  }, [user?.clinic_id]);
 
-  const handleSave = () => {
-    if (!form.apiKey?.trim()) {
+  const handleSave = async () => {
+    if (!form.apiKey?.trim() && !connected) {
       toast('API Key é obrigatória.', 'error');
       return;
     }
@@ -51,45 +56,30 @@ export function NFeSettings() {
       return;
     }
 
-    configureNFe(form);
-    setConnected(true);
-    setSaved(true);
-    toast('Configuração de NFe salva!', 'success');
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      await saveNFeServerConfig(form, user?.clinic_id);
+      configureNFe(form);
+      setConnected(true);
+      setSaved(true);
+      toast('Configuração de NFe salva com segurança no servidor!', 'success');
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Não foi possível salvar a configuração.', 'error');
+    }
   };
 
   const handleTest = async () => {
-    if (!form.apiKey?.trim()) {
+    if (!form.apiKey?.trim() && !connected) {
       toast('Configure a API Key antes de testar.', 'error');
       return;
     }
     setTesting(true);
-    configureNFe(form);
-
     try {
-      const baseUrl = form.environment === 'producao'
-        ? 'https://api.focusnfe.com.br'
-        : 'https://homologacao.focusnfe.com.br';
-
-      const response = await fetch(`${baseUrl}/v2/nfe`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Basic ${btoa(form.apiKey + ':')}`,
-        },
-      });
-
-      if (response.ok) {
-        toast('Conexão com o provedor NFe estabelecida!', 'success');
-        setConnected(true);
-      } else if (response.status === 401) {
-        toast('API Key inválida. Verifique suas credenciais.', 'error');
-        setConnected(false);
-      } else {
-        toast(`Erro ao conectar: ${response.status}`, 'error');
-        setConnected(false);
-      }
+      await testNFeConnection(user?.clinic_id);
+      toast('Conexão com o provedor NFe estabelecida!', 'success');
+      setConnected(true);
     } catch (error) {
-      toast('Erro de conexão. Verifique a URL e sua internet.', 'error');
+      toast(error instanceof Error ? error.message : 'Erro de conexão com o provedor.', 'error');
       setConnected(false);
     }
     setTesting(false);
@@ -111,9 +101,7 @@ export function NFeSettings() {
   };
 
   const providers: { id: NFeProvider; name: string; description: string; url: string }[] = [
-    { id: 'focus_nfe', name: 'Focus NFe', description: 'API completa de emissão de NF-e, NFC-e e CT-e', url: 'https://focusnfe.com.br' },
-    { id: 'nfe_io', name: 'NFe.io', description: 'API simples e moderna para emissão de notas fiscais', url: 'https://nfe.io' },
-    { id: 'webmaniabr', name: 'WebmaniaBR', description: 'Emissão de NF-e, NFC-e e MDF-e via API', url: 'https://webmaniabr.com' },
+    { id: 'focus_nfe', name: 'Focus NFe', description: 'Comunicação oficial com a SEFAZ via proxy seguro do servidor', url: 'https://focusnfe.com.br' },
   ];
 
   return (
@@ -137,7 +125,7 @@ export function NFeSettings() {
 
       <div className="bg-brand-50 border border-brand-200 rounded-xl p-4">
         <p className="text-sm text-brand-800">
-          <strong>Provedores suportados:</strong> Focus NFe, NFe.io e WebmaniaBR são provedores brasileiros que fazem a comunicação oficial com a SEFAZ para emissão de notas fiscais eletrônicas.
+          <strong>Provedor disponível nesta versão:</strong> Focus NFe. Outros provedores só devem ser exibidos após a implementação e teste de seus adaptadores no servidor.
           Você precisará de uma conta em um desses provedores e uma API Key para começar.
         </p>
       </div>

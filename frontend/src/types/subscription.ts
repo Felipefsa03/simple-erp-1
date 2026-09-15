@@ -44,6 +44,7 @@ export interface ClinicSubscription {
   mp_subscription_id?: string;
   mp_customer_id?: string;
   mp_subscription_status?: string;
+  checkout_url?: string;
   
   // Pagamento
   payment_method?: 'pix' | 'credit_card' | 'boleto';

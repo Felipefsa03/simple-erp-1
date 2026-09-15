@@ -47,7 +47,7 @@ interface WhatsAppConnectionProps {
 
 type UIStatus = 'loading' | 'qr' | 'pairing' | 'connected' | 'error' | 'expired' | 'disconnected';
 
-export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId = 'clinic-1', onStatusChange }: WhatsAppConnectionProps) {
+export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId = '', onStatusChange }: WhatsAppConnectionProps) {
   const [uiStatus, setUiStatus] = useState<UIStatus>('loading');
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
@@ -176,6 +176,11 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
 
   // --- Initiate connection ---
   const initiate = useCallback(async (phone?: string) => {
+    if (!clinicId) {
+      setErrorMsg('Clínica autenticada não identificada.');
+      setUiStatus('error');
+      return;
+    }
     setUiStatus('loading');
     setQrCode(null);
     setPairingCode(null);
@@ -590,7 +595,7 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
 // ============================================
 // Main WhatsApp Integration Component (Summary View)
 // ============================================
-export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: { clinicId?: string, onStatusChange?: (connected: boolean) => void }) {
+export function WhatsAppIntegration({ clinicId = '', onStatusChange }: { clinicId?: string, onStatusChange?: (connected: boolean) => void }) {
   const [showModal, setShowModal] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<{ name: string; platform: string; lastSync: string } | null>(null);
   const [isChecking, setIsChecking] = useState(true);
@@ -600,6 +605,12 @@ export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: {
   const setWhatsAppConnected = useClinicStore(s => s.setWhatsAppConnected);
 
   const checkStatus = useCallback(async () => {
+    if (!clinicId) {
+      setIsChecking(false);
+      setIsConnected(false);
+      setDeviceInfo(null);
+      return;
+    }
     try {
       const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
@@ -660,6 +671,7 @@ export function WhatsAppIntegration({ clinicId = 'clinic-1', onStatusChange }: {
   };
 
   const handleDisconnect = async () => {
+    if (!clinicId) return;
     try {
       const token = await getAccessToken();
       await fetch(`${API_BASE}/api/whatsapp/disconnect/${clinicId}`, {

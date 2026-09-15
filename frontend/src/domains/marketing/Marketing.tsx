@@ -125,7 +125,7 @@ const generateEmailTemplate = (clinicName: string, whatsapp: string) => `
 export function Marketing() {
   const { user, clinic } = useAuth();
   const { patients, appointments, transactions, leads, funnelStages, automationRules, addLead, moveLeadStage, addAutomationRule } = useClinicStore();
-  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
+  const clinicId = useAuth(s => s.getClinicId()) || '';
 
   // Auto-sync WhatsApp on mount
   const { syncStatus } = useWhatsAppSync(clinicId, (connected) => {
@@ -189,6 +189,7 @@ export function Marketing() {
       if (campaignType === 'whatsapp') {
         const targets = campaignTarget === 'all' ? clinicPatients : campaignTarget === 'inactive' ? clinicPatients.filter(p => p.status === 'inactive') : campaignTarget === 'risk' ? clinicPatients.filter(p => p.status === 'risk') : clinicPatients;
         await integrationsApi.sendNotification({
+          clinicId,
           channel: 'whatsapp',
           recipients: targets.slice(0, 50).map(p => p.phone || p.id),
           message: whatsAppDefaultMessage || 'Campanha enviada via CRM Clinxia.',

@@ -15,6 +15,18 @@ CREATE TABLE IF NOT EXISTS public.auth_sessions (
 
 -- Indexação para buscas rápidas e exclusão de expirados
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_identifier ON public.auth_sessions(identifier, session_type);
+-- Sessões são efêmeras. Em instalações que já possuíam duplicatas, conserva
+-- a mais recente antes de criar a restrição que o UPSERT do backend exige.
+DELETE FROM public.auth_sessions older
+USING public.auth_sessions newer
+WHERE older.identifier = newer.identifier
+  AND older.session_type = newer.session_type
+  AND (
+    older.created_at < newer.created_at
+    OR (older.created_at = newer.created_at AND older.id < newer.id)
+  );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_sessions_identifier_type
+  ON public.auth_sessions(identifier, session_type);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON public.auth_sessions(expires_at);
 
 -- Adicionar permissões do RLS (se ativado para essa tabela)

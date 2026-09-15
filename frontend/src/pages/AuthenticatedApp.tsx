@@ -274,6 +274,7 @@ export function AuthenticatedApp() {
         if (cancelled) return;
         try {
           const result = await integrationsApi.sendNotification({
+            clinicId: user?.clinic_id,
             channel: item.channel,
             recipients: [item.patient_id],
             message: item.message,

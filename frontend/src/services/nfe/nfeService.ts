@@ -1,9 +1,8 @@
-// ============================================
-// clinxia ERP - NFe Integration Service
-// Suporte a provedores reais de emissão de NF-e
-// ============================================
+// Frontend NF-e client. Credentials and provider calls stay exclusively in
+// the authenticated backend proxy; this module never contacts a fiscal API.
+import { getSupabaseSession } from '@/lib/supabase';
 
-export type NFeProvider = 'focus_nfe' | 'nfe_io' | 'webmaniabr';
+export type NFeProvider = 'focus_nfe';
 
 export interface NFeConfig {
   provider: NFeProvider;
@@ -69,7 +68,7 @@ export interface NFeEmissao {
   valorDesconto?: number;
   valorOutrasDespesas?: number;
   observacoes?: string;
-  formaPagamento?: '01' | '02' | '03' | '04' | '05' | '10' | '11' | '12' | '13' | '14' | '15' | '90' | '99';
+  formaPagamento?: string;
   valorPagamento?: number;
 }
 
@@ -89,332 +88,54 @@ export interface NFeResponse {
   referencia?: string;
 }
 
-// ============================================
-// Focus NFe Provider
-// ============================================
-class FocusNFeService {
-  private baseUrl: string;
-  private apiKey: string;
-
-  constructor(config: NFeConfig) {
-    this.apiKey = config.apiKey;
-    this.baseUrl = config.environment === 'producao'
-      ? 'https://api.focusnfe.com.br'
-      : 'https://homologacao.focusnfe.com.br';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': `Basic ${btoa(this.apiKey + ':')}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
-  async emitir(referencia: string, dados: any): Promise<NFeResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}/v2/nfe?ref=${referencia}`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify(dados),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.status === 'autorizado') {
-        return {
-          sucesso: true,
-          status: 'autorizado',
-          numero: data.numero,
-          serie: data.serie,
-          chave: data.chave,
-          codigoAutorizacao: data.caminho_xml_autorizacao,
-          dataAutorizacao: data.data_autorizacao,
-          protocolo: data.numero_protocolo_autorizacao,
-          xmlUrl: data.caminho_xml_autorizacao,
-          pdfUrl: data.caminho_danfe,
-          referencia,
-        };
-      }
-
-      if (data.status === 'processando') {
-        return {
-          sucesso: false,
-          status: 'processando',
-          mensagem: 'NFe em processamento. Consulte novamente em alguns segundos.',
-          referencia,
-        };
-      }
-
-      return {
-        sucesso: false,
-        status: 'rejeitado',
-        mensagem: data.mensagem_sefaz || data.status || 'Erro desconhecido',
-        erros: data.erros?.map((e: any) => e.mensagem || e),
-        referencia,
-      };
-    } catch (error) {
-      return {
-        sucesso: false,
-        status: 'erro',
-        mensagem: error instanceof Error ? error.message : 'Erro de conexão',
-        referencia,
-      };
-    }
-  }
-
-  async consultar(referencia: string): Promise<NFeResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}/v2/nfe/${referencia}`, {
-        method: 'GET',
-        headers: this.getHeaders(),
-      });
-
-      const data = await response.json();
-
-      return {
-        sucesso: data.status === 'autorizado',
-        status: data.status,
-        numero: data.numero,
-        serie: data.serie,
-        chave: data.chave,
-        dataAutorizacao: data.data_autorizacao,
-        protocolo: data.numero_protocolo_autorizacao,
-        xmlUrl: data.caminho_xml_autorizacao,
-        pdfUrl: data.caminho_danfe,
-        mensagem: data.mensagem_sefaz,
-        referencia,
-      };
-    } catch (error) {
-      return {
-        sucesso: false,
-        status: 'erro',
-        mensagem: error instanceof Error ? error.message : 'Erro de conexão',
-        referencia,
-      };
-    }
-  }
-
-  async cancelar(referencia: string, justificativa: string): Promise<NFeResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}/v2/nfe/${referencia}`, {
-        method: 'DELETE',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ justificativa }),
-      });
-
-      const data = await response.json();
-
-      return {
-        sucesso: response.ok,
-        status: response.ok ? 'cancelado' : 'erro',
-        mensagem: data.mensagem_sefaz || (response.ok ? 'Cancelado com sucesso' : 'Erro ao cancelar'),
-        referencia,
-      };
-    } catch (error) {
-      return {
-        sucesso: false,
-        status: 'erro',
-        mensagem: error instanceof Error ? error.message : 'Erro de conexão',
-        referencia,
-      };
-    }
-  }
-
-  async inutilizar(numeroInicial: number, numeroFinal: number, justificativa: string, serie: number = 1): Promise<NFeResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}/v2/nfe/inutilizacao`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({
-          numero_inicial: numeroInicial,
-          numero_final: numeroFinal,
-          serie,
-          justificativa,
-        }),
-      });
-
-      const data = await response.json();
-
-      return {
-        sucesso: response.ok,
-        status: response.ok ? 'autorizado' : 'erro',
-        mensagem: data.mensagem_sefaz || (response.ok ? 'Inutilizado com sucesso' : 'Erro ao inutilizar'),
-      };
-    } catch (error) {
-      return {
-        sucesso: false,
-        status: 'erro',
-        mensagem: error instanceof Error ? error.message : 'Erro de conexão',
-      };
-    }
-  }
-}
-
-// ============================================
-// NFe.io Provider
-// ============================================
-class NFeIOService {
-  private baseUrl: string;
-  private apiKey: string;
-
-  constructor(config: NFeConfig) {
-    this.apiKey = config.apiKey;
-    this.baseUrl = config.environment === 'producao'
-      ? 'https://api.nfe.io'
-      : 'https://api.sandbox.nfe.io';
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': this.apiKey,
-      'Content-Type': 'application/json',
-    };
-  }
-
-  async emitir(referencia: string, dados: any): Promise<NFeResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}/v1/notes`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify(dados),
-      });
-
-      const data = await response.json();
-
-      if (data.id) {
-        return {
-          sucesso: data.status === 'Authorized',
-          status: data.status === 'Authorized' ? 'autorizado' : 'processando',
-          numero: data.number,
-          serie: data.series,
-          chave: data.accessKey,
-          protocolo: data.authorizationProtocol,
-          xmlUrl: data.xml,
-          pdfUrl: data.danfe,
-          referencia: data.reference || referencia,
-        };
-      }
-
-      return {
-        sucesso: false,
-        status: 'rejeitado',
-        mensagem: data.message || 'Erro na emissão',
-        erros: data.errors,
-        referencia,
-      };
-    } catch (error) {
-      return {
-        sucesso: false,
-        status: 'erro',
-        mensagem: error instanceof Error ? error.message : 'Erro de conexão',
-        referencia,
-      };
-    }
-  }
-
-  async consultar(referencia: string): Promise<NFeResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}/v1/notes/${referencia}`, {
-        headers: this.getHeaders(),
-      });
-
-      const data = await response.json();
-
-      return {
-        sucesso: data.status === 'Authorized',
-        status: data.status === 'Authorized' ? 'autorizado' : 'processando',
-        numero: data.number,
-        serie: data.series,
-        chave: data.accessKey,
-        protocolo: data.authorizationProtocol,
-        xmlUrl: data.xml,
-        pdfUrl: data.danfe,
-        referencia,
-      };
-    } catch (error) {
-      return {
-        sucesso: false,
-        status: 'erro',
-        mensagem: error instanceof Error ? error.message : 'Erro de conexão',
-        referencia,
-      };
-    }
-  }
-
-  async cancelar(referencia: string, justificativa: string): Promise<NFeResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}/v1/notes/${referencia}/cancellation`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ reason: justificativa }),
-      });
-
-      const data = await response.json();
-
-      return {
-        sucesso: response.ok,
-        status: response.ok ? 'cancelado' : 'erro',
-        mensagem: data.message || (response.ok ? 'Cancelado' : 'Erro ao cancelar'),
-        referencia,
-      };
-    } catch (error) {
-      return {
-        sucesso: false,
-        status: 'erro',
-        mensagem: error instanceof Error ? error.message : 'Erro de conexão',
-        referencia,
-      };
-    }
-  }
-}
-
-// ============================================
-// Unified NFe Service
-// ============================================
 let currentConfig: NFeConfig | null = null;
-let providerService: FocusNFeService | NFeIOService | null = null;
 
-const NFE_CONFIG_STORAGE_KEY = 'clinxia_nfe_config';
+const getNFeAuthHeaders = () => {
+  const session = getSupabaseSession();
+  return {
+    'Content-Type': 'application/json',
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
+};
 
 export function configureNFe(config: NFeConfig) {
-  currentConfig = config;
-  try {
-    localStorage.setItem(NFE_CONFIG_STORAGE_KEY, JSON.stringify(config));
-  } catch {
-    // storage indisponível: mantém só em memória
-  }
-
-  switch (config.provider) {
-    case 'focus_nfe':
-      providerService = new FocusNFeService(config);
-      break;
-    case 'nfe_io':
-      providerService = new NFeIOService(config);
-      break;
-    case 'webmaniabr':
-      providerService = new FocusNFeService(config);
-      break;
-    default:
-      providerService = new FocusNFeService(config);
-  }
+  currentConfig = { ...config, provider: 'focus_nfe' };
 }
 
 export function loadNFeConfig(): NFeConfig | null {
-  if (currentConfig) return currentConfig;
-  try {
-    const raw = localStorage.getItem(NFE_CONFIG_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as NFeConfig;
-      if (parsed && parsed.provider) {
-        currentConfig = parsed;
-        configureNFe(parsed);
-        return currentConfig;
-      }
-    }
-  } catch {
-    // ignora storage corrompido
-  }
-  return null;
+  return currentConfig;
+}
+
+export async function loadNFeServerConfig(clinicId?: string) {
+  const query = clinicId ? `?clinicId=${encodeURIComponent(clinicId)}` : '';
+  const response = await fetch(`/api/nfe/config${query}`, { headers: getNFeAuthHeaders() });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Não foi possível carregar a configuração fiscal.');
+  if (data.config) configureNFe(data.config);
+  return data.config;
+}
+
+export async function saveNFeServerConfig(config: NFeConfig, clinicId?: string) {
+  const response = await fetch('/api/nfe/config', {
+    method: 'POST',
+    headers: getNFeAuthHeaders(),
+    body: JSON.stringify({ clinicId, config: { ...config, provider: 'focus_nfe' } }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Não foi possível salvar a configuração fiscal.');
+  if (data.config) configureNFe(data.config);
+  return data.config;
+}
+
+export async function testNFeConnection(clinicId?: string) {
+  const response = await fetch('/api/nfe/test', {
+    method: 'POST',
+    headers: getNFeAuthHeaders(),
+    body: JSON.stringify({ clinicId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Não foi possível conectar ao provedor fiscal.');
+  return data;
 }
 
 export function getNFeConfig(): NFeConfig | null {
@@ -422,37 +143,56 @@ export function getNFeConfig(): NFeConfig | null {
 }
 
 export function isNFeConfigured(): boolean {
-  const config = loadNFeConfig();
-  return !!(config?.apiKey && config?.cnpj);
+  return Boolean(currentConfig?.cnpj);
 }
 
-function buildFocusNFePayload(config: NFeConfig, emissao: NFeEmissao): any {
-  const d = emissao.destinatario;
-  const dest: any = {};
+const normalizeResponse = (data: any, referencia?: string): NFeResponse => {
+  const providerStatus = String(data?.status || '').trim().toLowerCase();
+  // A Focus NFe confirma o recebimento assíncrono antes da autorização.
+  // Nunca trate um HTTP 2xx ou um "ok" genérico como autorização da SEFAZ.
+  const status: NFeResponse['status'] = providerStatus === 'autorizado'
+    ? 'autorizado'
+    : providerStatus === 'cancelado'
+      ? 'cancelado'
+      : providerStatus.includes('processando')
+        ? 'processando'
+        : providerStatus.includes('rejeit')
+          ? 'rejeitado'
+          : 'erro';
 
-  if (d.cpf) {
-    dest.cpf = d.cpf.replace(/\D/g, '');
-    dest.nome_consumidor = d.razaoSocial;
-  } else if (d.cnpj) {
-    dest.cnpj = d.cnpj.replace(/\D/g, '');
-    dest.razao_social = d.razaoSocial;
-    if (d.ie) dest.ie = d.ie.replace(/\D/g, '');
-    dest.indicador_ie = d.indicadorIE || '9';
-  }
+  return {
+  sucesso: status === 'autorizado',
+  status,
+  numero: data.numero,
+  serie: data.serie,
+  chave: data.chave,
+  codigoAutorizacao: data.codigo_autorizacao,
+  dataAutorizacao: data.data_autorizacao,
+  protocolo: data.numero_protocolo_autorizacao,
+  xmlUrl: data.caminho_xml_autorizacao,
+  pdfUrl: data.caminho_danfe,
+  mensagem: data.mensagem_sefaz || data.error,
+  erros: data.erros,
+  referencia,
+  };
+};
 
-  if (d.logradouro) {
-    dest.logradouro = d.logradouro;
-    dest.numero = d.numero || 'SN';
-    dest.bairro = d.bairro || 'Centro';
-    dest.municipio = d.municipio || config.municipio;
-    dest.uf = d.uf || config.uf;
-    dest.cep = d.cep?.replace(/\D/g, '') || config.cep.replace(/\D/g, '');
-  }
-
-  if (d.email) dest.email = d.email;
-
-  const itens = emissao.itens.map((item, i) => ({
-    numero_item: i + 1,
+const buildProviderPayload = (emissao: NFeEmissao) => ({
+  presenca_comprador: '9',
+  natureza_operacao: emissao.naturezaOperacao || 'Venda',
+  serie: emissao.serie || '1',
+  numero: emissao.numero,
+  data_emissao: new Date().toISOString(),
+  tipo_documento: '1',
+  finalidade_emissao: '1',
+  destinatario: {
+    ...(emissao.destinatario.cnpj
+      ? { cnpj: emissao.destinatario.cnpj.replace(/\D/g, ''), razao_social: emissao.destinatario.razaoSocial }
+      : { cpf: emissao.destinatario.cpf?.replace(/\D/g, ''), nome_consumidor: emissao.destinatario.razaoSocial }),
+    email: emissao.destinatario.email,
+  },
+  itens: emissao.itens.map((item, index) => ({
+    numero_item: index + 1,
     codigo_produto: item.codigo,
     descricao: item.descricao,
     cfop: item.cfop || '5102',
@@ -460,199 +200,43 @@ function buildFocusNFePayload(config: NFeConfig, emissao: NFeEmissao): any {
     quantidade_comercial: item.quantidade,
     valor_unitario_comercial: item.valorUnitario,
     valor_total_bruto: item.valorTotal,
-    unidade_tributavel: item.unidade || 'UN',
-    quantidade_tributavel: item.quantidade,
-    valor_unitario_tributavel: item.valorUnitario,
-    ncm: item.ncm || '96190000',
+    codigo_ncm: item.ncm || '96190000',
     origem: item.origem || '0',
-    informacoes_adicionais: item.descricao,
-  }));
-
-  return {
-    presenca_comprador: '9',
-    natureza_operacao: emissao.naturezaOperacao || 'Venda',
-    serie: emissao.serie || '1',
-    numero: emissao.numero,
-    data_emissao: new Date().toISOString(),
-    tipo_documento: '1',
-    finalidade_emissao: '1',
-    destinatario: dest,
-    itens,
-    valor_frete: emissao.valorFrete || 0,
-    valor_seguro: emissao.valorSeguro || 0,
-    valor_desconto: emissao.valorDesconto || 0,
-    valor_outras_despesas: emissao.valorOutrasDespesas || 0,
-    informacoes_adicionais_contribuinte: emissao.observacoes || '',
-  };
-}
+  })),
+  valor_frete: emissao.valorFrete || 0,
+  valor_desconto: emissao.valorDesconto || 0,
+  informacoes_adicionais_contribuinte: emissao.observacoes || '',
+});
 
 export async function emitirNFe(emissao: NFeEmissao): Promise<NFeResponse> {
-  const config = loadNFeConfig();
-
-  if (!config) {
-    return {
-      sucesso: false,
-      status: 'erro',
-      mensagem: 'NFe não configurada. Acesse Configurações > NFe para configurar.',
-    };
-  }
-
-  const referencia = `lumina-${Date.now()}`;
-
-  // Tenta usar o backend proxy primeiro (mais seguro)
-  try {
-    const isCnpj = emissao.destinatario.cnpj;
-    const payload = {
-      presenca_comprador: '9',
-      natureza_operacao: emissao.naturezaOperacao || 'Venda',
-      serie: emissao.serie || '1',
-      numero: emissao.numero,
-      data_emissao: new Date().toISOString(),
-      tipo_documento: '1',
-      finalidade_emissao: '1',
-      destinatario: {
-        ...(isCnpj
-          ? { cnpj: emissao.destinatario.cnpj?.replace(/\D/g, ''), razao_social: emissao.destinatario.razaoSocial }
-          : { cpf: emissao.destinatario.cpf?.replace(/\D/g, ''), nome_consumidor: emissao.destinatario.razaoSocial }
-        ),
-        email: emissao.destinatario.email,
-      },
-      itens: emissao.itens.map((item, i) => ({
-        numero_item: i + 1,
-        codigo_produto: item.codigo,
-        descricao: item.descricao,
-        cfop: item.cfop || '5102',
-        unidade_comercial: item.unidade || 'UN',
-        quantidade_comercial: item.quantidade,
-        valor_unitario_comercial: item.valorUnitario,
-        valor_total_bruto: item.valorTotal,
-        ncm: item.ncm || '96190000',
-        origem: item.origem || '0',
-      })),
-      valor_frete: emissao.valorFrete || 0,
-      valor_desconto: emissao.valorDesconto || 0,
-      informacoes_adicionais_contribuinte: emissao.observacoes || '',
-    };
-
-    const response = await fetch(`/api/nfe/emitir?ref=${referencia}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (data.ok || data.status === 'autorizado') {
-      return {
-        sucesso: true,
-        status: 'autorizado',
-        numero: data.numero,
-        serie: data.serie,
-        chave: data.chave,
-        dataAutorizacao: data.data_autorizacao,
-        protocolo: data.numero_protocolo_autorizacao,
-        xmlUrl: data.caminho_xml_autorizacao,
-        pdfUrl: data.caminho_danfe,
-        referencia,
-      };
-    }
-
-    if (data.status === 'processando') {
-      return { sucesso: false, status: 'processando', mensagem: 'NFe em processamento.', referencia };
-    }
-
-    return {
-      sucesso: false,
-      status: 'rejeitado',
-      mensagem: data.mensagem_sefaz || data.status || 'Erro na emissão',
-      erros: data.erros,
-      referencia,
-    };
-  } catch (error) {
-    return {
-      sucesso: false,
-      status: 'erro',
-      mensagem: error instanceof Error ? error.message : 'Erro de conexão',
-      referencia,
-    };
-  }
+  const referencia = `clinxia-${Date.now()}`;
+  const response = await fetch(`/api/nfe/emitir?ref=${encodeURIComponent(referencia)}`, {
+    method: 'POST',
+    headers: getNFeAuthHeaders(),
+    body: JSON.stringify({ payload: buildProviderPayload(emissao) }),
+  });
+  const data = await response.json().catch(() => ({}));
+  return normalizeResponse(data, referencia);
 }
 
 export async function consultarNFe(referencia: string): Promise<NFeResponse> {
-  try {
-    const response = await fetch(`/api/nfe/consultar/${referencia}`);
-    const data = await response.json().catch(() => ({}));
-
-    return {
-      sucesso: data.status === 'autorizado' || data.ok,
-      status: data.status || (data.ok ? 'autorizado' : 'erro'),
-      numero: data.numero,
-      serie: data.serie,
-      chave: data.chave,
-      dataAutorizacao: data.data_autorizacao,
-      protocolo: data.numero_protocolo_autorizacao,
-      xmlUrl: data.caminho_xml_autorizacao,
-      pdfUrl: data.caminho_danfe,
-      mensagem: data.mensagem_sefaz,
-      referencia,
-    };
-  } catch (error) {
-    return { sucesso: false, status: 'erro', mensagem: error instanceof Error ? error.message : 'Erro de conexão', referencia };
-  }
+  const response = await fetch(`/api/nfe/consultar/${encodeURIComponent(referencia)}`, { headers: getNFeAuthHeaders() });
+  const data = await response.json().catch(() => ({}));
+  return normalizeResponse(data, referencia);
 }
 
 export async function cancelarNFe(referencia: string, justificativa: string): Promise<NFeResponse> {
-  try {
-    const response = await fetch(`/api/nfe/cancelar/${referencia}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ justificativa }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    return {
-      sucesso: response.ok || data.ok,
-      status: response.ok ? 'cancelado' : 'erro',
-      mensagem: data.mensagem_sefaz || (response.ok ? 'Cancelado com sucesso' : 'Erro ao cancelar'),
-      referencia,
-    };
-  } catch (error) {
-    return { sucesso: false, status: 'erro', mensagem: error instanceof Error ? error.message : 'Erro de conexão', referencia };
-  }
+  const response = await fetch(`/api/nfe/cancelar/${encodeURIComponent(referencia)}`, {
+    method: 'DELETE',
+    headers: getNFeAuthHeaders(),
+    body: JSON.stringify({ justificativa }),
+  });
+  const data = await response.json().catch(() => ({}));
+  const normalized = normalizeResponse(data, referencia);
+  return { ...normalized, sucesso: normalized.status === 'cancelado' };
 }
 
-export const NFE_CFOP_PADRAO = {
-  vendaInterna: '5102',
-  vendaInternaST: '5405',
-  revenda: '5102',
-  servico: '5933',
-  devolucao: '5202',
-  transferencia: '5152',
-  amostra: '5915',
-};
-
-export const NFE_CSOSN_PADRAO = {
-  isento: '102',
-  tributadaSemCobranca: '102',
-  tributadaComPermissaoCredito: '101',
-  tributadaSemPermissaoCredito: '103',
-  monofasico: '500',
-};
-
-export const NFE_FORMA_PAGAMENTO = {
-  dinheiro: '01',
-  cheque: '02',
-  cartaoCredito: '03',
-  cartaoDebito: '04',
-  creditoLoja: '05',
-  pix: '17',
-  boleto: '15',
-  semPagamento: '90',
-};
-
-export const NFE_UNIDADES = [
-  'UN', 'CX', 'PCT', 'KG', 'G', 'L', 'ML', 'M', 'CM', 'M2', 'M3',
-  'PAR', 'DZ', 'HR', 'DI', 'SE', 'MES', 'ANO', 'KT', 'RES',
-];
-
+export const NFE_CFOP_PADRAO = { vendaInterna: '5102', vendaInternaST: '5405', revenda: '5102', servico: '5933', devolucao: '5202', transferencia: '5152', amostra: '5915' };
+export const NFE_CSOSN_PADRAO = { isento: '102', tributadaSemCobranca: '102', tributadaComPermissaoCredito: '101', tributadaSemPermissaoCredito: '103', monofasico: '500' };
+export const NFE_FORMA_PAGAMENTO = { dinheiro: '01', cheque: '02', cartaoCredito: '03', cartaoDebito: '04', creditoLoja: '05', pix: '17', boleto: '15', semPagamento: '90' };
+export const NFE_UNIDADES = ['UN', 'CX', 'PCT', 'KG', 'G', 'L', 'ML', 'M', 'CM', 'M2', 'M3', 'PAR', 'DZ', 'HR', 'DI', 'SE', 'MES', 'ANO', 'KT', 'RES'];

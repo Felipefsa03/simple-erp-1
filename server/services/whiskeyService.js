@@ -81,7 +81,15 @@ export class WhiskeyService {
   }
 
   async _createSocket(clinicId) {
-    const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, makeCacheableSignalKeyStore, downloadMediaMessage, BufferJSON, jidDecode } = await import("baileys");
+    const baileys = await import("baileys");
+    // Baileys exposes different shapes between ESM/CJS releases. Accept both
+    // forms so a deploy or test double cannot silently produce an undefined
+    // socket constructor.
+    const makeWASocket = typeof baileys.default === "function"
+      ? baileys.default
+      : baileys.default?.makeWASocket || baileys.makeWASocket;
+    const { DisconnectReason, useMultiFileAuthState, makeCacheableSignalKeyStore, downloadMediaMessage, BufferJSON, jidDecode } = baileys;
+    if (typeof makeWASocket !== "function") throw new Error("Construtor do socket Baileys indisponível");
     let retryCount = 0;
     let hasFailed401 = false;
     let hasValidCreds = false;

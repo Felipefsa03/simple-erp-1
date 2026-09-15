@@ -1,148 +1,203 @@
 import express from "express";
 import crypto from "crypto";
 
-export const createCampaignRoutes = ({ campaignsByClinic }) => {
+const ADMIN_ROLES = new Set(["admin", "owner", "super_admin"]);
+
+export const createCampaignRoutes = ({ campaignsByClinic, supabaseAdmin }) => {
   const router = express.Router();
+
   const resolveAuthorizedClinicId = (req, requestedClinicId = "") => {
     const actorRole = String(req.user?.role || "").toLowerCase();
     const actorClinicId = String(req.user?.clinic_id || req.clinicId || "").trim();
     const targetClinicId = String(requestedClinicId || "").trim();
-
-    if (!actorClinicId && actorRole !== "super_admin") {
-      return { ok: false, status: 401, error: "Contexto de clínica ausente na sessão." };
-    }
+    if (!actorClinicId && actorRole !== "super_admin") return { ok: false, status: 401, error: "Contexto de clínica ausente na sessão." };
     if (actorRole === "super_admin") {
       if (!targetClinicId) return { ok: false, status: 400, error: "clinicId é obrigatório para super_admin." };
-      return { ok: true, clinicId: targetClinicId, isSuperAdmin: true };
+      return { ok: true, clinicId: targetClinicId };
     }
-    if (targetClinicId && targetClinicId !== actorClinicId) {
-      return { ok: false, status: 403, error: "Acesso negado para outra clínica." };
-    }
-    return { ok: true, clinicId: actorClinicId, isSuperAdmin: false };
+    if (targetClinicId && targetClinicId !== actorClinicId) return { ok: false, status: 403, error: "Acesso negado para outra clínica." };
+    return { ok: true, clinicId: actorClinicId };
   };
 
-  const findCampaignByIdInClinic = (clinicId, id) => {
-    const campaigns = campaignsByClinic.get(clinicId) || [];
-    const index = campaigns.findIndex((c) => c.id === id);
-    return { campaigns, index };
+  const requireCampaignAdmin = (req, res) => {
+    if (!ADMIN_ROLES.has(String(req.user?.role || "").toLowerCase())) {
+      res.status(403).json({ ok: false, error: "Apenas administradores podem gerenciar campanhas." });
+      return false;
+    }
+    return true;
   };
 
-  router.get("/clinic/:clinicId", (req, res) => {
-    const auth = resolveAuthorizedClinicId(req, req.params?.clinicId);
-    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
-    const clinicId = auth.clinicId;
-    const campaigns = campaignsByClinic.get(clinicId) || [];
-    res.json({ ok: true, campaigns });
+  const normalize = (campaign) => ({
+    ...campaign,
+    clinicId: campaign.clinicId || campaign.clinic_id,
+    clinic_id: campaign.clinic_id || campaign.clinicId,
+    created_at: campaign.created_at || campaign.createdAt || new Date().toISOString(),
   });
 
-  router.post("/create", (req, res) => {
+  const readFromDatabase = async (clinicId) => {
+    if (!supabaseAdmin) return campaignsByClinic.get(clinicId) || [];
+    const { data, error } = await supabaseAdmin.from("marketing_campaigns").select("payload").eq("clinic_id", clinicId).order("created_at", { ascending: false });
+    if (error) throw error;
+    const campaigns = (data || []).map((row) => normalize(row.payload));
+    campaignsByClinic.set(clinicId, campaigns);
+    return campaigns;
+  };
+
+  const writeToDatabase = async (campaign) => {
+    if (!supabaseAdmin) return;
+    const normalized = normalize(campaign);
+    const { error } = await supabaseAdmin.from("marketing_campaigns").upsert({
+      id: normalized.id,
+      clinic_id: normalized.clinic_id,
+      status: normalized.status,
+      payload: normalized,
+      created_at: normalized.created_at,
+      updated_at: normalized.updated_at || new Date().toISOString(),
+    }, { onConflict: "id" });
+    if (error) throw error;
+  };
+
+  const deleteFromDatabase = async (clinicId, id) => {
+    if (!supabaseAdmin) return;
+    const { error } = await supabaseAdmin.from("marketing_campaigns").delete().eq("clinic_id", clinicId).eq("id", id);
+    if (error) throw error;
+  };
+
+  const findCampaign = async (clinicId, id) => {
+    const campaigns = await readFromDatabase(clinicId);
+    return { campaigns, index: campaigns.findIndex((campaign) => campaign.id === id) };
+  };
+
+  const hydrate = async () => {
+    if (!supabaseAdmin) return;
+    const { data, error } = await supabaseAdmin.from("marketing_campaigns").select("clinic_id, payload");
+    if (error) {
+      console.error("[Campaigns] Falha ao hidratar campanhas persistidas:", error.message);
+      return;
+    }
+    for (const row of data || []) {
+      const current = campaignsByClinic.get(row.clinic_id) || [];
+      campaignsByClinic.set(row.clinic_id, [...current.filter((item) => item.id !== row.payload?.id), normalize(row.payload)]);
+    }
+  };
+  void hydrate();
+
+  router.get("/clinic/:clinicId", async (req, res) => {
+    const auth = resolveAuthorizedClinicId(req, req.params?.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    try {
+      return res.json({ ok: true, campaigns: await readFromDatabase(auth.clinicId) });
+    } catch (error) {
+      console.error("[Campaigns] Falha ao carregar campanhas:", error.message);
+      return res.status(503).json({ ok: false, error: "Campanhas indisponíveis no momento." });
+    }
+  });
+
+  router.post("/create", async (req, res) => {
+    if (!requireCampaignAdmin(req, res)) return;
     const auth = resolveAuthorizedClinicId(req, req.body?.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
-    const clinicId = auth.clinicId;
     const config = req.body?.config || {};
     const name = String(req.body?.name || config.name || "").trim();
     const message = String(req.body?.message || config.message || "").trim();
+    if (!name || !message) return res.status(400).json({ ok: false, error: "clinicId, name e message são obrigatórios." });
 
-    if (!clinicId || !name || !message) {
-      return res.status(400).json({
-        ok: false,
-        error: "clinicId, name e message sao obrigatorios.",
-      });
-    }
-
-    // Limites anti-abuso
-    const safeName = name.slice(0, 120);
-    const safeMessage = message.slice(0, 4000);
+    const timestamp = new Date().toISOString();
     const contacts = Array.isArray(config.contacts) ? config.contacts.slice(0, 500) : [];
-
-    const campaign = {
+    const campaign = normalize({
       id: `campaign-${crypto.randomUUID()}`,
-      clinicId,
-      clinic_id: clinicId,
-      name: safeName,
-      message: safeMessage,
-      channel: config.channel || 'whatsapp',
-      target: config.target || 'all',
-      subject: config.subject || '',
-      template: config.template || '',
+      clinicId: auth.clinicId,
+      clinic_id: auth.clinicId,
+      name: name.slice(0, 120),
+      message: message.slice(0, 4000),
+      channel: config.channel || "whatsapp",
+      target: config.target || "all",
+      subject: String(config.subject || "").slice(0, 200),
+      template: String(config.template || "").slice(0, 10000),
       contacts,
+      settings: config.settings || {},
       status: "draft",
       progress: 0,
-      createdAt: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      stats: {
-        totalContacts: contacts.length,
-        sent: 0,
-        delivered: 0,
-        failed: 0,
-        pending: 0,
-        skipped: 0
-      }
-    };
-
-    const current = campaignsByClinic.get(clinicId) || [];
-    campaignsByClinic.set(clinicId, [...current, campaign]);
-    return res.status(201).json({ ok: true, campaign });
-  });
-
-  router.put("/:id", (req, res) => {
-    const { id } = req.params;
-    const updates = req.body || {};
-    const auth = resolveAuthorizedClinicId(req, updates?.clinicId || req.query?.clinicId);
-    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
-    const { campaigns, index } = findCampaignByIdInClinic(auth.clinicId, id);
-    if (index !== -1) {
-      // Allowlist: impede mass assignment de status/stats/contatos
-      const editable = ["name", "message", "subject", "template", "target", "channel"];
-      const sanitized = {};
-      for (const key of editable) {
-        if (updates[key] !== undefined) sanitized[key] = updates[key];
-      }
-      if (typeof sanitized.name === "string" && sanitized.name.length > 120) sanitized.name = sanitized.name.slice(0, 120);
-      if (typeof sanitized.message === "string" && sanitized.message.length > 4000) sanitized.message = sanitized.message.slice(0, 4000);
-      campaigns[index] = { ...campaigns[index], ...sanitized, clinicId: auth.clinicId, clinic_id: auth.clinicId, updated_at: new Date().toISOString() };
-      campaignsByClinic.set(auth.clinicId, campaigns);
-      return res.json({ ok: true, campaign: campaigns[index] });
+      createdAt: timestamp,
+      created_at: timestamp,
+      stats: { totalContacts: contacts.length, sent: 0, delivered: 0, failed: 0, pending: contacts.length, skipped: 0 },
+    });
+    try {
+      const current = await readFromDatabase(auth.clinicId);
+      campaignsByClinic.set(auth.clinicId, [...current, campaign]);
+      await writeToDatabase(campaign);
+      return res.status(201).json({ ok: true, campaign });
+    } catch (error) {
+      console.error("[Campaigns] Falha ao persistir campanha:", error.message);
+      return res.status(503).json({ ok: false, error: "Não foi possível salvar a campanha." });
     }
-    return res.status(404).json({ ok: false, error: "Campanha nao encontrada" });
   });
 
-  router.delete("/:id", (req, res) => {
-    const { id } = req.params;
-    const auth = resolveAuthorizedClinicId(req, req.query?.clinicId);
-    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
-    const { campaigns, index } = findCampaignByIdInClinic(auth.clinicId, id);
-    if (index !== -1) {
-      campaigns.splice(index, 1);
-      campaignsByClinic.set(auth.clinicId, campaigns);
-      return res.json({ ok: true });
-    }
-    return res.status(404).json({ ok: false, error: "Campanha nao encontrada" });
-  });
-
-  router.post("/:id/:action", (req, res) => {
-    const { id, action } = req.params;
+  router.put("/:id", async (req, res) => {
+    if (!requireCampaignAdmin(req, res)) return;
     const auth = resolveAuthorizedClinicId(req, req.body?.clinicId || req.query?.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
-    const { campaigns, index } = findCampaignByIdInClinic(auth.clinicId, id);
-    if (index !== -1) {
-      const campaign = campaigns[index];
-
-      if (action === 'start' || action === 'resume') {
-        campaign.status = 'running';
-        if (!campaign.startedAt) campaign.startedAt = new Date().toISOString();
-      } else if (action === 'pause') {
-        campaign.status = 'paused';
-      } else if (action === 'finish' || action === 'completed') {
-        campaign.status = 'completed';
-        campaign.completedAt = new Date().toISOString();
-      }
-
+    try {
+      const { campaigns, index } = await findCampaign(auth.clinicId, req.params.id);
+      if (index === -1) return res.status(404).json({ ok: false, error: "Campanha não encontrada" });
+      const editable = ["name", "message", "subject", "template", "target", "channel"];
+      const sanitized = Object.fromEntries(editable.filter((key) => req.body?.[key] !== undefined).map((key) => [key, req.body[key]]));
+      const campaign = normalize({ ...campaigns[index], ...sanitized, updated_at: new Date().toISOString() });
       campaigns[index] = campaign;
       campaignsByClinic.set(auth.clinicId, campaigns);
+      await writeToDatabase(campaign);
       return res.json({ ok: true, campaign });
+    } catch (error) {
+      console.error("[Campaigns] Falha ao atualizar campanha:", error.message);
+      return res.status(503).json({ ok: false, error: "Não foi possível atualizar a campanha." });
     }
-    return res.status(404).json({ ok: false, error: "Campanha nao encontrada" });
+  });
+
+  router.delete("/:id", async (req, res) => {
+    if (!requireCampaignAdmin(req, res)) return;
+    const auth = resolveAuthorizedClinicId(req, req.query?.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    try {
+      const { campaigns, index } = await findCampaign(auth.clinicId, req.params.id);
+      if (index === -1) return res.status(404).json({ ok: false, error: "Campanha não encontrada" });
+      campaigns.splice(index, 1);
+      campaignsByClinic.set(auth.clinicId, campaigns);
+      await deleteFromDatabase(auth.clinicId, req.params.id);
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("[Campaigns] Falha ao excluir campanha:", error.message);
+      return res.status(503).json({ ok: false, error: "Não foi possível excluir a campanha." });
+    }
+  });
+
+  router.post("/:id/:action", async (req, res) => {
+    if (!requireCampaignAdmin(req, res)) return;
+    const auth = resolveAuthorizedClinicId(req, req.body?.clinicId || req.query?.clinicId);
+    if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
+    try {
+      const { campaigns, index } = await findCampaign(auth.clinicId, req.params.id);
+      if (index === -1) return res.status(404).json({ ok: false, error: "Campanha não encontrada" });
+      const campaign = campaigns[index];
+      if (["start", "resume"].includes(req.params.action)) {
+        campaign.status = "running";
+        campaign.startedAt ||= new Date().toISOString();
+      } else if (req.params.action === "pause") {
+        campaign.status = "paused";
+      } else if (["finish", "completed", "stop"].includes(req.params.action)) {
+        campaign.status = "completed";
+        campaign.completedAt = new Date().toISOString();
+      } else {
+        return res.status(400).json({ ok: false, error: "Ação de campanha inválida." });
+      }
+      campaign.updated_at = new Date().toISOString();
+      campaigns[index] = campaign;
+      campaignsByClinic.set(auth.clinicId, campaigns);
+      await writeToDatabase(campaign);
+      return res.json({ ok: true, campaign });
+    } catch (error) {
+      console.error("[Campaigns] Falha ao alterar estado da campanha:", error.message);
+      return res.status(503).json({ ok: false, error: "Não foi possível alterar a campanha." });
+    }
   });
 
   return router;

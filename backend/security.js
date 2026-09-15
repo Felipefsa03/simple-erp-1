@@ -5,7 +5,7 @@
 
 const crypto = require('crypto');
 
-const DEFAULT_KEY = process.env.SECURITY_KEY || 'dev-only-key-do-not-use-in-prod';
+const DEFAULT_KEY = process.env.SECURITY_KEY || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-key-do-not-use-in-prod');
 if (!DEFAULT_KEY && process.env.NODE_ENV === 'production') {
   throw new Error('[SECURITY] SECURITY_KEY environment variable is required in production');
 }
@@ -81,7 +81,7 @@ const generateSessionToken = () => {
   return generateToken(48);
 };
 
-const maskSensitiveData = (data) => {
+const maskSensitiveData = (data, forceMask = false) => {
   if (!data) return data;
   
   if (typeof data === 'string') {
@@ -96,13 +96,18 @@ const maskSensitiveData = (data) => {
     if (cpfMatch) {
       return `${cpfMatch[1].padEnd(3, '*')}.***.***-${cpfMatch[4]}`;
     }
+
+    const rawCpfMatch = forceMask && data.match(/^(\d{3})(\d{3})(\d{3})(\d{2})$/);
+    if (rawCpfMatch) {
+      return `${rawCpfMatch[1]}.***.***-${rawCpfMatch[4]}`;
+    }
     
     const phoneMatch = data.match(/^(\d{2})(\d{8,9})$/);
     if (phoneMatch) {
       return `${phoneMatch[1]}****${phoneMatch[2].slice(-4)}`;
     }
     
-    if (data.length >= 8) {
+    if (forceMask && data.length >= 8) {
       return data.substring(0, 2) + '*'.repeat(data.length - 4) + data.substring(data.length - 2);
     }
     
@@ -115,7 +120,7 @@ const maskSensitiveData = (data) => {
     
     for (const [key, value] of Object.entries(data)) {
       if (sensitiveFields.some(field => key.toLowerCase().includes(field))) {
-        masked[key] = maskSensitiveData(value);
+        masked[key] = maskSensitiveData(value, true);
       } else if (typeof value === 'object') {
         masked[key] = maskSensitiveData(value);
       } else {

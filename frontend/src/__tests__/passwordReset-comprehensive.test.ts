@@ -52,11 +52,13 @@ function createPasswordResetStore(): PasswordResetState & {
     setCodeDigit(index: number, value: string) {
       if (index >= 0 && index < 6 && /^\d$/.test(value)) {
         state.code[index] = value;
+        state.step = 'code';
       }
     },
 
     setNewPassword(password: string) {
       state.newPassword = password;
+      state.step = 'new-password';
     },
 
     setConfirmPassword(password: string) {
@@ -74,7 +76,7 @@ function createPasswordResetStore(): PasswordResetState & {
     },
 
     canSubmit(): boolean {
-      if (state.step === 'email') return state.email.includes('@');
+      if (state.step === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.email);
       if (state.step === 'code') return state.code.every(d => d !== '');
       if (state.step === 'new-password') {
         return state.newPassword.length >= 8 && state.newPassword === state.confirmPassword;

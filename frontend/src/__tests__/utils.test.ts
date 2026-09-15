@@ -10,7 +10,7 @@ function uid() {
 }
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value).replace(/\u00a0/g, ' ');
 }
 
 function formatDateBR(dateStr: string): string {

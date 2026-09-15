@@ -118,9 +118,28 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
   const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(null);
 
   const idsRef = useRef<{ signupId: string; clinicId: string }>({
-    signupId: crypto.randomUUID(),
-    clinicId: crypto.randomUUID(),
+    signupId: '',
+    clinicId: '',
   });
+  const [signupReady, setSignupReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/signup/init`, { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok || !data.ok || !data.signup_id || !data.clinic_id) throw new Error(data.error || 'Falha ao reservar o cadastro.');
+        if (!cancelled) {
+          idsRef.current = { signupId: String(data.signup_id), clinicId: String(data.clinic_id) };
+          setSignupReady(true);
+        }
+      } catch (error) {
+        if (!cancelled) setError(error instanceof Error ? error.message : 'Não foi possível iniciar o cadastro.');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -229,6 +248,7 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
   };
 
   const handleSendPhoneCode = async () => {
+    if (!signupReady) { setError('Aguarde a inicialização segura do cadastro.'); return; }
     if (!form.phone.trim()) { setError('Informe o telefone.'); return; }
     setLoading(true); setError('');
     try {
@@ -276,6 +296,7 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
   };
 
   const handleActivateTrial = async () => {
+    if (!signupReady) { setError('Aguarde a inicialização segura do cadastro.'); return; }
     if (phoneVerificationEnabled && !phoneVerified) {
       setError('Valide o telefone antes de ativar.'); return;
     }
@@ -287,7 +308,6 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           signupId: idsRef.current.signupId,
-          clinicId: idsRef.current.clinicId,
           name: form.name, email: form.email, phone: form.phone, password: form.password,
           clinicName: form.clinicName, clinicDoc: form.clinicDoc,
           docType: form.docType, modality: form.modality,

@@ -11,6 +11,7 @@ import type {
 } from '@/types/subscription';
 import { SUBSCRIPTION_PLANS, getPlanById, isTrialExpired, getDaysRemaining } from '@/types/subscription';
 import { uid, now } from '@/lib/utils';
+import { getSupabaseSession } from '@/lib/supabase';
 
 interface SubscriptionStore {
   // Estado
@@ -74,9 +75,25 @@ export const useSubscriptionStore = create<SubscriptionStore>()((set, get) => ({
 
         const current = get().subscription;
         
-        // Criar assinatura no Mercado Pago (simulado)
-        const mpSubscriptionId = `MP_SUB_${uid()}`;
-        const mpCustomerId = `MP_CUST_${clinicId}`;
+        const session = getSupabaseSession();
+        if (!session?.access_token || !session.user?.email) throw new Error('Sessão autenticada necessária para iniciar a assinatura.');
+        const planMap: Record<string, string> = { basic: 'basico', pro: 'profissional', ultra: 'premium' };
+        const metadata = (session.user.user_metadata || {}) as Record<string, unknown>;
+        const response = await fetch('/api/mercadopago/create-preference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({
+            clinicId,
+            plan: planMap[planId] || planId,
+            email: session.user.email,
+            name: String(metadata.full_name || session.user.email),
+            clinicName: String(metadata.clinic_name || clinicId),
+            modality: 'odonto',
+            billingCycle,
+          }),
+        });
+        const gateway = await response.json().catch(() => ({}));
+        if (!response.ok || !gateway.ok || !gateway.preference_id) throw new Error(gateway.error || 'Não foi possível iniciar a cobrança.');
         
         const subscriptionStart = new Date();
         const subscriptionEnd = new Date();
@@ -92,9 +109,9 @@ export const useSubscriptionStore = create<SubscriptionStore>()((set, get) => ({
           trial_end_date: current?.trial_end_date || now(),
           subscription_start_date: subscriptionStart.toISOString(),
           subscription_end_date: subscriptionEnd.toISOString(),
-          mp_subscription_id: mpSubscriptionId,
-          mp_customer_id: mpCustomerId,
+          mp_subscription_id: String(gateway.preference_id),
           mp_subscription_status: 'pending',
+          checkout_url: gateway.init_point || gateway.point_of_interaction_url || undefined,
           payment_method: 'pix',
           next_billing_date: subscriptionEnd.toISOString(),
           is_blocked: false,
@@ -104,15 +121,6 @@ export const useSubscriptionStore = create<SubscriptionStore>()((set, get) => ({
 
         set({ subscription });
         
-        // Simular criação de assinatura no Mercado Pago
-        // Em produção, faria chamada à API do Mercado Pago
-        console.log('📦 Criando assinatura no Mercado Pago:', {
-          planId,
-          billingCycle,
-          customerId: mpCustomerId,
-          amount: billingCycle === 'monthly' ? plan.price_monthly : plan.price_yearly,
-        });
-
         return subscription;
       },
 

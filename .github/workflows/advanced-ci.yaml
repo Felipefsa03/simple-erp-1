@@ -25,22 +25,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
             
-      - name: Install dependencies (backend)
-        run: npm ci --prefix simple-erp
-        
-      - name: Install dependencies (frontend)
-        run: npm ci --prefix simple-erp/frontend
+      - name: Install dependencies
+        run: npm ci
         
       - name: TypeScript type check (frontend)
-        run: npx tsc -p simple-erp/frontend/tsconfig.json --noEmit
-        continue-on-error: true
+        run: npm run typecheck
         
       - name: Lint (frontend)
-        run: npm run lint --prefix simple-erp
-        continue-on-error: true
+        run: npm run lint
         
       - name: Build frontend (Vite)
-        run: npm run build --prefix simple-erp/frontend
+        run: npm run build
         
       - name: Self-Healing patch sanity (dry-run)
         run: |
@@ -78,7 +73,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Run npm audit
-        run: npm audit --prefix simple-erp --audit-level=moderate || true
+        run: npm audit --audit-level=high
         
       - name: Run npm audit (frontend)
-        run: npm audit --prefix simple-erp/frontend --audit-level=moderate || true
+        run: npm audit --audit-level=high

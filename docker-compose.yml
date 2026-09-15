@@ -26,9 +26,8 @@ services:
       - VITE_MP_ACCESS_TOKEN=${VITE_MP_ACCESS_TOKEN:-}
       - VITE_MP_IS_SANDBOX=${VITE_MP_IS_SANDBOX:-true}
     volumes:
-      - ./simple-erp/backend/auth_info_clinic-1:/app/simple-erp/backend/auth_info_clinic-1
-      - ./simple-erp/server/data:/app/simple-erp/server/data
-      - ./simple-erp/logs:/app/simple-erp/logs
+      - ./server/data:/app/server/data
+      - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8787/api/health"]

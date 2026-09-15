@@ -67,6 +67,16 @@ router.get("/clinics", requireAuth, requireSuperAdmin, async (req, res) => {
       }
     }
 
+    const { data: patientCounts } = await supabaseAdmin
+      .from("patients")
+      .select("clinic_id")
+      .in("clinic_id", clinicIds)
+        .is("deleted_at", null);
+    const patientCountMap = {};
+    for (const patient of patientCounts || []) {
+      patientCountMap[patient.clinic_id] = (patientCountMap[patient.clinic_id] || 0) + 1;
+    }
+
     // Build response with enriched data
     const planPrices = await getPlanPrices();
     const enriched = clinics.map(clinic => {
@@ -84,6 +94,7 @@ router.get("/clinics", requireAuth, requireSuperAdmin, async (req, res) => {
         phone: clinic.phone || admin?.phone || "",
         cnpj: clinic.cnpj || "",
         users_count: userCountMap[clinic.id] || 0,
+        patients_count: patientCountMap[clinic.id] || 0,
         created_at: clinic.created_at,
         expires_at: clinic.expires_at || null,
         last_payment_at: clinic.last_payment_at || null,
@@ -95,8 +106,40 @@ router.get("/clinics", requireAuth, requireSuperAdmin, async (req, res) => {
     return res.json({ ok: true, data: enriched });
   } catch (error) {
     console.error("[SuperAdmin] Error in GET /clinics:", error.message);
-    return res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({ ok: false, error: "Não foi possível carregar as clínicas." });
   }
+});
+
+router.patch("/clinics/:clinicId", requireAuth, requireSuperAdmin, async (req, res) => {
+  const clinicId = String(req.params?.clinicId || "").trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clinicId)) {
+    return res.status(400).json({ ok: false, error: "clinicId inválido." });
+  }
+  const updates = {};
+  if (req.body?.status !== undefined) {
+    const status = String(req.body.status).toLowerCase();
+    if (!new Set(["trial", "active", "blocked", "suspended", "cancelled"]).has(status)) {
+      return res.status(400).json({ ok: false, error: "Status inválido." });
+    }
+    updates.status = status;
+  }
+  if (req.body?.plan !== undefined) {
+    const plan = String(req.body.plan).toLowerCase();
+    if (!new Set(["basico", "profissional", "premium"]).has(plan)) {
+      return res.status(400).json({ ok: false, error: "Plano inválido." });
+    }
+    updates.plan = plan;
+  }
+  if (!Object.keys(updates).length) return res.status(400).json({ ok: false, error: "Nenhuma alteração válida informada." });
+  updates.updated_at = new Date().toISOString();
+  const { data, error } = await supabaseAdmin.from("clinics").update(updates).eq("id", clinicId).select("id,status,plan").maybeSingle();
+  if (error) {
+    console.error("[SuperAdmin] Falha ao atualizar clínica:", error.message);
+    return res.status(500).json({ ok: false, error: "Não foi possível atualizar a clínica." });
+  }
+  if (!data) return res.status(404).json({ ok: false, error: "Clínica não encontrada." });
+  addLog(`[SuperAdmin] ${req.user.id} atualizou clínica ${clinicId}: ${JSON.stringify(updates)}`);
+  return res.json({ ok: true, clinic: data });
 });
 
 // POST /api/super-admin/confirm-payment — Manually confirm a monthly payment
@@ -126,7 +169,7 @@ router.post("/confirm-payment", requireAuth, requireSuperAdmin, async (req, res)
 
     if (error) {
       console.error("[SuperAdmin] Failed to confirm payment:", error.message);
-      return res.status(500).json({ ok: false, error: error.message });
+      return res.status(500).json({ ok: false, error: "Não foi possível confirmar o pagamento." });
     }
     if (!updated) {
       return res.status(404).json({ ok: false, error: "Clínica não encontrada" });
@@ -142,7 +185,7 @@ router.post("/confirm-payment", requireAuth, requireSuperAdmin, async (req, res)
     });
   } catch (error) {
     console.error("[SuperAdmin] Error in confirm-payment:", error.message);
-    return res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({ ok: false, error: "Não foi possível confirmar o pagamento." });
   }
 });
 

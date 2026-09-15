@@ -55,7 +55,7 @@ const fetchUserByEmail = async (email) => {
     if (resUsers.ok) {
       const users = await resUsers.json();
       if (Array.isArray(users) && users.length > 0) {
-        console.log(`[fetchUserByEmail] Encontrado em 'users': ${normalizedEmail}`);
+        console.log("[fetchUserByEmail] Encontrado em 'users'");
         return users[0];
       }
     }
@@ -68,7 +68,7 @@ const fetchUserByEmail = async (email) => {
       const profs = await resProfs.json();
       if (Array.isArray(profs) && profs.length > 0) {
         const p = profs[0];
-        console.log(`[fetchUserByEmail] Encontrado em 'professionals': ${normalizedEmail}`);
+        console.log("[fetchUserByEmail] Encontrado em 'professionals'");
         return {
           id: p.user_id || p.id,
           clinic_id: p.clinic_id,
@@ -80,10 +80,10 @@ const fetchUserByEmail = async (email) => {
       }
     }
   } catch (error) {
-    console.error(`[fetchUserByEmail] Erro ao buscar usuário ${email}:`, error);
+    console.error("[fetchUserByEmail] Erro ao buscar usuário");
   }
   
-  console.log(`[fetchUserByEmail] Usuário não encontrado em nenhuma tabela: ${normalizedEmail}`);
+  console.log("[fetchUserByEmail] Usuário não encontrado em nenhuma tabela");
   return null;
 };
 
@@ -122,10 +122,7 @@ const findAuthUserIdByEmail = async (email) => {
 };
 
 const createSupabaseAuthUser = async ({ email, password, name }) => {
-  console.log('[createSupabaseAuthUser] Starting with email:', email);
-  console.log('[createSupabaseAuthUser] SUPABASE_URL:', SUPABASE_URL ? 'SET' : 'MISSING');
-  console.log('[createSupabaseAuthUser] SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? 'SET' : 'MISSING');
-  console.log('[createSupabaseAuthUser] SUPABASE_SERVICE_ROLE_KEY:', SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING');
+  console.log('[createSupabaseAuthUser] Starting auth provisioning');
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error('[createSupabaseAuthUser] Missing SUPABASE_URL or SUPABASE_ANON_KEY');
@@ -187,7 +184,7 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
   // First, try to reuse existing auth user by email.
   const existingId = await findAuthUserIdByEmail(email);
   if (existingId) {
-    console.log('[createSupabaseAuthUser] Found existing user by email:', existingId);
+    console.log('[createSupabaseAuthUser] Reusing existing auth account');
     return updateExistingAuthUser(existingId);
   }
 
@@ -204,11 +201,11 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
   });
 
   const payload = await safeJson(response);
-  console.log('[createSupabaseAuthUser] Admin API response:', response.status, payload);
+  console.log('[createSupabaseAuthUser] Admin API response status:', response.status);
 
   if (response.ok && (payload?.user?.id || payload?.id)) {
     const newUserId = payload?.user?.id || payload?.id;
-    console.log('[createSupabaseAuthUser] Admin user creation success:', newUserId);
+    console.log('[createSupabaseAuthUser] Admin user creation succeeded');
     return { userId: newUserId, created: true };
   }
 
@@ -218,10 +215,7 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
       payload?.error ||
       "Erro ao criar usuário auth",
   );
-  if (payload?.raw_text) {
-    message += ` | RAW: ${payload.raw_text.substring(0, 100)}`;
-  }
-  console.log('[createSupabaseAuthUser] Error message:', message);
+  console.error('[createSupabaseAuthUser] Admin API request failed');
   if (/already|registered|exists|duplicat/i.test(message)) {
     const duplicateId = await findAuthUserIdByEmail(email);
     if (duplicateId) {
@@ -230,10 +224,12 @@ const createSupabaseAuthUser = async ({ email, password, name }) => {
   }
 
   if (message.includes("invalid JWT") || message.includes("unable to parse or verify signature")) {
-    message = "Estado não suportado ou dados não puderam ser autenticados. A chave SUPABASE_SERVICE_ROLE_KEY no Render está com assinatura inválida. Vá em 'Project Settings -> API -> Legacy anon, service_role API keys' no Supabase e copie a chave ATUAL (começa com eyJhb...). Não use chaves antigas se o JWT secret foi alterado.";
+    throw new Error("Credencial administrativa do servidor inválida.");
   }
 
-  throw new Error(message);
+  throw new Error(/invalid|missing|required|password|email|already|registered|exists|duplicat/i.test(message)
+    ? message
+    : "Não foi possível criar o usuário.");
 };
 
 const upsertClinicRecord = async ({
@@ -381,7 +377,7 @@ const upsertClinicTeamUser = async ({
   );
   if (!response.ok) {
     const err = await safeJson(response);
-    console.error("[upsertClinicTeamUser] Failed to upsert user. Response status:", response.status, "Payload:", err);
+    console.error("[upsertClinicTeamUser] Failed to upsert user. Response status:", response.status);
     throw new Error(err?.message || err?.error || err?.raw_text || "Erro ao criar usuário da equipe");
   }
 
@@ -416,6 +412,12 @@ const consumePhoneVerification = async (signupId) => {
   await setVerificationSession(signupId, session);
 };
 
+const deleteSupabaseAuthUser = async (userId) => {
+  if (!userId || !SUPABASE_SERVICE_ROLE_KEY) return;
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  if (error) console.error('[AuthProvision] Rollback of auth user failed:', error.message);
+};
+
 
 export {
   fetchUserByEmail,
@@ -426,5 +428,6 @@ export {
   upsertClinicAdminUser,
   upsertClinicTeamUser,
   assertPhoneVerificationValid,
-  consumePhoneVerification
+  consumePhoneVerification,
+  deleteSupabaseAuthUser,
 };

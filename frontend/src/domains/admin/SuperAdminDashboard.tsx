@@ -13,7 +13,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Modal, ConfirmDialog } from '@/components/shared';
 import { useAuth } from '@/hooks/useAuth';
 import type { PlatformSubscription, SecurityLog, ActiveSession } from '@/types';
-import { DEMO_PLATFORM_CLINICS } from '@/lib/platformData';
 import { SupabaseSync } from '@/lib/supabaseSync';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/lib/supabaseConfig';
 import { getSupabaseSession } from '@/lib/supabase';
@@ -135,7 +134,7 @@ interface SuperAdminDashboardProps {
 
 export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDashboardProps) {
   const navigate = useNavigate();
-  const { user, login, impersonateClinic } = useAuth();
+  const { user, impersonateClinic } = useAuth();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSub, setSelectedSub] = useState<PlatformSubscription | null>(null);
@@ -153,82 +152,18 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   const [securityLogs, setSecurityLogs] = useState<any[]>([]);
   const [securityDataLoading, setSecurityDataLoading] = useState(false);
 
-  // Fetch real clinics directly from Supabase
+  // Dados de super_admin passam pelo backend, que aplica autorização e
+  // devolve apenas os agregados necessários ao painel.
   const fetchRealClinics = React.useCallback(async () => {
     setClinicsLoading(true);
     try {
       const token = SupabaseSync.getAuthToken();
-      const apiKey = SUPABASE_PUBLISHABLE_KEY;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'apikey': apiKey,
-        'Authorization': `Bearer ${token || apiKey}`,
-      };
-      const baseUrl = `${SUPABASE_URL}/rest/v1`;
-
-      // Fetch all clinics
-      const clinicsRes = await fetch(`${baseUrl}/clinics?select=*&order=created_at.desc`, { headers });
-      if (!clinicsRes.ok) {
-        console.error('[SuperAdmin] Failed to fetch clinics:', clinicsRes.status);
-        setClinicsLoading(false);
-        return;
-      }
-      const clinics = await clinicsRes.json();
-
-      if (!clinics || clinics.length === 0) {
-        setRealClinics([]);
-        setClinicsLoading(false);
-        return;
-      }
-
-      // Fetch admin users
-      const clinicIds = clinics.map((c: any) => c.id);
-      const adminsRes = await fetch(
-        `${baseUrl}/users?role=eq.admin&clinic_id=in.(${clinicIds.join(',')})&select=clinic_id,name,email,phone`,
-        { headers }
-      );
-      const admins = adminsRes.ok ? await adminsRes.json() : [];
-
-      const adminMap: Record<string, any> = {};
-      for (const a of admins) {
-        if (!adminMap[a.clinic_id]) adminMap[a.clinic_id] = a;
-      }
-
-      // Count active users per clinic
-      const usersRes = await fetch(
-        `${baseUrl}/users?active=eq.true&clinic_id=in.(${clinicIds.join(',')})&select=clinic_id`,
-        { headers }
-      );
-      const usersList = usersRes.ok ? await usersRes.json() : [];
-      const userCountMap: Record<string, number> = {};
-      for (const u of usersList) {
-        userCountMap[u.clinic_id] = (userCountMap[u.clinic_id] || 0) + 1;
-      }
-
-      // Build enriched data
-      const planPricesMap: Record<string, number> = { basico: 197, profissional: 397, premium: 697 };
-      const enriched = clinics.map((clinic: any) => {
-        const admin = adminMap[clinic.id];
-        const planName = String(clinic.plan || 'basico').toLowerCase();
-        return {
-          id: clinic.id,
-          name: clinic.name || 'Sem nome',
-          plan: clinic.plan || 'basico',
-          status: clinic.status || 'trial',
-          amount: planPricesMap[planName] || 0,
-          email: clinic.email || admin?.email || '',
-          phone: clinic.phone || admin?.phone || '',
-          cnpj: clinic.cnpj || '',
-          users_count: userCountMap[clinic.id] || 0,
-          created_at: clinic.created_at,
-          expires_at: clinic.expires_at || null,
-          last_payment_at: clinic.last_payment_at || null,
-          admin_name: admin?.name || '',
-          admin_email: admin?.email || '',
-        };
+      const response = await fetch('/api/super-admin/clinics', {
+        headers: { Authorization: `Bearer ${token || ''}` },
       });
-
-      setRealClinics(enriched);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok) throw new Error(payload.error || 'Não foi possível carregar as clínicas.');
+      setRealClinics(Array.isArray(payload.data) ? payload.data : []);
     } catch (e) {
       console.error('[SuperAdmin] Failed to fetch clinics:', e);
     } finally {
@@ -314,43 +249,23 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   const handleConfirmPayment = async (clinic: any) => {
     setPaymentProcessing(true);
     try {
-      const now = new Date();
-      const nextBilling = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
       const token = SupabaseSync.getAuthToken();
-      const apiKey = SUPABASE_PUBLISHABLE_KEY;
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'apikey': apiKey,
-        'Authorization': `Bearer ${token || apiKey}`,
-        'Prefer': 'return=representation',
-      };
-
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinic.id}`,
-        {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({
-            status: 'active',
-            expires_at: nextBilling.toISOString(),
-            last_payment_at: now.toISOString(),
-          }),
-        }
-      );
-
-      if (res.ok) {
+      const res = await fetch('/api/super-admin/confirm-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+        body: JSON.stringify({ clinic_id: clinic.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
         setRealClinics(prev => prev.map(c => c.id === clinic.id ? {
           ...c,
           status: 'active',
-          expires_at: nextBilling.toISOString(),
-          last_payment_at: now.toISOString(),
+          expires_at: data.next_billing_date,
+          last_payment_at: data.last_payment_at,
         } : c));
         setConfirmPaymentClinic(null);
       } else {
-        const errText = await res.text();
-        console.error('[SuperAdmin] Failed to confirm payment:', errText);
-        alert('Erro ao confirmar pagamento. Verifique as permissões RLS.');
+        alert(data.error || 'Erro ao confirmar pagamento.');
       }
     } catch (e: any) {
       alert('Erro de conexão: ' + e.message);
@@ -387,32 +302,59 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
 
   React.useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
 
-  const clinics = DEMO_PLATFORM_CLINICS;
+  const clinics: any[] = realClinics;
   // KPIs baseados nos dados reais do Supabase
-  const planPricesKpi: Record<string, number> = { basico: 197, profissional: 397, premium: 697 };
-  const totalMRR = realClinics.length > 0 
-    ? realClinics.filter(c => c.status === 'active').reduce((s, c) => s + (c.amount || 0), 0)
-    : clinics.reduce((s, c) => s + c.mrr, 0);
-  const totalUsers = realClinics.length > 0 
-    ? realClinics.reduce((s, c) => s + (c.users_count || 0), 0)
-    : clinics.reduce((s, c) => s + c.users, 0);
-  const totalClinicsActive = realClinics.length > 0
-    ? realClinics.filter(c => c.status === 'active').length
-    : clinics.filter(c => c.status === 'active').length;
-  const totalPatients = clinics.reduce((s, c) => s + c.patients, 0);
+  const totalMRR = realClinics.filter(c => c.status === 'active').reduce((s, c) => s + (c.amount || 0), 0);
+  const totalUsers = realClinics.reduce((s, c) => s + (c.users_count || 0), 0);
+  const totalClinicsActive = realClinics.filter(c => c.status === 'active').length;
+  const totalPatients = realClinics.reduce((s, c) => s + (c.patients_count || 0), 0);
 
   const filteredLogs = useMemo(() => {
-    let logs = DEMO_SECURITY_LOGS;
+    let logs = securityLogs;
     if (securityFilter !== 'all') logs = logs.filter(l => l.action === securityFilter);
     return logs;
-  }, [securityFilter]);
+  }, [securityFilter, securityLogs]);
 
-  const handleSubAction = (sub: PlatformSubscription, action: string) => {
-    setConfirmAction(null);
+  const handleSubAction = async (sub: PlatformSubscription, action: string) => {
+    const clinicId = String(sub.clinic_id || '');
+    const status = action === 'block' || action === 'suspend' ? 'blocked' : action === 'activate' ? 'active' : null;
+    if (!clinicId || !status) {
+      setConfirmAction(null);
+      return;
+    }
+    try {
+      const token = SupabaseSync.getAuthToken();
+      const response = await fetch(`/api/super-admin/clinics/${encodeURIComponent(clinicId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) throw new Error('Não foi possível atualizar a clínica.');
+      setRealClinics(prev => prev.map(c => c.id === clinicId ? { ...c, status } : c));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Falha ao atualizar assinatura.');
+    } finally {
+      setConfirmAction(null);
+    }
   };
 
-  const handleChangePlan = (sub: PlatformSubscription, newPlan: 'basic' | 'pro' | 'ultra') => {
-    setChangePlanModal(null);
+  const handleChangePlan = async (sub: PlatformSubscription, newPlan: 'basic' | 'pro' | 'ultra') => {
+    const clinicId = String(sub.clinic_id || '');
+    const plan = ({ basic: 'basico', pro: 'profissional', ultra: 'premium' } as Record<string, string>)[newPlan];
+    try {
+      const token = SupabaseSync.getAuthToken();
+      const response = await fetch(`/api/super-admin/clinics/${encodeURIComponent(clinicId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+        body: JSON.stringify({ plan }),
+      });
+      if (!response.ok) throw new Error('Não foi possível alterar o plano.');
+      setRealClinics(prev => prev.map(c => c.id === clinicId ? { ...c, plan } : c));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Falha ao alterar plano.');
+    } finally {
+      setChangePlanModal(null);
+    }
   };
 
   const handleInspectClinic = (clinic: any) => {
@@ -422,24 +364,11 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   };
 
   const handleImpersonateClinic = async (clinicId: string) => {
-    // Para clínicas reais, a impersonação agora utiliza o método robusto do store
-    const clinicPasswords: Record<string, { email: string; password: string }> = {
-      'clinic-1': { email: 'clinica@clinxia.com.br', password: 'clinica123' },
-      'clinic-2': { email: 'camila@esteticapremium.com.br', password: 'premium123' },
-      'clinic-3': { email: 'rafael@odontovida.com.br', password: 'odontovida123' },
-      'clinic-4': { email: 'amanda@sorrisoperfeito.com.br', password: 'sorriso123' },
-    };
-    
-    const credentials = clinicPasswords[clinicId];
-    if (credentials) {
-      login(credentials.email, credentials.password);
+    const success = await impersonateClinic(clinicId);
+    if (success) {
+      navigate('/dashboard');
     } else {
-      const success = await impersonateClinic(clinicId);
-      if (success) {
-        navigate('/dashboard');
-      } else {
-        alert('Falha na impersonação: Verifique se o ID da clínica é válido ou se você possui permissões de super-admin.');
-      }
+      alert('Falha na impersonação: verifique as permissões de super-admin.');
     }
   };
 
@@ -459,8 +388,19 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   // ===== MODO INSPETOR =====
   if (inspectMode && selectedClinicForInspect) {
     const clinic = selectedClinicForInspect;
-    const team = DEMO_CLINIC_TEAMS[clinic.id] || [];
-    const stats = DEMO_CLINIC_STATS[clinic.id] || {};
+    const team: any[] = [];
+    const stats = {
+      patientsTotal: clinic.patients_count || 0,
+      patientsAtivos: clinic.patients_count || 0,
+      patientsInativos: 0,
+      appointmentsTotal: 0,
+      appointmentsMes: 0,
+      taxaNoShow: 0,
+      revenueTotal: 0,
+      revenueMes: 0,
+      ticketMedio: 0,
+      appointmentStats: { agendados: 0, confirmados: 0, emAtendimento: 0, concluidos: 0, falta: 0 },
+    };
     const admin = team.find((m: any) => m.role === 'admin');
     const sub = {
       plan: clinic.plan || 'basico',
@@ -746,7 +686,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100"><h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Activity className="w-5 h-5 text-brand-500" />Atividades Recentes</h3></div>
             <div className="divide-y divide-slate-50">
-              {DEMO_SECURITY_LOGS.filter(l => team.some((m: any) => m.id === l.user_id)).slice(0, 10).map(log => (
+              {securityLogs.filter(l => l.clinic_id === clinic.id).slice(0, 10).map(log => (
                 <div key={log.id} className="p-4 flex items-center gap-4">
                   <span className={cn("text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap", actionColors[log.action] || 'bg-slate-100 text-slate-600')}>
                     {actionLabels[log.action] || log.action}
@@ -758,7 +698,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                   <p className="text-xs text-slate-400 whitespace-nowrap">{new Date(log.created_at).toLocaleString('pt-BR')}</p>
                 </div>
               ))}
-              {DEMO_SECURITY_LOGS.filter(l => team.some((m: any) => m.id === l.user_id)).length === 0 && (
+              {securityLogs.filter(l => l.clinic_id === clinic.id).length === 0 && (
                 <div className="p-8 text-center text-slate-400">Nenhuma atividade recente.</div>
               )}
             </div>

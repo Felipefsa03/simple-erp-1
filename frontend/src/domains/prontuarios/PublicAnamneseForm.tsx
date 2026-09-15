@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ClipboardCheck } from 'lucide-react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { toast } from '@/hooks/useShared';
@@ -21,9 +21,12 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
     observations: '',
   });
   const [submitted, setSubmitted] = useState(false);
+  const [remotePatient, setRemotePatient] = useState<{ id: string; name: string } | null>(null);
+  const [remoteExpiresAt, setRemoteExpiresAt] = useState<string | null>(null);
   const decodedLink = useMemo(() => {
     try {
-      const json = atob(token.replace(/-/g, '+').replace(/_/g, '/'));
+      const encodedBody = token.includes('.') ? token.split('.')[0] : token;
+      const json = atob(encodedBody.replace(/-/g, '+').replace(/_/g, '/'));
       const payload = JSON.parse(json);
       return {
         patient_id: payload.p,
@@ -45,6 +48,18 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
 
   const link = decodedLink || storeLink;
 
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/public/anamnese/${encodeURIComponent(token)}`)
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.error || 'Link inválido');
+        setRemotePatient(data.patient || null);
+        setRemoteExpiresAt(data.expires_at || null);
+      })
+      .catch(error => console.error('[PublicAnamnese] Link inválido:', error));
+  }, [token]);
+
   const patient = useMemo(() => {
     return patients.find(item => item.id === link?.patient_id) || null;
   }, [patients, link?.patient_id]);
@@ -53,7 +68,7 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
     if (!link) return;
 
     // Check expiry
-    if (new Date(link.expires_at).getTime() < Date.now()) {
+    if (new Date(remoteExpiresAt || link.expires_at).getTime() < Date.now()) {
       toast('Este link expirou.', 'error');
       return;
     }
@@ -106,7 +121,7 @@ export function PublicAnamneseForm({ token, onBack }: PublicAnamneseFormProps) {
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 md:p-8">
           <h1 className="text-2xl font-bold text-slate-900">Anamnese Digital</h1>
-          <p className="text-slate-500 mt-1">Paciente: <strong>{patient?.name || 'Não informado'}</strong></p>
+          <p className="text-slate-500 mt-1">Paciente: <strong>{remotePatient?.name || patient?.name || 'Não informado'}</strong></p>
 
           {submitted ? (
             <div className="mt-6 p-6 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-800">

@@ -179,16 +179,11 @@ async function supabaseFetch(table: string, options: {
   }
 }
 
-// UUID da clínica padrão (Lumina Odontologia)
-const DEFAULT_CLINIC_ID = '00000000-0000-0000-0000-000000000001';
-
 const getClinicId = (clinicId?: string) => {
-  // Log para debug
   devLog('[SupabaseSync] getClinicId called with:', clinicId);
   
   if (!clinicId) {
-    devLog('[SupabaseSync] No clinicId, using DEFAULT:', DEFAULT_CLINIC_ID);
-    return DEFAULT_CLINIC_ID;
+    return '';
   }
   
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -198,12 +193,11 @@ const getClinicId = (clinicId?: string) => {
   }
   
   if (clinicId === 'clinic-1') {
-    devLog('[SupabaseSync] clinic-1, using DEFAULT:', DEFAULT_CLINIC_ID);
-    return DEFAULT_CLINIC_ID;
+    return '';
   }
   
-  devLog('[SupabaseSync] Unknown format, using DEFAULT:', DEFAULT_CLINIC_ID);
-  return DEFAULT_CLINIC_ID;
+  devLog('[SupabaseSync] Unknown clinic format; refusing tenant fallback:', clinicId);
+  return '';
 };
 
 // Mapper para converter dados do Supabase para formato do app
@@ -555,11 +549,11 @@ export const SupabaseSync = {
   },
 
   async deleteTransaction(id: string) {
-    return supabaseFetch(`transactions?id=eq.${id}`, { method: 'DELETE' });
+    return supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body: { deleted_at: new Date().toISOString() } });
   },
 
   async deleteMedicalRecord(id: string) {
-    return supabaseFetch(`medical_records?id=eq.${id}`, { method: 'DELETE' });
+    return supabaseFetch(`medical_records?id=eq.${id}`, { method: 'PATCH', body: { deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() } });
   },
 
   async saveProfessional(professional: any) {
@@ -903,8 +897,12 @@ async saveTransaction(transaction: any) {
       id: i.id,
       clinic_id: i.clinic_id,
       name: i.name || '',
+      code: i.code || '',
+      contact_phone: i.phone || '',
+      contact_email: i.email || '',
+      address: i.address || '',
       notes: i.notes || '',
-      active: i.active !== false,
+      is_active: i.active !== false,
       created_at: i.created_at,
     }));
   },
@@ -916,8 +914,12 @@ async saveTransaction(transaction: any) {
         id: insurance.id,
         clinic_id: getClinicId(insurance.clinic_id),
         name: insurance.name || '',
+        code: insurance.code || null,
+        phone: insurance.contact_phone || null,
+        email: insurance.contact_email || null,
+        address: insurance.address || null,
         notes: insurance.notes || null,
-        active: insurance.active !== false,
+        active: insurance.is_active !== false,
         created_at: insurance.created_at,
       },
     });
@@ -926,8 +928,12 @@ async saveTransaction(transaction: any) {
   async updateInsurance(id: string, data: any) {
     const body: any = {};
     if (data.name !== undefined) body.name = data.name;
+    if (data.code !== undefined) body.code = data.code;
+    if (data.contact_phone !== undefined) body.phone = data.contact_phone;
+    if (data.contact_email !== undefined) body.email = data.contact_email;
+    if (data.address !== undefined) body.address = data.address;
     if (data.notes !== undefined) body.notes = data.notes;
-    if (data.active !== undefined) body.active = data.active;
+    if (data.is_active !== undefined) body.active = data.is_active;
     return supabaseFetch(`insurances?id=eq.${id}`, { method: 'PATCH', body });
   },
 
@@ -1101,6 +1107,19 @@ async saveTransaction(transaction: any) {
         color: cat.color || null,
         icon: cat.icon || null,
         active: cat.active ?? true,
+      },
+    });
+  },
+
+  async updateFinancialCategory(id: string, cat: any) {
+    return supabaseFetch(`financial_categories?id=eq.${id}`, {
+      method: 'PATCH',
+      body: {
+        name: cat.name,
+        type: cat.type,
+        color: cat.color,
+        active: cat.active,
+        updated_at: new Date().toISOString(),
       },
     });
   },

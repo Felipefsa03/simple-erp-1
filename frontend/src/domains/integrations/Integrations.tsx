@@ -55,8 +55,9 @@ export function Integrations() {
   // Estado para clínica selecionada (Super Admin pode trocar)
   const [selectedClinicId, setSelectedClinicId] = useState<string>('');
   
-  // O clinicId resolvido: ou o selecionado manualmente pelo SuperAdmin, ou do usuário logado, ou um fallback seguro
-  const clinicId = selectedClinicId || user?.clinic_id || 'clinic-1';
+  // Nunca inventar um tenant local. Sem uma clínica autenticada, a integração
+  // permanece indisponível até o contexto ser resolvido pelo servidor.
+  const clinicId = selectedClinicId || user?.clinic_id || '';
 
   // Auto-sync WhatsApp on mount
   useWhatsAppSync(clinicId);
@@ -70,11 +71,7 @@ export function Integrations() {
   }, [whatsappIntegrations, clinicId]);
   
   // Lista de clínicas para o Super Admin selecionar
-  const clinics = [
-    { id: 'clinic-1', name: 'Lumina Odontologia' },
-    { id: 'clinic-2', name: 'Sorriso Total' },
-    { id: 'clinic-3', name: 'Estética Bella' },
-  ];
+  const clinics: { id: string; name: string }[] = [];
   
   const [integrations, setIntegrations] = useState<Integration[]>([
     {
@@ -258,7 +255,7 @@ export function Integrations() {
       </div>
 
       {/* Seletor de Clínica (apenas Super Admin) */}
-      {isSuperAdmin && (
+      {isSuperAdmin && clinics.length > 0 && (
         <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-brand-600" />
@@ -668,8 +665,8 @@ export function Integrations() {
                 <label className="text-xs font-bold text-slate-400 uppercase">Token de API</label>
                 <input type="text" placeholder="Seu token do RD Station" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
               </div>
-              <button onClick={() => { setRdStationConnected(!rdStationConnected); setSelectedIntegration(null); toast(rdStationConnected ? 'Desconectado!' : 'Conectado ao RD Station!'); }} className="w-full py-3 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700">
-                {rdStationConnected ? 'Desconectar' : 'Conectar'}
+              <button onClick={() => toast('O adaptador RD Station ainda não está disponível.', 'error')} className="w-full py-3 bg-slate-400 text-white font-bold rounded-xl cursor-not-allowed">
+                Indisponível até concluir o adaptador
               </button>
             </div>
           </div>
@@ -695,8 +692,8 @@ export function Integrations() {
                 <label className="text-xs font-bold text-slate-400 uppercase">Token de API</label>
                 <input type="text" placeholder="Seu token da Memed" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
               </div>
-              <button onClick={() => { setMemedConnected(!memedConnected); setSelectedIntegration(null); toast(memedConnected ? 'Desconectado!' : 'Conectado à Memed!'); }} className="w-full py-3 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700">
-                {memedConnected ? 'Desconectar' : 'Conectar'}
+              <button onClick={() => toast('O adaptador Memed ainda não está disponível.', 'error')} className="w-full py-3 bg-slate-400 text-white font-bold rounded-xl cursor-not-allowed">
+                Indisponível até concluir o adaptador
               </button>
             </div>
           </div>
@@ -722,8 +719,8 @@ export function Integrations() {
                 <label className="text-xs font-bold text-slate-400 uppercase">Token de Acesso</label>
                 <input type="text" placeholder="Seu access token" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none" />
               </div>
-              <button onClick={() => { setMetaPixelConnected(!metaPixelConnected); setSelectedIntegration(null); toast(metaPixelConnected ? 'Desconectado!' : 'Conectado ao Meta Pixel!'); }} className="w-full py-3 bg-brand-700 text-white font-bold rounded-xl hover:bg-brand-800">
-                {metaPixelConnected ? 'Desconectar' : 'Conectar'}
+              <button onClick={() => toast('O adaptador Meta Pixel ainda não está disponível.', 'error')} className="w-full py-3 bg-slate-400 text-white font-bold rounded-xl cursor-not-allowed">
+                Indisponível até concluir o adaptador
               </button>
             </div>
           </div>

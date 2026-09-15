@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useRef } from 'react';
-import * as XLSX from 'xlsx';
 import { Search, Plus, Filter, MoreHorizontal, Phone, Mail, Calendar as CalendarIcon, X, Upload, Eye, FileText, Trash2, AlertCircle, Pencil, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -106,7 +105,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
   const canView = hasPermission('view_patients');
   const canManage = hasPermission('manage_patients');
   const canImport = hasPermission('import_patients');
-  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
+  const clinicId = useAuth(s => s.getClinicId()) || '';
 
   // Zod-validated create patient form
   const { register: regCreate, handleSubmit: handleCreateSubmit, formState: { errors: createErrors }, reset: resetCreateForm } = useForm<PacienteFormData>({
@@ -295,20 +294,8 @@ export function PatientList({ onNavigate }: PatientListProps) {
           headers.forEach((h, i) => { obj[h] = (row[i] || '').trim(); });
           return obj;
         });
-      } else if (ext === 'xlsx') {
-        const buffer = await file.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: 'array' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const raw = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
-        data = raw.map(row => {
-          const obj: Record<string, string> = {};
-          Object.entries(row).forEach(([key, value]) => {
-            obj[normalizeHeader(key)] = String(value ?? '').trim();
-          });
-          return obj;
-        });
       } else {
-        toast('Use um arquivo CSV ou XLSX para importação.', 'warning');
+        toast('Use um arquivo CSV para importação.', 'warning');
         return;
       }
 
@@ -474,9 +461,9 @@ export function PatientList({ onNavigate }: PatientListProps) {
             className="w-full py-3 bg-slate-50 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-all border border-slate-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Upload className="w-4 h-4" />
-            Cadastro em Massa (CSV/XLSX)
+            Cadastro em Massa (CSV)
           </button>
-          <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.xlsx" onChange={handleFileUpload} />
+          <input type="file" ref={fileInputRef} className="hidden" accept=".csv,text/csv" onChange={handleFileUpload} />
         </form>
       </Modal>
 

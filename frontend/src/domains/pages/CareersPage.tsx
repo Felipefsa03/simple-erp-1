@@ -12,23 +12,17 @@ export function CareersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSending(true);
-    
-    const subject = encodeURIComponent(`[Clinxia Currículo] ${formData.role} - ${formData.name}`);
-    const body = encodeURIComponent(
-      `Nome Completo: ${formData.name}\n` +
-      `Email: ${formData.email}\n` +
-      `Telefone: ${formData.phone}\n` +
-      `Vaga de Interesse: ${formData.role}\n` +
-      `LinkedIn: ${formData.linkedin || 'Não informado'}\n\n` +
-      `Mensagem:\n${formData.message}`
-    );
-    
-    window.location.href = `mailto:${CLINEMAIL}?subject=${subject}&body=${body}`;
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setSending(false);
-    setSent(true);
-    setFormData({ name: '', email: '', phone: '', role: '', linkedin: '', message: '' });
+    try {
+      const response = await fetch('/api/public/careers', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(formData),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível registrar o currículo.');
+      setSent(true);
+      setFormData({ name: '', email: '', phone: '', role: '', linkedin: '', message: '' });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Não foi possível registrar o currículo.');
+    } finally { setSending(false); }
   };
 
   const roleOptions = [

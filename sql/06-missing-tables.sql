@@ -27,8 +27,11 @@ CREATE TABLE IF NOT EXISTS integration_config (
     plan_price_premium NUMERIC(10,2) DEFAULT 397,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    nfe_config JSONB,
     UNIQUE(clinic_id)
 );
+
+ALTER TABLE integration_config ADD COLUMN IF NOT EXISTS nfe_config JSONB;
 
 -- Tabela de pagamentos
 CREATE TABLE IF NOT EXISTS payments (

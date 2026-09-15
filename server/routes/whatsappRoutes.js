@@ -88,6 +88,14 @@ export const createWhatsAppRoutes = ({
     return { ok: true, clinicId: actorClinicId };
   };
 
+  const requireWhatsAppAdmin = (req, res, next) => {
+    const role = String(req.user?.role || '').toLowerCase();
+    if (!['admin', 'owner', 'super_admin'].includes(role)) {
+      return res.status(403).json({ ok: false, error: 'Apenas administradores podem alterar configurações ou grupos do WhatsApp.' });
+    }
+    return next();
+  };
+
   // Rate limiting para o WhatsApp Send
   const whatsappRateLimit = new Map();
   const RATE_LIMIT_WINDOW = 10000; // 10 seconds
@@ -114,7 +122,7 @@ export const createWhatsAppRoutes = ({
     });
   });
 
-  router.post("/reset-session", async (req, res) => {
+  router.post("/reset-session", requireWhatsAppAdmin, async (req, res) => {
     const auth = resolveAuthorizedClinicId(req, req.body?.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     const clinicId = auth.clinicId;
@@ -191,7 +199,7 @@ export const createWhatsAppRoutes = ({
     }
   });
 
-  router.post("/connect", async (req, res) => {
+  router.post("/connect", requireWhatsAppAdmin, async (req, res) => {
     const { clinicId: requestedClinicId, phoneNumber } = req.body;
     const auth = resolveAuthorizedClinicId(req, requestedClinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -261,7 +269,7 @@ export const createWhatsAppRoutes = ({
       });
     } catch (error) {
       console.error("Connect error:", error);
-      res.status(500).json({ success: false, error: error.message });
+      res.status(502).json({ success: false, error: "Não foi possível conectar o WhatsApp." });
     }
   });
 
@@ -293,7 +301,7 @@ export const createWhatsAppRoutes = ({
     res.json({ ok: true, status: "disconnected" });
   });
 
-  router.post("/disconnect/:clinicId", async (req, res) => {
+  router.post("/disconnect/:clinicId", requireWhatsAppAdmin, async (req, res) => {
     const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     const clinicId = auth.clinicId;
@@ -383,7 +391,7 @@ export const createWhatsAppRoutes = ({
       return res.json({ ok: true, messageId: quickResult.messageId });
     } catch (error) {
       addLog(`[API] Erro ao enviar: ${error.message}`);
-      res.status(400).json({ ok: false, error: error.message });
+      res.status(502).json({ ok: false, error: "Não foi possível enviar a mensagem." });
     }
   });
 
@@ -413,14 +421,14 @@ export const createWhatsAppRoutes = ({
       return res.json({ ok: true });
     } catch (error) {
       addLog(`[API] Erro ao enviar presença: ${error.message}`);
-      return res.json({ ok: false, error: error.message });
+      return res.status(502).json({ ok: false, error: "Não foi possível atualizar a presença." });
     }
   });
 
   // ════════════════════════════════════════════════════════════════
   // AI Integration
   // ════════════════════════════════════════════════════════════════
-  router.post("/ai/config", (req, res) => {
+  router.post("/ai/config", requireWhatsAppAdmin, (req, res) => {
     const { clinicId: cid } = req.body;
     const auth = resolveAuthorizedClinicId(req, cid);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -489,7 +497,7 @@ export const createWhatsAppRoutes = ({
     return true;
   };
 
-  router.post("/group/kick", async (req, res) => {
+  router.post("/group/kick", requireWhatsAppAdmin, async (req, res) => {
     if (!requireGroupJid(req, res)) return;
     const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -500,7 +508,7 @@ export const createWhatsAppRoutes = ({
     } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
-  router.post("/group/add", async (req, res) => {
+  router.post("/group/add", requireWhatsAppAdmin, async (req, res) => {
     if (!requireGroupJid(req, res)) return;
     const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -511,7 +519,7 @@ export const createWhatsAppRoutes = ({
     } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
-  router.post("/group/promote", async (req, res) => {
+  router.post("/group/promote", requireWhatsAppAdmin, async (req, res) => {
     if (!requireGroupJid(req, res)) return;
     const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -522,7 +530,7 @@ export const createWhatsAppRoutes = ({
     } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
-  router.post("/group/demote", async (req, res) => {
+  router.post("/group/demote", requireWhatsAppAdmin, async (req, res) => {
     if (!requireGroupJid(req, res)) return;
     const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -533,7 +541,7 @@ export const createWhatsAppRoutes = ({
     } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 
-  router.post("/group/setting", async (req, res) => {
+  router.post("/group/setting", requireWhatsAppAdmin, async (req, res) => {
     if (!requireGroupJid(req, res)) return;
     const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -567,7 +575,7 @@ export const createWhatsAppRoutes = ({
   // ════════════════════════════════════════════════════════════════
   // Bot Config (autoread, always online, prefix, anti-link, etc)
   // ════════════════════════════════════════════════════════════════
-  router.post("/bot/config", async (req, res) => {
+  router.post("/bot/config", requireWhatsAppAdmin, async (req, res) => {
     const auth = resolveAuthorizedClinicId(req, req.body.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });

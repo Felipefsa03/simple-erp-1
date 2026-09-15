@@ -41,13 +41,9 @@ const saveSessionToDb = async (identifier, sessionType, session) => {
   delete extra_data.code;
   delete extra_data.codeHash;
 
-  // Sem unique constraint garantida em (identifier, session_type):
-  // deletar+inserir, e a leitura tolera múltiplas linhas (limit 1).
-  await deleteSessionFromDb(identifier, sessionType);
-
   const { error } = await supabaseAdmin
     .from('auth_sessions')
-    .insert({
+    .upsert({
       session_type: sessionType,
       identifier: String(identifier),
       code_hash,
@@ -55,7 +51,7 @@ const saveSessionToDb = async (identifier, sessionType, session) => {
       expires_at,
       verified: !!session.verifiedAt,
       extra_data
-    });
+    }, { onConflict: 'identifier,session_type' });
 
   if (error) {
     console.error(`[SessionStore] Failed to save ${sessionType} for ${identifier}:`, error.message);

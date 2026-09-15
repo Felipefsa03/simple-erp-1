@@ -172,6 +172,27 @@ export function EmailMarketingConfig({ clinicId, isConnected, onConnectionChange
     }
   };
 
+  // O backend ainda não possui um adaptador de entrega de e-mail. Manter um
+  // formulário que grava uma chave e exibe "conectado" seria enganoso e pode
+  // induzir a operação a disparar campanhas que nunca serão entregues.
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+        <div>
+          <h4 className="font-bold">Adaptador de e-mail indisponível</h4>
+          <p className="mt-1 text-sm">
+            O envio de campanhas por e-mail está bloqueado até a integração com um provedor homologado ser concluída.
+            Nenhuma credencial foi salva e nenhuma mensagem será marcada como entregue.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  /*
+   * Formulário mantido no histórico até a entrega do adaptador real. Não é
+   * renderizado para evitar estado local que pareça uma integração ativa.
   return (
     <div className="space-y-4">
       <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
@@ -303,6 +324,6 @@ export function EmailMarketingConfig({ clinicId, isConnected, onConnectionChange
         </button>
       )}
     </div>
-  );
+  ); */
 }
 

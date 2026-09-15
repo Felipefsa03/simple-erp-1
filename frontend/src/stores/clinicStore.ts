@@ -303,7 +303,7 @@ const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' |
                 break;
             case 'financial_category':
                 if (isDelete) result = await SupabaseSync.deleteFinancialCategory(data.id);
-                else result = isNew ? await SupabaseSync.saveFinancialCategory(data) : { error: 'Update not implemented' };
+                else result = isNew ? await SupabaseSync.saveFinancialCategory(data) : await SupabaseSync.updateFinancialCategory(data.id, data);
                 break;
             default:
                 break;
@@ -528,7 +528,8 @@ interface ClinicStore {
     addStockItem: (item: Omit<StockItem, 'id' | 'created_at'>) => StockItem;
     updateStockItem: (id: string, data: Partial<StockItem>) => void;
     deleteStockItem: (id: string) => void;
-    consumeStock: (items: { stock_item_id: string; qty: number }[], appointmentId: string, userId: string) => void;
+    canConsumeStock: (items: { stock_item_id: string; qty: number }[]) => boolean;
+    consumeStock: (items: { stock_item_id: string; qty: number }[], appointmentId: string, userId: string) => boolean;
     addStockMovement: (movement: Omit<StockMovement, 'id' | 'created_at'>) => void;
 
     // Financial Actions
@@ -554,6 +555,7 @@ interface ClinicStore {
 
     // Financial Category Actions
     addFinancialCategory: (category: Omit<FinancialCategory, 'id'>) => FinancialCategory;
+    updateFinancialCategory: (id: string, data: Partial<FinancialCategory>) => void;
     deleteFinancialCategory: (id: string) => void;
 
     // Service Actions
@@ -633,6 +635,15 @@ console.log('[ClinicStore] Loading demo data - professionals:', DEMO_PROFESSIONA
 
 const useRealData = isSupabaseEnvConfigured();
 const useDemoData = !useRealData && import.meta.env.DEV;
+
+// Dados de produção nunca podem cair em um tenant fictício. O fallback
+// `clinic-1` continua existindo apenas nos fixtures explicitamente usados no
+// modo demo de desenvolvimento.
+const getActiveClinicId = (): string => {
+    const clinicId = String(useAuth.getState().user?.clinic_id || '').trim();
+    if (!clinicId) throw new Error('Contexto de clínica ausente. Faça login novamente.');
+    return clinicId;
+};
 
 // Dados reais ou demo baseado na configuração
 const INITIAL_DATA = useRealData ? {
@@ -721,7 +732,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Insurance (Convênios) ----
             addInsurance: (data) => {
-                const clinic_id = data.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = data.clinic_id || getActiveClinicId();
                 const insurance: Insurance = { ...data, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ insurances: [insurance, ...s.insurances] }));
                 SupabaseSync.saveInsurance(insurance).catch(e => console.error('[ClinicStore] Erro ao salvar convênio:', e));
@@ -795,7 +806,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Patients ----
             addPatient: (p) => {
-                const clinic_id = p.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = p.clinic_id || getActiveClinicId();
                 const formattedPhone = formatPhoneForWhatsApp(p.phone);
                 const patient: Patient = { ...p, phone: formattedPhone, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ patients: [patient, ...s.patients] }));
@@ -928,7 +939,7 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Appointments ----
             addAppointment: (a) => {
                 const state = get();
-                const clinic_id = a.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = a.clinic_id || getActiveClinicId();
                 const newStart = new Date(a.scheduled_at).getTime();
                 const newEnd = newStart + (a.duration_min || 0) * 60000;
                 const conflict = state.appointments.some(existing => {
@@ -1040,13 +1051,32 @@ export const useClinicStore = create<ClinicStore>()(
                 if (appointment.status !== 'in_progress') return false;
                 if (state.finalizingAppointments[id]) return false;
 
-                set(s => ({
-                    finalizingAppointments: { ...s.finalizingAppointments, [id]: true },
-                }));
-
                 const serviceTimeMin = appointment.started_at
                     ? Math.max(1, Math.round((Date.now() - new Date(appointment.started_at).getTime()) / 60000))
                     : appointment.duration_min;
+
+                const service = state.services.find(svc => svc.id === appointment.service_id);
+                const appointmentMaterials = state.appointmentMaterials[id] || [];
+                const materialsToConsume = appointmentMaterials.length > 0
+                    ? appointmentMaterials
+                    : (service?.materials || []).map(m => ({
+                        stock_item_id: m.stock_item_id,
+                        stock_item_name: m.stock_item_name,
+                        qty: m.qty_per_use,
+                    }));
+
+                // Validate before changing appointment/record state. The actual
+                // movement is applied after the locks, but this preflight keeps
+                // an insufficient-stock failure from leaving a finished visit.
+                if (materialsToConsume.length > 0 && !get().canConsumeStock(
+                    materialsToConsume.map(m => ({ stock_item_id: m.stock_item_id, qty: m.qty }))
+                )) {
+                    return false;
+                }
+
+                set(s => ({
+                    finalizingAppointments: { ...s.finalizingAppointments, [id]: true },
+                }));
 
                 // 1. Lock appointment
                 set(s => ({
@@ -1083,18 +1113,18 @@ export const useClinicStore = create<ClinicStore>()(
                     });
                 }
 
-                // 3. Consume stock if service has materials
-                const service = state.services.find(svc => svc.id === appointment.service_id);
-                const appointmentMaterials = state.appointmentMaterials[id] || [];
-                const materialsToConsume = appointmentMaterials.length > 0
-                    ? appointmentMaterials
-                    : (service?.materials || []).map(m => ({
-                        stock_item_id: m.stock_item_id,
-                        stock_item_name: m.stock_item_name,
-                        qty: m.qty_per_use,
-                    }));
+                // 3. Consume stock if service has materials. The preflight above
+                // guarantees that this operation is all-or-nothing for this call.
                 if (materialsToConsume.length > 0) {
-                    get().consumeStock(materialsToConsume.map(m => ({ stock_item_id: m.stock_item_id, qty: m.qty })), id, userId);
+                    const consumed = get().consumeStock(
+                        materialsToConsume.map(m => ({ stock_item_id: m.stock_item_id, qty: m.qty })),
+                        id,
+                        userId,
+                    );
+                    if (!consumed) {
+                        set(s => ({ finalizingAppointments: { ...s.finalizingAppointments, [id]: false } }));
+                        return false;
+                    }
                 }
 
                 // 4. Generate financial transaction (use professional-specific price if configured)
@@ -1374,7 +1404,7 @@ export const useClinicStore = create<ClinicStore>()(
                         saveToSupabase('medical_record', { ...existingRec, odontogram: next }, false);
                     } else {
                         newRec = {
-                            id: uid(), clinic_id: 'clinic-1', patient_id: patientId, professional_id: 'prof-1',
+                            id: uid(), clinic_id: getActiveClinicId(), patient_id: patientId, professional_id: useAuth.getState().user?.id,
                             odontogram: next, content: null, locked: false, created_at: now(), updated_at: now()
                         };
                         saveToSupabase('medical_record', newRec, true);
@@ -1401,7 +1431,7 @@ export const useClinicStore = create<ClinicStore>()(
                     }));
                 } else {
                     const newRec = {
-                        id: uid(), clinic_id: data.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1', patient_id: data.patient_id, professional_id: useAuth.getState().user?.id,
+                        id: uid(), clinic_id: data.clinic_id || getActiveClinicId(), patient_id: data.patient_id, professional_id: useAuth.getState().user?.id,
                         anamnese: data, content: null, locked: false, created_at: now(), updated_at: now()
                     };
                     saveToSupabase('medical_record', newRec, true);
@@ -1415,7 +1445,7 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Anamnese Links & Public Forms ----
             syncAnamneseWithServer: async () => {
                 try {
-                    const clinicId = useAuth.getState().user?.clinic_id || 'clinic-1';
+                    const clinicId = getActiveClinicId();
                     const records = await SupabaseSync.loadMedicalRecords(clinicId);
                     
                     if (Array.isArray(records) && records.length > 0) {
@@ -1438,7 +1468,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             generateAnamneseLink: (patientId, createdBy, hoursValid = 72) => {
                 const patient = get().patients.find(p => p.id === patientId);
-                const clinic_id = patient?.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = patient?.clinic_id || getActiveClinicId();
                 const expires_at = new Date(Date.now() + Math.max(1, hoursValid) * 3600 * 1000).toISOString();
 
                 // Stateless Token: b64({ p: patientId, c: clinicId, e: expiry, s: random })
@@ -1542,7 +1572,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Stock ----
             addStockItem: (item) => {
-                const clinic_id = item.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = item.clinic_id || getActiveClinicId();
                 const newItem: StockItem = { ...item, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ stockItems: [newItem, ...s.stockItems] }));
                 saveToSupabase('stock', newItem, true).catch(e => console.error('[ClinicStore] Erro ao salvar estoque:', e));
@@ -1565,32 +1595,73 @@ export const useClinicStore = create<ClinicStore>()(
                     }
                 });
             },
-            consumeStock: (items, appointmentId, userId) => {
-                const insufficient: { stock_item_id: string; required: number; available: number }[] = [];
+            canConsumeStock: (items) => {
+                const requiredByItem = new Map<string, number>();
                 items.forEach(({ stock_item_id, qty }) => {
-                    const state = get();
-                    const item = state.stockItems.find(s => s.id === stock_item_id);
-                    if (!item) return;
-                    if (item.quantity < qty) {
-                        insufficient.push({ stock_item_id, required: qty, available: item.quantity });
+                    const normalizedQty = Number(qty);
+                    if (Number.isFinite(normalizedQty) && normalizedQty > 0) {
+                        requiredByItem.set(stock_item_id, (requiredByItem.get(stock_item_id) || 0) + normalizedQty);
                     }
-                    const newQty = Math.max(0, item.quantity - qty);
-                    set(s => ({ stockItems: s.stockItems.map(i => i.id === stock_item_id ? { ...i, quantity: newQty } : i) }));
+                });
+                return [...requiredByItem.entries()].every(([stockItemId, required]) => {
+                    const item = get().stockItems.find(stock => stock.id === stockItemId);
+                    return Boolean(item) && Number(item?.quantity) >= required;
+                });
+            },
+            consumeStock: (items, appointmentId, userId) => {
+                const requiredByItem = new Map<string, number>();
+                items.forEach(({ stock_item_id, qty }) => {
+                    const normalizedQty = Number(qty);
+                    if (Number.isFinite(normalizedQty) && normalizedQty > 0) {
+                        requiredByItem.set(stock_item_id, (requiredByItem.get(stock_item_id) || 0) + normalizedQty);
+                    }
+                });
+
+                const insufficient: { stock_item_id: string; required: number; available: number }[] = [];
+                requiredByItem.forEach((required, stockItemId) => {
+                    const item = get().stockItems.find(stock => stock.id === stockItemId);
+                    if (!item || Number(item.quantity) < required) {
+                        insufficient.push({ stock_item_id: stockItemId, required, available: Number(item?.quantity) || 0 });
+                    }
+                });
+
+                const appointment = get().appointments.find(a => a.id === appointmentId);
+                if (insufficient.length > 0) {
+                    toast('Estoque insuficiente para concluir o atendimento.', 'error');
+                    emitEvent('STOCK_CONSUMED', {
+                        appointment_id: appointmentId,
+                        clinic_id: appointment?.clinic_id,
+                        items,
+                        insufficient,
+                    });
+                    return false;
+                }
+
+                items.forEach(({ stock_item_id, qty }) => {
+                    const item = get().stockItems.find(stock => stock.id === stock_item_id);
+                    const normalizedQty = Number(qty);
+                    if (!item || !Number.isFinite(normalizedQty) || normalizedQty <= 0) return;
                     get().addStockMovement({
                         clinic_id: item.clinic_id,
                         stock_item_id,
                         stock_item_name: item.name,
                         appointment_id: appointmentId,
                         type: 'out',
-                        qty,
+                        qty: normalizedQty,
                         note: `Consumo em atendimento`,
                         created_by: userId,
                     });
                 });
-                const appointment = get().appointments.find(a => a.id === appointmentId);
                 emitEvent('STOCK_CONSUMED', { appointment_id: appointmentId, clinic_id: appointment?.clinic_id, items, insufficient });
+                return true;
             },
             addStockMovement: (movement) => {
+                const currentItem = get().stockItems.find(i => i.id === movement.stock_item_id);
+                const movementQty = Number(movement.qty) || 0;
+                if (movement.type === 'out' && (!currentItem || Number(currentItem.quantity) < movementQty)) {
+                    toast('Estoque insuficiente para registrar esta saída.', 'error');
+                    return;
+                }
                 const newMovement = { ...movement, id: uid(), created_at: now() };
                 set(s => ({
                     stockMovements: [newMovement, ...s.stockMovements],
@@ -1609,7 +1680,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Financial ----
             addTransaction: (t) => {
-                const clinic_id = t.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = t.clinic_id || getActiveClinicId();
                 const inferredKey = t.idempotency_key || (t.appointment_id ? `apt:${t.appointment_id}:${t.type}` : uid());
                 const existing = get().transactions.find(txn => txn.idempotency_key === inferredKey);
                 if (existing) return existing;
@@ -1715,7 +1786,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Account Actions ----
             addAccount: (account) => {
-                const clinic_id = account.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = account.clinic_id || getActiveClinicId();
                 const newAccount: Account = { ...account, clinic_id, id: uid(), created_at: now(), updated_at: now() };
                 set(s => ({ accounts: [newAccount, ...s.accounts] }));
                 saveToSupabase('account', newAccount, true).catch(e => console.error('[ClinicStore] Erro ao salvar conta:', e));
@@ -1751,7 +1822,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Invoice Actions ----
             addInvoice: (invoice) => {
-                const clinic_id = invoice.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = invoice.clinic_id || getActiveClinicId();
                 const newInvoice: Invoice = { ...invoice, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ invoices: [newInvoice, ...s.invoices] }));
                 saveToSupabase('invoice', newInvoice, true).catch(e => console.error('[ClinicStore] Erro ao salvar nota fiscal:', e));
@@ -1773,11 +1844,16 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Financial Category Actions ----
             addFinancialCategory: (category) => {
-                const clinic_id = category.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = category.clinic_id || getActiveClinicId();
                 const newCategory: FinancialCategory = { ...category, clinic_id, id: uid() } as FinancialCategory;
                 set(s => ({ financialCategories: [newCategory, ...s.financialCategories] }));
                 saveToSupabase('financial_category', newCategory, true).catch(e => console.error('[ClinicStore] Erro ao salvar categoria financeira:', e));
                 return newCategory;
+            },
+            updateFinancialCategory: (id, data) => {
+                set(s => ({ financialCategories: s.financialCategories.map(c => c.id === id ? { ...c, ...data } : c) }));
+                const updated = get().financialCategories.find(c => c.id === id);
+                if (updated) saveToSupabase('financial_category', updated, false).catch(e => console.error('[ClinicStore] Erro ao atualizar categoria financeira:', e));
             },
             deleteFinancialCategory: (id) => {
                 const category = get().financialCategories.find(c => c.id === id);
@@ -1788,7 +1864,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Services ----
             addService: (s) => {
-                const clinic_id = s.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = s.clinic_id || getActiveClinicId();
                 const service: Service = { ...s, clinic_id, id: uid() };
                 set(st => ({ services: [...st.services, service] }));
                 
@@ -1810,7 +1886,7 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Professionals ----
             addProfessional: (p) => {
-                const clinic_id = p.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const clinic_id = p.clinic_id || getActiveClinicId();
                 const email = (p.email || '').toLowerCase();
                 if (email && get().professionals.some(prof => prof.email.toLowerCase() === email)) {
                     return null;
@@ -1837,7 +1913,7 @@ export const useClinicStore = create<ClinicStore>()(
                             phone: p.phone,
                             role: p.role,
                             commission_pct: p.commission_pct,
-                            clinic_id: clinic_id === 'clinic-1' ? '00000000-0000-0000-0000-000000000001' : clinic_id,
+                            clinic_id,
                         }).then(async (result) => {
                             if (result.error) {
                                 console.error('[ClinicStore] Erro ao criar usuário no Auth:', result.error);

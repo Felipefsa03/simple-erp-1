@@ -1,8 +1,9 @@
 import express from "express";
 import crypto from "crypto";
-import { cleanEnv } from "../config/env.js";
+import { cleanEnv, PAYMENT_STATUS_TOKEN_SECRET } from "../config/env.js";
 import {
   resolveMercadoPagoCredentials,
+  getPlanPricesFromConfig,
   persistMercadoPagoPayment,
   fetchMercadoPagoPaymentById,
   fetchLatestMercadoPagoPaymentByClinic,
@@ -37,10 +38,35 @@ export const createBillingRoutes = ({
   SUPABASE_SERVICE_ROLE_KEY,
 }) => {
   const router = express.Router();
+  const persistCheckout = async ({ clinicId, plan, billingCycle, gateway, gatewayReference, checkoutUrl, paymentReference = null }) => {
+    if (!SUPABASE_URL || !(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY) || !gatewayReference) return;
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/clinic_subscriptions?on_conflict=gateway_reference`, {
+        method: 'POST',
+        headers: {
+          ...getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY),
+          Prefer: 'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify({
+          clinic_id: clinicId,
+          plan,
+          billing_cycle: billingCycle || 'monthly',
+          status: 'pending',
+          gateway,
+          gateway_reference: String(gatewayReference),
+          payment_reference: paymentReference ? String(paymentReference) : null,
+          checkout_url: checkoutUrl || null,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) console.error('[Billing] Falha ao persistir checkout:', response.status);
+    } catch (error) {
+      console.error('[Billing] Erro ao persistir checkout:', error.message);
+    }
+  };
   const paymentStatusSecret =
     String(
-      process.env.PAYMENT_STATUS_TOKEN_SECRET ||
-      SUPABASE_SERVICE_ROLE_KEY ||
+      PAYMENT_STATUS_TOKEN_SECRET ||
       process.env.JWT_SECRET ||
       "",
     ).trim();
@@ -162,7 +188,7 @@ export const createBillingRoutes = ({
   router.post("/create-preference", async (req, res) => {
     const {
       clinicName, email, name, phone, plan, amount,
-      clinicId, docType, clinicDoc, modality, signupId,
+      clinicId, docType, clinicDoc, modality, signupId, billingCycle,
     } = req.body || {};
 
     try {
@@ -170,6 +196,33 @@ export const createBillingRoutes = ({
       if (!email || !name || !clinicName) return res.status(400).json({ ok: false, error: "Dados obrigatorios ausentes." });
 
       const normalizedClinicId = String(clinicId).trim();
+      if (signupId) {
+        if (!isUuid(normalizedClinicId)) {
+          return res.status(400).json({ ok: false, error: "Reserva de clínica inválida." });
+        }
+        const intentResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/signup_provision_intents?signup_id=eq.${encodeURIComponent(String(signupId).trim())}&clinic_id=eq.${encodeURIComponent(normalizedClinicId)}&consumed_at=is.null&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=signup_id&limit=1`,
+          { headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY) },
+        );
+        const intents = intentResponse.ok ? await safeJson(intentResponse) : [];
+        if (!Array.isArray(intents) || intents.length !== 1) {
+          return res.status(403).json({ ok: false, error: "Sessão de cadastro inválida ou expirada." });
+        }
+      }
+      if (signupId && isUuid(normalizedClinicId) && SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)) {
+        // No cadastro público o UUID é apenas um identificador de correlação.
+        // Nunca permita iniciar um novo provisionamento apontando para um tenant
+        // que já existe; isso evita transformar a etapa de pagamento em porta de
+        // entrada para assumir uma clínica existente.
+        const existingClinicResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/clinics?id=eq.${encodeURIComponent(normalizedClinicId)}&select=id&limit=1`,
+          { headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY) },
+        );
+        const existingClinics = existingClinicResponse.ok ? await safeJson(existingClinicResponse) : [];
+        if (Array.isArray(existingClinics) && existingClinics.length > 0) {
+          return res.status(409).json({ ok: false, error: "Esta reserva de cadastro já está vinculada a uma clínica existente." });
+        }
+      }
       const { gateway, asaasCreds, mpCreds } = await resolveGatewayForClinic(normalizedClinicId, req);
 
       if (!gateway) {
@@ -178,8 +231,14 @@ export const createBillingRoutes = ({
 
       const sanitizePlan = (p) => { if (!p) return "basico"; const s = new Set(["basico","profissional","premium"]); return s.has(String(p)) ? String(p) : "basico"; };
       const selectedPlan = sanitizePlan(plan);
-      const unitAmount = Number(amount);
-      if (!Number.isFinite(unitAmount) || unitAmount <= 0) return res.status(400).json({ ok: false, error: "Valor de pagamento invalido." });
+      const configResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.00000000-0000-0000-0000-000000000001&select=plan_price_basico,plan_price_profissional,plan_price_premium&limit=1`,
+        { headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY) },
+      );
+      const configRows = configResponse.ok ? await safeJson(configResponse) : [];
+      const planPrices = getPlanPricesFromConfig(Array.isArray(configRows) ? configRows[0] : null);
+      const unitAmount = planPrices[selectedPlan];
+      if (!Number.isFinite(unitAmount) || unitAmount <= 0) return res.status(503).json({ ok: false, error: "Preço do plano indisponível no servidor." });
 
       // ============================================
       // FLUXO ASAAS
@@ -223,6 +282,15 @@ export const createBillingRoutes = ({
 
         const metadata = { clinic_id: normalizedClinicId, plan: selectedPlan, user_email: email, user_name: name };
         await persistAsaasPayment(payment, normalizedClinicId, metadata);
+        await persistCheckout({
+          clinicId: normalizedClinicId,
+          plan: selectedPlan,
+          billingCycle,
+          gateway: 'asaas',
+          gatewayReference: payment.id,
+          paymentReference: payment.id,
+          checkoutUrl: payment.invoiceUrl,
+        });
 
         return res.json({
           ok: true,
@@ -303,6 +371,16 @@ export const createBillingRoutes = ({
         console.log("[MP] Failed to create PIX payment:", pixError.message);
       }
 
+      await persistCheckout({
+        clinicId: normalizedClinicId,
+        plan: selectedPlan,
+        billingCycle,
+        gateway: 'mercadopago',
+        gatewayReference: mpData.id,
+        paymentReference: null,
+        checkoutUrl: mpData.init_point || pointOfInteractionUrl,
+      });
+
       return res.json({
         ok: true,
         preference_id: mpData.id,
@@ -314,7 +392,7 @@ export const createBillingRoutes = ({
       });
 
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message });
+      return res.status(502).json({ ok: false, error: "Não foi possível iniciar a cobrança." });
     }
   });
 
@@ -402,7 +480,7 @@ export const createBillingRoutes = ({
       return res.json({ ok: true, approved, status: approved ? "approved" : "pending", payment });
 
     } catch (error) {
-      return res.status(500).json({ ok: false, error: error.message });
+      return res.status(502).json({ ok: false, error: "Não foi possível consultar o pagamento." });
     }
   });
 

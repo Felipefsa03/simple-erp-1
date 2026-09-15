@@ -27,6 +27,11 @@ export function useWhatsAppSync(
   const [lastStatus, setLastStatus] = useState<WhatsAppStatus | null>(null);
   
   const syncStatus = useCallback(async (force = false) => {
+    if (!clinicId) {
+      setLastStatus(null);
+      setIsSyncing(false);
+      return null;
+    }
     const cached = statusCache.get(clinicId);
 
     // Se tem cache recente (< 30s) e não forçado, usa o cache
@@ -70,6 +75,7 @@ export function useWhatsAppSync(
   }, [clinicId, onStatusChange]);
 
   useEffect(() => {
+    if (!clinicId) return;
     syncStatus();
     // Polling leve: mantém o status atualizado a cada 30s
     const interval = setInterval(() => syncStatus(), 30000);

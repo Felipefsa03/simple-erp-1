@@ -58,8 +58,8 @@ const isValidUuid = (id: string): boolean =>
 
 const getNormalizedClinicId = (clinicId: string | undefined): string => {
   if (!clinicId) {
-    // Usuário deslogado/inicialização: usar fallback sem poluir o console.
-    return GLOBAL_CLINIC_ID;
+    // Usuário deslogado ou perfil incompleto não recebe um tenant implícito.
+    return '';
   }
   if (isValidUuid(clinicId)) {
     return clinicId;
@@ -67,9 +67,9 @@ const getNormalizedClinicId = (clinicId: string | undefined): string => {
   console.error(
     "[Auth] clinic_id inválido:",
     clinicId,
-    "- usando fallback para global",
+    "- sessão sem contexto de clínica",
   );
-  return GLOBAL_CLINIC_ID;
+  return '';
 };
 
 const DEFAULT_PERMISSIONS: Record<string, UserRole[]> = {
@@ -392,26 +392,21 @@ export const useAuth = create<AuthState>()(
                 // Sincronizar dados após login bem-sucedido
                 if (user?.clinic_id) {
                   let clinicId = user.clinic_id;
-                  if (
-                    !user.clinic_id.match(
-                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-                    )
-                  ) {
-                    clinicId = "00000000-0000-0000-0000-000000000001";
+                  if (isValidUuid(clinicId)) {
+                    import("../stores/clinicStore").then(({ useClinicStore }) => {
+                      const store = useClinicStore.getState();
+                      store.syncWithSupabase();
+                      store.addAuditLog({
+                          clinic_id: clinicId,
+                          user_id: user.id,
+                          user_name: user.name || "System",
+                          details: "Login efetuado com sucesso",
+                          action: "LOGIN",
+                          entity_type: "auth",
+                          entity_id: user.id,
+                        });
+                    });
                   }
-                  import("../stores/clinicStore").then(({ useClinicStore }) => {
-                    const store = useClinicStore.getState();
-                    store.syncWithSupabase();
-                    store.addAuditLog({
-                        clinic_id: clinicId,
-                        user_id: user.id,
-                        user_name: user.name || "System",
-                        details: "Login efetuado com sucesso",
-                        action: "LOGIN",
-                        entity_type: "auth",
-                        entity_id: user.id,
-                      });
-                  });
                 }
 
                 return true;
@@ -447,16 +442,11 @@ export const useAuth = create<AuthState>()(
           if (useRealData && found.user?.clinic_id) {
             const userClinicId = found.user.clinic_id;
             let clinicId = userClinicId;
-            if (
-              !userClinicId.match(
-                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-              )
-            ) {
-              clinicId = "00000000-0000-0000-0000-000000000001";
+            if (isValidUuid(clinicId)) {
+              import("../stores/clinicStore").then(({ useClinicStore }) => {
+                useClinicStore.getState().syncWithSupabase();
+              });
             }
-            import("../stores/clinicStore").then(({ useClinicStore }) => {
-              useClinicStore.getState().syncWithSupabase();
-            });
           }
 
           return true;
@@ -471,7 +461,7 @@ export const useAuth = create<AuthState>()(
         if (user) {
           import("../stores/clinicStore").then(({ useClinicStore }) => {
             useClinicStore.getState().addAuditLog({
-                clinic_id: clinic?.id || user.clinic_id || "00000000-0000-0000-0000-000000000001",
+                clinic_id: clinic?.id || user.clinic_id || "",
                 user_id: user.id,
                 user_name: user.name || "System",
                 details: "Logout efetuado",
@@ -797,16 +787,11 @@ export const useAuth = create<AuthState>()(
                 // Sync ClinicStore after session restore
                 if (useRealData && userData.clinic_id) {
                   let clinicId = userData.clinic_id;
-                  if (
-                    !userData.clinic_id.match(
-                      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-                    )
-                  ) {
-                    clinicId = "00000000-0000-0000-0000-000000000001";
+                  if (isValidUuid(clinicId)) {
+                    import("../stores/clinicStore").then(({ useClinicStore }) => {
+                      useClinicStore.getState().syncWithSupabase();
+                    });
                   }
-                  import("../stores/clinicStore").then(({ useClinicStore }) => {
-                    useClinicStore.getState().syncWithSupabase();
-                  });
                 }
                 return;
               }

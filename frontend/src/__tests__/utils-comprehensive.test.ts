@@ -13,7 +13,7 @@ function uid() {
 }
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value).replace(/\u00a0/g, ' ');
 }
 
 function formatDateBR(dateStr: string): string {
@@ -116,6 +116,7 @@ function generateCode(length: number = 6): string {
 }
 
 function truncateText(text: string, maxLength: number): string {
+  if (maxLength < 3) return '...';
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength - 3) + '...';
 }
@@ -572,7 +573,7 @@ describe('Funções Utilitárias - slugify()', () => {
   });
 
   it('deve remover acentos', () => {
-    expect(slugify('çãoçãoção')).toBe('caocao');
+    expect(slugify('çãoçãoção')).toBe('caocaocao');
   });
 
   it('deve remover caracteres especiais', () => {

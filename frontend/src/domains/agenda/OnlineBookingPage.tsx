@@ -11,7 +11,7 @@ interface OnlineBookingPageProps {
   clinicId?: string;
 }
 
-export function OnlineBookingPage({ clinicId = '00000000-0000-0000-0000-000000000001' }: OnlineBookingPageProps) {
+export function OnlineBookingPage({ clinicId = '' }: OnlineBookingPageProps) {
   const [loading, setLoading] = useState(true);
   const [clinicName, setClinicName] = useState('');
   const [clinicServices, setServices] = useState<any[]>([]);

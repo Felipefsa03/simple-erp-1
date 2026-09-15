@@ -25,7 +25,6 @@ jobs:
       # 1. npm audit para vulnerabilidades
       - name: NPM Audit
         run: npm audit --audit-level=high
-        continue-on-error: true
       
       # 2. Verificar segredos no código (trufflehog)
       - name: Secret Scanning
@@ -38,7 +37,7 @@ jobs:
       # 3. Verificar dependências conhecidas (check sec vulnerabilities)
       - name: Check for known vulnerable dependencies
         run: |
-          npx npm-audit-ci --level=high --allow-root || true
+          npx npm-audit-ci --level=high --allow-root
       
       # 4. Verificar licenças problemáticas
       - name: License checking
@@ -86,7 +85,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm run lint:fix
+      - run: npm run lint
 
   # Job 3: Testes Unitários com Vitest
   unit-tests:

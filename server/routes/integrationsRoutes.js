@@ -1,7 +1,7 @@
 import express from 'express';
-import crypto from 'crypto';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from '../config/env.js';
 import { supabaseAdmin } from '../services/supabase.js';
+import { generateTISS, validateTISS } from '../../backend/tissService.js';
 
 const router = express.Router();
 
@@ -98,12 +98,16 @@ const hasConfiguredCredentials = (provider, credentials) => {
 
 // Generic routes for all integrations
 const providers = ['google', 'google_ads', 'facebook', 'asaas', 'email_marketing', 'rd_station', 'memed', 'meta_pixel'];
+const unsupportedProviders = new Set(['email_marketing', 'rd_station', 'memed', 'meta_pixel']);
 
 providers.forEach(provider => {
   const routeName = provider.replace('_', '-');
   
   // GET Credentials
   router.get(`/${routeName}/credentials/:clinicId`, async (req, res) => {
+    if (unsupportedProviders.has(provider)) {
+      return res.status(501).json({ ok: false, connected: false, error: `O adaptador de ${routeName} ainda não está disponível.` });
+    }
     const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
     if (!auth.ok) {
       return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -153,6 +157,9 @@ providers.forEach(provider => {
 
   // POST Credentials
   router.post(`/${routeName}/credentials`, async (req, res) => {
+    if (unsupportedProviders.has(provider)) {
+      return res.status(501).json({ ok: false, error: `O adaptador de ${routeName} ainda não está disponível.` });
+    }
     const { clinicId: requestedClinicId, ...credentials } = req.body;
     const auth = resolveAuthorizedClinicId(req, requestedClinicId);
     if (!auth.ok) {
@@ -177,11 +184,18 @@ providers.forEach(provider => {
 
   // DELETE Credentials
   router.delete(`/${routeName}/credentials/:clinicId`, async (req, res) => {
+    if (unsupportedProviders.has(provider)) {
+      return res.status(501).json({ ok: false, error: `O adaptador de ${routeName} ainda não está disponível.` });
+    }
     const auth = resolveAuthorizedClinicId(req, req.params.clinicId);
     if (!auth.ok) {
       return res.status(auth.status).json({ ok: false, error: auth.error });
     }
     const clinicId = auth.clinicId;
+    const actorRole = String(req.user?.role || '').toLowerCase();
+    if (!['admin', 'super_admin', 'owner'].includes(actorRole)) {
+      return res.status(403).json({ ok: false, error: "Apenas administradores podem remover integrações." });
+    }
     const success = await saveIntegrationConfig(clinicId, provider, null);
     
     if (success) {
@@ -193,6 +207,9 @@ providers.forEach(provider => {
 
   // POST Test
   router.post(`/${routeName}/test`, async (req, res) => {
+    if (["rd_station", "memed", "meta_pixel"].includes(provider)) {
+      return res.status(501).json({ ok: false, error: `O adaptador de ${routeName} ainda não está disponível.` });
+    }
     const auth = resolveAuthorizedClinicId(req, req.body?.clinicId);
     if (!auth.ok) {
       return res.status(auth.status).json({ ok: false, error: auth.error });
@@ -217,33 +234,43 @@ providers.forEach(provider => {
 
 // Specific RD Station route
 router.post("/rdstation/event", (req, res) => {
-  const { event, email } = req.body;
-  if (!event || !email) {
-    return res.status(400).json({ ok: false, error: "event and email are required." });
-  }
-
-  return res.json({
-    ok: true,
-    event_id: `rd-${crypto.randomUUID()}`,
-    received_at: new Date().toISOString(),
-  });
+  return res.status(501).json({ ok: false, error: "O envio para RD Station ainda não está implementado." });
 });
 
 // Specific Memed route
 router.post("/memed/prescription", (req, res) => {
-  const { patient, prescription } = req.body;
-  if (!patient?.name || !prescription?.physician_name || !prescription?.medications?.length) {
-    return res.status(400).json({
-      ok: false,
-      error: "patient.name, prescription.physician_name and medications are required.",
-    });
-  }
+  return res.status(501).json({ ok: false, error: "A emissão de receita pela Memed ainda não está implementada." });
+});
 
-  return res.json({
-    ok: true,
-    prescription_id: `memed-${crypto.randomUUID()}`,
-    created_at: new Date().toISOString(),
-  });
+router.post("/tiss/export", (req, res) => {
+  try {
+    const authClinicId = String(req.user?.clinic_id || req.clinicId || '').trim();
+    const requestedClinicId = String(req.body?.clinicId || authClinicId).trim();
+    const role = String(req.user?.role || '').toLowerCase();
+    if (!authClinicId || (role !== 'super_admin' && requestedClinicId !== authClinicId)) {
+      return res.status(403).json({ ok: false, error: 'Acesso negado para outra clínica.' });
+    }
+    const result = generateTISS(req.body?.claim || {});
+    const validation = validateTISS(result.xml);
+    if (!validation.valid) return res.status(422).json({ ok: false, error: 'Documento TISS inválido.', details: validation.missing });
+    return res.json({
+      ok: true,
+      transmitted: false,
+      simulated: true,
+      message: 'XML TISS gerado localmente. A transmissão para a operadora ainda requer adaptador homologado.',
+      export: result.xml,
+      protocol: result.protocol,
+      version: result.version,
+      generated_at: result.generatedAt,
+    });
+  } catch (error) {
+    console.error('[TISS] Falha ao gerar XML:', error.message);
+    return res.status(422).json({ ok: false, error: 'Não foi possível gerar o XML TISS.' });
+  }
+});
+
+router.post("/pixel/event", (req, res) => {
+  return res.status(501).json({ ok: false, error: "O envio de eventos de Pixel ainda não está implementado." });
 });
 
 export default router;

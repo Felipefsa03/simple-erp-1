@@ -104,6 +104,12 @@ export const getSupabaseSession = () => currentSession;
 // ============================================
 
 let currentSession: { access_token: string; user: Record<string, unknown> } | null = loadSessionFromStorage();
+const authListeners = new Set<(event: string, session: typeof currentSession) => void>();
+const emitAuthStateChange = (event: string) => {
+  for (const listener of authListeners) {
+    try { listener(event, currentSession); } catch (error) { console.error('[Supabase] Auth listener failed:', error); }
+  }
+};
 
 
 export const supabase = isConfigured ? {
@@ -129,6 +135,7 @@ export const supabase = isConfigured ? {
             user: data.user,
           };
           saveSessionToStorage(currentSession);
+          emitAuthStateChange('SIGNED_IN');
           return { data: { user: data.user, session: data }, error: null };
         }
         
@@ -166,6 +173,7 @@ export const supabase = isConfigured ? {
           user: data.user,
         };
         saveSessionToStorage(currentSession);
+        emitAuthStateChange('SIGNED_IN');
 
         return { data: { user: data.user, session: data }, error: null };
       } catch (err: unknown) {
@@ -184,6 +192,7 @@ export const supabase = isConfigured ? {
         }
         currentSession = null;
         saveSessionToStorage(null);
+        emitAuthStateChange('SIGNED_OUT');
         return { error: null };
       } catch (err) {
         currentSession = null;
@@ -246,8 +255,8 @@ export const supabase = isConfigured ? {
 
     // Listener de mudanças de autenticação
     onAuthStateChange: (callback: (event: string, session: any) => void) => {
-      // Simples implementação
-      return { data: { subscription: { unsubscribe: () => {} } } };
+      authListeners.add(callback);
+      return { data: { subscription: { unsubscribe: () => authListeners.delete(callback) } } };
     },
   },
 

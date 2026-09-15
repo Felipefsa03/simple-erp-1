@@ -4,7 +4,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 import { useClinicStore } from '@/stores/clinicStore';
 import { toast } from '@/hooks/useShared';
 import { Modal, ConfirmDialog, EmptyState } from '@/components/shared';
-import { emitirNFe, cancelarNFe, consultarNFe, isNFeConfigured, loadNFeConfig, type NFeEmissao, type NFeDestinatario, type NFeItem } from '@/services/nfe/nfeService';
+import { emitirNFe, cancelarNFe, consultarNFe, loadNFeServerConfig, type NFeEmissao, type NFeDestinatario, type NFeItem } from '@/services/nfe/nfeService';
 import type { Invoice, InvoiceStatus } from '@/types/index';
 
 interface NFePanelProps {
@@ -23,8 +23,11 @@ export function NFePanel({ clinicId }: NFePanelProps) {
   const [nfeConfigured, setNfeConfigured] = useState(false);
 
   useEffect(() => {
-    setNfeConfigured(isNFeConfigured());
-  }, []);
+    setNfeConfigured(false);
+    loadNFeServerConfig(clinicId)
+      .then(config => setNfeConfigured(Boolean(config?.configured)))
+      .catch(() => setNfeConfigured(false));
+  }, [clinicId]);
 
   const filtered = useMemo(() => {
     let filteredInvoices = invoices;
@@ -114,28 +117,6 @@ export function NFePanel({ clinicId }: NFePanelProps) {
       observacoes: form.customer_name,
     };
 
-    const config = loadNFeConfig();
-
-    if (!config || config.environment === 'homologacao') {
-      addInvoice({
-        reference: `demo-${Date.now()}`,
-        number: form.number || nextNumber,
-        serie: form.serie || '1',
-        access_key: Array.from({ length: 44 }, () => Math.floor(Math.random() * 10)).join(''),
-        customer_name: form.customer_name!,
-        customer_doc: form.customer_doc!,
-        value: itensValidos.reduce((s, i) => s + i.valorTotal, 0),
-        status: 'authorized',
-        issue_date: form.issue_date || new Date().toISOString().split('T')[0],
-        protocol: Array.from({ length: 15 }, () => Math.floor(Math.random() * 10)).join(''),
-        clinic_id: clinicId || '',
-      });
-      toast('NFe emitida com sucesso! (Modo homologação)', 'success');
-      setShowModal(false);
-      setEmitindo(false);
-      return;
-    }
-
     const result = await emitirNFe(emissao);
 
     if (result.sucesso) {
@@ -195,15 +176,14 @@ export function NFePanel({ clinicId }: NFePanelProps) {
   };
 
   const handleCancelar = async (nfe: Invoice) => {
-    // Notas em modo demo (reference demo-...) são canceladas localmente
+    // Notas sem referência não foram enviadas ao provedor.
     if (!nfe.reference && !nfe.access_key) {
       updateInvoice(nfe.id, { status: 'cancelled' });
       toast('NFe cancelada.', 'success');
       return;
     }
-    if (String(nfe.reference || '').startsWith('demo-') || !isNFeConfigured()) {
-      updateInvoice(nfe.id, { status: 'cancelled' });
-      toast('NFe cancelada (modo demonstração).', 'success');
+    if (!nfeConfigured) {
+      toast('A configuração fiscal do servidor não está disponível.', 'error');
       return;
     }
     const justificativa = 'Cancelamento solicitado pelo emitente';
@@ -266,7 +246,7 @@ export function NFePanel({ clinicId }: NFePanelProps) {
           <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-yellow-800">NFe não configurada</p>
-            <p className="text-sm text-yellow-700 mt-1">Para emitir notas fiscais reais, configure em <strong>Configurações &gt; NFe</strong>. Sem configuração, as emissões funcionam em modo demonstração.</p>
+            <p className="text-sm text-yellow-700 mt-1">Para emitir notas fiscais reais, configure em <strong>Configurações &gt; NFe</strong>. Sem configuração, a emissão é bloqueada.</p>
           </div>
         </div>
       )}

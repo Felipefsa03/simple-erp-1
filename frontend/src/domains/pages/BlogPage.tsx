@@ -197,6 +197,26 @@ function BlogPost({ post, onBack }: { post: typeof BLOG_POSTS[0]; onBack: () => 
 export function BlogPage() {
   const location = useLocation();
   const [selectedPost, setSelectedPost] = useState<typeof BLOG_POSTS[0] | null>(null);
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterStatus, setNewsletterStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+
+  const subscribeNewsletter = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setNewsletterStatus('sending');
+    try {
+      const response = await fetch('/api/public/newsletter', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: newsletterEmail }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Não foi possível concluir a inscrição.');
+      setNewsletterEmail('');
+      setNewsletterStatus('success');
+    } catch {
+      setNewsletterStatus('error');
+    }
+  };
 
   if (selectedPost) {
     return <BlogPost post={selectedPost} onBack={() => setSelectedPost(null)} />;
@@ -240,12 +260,14 @@ export function BlogPage() {
 
         <div className="mt-12 text-center">
           <p className="text-slate-600 mb-4">Inscreva-se na newsletter para receber novidades</p>
-          <form className="max-w-md mx-auto flex gap-2">
-            <input type="email" placeholder="Seu email" className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none" />
-            <button type="submit" className="px-6 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl">
-              Inscrever
+          <form onSubmit={subscribeNewsletter} className="max-w-md mx-auto flex gap-2">
+            <input type="email" required value={newsletterEmail} onChange={event => setNewsletterEmail(event.target.value)} placeholder="Seu email" className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none" />
+            <button type="submit" disabled={newsletterStatus === 'sending'} className="px-6 py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl disabled:opacity-60">
+              {newsletterStatus === 'sending' ? 'Enviando...' : 'Inscrever'}
             </button>
           </form>
+          {newsletterStatus === 'success' && <p className="mt-3 text-sm text-emerald-700">Inscrição registrada. Confirme seu e-mail quando o fluxo de confirmação estiver habilitado.</p>}
+          {newsletterStatus === 'error' && <p className="mt-3 text-sm text-red-700">Não foi possível registrar a inscrição. Tente novamente.</p>}
         </div>
       </main>
     </div>

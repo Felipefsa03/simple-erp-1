@@ -57,7 +57,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   });
 
   const highlightRef = useRef<HTMLTableRowElement>(null);
-  const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
+  const clinicId = useAuth(s => s.getClinicId()) || '';
 
   // Parcelamento state
   const [parcelamentoPreview, setParcelamentoPreview] = useState<Parcela[] | null>(null);
@@ -71,7 +71,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
 
   // ---- Data retrieval via getState() or stable dependencies ----
   const patients = useClinicStore(s => s.patients);
-  const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId || p.clinic_id === 'clinic-1'), [patients, clinicId]);
+  const clinicPatients = useMemo(() => (patients || []).filter(p => p.clinic_id === clinicId), [patients, clinicId]);
   const transactions = useMemo(() => {
     return (rawTransactions || []).filter(t => t.clinic_id === clinicId);
   }, [clinicId, rawTransactions]);

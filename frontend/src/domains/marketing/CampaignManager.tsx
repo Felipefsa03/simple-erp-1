@@ -387,6 +387,11 @@ export function CampaignManager({
 
   const loadCampaigns = useCallback(
     async (silent = false) => {
+      if (!clinicId) {
+        setCampaigns([]);
+        setLoading(false);
+        return;
+      }
       if (!silent) setLoading(true);
       try {
         const response = await apiFetch(`${apiBase()}/api/campaigns/clinic/${clinicId}?t=${Date.now()}`, {
@@ -398,11 +403,13 @@ export function CampaignManager({
         }
 
         const fromApi = Array.isArray(data.campaigns) ? data.campaigns.map(normalizeCampaign) : [];
-        const merged = mergeCampaigns(readCachedCampaigns(clinicId), fromApi);
-        setCampaigns(merged);
-        writeCachedCampaigns(clinicId, merged);
-        if (!selectedCampaignId && merged[0]) {
-          setSelectedCampaignId(merged[0].id);
+        // O servidor é a fonte de verdade. O localStorage só é usado como
+        // contingência quando a API está indisponível, evitando ressuscitar
+        // campanhas excluídas ou mostrar progresso obsoleto após redeploy.
+        setCampaigns(fromApi);
+        writeCachedCampaigns(clinicId, fromApi);
+        if (!selectedCampaignId && fromApi[0]) {
+          setSelectedCampaignId(fromApi[0].id);
         }
       } catch (error) {
         console.error('[CampaignManager] Load error:', error);
@@ -554,24 +561,10 @@ export function CampaignManager({
       }
 
       if (channel !== 'whatsapp') {
-        const finishedAt = new Date().toISOString();
-        const updateResponse = await apiFetch(`${apiBase()}/api/campaigns/${persistedCampaign.id}`, {
-          method: 'PUT',
+        const updateResponse = await apiFetch(`${apiBase()}/api/campaigns/${persistedCampaign.id}/completed`, {
+          method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            status: 'completed',
-            startedAt: finishedAt,
-            completedAt: finishedAt,
-            progress: 100,
-            stats: {
-              totalContacts: contacts.length,
-              sent: contacts.length,
-              delivered: 0,
-              failed: 0,
-              pending: 0,
-              skipped: 0,
-            },
-          }),
+          body: JSON.stringify({ clinicId }),
         });
         const updateData = await readApiResponse<{ campaign?: any; message?: string }>(updateResponse);
         if (!updateResponse.ok || !updateData.campaign) {

@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "crypto";
 
 export const createPublicRoutes = ({
   SUPABASE_URL,
@@ -6,7 +7,8 @@ export const createPublicRoutes = ({
   SUPABASE_SERVICE_ROLE_KEY,
   supabaseAdmin,
   isUuid,
-  SYSTEM_WHATSAPP_CLINIC_ID
+  SYSTEM_WHATSAPP_CLINIC_ID,
+  ANAMNESE_TOKEN_SECRET
 }) => {
   const router = express.Router();
 
@@ -18,6 +20,115 @@ export const createPublicRoutes = ({
   };
 
   const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
+  const inboundRate = new Map();
+  const acceptInbound = (ip) => {
+    const now = Date.now();
+    const recent = (inboundRate.get(ip) || []).filter((time) => now - time < 15 * 60 * 1000);
+    if (recent.length >= 5) return false;
+    recent.push(now);
+    inboundRate.set(ip, recent);
+    return true;
+  };
+
+  const decodeAnamneseToken = (token) => {
+    const [body, signature] = String(token || '').split('.');
+    if (!body || !signature) return null;
+    const expected = crypto.createHmac('sha256', ANAMNESE_TOKEN_SECRET || 'development-only-anamnese-secret').update(body).digest('base64url');
+    if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+    let payload;
+    try { payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')); } catch { return null; }
+    if (!payload?.p || !payload?.c || !payload?.j || !payload?.e || new Date(payload.e).getTime() <= Date.now()) return null;
+    return payload;
+  };
+
+  const findAnamneseToken = async (token, { consume = false } = {}) => {
+    const payload = decodeAnamneseToken(token);
+    if (!payload) return null;
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const { data, error } = await supabaseAdmin.from('anamnese_public_tokens').select('*')
+      .eq('token_hash', tokenHash).eq('jti', payload.j).is('used_at', null).gt('expires_at', new Date().toISOString()).maybeSingle();
+    if (error || !data) return null;
+    if (consume) {
+      const { error: updateError } = await supabaseAdmin.from('anamnese_public_tokens').update({ used_at: new Date().toISOString() }).eq('id', data.id).is('used_at', null);
+      if (updateError) return null;
+    }
+    return { payload, row: data };
+  };
+
+  router.get('/public/anamnese/:token', async (req, res) => {
+    const found = await findAnamneseToken(req.params.token);
+    if (!found) return res.status(404).json({ ok: false, error: 'Link de anamnese inválido ou expirado.' });
+    const { data: patient } = await supabaseAdmin.from('patients').select('id, name').eq('id', found.payload.p).eq('clinic_id', found.payload.c).maybeSingle();
+    return res.json({ ok: true, patient: patient || null, clinic_id: found.payload.c, patient_id: found.payload.p, expires_at: found.payload.e });
+  });
+
+  router.post('/public/submit-anamnese', async (req, res) => {
+    const token = String(req.body?.token || '');
+    const found = await findAnamneseToken(token);
+    if (!found) return res.status(404).json({ ok: false, error: 'Link de anamnese inválido, expirado ou já utilizado.' });
+    const submitted = req.body?.data && typeof req.body.data === 'object' ? req.body.data : {};
+    const safeData = Object.fromEntries(['medical_history', 'current_medications', 'allergies', 'habits', 'complaints', 'observations'].map((key) => [key, String(submitted[key] || '').slice(0, 4000)]));
+    try {
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const { data, error } = await supabaseAdmin.rpc('submit_public_anamnese', {
+        p_token_hash: tokenHash,
+        p_jti: found.payload.j,
+        p_anamnese: safeData,
+      });
+      if (error) throw error;
+      if (!data?.ok) return res.status(409).json({ ok: false, error: data?.error || 'Este link já foi utilizado.' });
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error('[Public Anamnese] Erro:', error.message);
+      return res.status(500).json({ ok: false, error: 'Não foi possível salvar a anamnese.' });
+    }
+  });
+
+  const saveInboundMessage = async (req, res, type) => {
+    if (!acceptInbound(String(req.ip || 'unknown'))) return res.status(429).json({ ok: false, error: 'Muitas solicitações. Tente novamente mais tarde.' });
+    const body = req.body || {};
+    const required = ['name', 'email', 'message'];
+    if (required.some((key) => !String(body[key] || '').trim())) return res.status(400).json({ ok: false, error: 'Nome, e-mail e mensagem são obrigatórios.' });
+    const email = String(body.email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'E-mail inválido.' });
+    try {
+      const { error } = await supabaseAdmin.from('inbound_messages').insert({
+        type,
+        name: String(body.name).trim().slice(0, 120),
+        email: email.slice(0, 160),
+        phone: String(body.phone || '').trim().slice(0, 40),
+        subject: String(body.subject || body.role || '').trim().slice(0, 160),
+        linkedin: String(body.linkedin || '').trim().slice(0, 300),
+        message: String(body.message).trim().slice(0, 5000),
+      });
+      if (error) throw error;
+      return res.json({ ok: true, received: true });
+    } catch (error) {
+      console.error(`[Public ${type}] Erro ao salvar formulário:`, error.message);
+      return res.status(500).json({ ok: false, error: 'Não foi possível registrar sua mensagem.' });
+    }
+  };
+
+  router.post('/public/contact', (req, res) => saveInboundMessage(req, res, 'contact'));
+  router.post('/public/careers', (req, res) => saveInboundMessage(req, res, 'career'));
+  router.post('/public/newsletter', async (req, res) => {
+    if (!acceptInbound(String(req.ip || 'unknown'))) return res.status(429).json({ ok: false, error: 'Muitas solicitações. Tente novamente mais tarde.' });
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ ok: false, error: 'E-mail inválido.' });
+    try {
+      const { data: existing, error: lookupError } = await supabaseAdmin.from('newsletter_subscribers').select('id').eq('email', email).maybeSingle();
+      if (lookupError) throw lookupError;
+      const values = { source: 'blog', status: 'pending', consented_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      const { error } = existing
+        ? await supabaseAdmin.from('newsletter_subscribers').update(values).eq('id', existing.id)
+        : await supabaseAdmin.from('newsletter_subscribers').insert({ email, ...values });
+      if (error) throw error;
+      return res.json({ ok: true, pending_confirmation: true });
+    } catch (error) {
+      console.error('[Public newsletter] Erro:', error.message);
+      return res.status(500).json({ ok: false, error: 'Não foi possível registrar a inscrição.' });
+    }
+  });
 
   // Preços dos planos configurados pelo super admin (Sistema Global).
   // Público: retorna SOMENTE os preços, nunca segredos.
@@ -43,7 +154,7 @@ export const createPublicRoutes = ({
       });
     } catch (error) {
       console.error("[Public API] Erro ao buscar preços:", error.message);
-      return res.status(500).json({ ok: false, error: error.message });
+      return res.status(503).json({ ok: false, error: "Preços temporariamente indisponíveis." });
     }
   });
 
@@ -63,11 +174,9 @@ export const createPublicRoutes = ({
       });
 
       if (!clinicRes.ok) {
-        const errText = await clinicRes.text();
         return res.status(clinicRes.status).json({ 
           ok: false, 
-          error: `Erro ao buscar clínica no Supabase (${clinicRes.status})`,
-          details: errText
+          error: "Não foi possível carregar os dados da clínica."
         });
       }
 
@@ -77,8 +186,7 @@ export const createPublicRoutes = ({
       if (!clinic) {
         return res.status(404).json({ 
           ok: false, 
-          error: "Clínica não encontrada no banco de dados do servidor",
-          details: "O ID existe no frontend mas não foi retornado pelo Supabase no backend. Verifique a URL do Supabase no Render."
+          error: "Clínica não encontrada."
         });
       }
 
@@ -127,7 +235,7 @@ export const createPublicRoutes = ({
 
     } catch (error) {
       console.error("[Public API] Error fetching booking info:", error);
-      res.status(500).json({ ok: false, error: "Erro interno ao buscar informações", message: error.message });
+      res.status(500).json({ ok: false, error: "Não foi possível carregar as informações públicas." });
     }
   });
 
@@ -161,7 +269,7 @@ export const createPublicRoutes = ({
     const safeNotes = String(notes || "").slice(0, 300).replace(/\r?\n/g, " ").trim();
     const safeEmail = String(email).slice(0, 120).trim().toLowerCase();
     const safePhone = String(phone).replace(/\D/g, "").slice(0, 13);
-    if (!safeName || !safeEmail || safePhone.length < 10 || !/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || !/^\d{2}:\d{2}$/.test(String(time))) {
+    if (!safeName || !safeEmail || safePhone.length < 10 || !/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || !/^\d{2}:\d{2}$/.test(String(time)) || (service_id && !isUuid(String(service_id))) || (professional_id && !isUuid(String(professional_id)))) {
       return res.status(400).json({ ok: false, error: "Dados inválidos para agendamento." });
     }
 
