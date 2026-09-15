@@ -299,3 +299,47 @@ Em `server/routes/whatsappRoutes.js`, remover/condicionar o DELETE de credenciai
 2. O backend está saudável e gerou QR com sucesso durante esta auditoria.
 3. Existem problemas CRÍTICOS de segurança independentes do bug (RLS desligado expondo dados médicos/LGPD e token de pagamento; credenciais WhatsApp no GitHub; segredos em env).
 4. A rotação de JWT do Supabase apontada pelo usuário é válida, mas a ordem correta é: migrar envs → testar → revogar.
+
+---
+
+## 9. 2ª RODADA DE AUDITORIA (15/09/2026) — bugs encontrados e corrigidos
+
+### 9.1 Fluxo de cadastro/trial (bugs que o usuário reportou)
+- **duplicate key users_pkey no trial** — etchUserByEmail chamava getSupabaseAdminHeaders() SEM a chave (apikey undefined → 401 → sempre null). O trigger de auth do Supabase já cria a linha em users; o backend tentava INSERT de novo. Corrigido: fallback para service_role no header + upsert onConflict: id em provision-trial, provision, upsertClinicAdminUser e upsertClinicTeamUser.
+- **"Email já cadastrado" ao voltar/continuar** — check-availability agora permite retomar cadastro incompleto (clinic_id null e phone null) e o provision sempre atualiza email/senha do auth user.
+- **Código de telefone expirava em 30s** — TTL subiu para 5 minutos (mensagem e resposta atualizadas).
+
+### 9.2 Backend (auditoria de código)
+| # | Correção |
+|---|---|
+| 1 | Pagamentos: escrita usa service_role + upsert on_conflict=id (webhooks MP/Asaas voltam a gravar com RLS ativo; reenvio não trava em 409) |
+| 2 | verifyStatusToken fail-closed (antes aceitava tudo sem secret) |
+| 3 | auth.js: falha ao buscar perfil não vira mais "receptionist" silencioso (403/502 explícitos) |
+| 4 | POST /api/clinic/users: allowlist de roles (clínica não cria super_admin/owner) |
+| 5 | 2FA: setup bloqueado se 2FA já ativo; disable checa resposta; /2fa/test protegido |
+| 6 | /whatsapp/sessions/:clinicId: só retorna a sessão da própria clínica |
+| 7 | /whatsapp/send-image: anti-SSRF (só URLs https do Supabase storage) |
+| 8 | /whatsapp/ai/ask: rate limit 10/min por clínica + allowlist de provider |
+| 9 | Booking público: rate limit 5/15min por IP, validação de tamanho/formato, sem log de PII |
+| 10 | Filtro PostgREST de whatsapp_credentials com encodeFilterValue (anti-injeção) |
+| 11 | /stats removido das rotas públicas |
+| 12 | Integrações: GET de credenciais mascarado para não-admins; POST só para admin |
+| 13 | Campanhas: update com allowlist de campos (sem mass assignment), limites de tamanho |
+| 14 | Super admin: preços dos planos vindos da config global; confirm-payment valida existência |
+| 15 | sessionStore: leitura tolerante a linhas duplicadas (não derruba sessão OTP) |
+
+### 9.3 Frontend (auditoria de código)
+| # | Correção |
+|---|---|
+| 1 | Editar telefone invalida a verificação (SignupPage e TrialSignupPage) |
+| 2 | check-availability cacheado (voltar/continuar não bloqueia mais) |
+| 3 | localStorage com try/catch (modo privado não quebra o login) |
+| 4 | PasswordReset: email inexistente não avança para tela de código |
+| 5 | 2FA fail-closed no login (falha na checagem não prossegue sem 2FA) |
+
+### 9.4 Pendências que exigem ação do usuário
+1. Redeploy do Render (commits b7ade0f, f930e83, 766e1a3).
+2. Conectar o WhatsApp do Sistema (QR) para o envio de códigos de validação.
+3. Rotacionar segredos (MP, Google, senha admin@lumina.com).
+4. Remover envs IQ_OPTION_*/HTTPS_PROXY do Render.
+5. (Opcional) Revogar chave JWT legada após migrar envs.
