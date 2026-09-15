@@ -1,8 +1,7 @@
 -- ============================================================
 -- RESTAURAÇÃO DE SEGURANÇA (RLS) — Simple ERP / Clinxia
--- Auditoria 14/09/2026
--- Objetivo: religar Row Level Security em TODAS as tabelas
--- mantendo o funcionamento normal do sistema.
+-- Auditoria 14/09/2026 — v2 (nomes app_* para evitar conflito
+-- com funções antigas já existentes no banco)
 --
 -- COMO RODAR: Supabase > SQL Editor > colar TUDO > Run.
 -- É idempotente (pode rodar mais de uma vez sem quebrar).
@@ -10,10 +9,12 @@
 -- ============================================================
 
 -- ============================================================
--- 1. FUNÇÕES AUXILIARES (SECURITY DEFINER evita recursão de RLS)
+-- 1. FUNÇÕES AUXILIARES NOVAS (app_*)
+--    SECURITY DEFINER evita recursão de RLS.
+--    Nomes app_* NÃO conflitam com funções antigas do banco.
 -- ============================================================
 
-create or replace function public.get_user_clinic_id()
+create or replace function public.app_get_user_clinic_id()
 returns text
 language sql
 stable
@@ -27,7 +28,7 @@ as $$
   limit 1;
 $$;
 
-create or replace function public.is_super_admin()
+create or replace function public.app_is_super_admin()
 returns boolean
 language sql
 stable
@@ -42,7 +43,7 @@ as $$
   ), false);
 $$;
 
-create or replace function public.is_clinic_admin()
+create or replace function public.app_is_clinic_admin()
 returns boolean
 language sql
 stable
@@ -58,7 +59,7 @@ as $$
 $$;
 
 -- Acesso à clínica: própria, filial (parent_id), matriz ou irmã.
-create or replace function public.is_clinic_accessible(target_clinic_id text)
+create or replace function public.app_is_clinic_accessible(target_clinic_id text)
 returns boolean
 language sql
 stable
@@ -66,19 +67,19 @@ security definer
 set search_path = public, pg_temp
 as $$
   select
-    public.is_super_admin()
+    public.app_is_super_admin()
     or (
       target_clinic_id is not null
-      and target_clinic_id = public.get_user_clinic_id()
+      and target_clinic_id = public.app_get_user_clinic_id()
     )
     or exists (
       select 1 from public.clinics c
       where c.id::text = target_clinic_id
-        and c.parent_id::text = public.get_user_clinic_id()
+        and c.parent_id::text = public.app_get_user_clinic_id()
     )
     or exists (
       select 1 from public.clinics c
-      where c.id::text = public.get_user_clinic_id()
+      where c.id::text = public.app_get_user_clinic_id()
         and c.parent_id::text = target_clinic_id
     )
     or exists (
@@ -88,9 +89,15 @@ as $$
         on a.parent_id is not null
        and a.parent_id::text = b.parent_id::text
       where a.id::text = target_clinic_id
-        and b.id::text = public.get_user_clinic_id()
+        and b.id::text = public.app_get_user_clinic_id()
     );
 $$;
+
+-- Políticas chamam estas funções: quem consulta precisa de EXECUTE.
+grant execute on function public.app_get_user_clinic_id() to anon, authenticated;
+grant execute on function public.app_is_super_admin() to anon, authenticated;
+grant execute on function public.app_is_clinic_admin() to anon, authenticated;
+grant execute on function public.app_is_clinic_accessible(text) to anon, authenticated;
 
 -- ============================================================
 -- 2. LIMPAR SEGREDOS VAZADOS (auditoria)
@@ -133,6 +140,33 @@ exception
 end $$;
 
 -- ============================================================
+-- 3.5. LIMPAR POLÍTICAS ANTIGAS (evita políticas permissivas
+--      antigas continuarem liberando dados)
+-- ============================================================
+
+do $$
+declare
+  t record;
+  p record;
+begin
+  for t in
+    select table_name
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_type = 'BASE TABLE'
+  loop
+    for p in
+      select policyname
+      from pg_policies
+      where schemaname = 'public'
+        and tablename = t.table_name
+    loop
+      execute format('drop policy if exists %I on public.%I', p.policyname, t.table_name);
+    end loop;
+  end loop;
+end $$;
+
+-- ============================================================
 -- 4. LIGAR RLS EM TODAS AS TABELAS
 -- ============================================================
 
@@ -171,8 +205,8 @@ create policy users_select_policy on public.users
   for select
   using (
     id = auth.uid()
-    or clinic_id::text = public.get_user_clinic_id()
-    or public.is_super_admin()
+    or clinic_id::text = public.app_get_user_clinic_id()
+    or public.app_is_super_admin()
   );
 
 drop policy if exists users_insert_policy on public.users;
@@ -180,8 +214,8 @@ create policy users_insert_policy on public.users
   for insert
   with check (
     id = auth.uid()
-    or public.is_clinic_admin()
-    or public.is_super_admin()
+    or public.app_is_clinic_admin()
+    or public.app_is_super_admin()
   );
 
 drop policy if exists users_update_policy on public.users;
@@ -190,16 +224,16 @@ create policy users_update_policy on public.users
   using (
     id = auth.uid()
     or (
-      public.is_clinic_admin()
-      and clinic_id::text = public.get_user_clinic_id()
+      public.app_is_clinic_admin()
+      and clinic_id::text = public.app_get_user_clinic_id()
     )
-    or public.is_super_admin()
+    or public.app_is_super_admin()
   );
 
 drop policy if exists users_delete_policy on public.users;
 create policy users_delete_policy on public.users
   for delete
-  using (public.is_super_admin());
+  using (public.app_is_super_admin());
 
 -- ============================================================
 -- 7. CLINICS — políticas próprias
@@ -208,7 +242,7 @@ create policy users_delete_policy on public.users
 drop policy if exists clinics_select_policy on public.clinics;
 create policy clinics_select_policy on public.clinics
   for select
-  using (public.is_clinic_accessible(id::text));
+  using (public.app_is_clinic_accessible(id::text));
 
 drop policy if exists clinics_insert_policy on public.clinics;
 create policy clinics_insert_policy on public.clinics
@@ -219,14 +253,14 @@ drop policy if exists clinics_update_policy on public.clinics;
 create policy clinics_update_policy on public.clinics
   for update
   using (
-    public.is_clinic_accessible(id::text)
-    or public.is_super_admin()
+    public.app_is_clinic_accessible(id::text)
+    or public.app_is_super_admin()
   );
 
 drop policy if exists clinics_delete_policy on public.clinics;
 create policy clinics_delete_policy on public.clinics
   for delete
-  using (public.is_super_admin());
+  using (public.app_is_super_admin());
 
 -- ============================================================
 -- 8. INTEGRATION_CONFIG — segredos zerados acima.
@@ -242,8 +276,8 @@ create policy integration_config_select_policy on public.integration_config
 drop policy if exists integration_config_write_policy on public.integration_config;
 create policy integration_config_write_policy on public.integration_config
   for all
-  using (public.is_super_admin())
-  with check (public.is_super_admin());
+  using (public.app_is_super_admin())
+  with check (public.app_is_super_admin());
 
 -- ============================================================
 -- 9. TABELAS OPERACIONAIS — por clínica (matriz/filial/irmã)
@@ -287,19 +321,19 @@ begin
 
     if has_cid then
       execute format('drop policy if exists %I on public.%I', t.table_name || '_select_policy', t.table_name);
-      execute format('create policy %I on public.%I for select using (public.is_clinic_accessible(clinic_id::text))', t.table_name || '_select_policy', t.table_name);
+      execute format('create policy %I on public.%I for select using (public.app_is_clinic_accessible(clinic_id::text))', t.table_name || '_select_policy', t.table_name);
 
       execute format('drop policy if exists %I on public.%I', t.table_name || '_insert_policy', t.table_name);
-      execute format('create policy %I on public.%I for insert with check (public.is_clinic_accessible(clinic_id::text))', t.table_name || '_insert_policy', t.table_name);
+      execute format('create policy %I on public.%I for insert with check (public.app_is_clinic_accessible(clinic_id::text))', t.table_name || '_insert_policy', t.table_name);
 
       execute format('drop policy if exists %I on public.%I', t.table_name || '_update_policy', t.table_name);
-      execute format('create policy %I on public.%I for update using (public.is_clinic_accessible(clinic_id::text))', t.table_name || '_update_policy', t.table_name);
+      execute format('create policy %I on public.%I for update using (public.app_is_clinic_accessible(clinic_id::text))', t.table_name || '_update_policy', t.table_name);
 
       execute format('drop policy if exists %I on public.%I', t.table_name || '_delete_policy', t.table_name);
-      execute format('create policy %I on public.%I for delete using (public.is_clinic_accessible(clinic_id::text))', t.table_name || '_delete_policy', t.table_name);
+      execute format('create policy %I on public.%I for delete using (public.app_is_clinic_accessible(clinic_id::text))', t.table_name || '_delete_policy', t.table_name);
     else
       execute format('drop policy if exists %I on public.%I', t.table_name || '_superadmin_policy', t.table_name);
-      execute format('create policy %I on public.%I for all using (public.is_super_admin()) with check (public.is_super_admin())', t.table_name || '_superadmin_policy', t.table_name);
+      execute format('create policy %I on public.%I for all using (public.app_is_super_admin()) with check (public.app_is_super_admin())', t.table_name || '_superadmin_policy', t.table_name);
     end if;
   end loop;
 end $$;
@@ -308,9 +342,8 @@ end $$;
 -- 10. VERIFICAÇÃO RÁPIDA (opcional)
 -- ============================================================
 
--- As consultas abaixo DEVEM retornar "true":
+-- As consultas abaixo DEVEM retornar "false" (nenhuma tabela sem RLS):
 -- select exists (select 1 from pg_tables where schemaname='public' and rowsecurity = false) as alguma_tabela_sem_rls;
--- Esperado: false (todas com RLS ligado).
 
 -- ============================================================
 -- ROLLBACK (só se algo quebrar)
