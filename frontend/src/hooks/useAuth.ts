@@ -374,8 +374,16 @@ export const useAuth = create<AuthState>()(
                     });
                     return "need_2fa";
                   }
+                  if (!twoFaData.ok) {
+                    // Falha na checagem = NÃO prosseguir sem 2FA (fail closed)
+                    console.error("[Auth] 2FA status check falhou:", twoFaData);
+                    set({ loading: false });
+                    throw new Error("Não foi possível verificar o 2FA. Tente novamente.");
+                  }
                 } catch (_e) {
-                  // Se falhar a checagem de 2FA, prosseguir sem 2FA (fail open)
+                  // Falha de rede na checagem de 2FA: falhar fechado
+                  set({ loading: false });
+                  throw new Error("Não foi possível verificar o 2FA. Verifique sua conexão.");
                 }
 
                 set({ user, clinic, loading: false });

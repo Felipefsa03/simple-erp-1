@@ -9,32 +9,40 @@ const getSessionFromDb = async (identifier, sessionType) => {
     .eq('identifier', String(identifier))
     .eq('session_type', sessionType)
     .gt('expires_at', new Date().toISOString())
-    .maybeSingle();
+    .order('created_at', { ascending: false })
+    .limit(1);
 
-  if (error || !data) return null;
-  
+  if (error) {
+    console.error(`[SessionStore] Erro ao ler sessão ${sessionType}:`, error.message);
+    return null;
+  }
+  if (!data || data.length === 0) return null;
+
+  const row = data[0];
+
   // Compatibilidade com o formato anterior
   return {
-    ...data.extra_data,
-    codeHash: data.code_hash, // camelCase
-    code: data.code_hash, // fallback
-    attempts: data.attempts,
-    verifiedAt: data.verified ? new Date().getTime() : null,
-    expiresAt: new Date(data.expires_at).getTime(),
-    blockedUntil: data.extra_data.blockedUntil || null
+    ...row.extra_data,
+    codeHash: row.code_hash, // camelCase
+    code: row.code_hash, // fallback
+    attempts: row.attempts,
+    verifiedAt: row.verified ? new Date().getTime() : null,
+    expiresAt: new Date(row.expires_at).getTime(),
+    blockedUntil: row.extra_data.blockedUntil || null
   };
 };
 
 const saveSessionToDb = async (identifier, sessionType, session) => {
   const code_hash = session.code || session.codeHash || 'legacy';
   const expires_at = new Date(session.expiresAt || Date.now() + TTL_MS).toISOString();
-  
+
   // Limpa o código do JSONB para não duplicar e expor
   const extra_data = { ...session };
   delete extra_data.code;
   delete extra_data.codeHash;
-  
-  // Como não há unique constraint em (identifier, session_type), deletamos e inserimos
+
+  // Sem unique constraint garantida em (identifier, session_type):
+  // deletar+inserir, e a leitura tolera múltiplas linhas (limit 1).
   await deleteSessionFromDb(identifier, sessionType);
 
   const { error } = await supabaseAdmin
@@ -48,7 +56,7 @@ const saveSessionToDb = async (identifier, sessionType, session) => {
       verified: !!session.verifiedAt,
       extra_data
     });
-    
+
   if (error) {
     console.error(`[SessionStore] Failed to save ${sessionType} for ${identifier}:`, error.message);
   }

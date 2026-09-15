@@ -77,9 +77,14 @@ export const requireAuth = async (req, res, next) => {
 
     if (profileRes.ok) {
       const profiles = await profileRes.json();
-      req.user = profiles[0] || { id: userData.id, role: "receptionist" };
+      if (!profiles || profiles.length === 0) {
+        console.error(`[Auth] Perfil não encontrado para ${userData.id} na tabela users`);
+        return res.status(403).json({ ok: false, error: "Perfil não encontrado. Contate o suporte." });
+      }
+      req.user = profiles[0];
     } else {
-      req.user = { id: userData.id, role: "receptionist" };
+      console.error("[Auth] Falha ao buscar perfil:", profileRes.status);
+      return res.status(502).json({ ok: false, error: "Falha ao carregar perfil. Tente novamente." });
     }
 
     req.token = token;

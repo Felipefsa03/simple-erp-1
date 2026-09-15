@@ -47,45 +47,53 @@ const getStorage = (): Storage | null => {
 };
 
 const saveSessionToStorage = (session: { access_token: string; user: Record<string, unknown> } | null) => {
-  const storage = getStorage();
-  if (!storage) return;
+  try {
+    const storage = getStorage();
+    if (!storage) return;
 
-  if (session) {
-    storage.setItem(STORAGE_KEY, JSON.stringify(session));
-    // Mantém apenas um local de persistência ativo.
-    if (storage === window.localStorage) {
-      window.sessionStorage.removeItem(STORAGE_KEY);
+    if (session) {
+      storage.setItem(STORAGE_KEY, JSON.stringify(session));
+      // Mantém apenas um local de persistência ativo.
+      if (storage === window.localStorage) {
+        window.sessionStorage.removeItem(STORAGE_KEY);
+      } else {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
     } else {
       window.localStorage.removeItem(STORAGE_KEY);
+      window.sessionStorage.removeItem(STORAGE_KEY);
     }
-  } else {
-    window.localStorage.removeItem(STORAGE_KEY);
-    window.sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage bloqueado (modo privado/quota): mantém sessão apenas em memória.
   }
 };
 
 const loadSessionFromStorage = () => {
-  if (typeof window === 'undefined') return null;
-  const storage = getStorage();
-  const primary = storage?.getItem(STORAGE_KEY);
-  const fallback = storage === window.localStorage
-    ? window.sessionStorage.getItem(STORAGE_KEY)
-    : window.localStorage.getItem(STORAGE_KEY);
-  const stored = primary || fallback;
+  try {
+    if (typeof window === 'undefined') return null;
+    const storage = getStorage();
+    const primary = storage?.getItem(STORAGE_KEY);
+    const fallback = storage === window.localStorage
+      ? window.sessionStorage.getItem(STORAGE_KEY)
+      : window.localStorage.getItem(STORAGE_KEY);
+    const stored = primary || fallback;
 
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      // Migra para o storage selecionado caso tenha vindo do fallback.
-      if (!primary) {
-        saveSessionToStorage(parsed);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Migra para o storage selecionado caso tenha vindo do fallback.
+        if (!primary) {
+          saveSessionToStorage(parsed);
+        }
+        return parsed;
+      } catch {
+        return null;
       }
-      return parsed;
-    } catch {
-      return null;
     }
+    return null;
+  } catch {
+    return null;
   }
-  return null;
 };
 
 // Funcao para obter o token da sessao atual

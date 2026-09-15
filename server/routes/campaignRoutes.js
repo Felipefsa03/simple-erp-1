@@ -50,23 +50,28 @@ export const createCampaignRoutes = ({ campaignsByClinic }) => {
       });
     }
 
+    // Limites anti-abuso
+    const safeName = name.slice(0, 120);
+    const safeMessage = message.slice(0, 4000);
+    const contacts = Array.isArray(config.contacts) ? config.contacts.slice(0, 500) : [];
+
     const campaign = {
       id: `campaign-${crypto.randomUUID()}`,
       clinicId,
       clinic_id: clinicId,
-      name,
-      message,
+      name: safeName,
+      message: safeMessage,
       channel: config.channel || 'whatsapp',
       target: config.target || 'all',
       subject: config.subject || '',
       template: config.template || '',
-      contacts: Array.isArray(config.contacts) ? config.contacts : [],
+      contacts,
       status: "draft",
       progress: 0,
       createdAt: new Date().toISOString(),
       created_at: new Date().toISOString(),
       stats: {
-        totalContacts: Array.isArray(config.contacts) ? config.contacts.length : 0,
+        totalContacts: contacts.length,
         sent: 0,
         delivered: 0,
         failed: 0,
@@ -87,7 +92,15 @@ export const createCampaignRoutes = ({ campaignsByClinic }) => {
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     const { campaigns, index } = findCampaignByIdInClinic(auth.clinicId, id);
     if (index !== -1) {
-      campaigns[index] = { ...campaigns[index], ...updates, clinicId: auth.clinicId, clinic_id: auth.clinicId, updated_at: new Date().toISOString() };
+      // Allowlist: impede mass assignment de status/stats/contatos
+      const editable = ["name", "message", "subject", "template", "target", "channel"];
+      const sanitized = {};
+      for (const key of editable) {
+        if (updates[key] !== undefined) sanitized[key] = updates[key];
+      }
+      if (typeof sanitized.name === "string" && sanitized.name.length > 120) sanitized.name = sanitized.name.slice(0, 120);
+      if (typeof sanitized.message === "string" && sanitized.message.length > 4000) sanitized.message = sanitized.message.slice(0, 4000);
+      campaigns[index] = { ...campaigns[index], ...sanitized, clinicId: auth.clinicId, clinic_id: auth.clinicId, updated_at: new Date().toISOString() };
       campaignsByClinic.set(auth.clinicId, campaigns);
       return res.json({ ok: true, campaign: campaigns[index] });
     }

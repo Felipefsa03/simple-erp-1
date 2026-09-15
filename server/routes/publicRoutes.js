@@ -131,6 +131,11 @@ export const createPublicRoutes = ({
     }
   });
 
+  // Anti-spam do booking público: máximo 5 agendamentos por IP a cada 15 min
+  const bookingRateByIp = new Map();
+  const BOOKING_WINDOW_MS = 15 * 60 * 1000;
+  const BOOKING_MAX_PER_WINDOW = 5;
+
   router.post("/clinic/:clinicId/booking", async (req, res) => {
     const { clinicId } = req.params;
     const { name, phone, email, service_id, professional_id, date, time, notes } = req.body;
@@ -138,23 +143,37 @@ export const createPublicRoutes = ({
     if (!isUuid(clinicId)) {
       return res.status(400).json({ ok: false, error: "ID de clínica inválido" });
     }
-    console.log(`[Public Booking] Request received for clinic: ${clinicId}`);
-    console.log(`[Public Booking] Body:`, JSON.stringify(req.body));
+
+    // Rate limit por IP
+    const ip = String(req.ip || "unknown");
+    const nowMs = Date.now();
+    const recent = (bookingRateByIp.get(ip) || []).filter((t) => nowMs - t < BOOKING_WINDOW_MS);
+    if (recent.length >= BOOKING_MAX_PER_WINDOW) {
+      return res.status(429).json({ ok: false, error: "Muitos agendamentos. Tente novamente mais tarde." });
+    }
 
     if (!name || !phone || !email || !date || !time) {
       return res.status(400).json({ ok: false, error: "Campos obrigatórios ausentes", received: { name: !!name, phone: !!phone, email: !!email, date: !!date, time: !!time } });
     }
 
+    // Validação de tamanho/formatos (anti-abuso)
+    const safeName = String(name).slice(0, 80).replace(/\r?\n/g, " ").trim();
+    const safeNotes = String(notes || "").slice(0, 300).replace(/\r?\n/g, " ").trim();
+    const safeEmail = String(email).slice(0, 120).trim().toLowerCase();
+    const safePhone = String(phone).replace(/\D/g, "").slice(0, 13);
+    if (!safeName || !safeEmail || safePhone.length < 10 || !/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || !/^\d{2}:\d{2}$/.test(String(time))) {
+      return res.status(400).json({ ok: false, error: "Dados inválidos para agendamento." });
+    }
+
     try {
-      const cleanPhone = phone.replace(/\D/g, "");
-      
+      const cleanPhone = safePhone;
+
       // ====================================================
       // SOLUÇÃO DEFINITIVA: Usar RPC com SECURITY DEFINER
       // Isso bypassa TODAS as travas RLS do banco de dados
       // independente de qual chave (anon ou service) é usada
       // ====================================================
-      console.log(`[Public Booking] Calling RPC public_create_booking...`);
-      
+
       const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/public_create_booking`, {
         method: 'POST',
         headers: {
@@ -164,56 +183,52 @@ export const createPublicRoutes = ({
         },
         body: JSON.stringify({
           p_clinic_id: clinicId,
-          p_name: name,
+          p_name: safeName,
           p_phone: cleanPhone,
-          p_email: email.toLowerCase(),
-          p_service_id: (service_id && service_id.trim() !== '') ? service_id : null,
-          p_professional_id: (professional_id && professional_id.trim() !== '') ? professional_id : null,
+          p_email: safeEmail,
+          p_service_id: (service_id && String(service_id).trim() !== '') ? service_id : null,
+          p_professional_id: (professional_id && String(professional_id).trim() !== '') ? professional_id : null,
           p_date: date,
           p_time: time,
-          p_notes: notes || 'Agendamento Online'
+          p_notes: safeNotes || 'Agendamento Online'
         })
       });
 
       const result = await rpcRes.json();
-      console.log(`[Public Booking] RPC Response:`, JSON.stringify(result));
 
       if (!result || result.ok === false) {
-        console.error("[Public Booking] RPC Error:", result);
-        return res.status(400).json({ 
-          ok: false, 
+        return res.status(400).json({
+          ok: false,
           error: result?.error || "Erro ao processar agendamento",
-          details: result
         });
       }
+
+      // Registra o agendamento no rate limit só após sucesso
+      recent.push(nowMs);
+      bookingRateByIp.set(ip, recent);
 
       // WhatsApp Notification (Safe - fire and forget)
       const waUrl = process.env.WHATSAPP_API_URL;
       const waClinicId = SYSTEM_WHATSAPP_CLINIC_ID;
-      
+
       if (waUrl && waClinicId) {
-        console.log(`[Public Booking] Sending WA notification...`);
-        const waMessage = `*Novo Agendamento Online*\n\nPaciente: ${name}\nData: ${date}\nHora: ${time}`;
+        const waMessage = `*Novo Agendamento Online*\n\nPaciente: ${safeName}\nData: ${date}\nHora: ${time}`;
         fetch(`${waUrl}/send-message`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clinicId: waClinicId, to: cleanPhone, message: waMessage })
         }).catch(err => console.log("[Public Booking] WA Notify failed:", err.message));
-      } else {
-        console.log(`[Public Booking] WA notification skipped`);
       }
 
-      console.log(`[Public Booking] SUCCESS - Patient: ${result.patient_id}, Appointment: ${result.appointment_id}`);
       res.json({
         ok: true,
         appointment: { id: result.appointment_id, patient_id: result.patient_id, scheduled: result.scheduled }
       });
     } catch (error) {
       console.error("[Public Booking] CRITICAL ERROR:", error);
-      res.status(500).json({ 
-        ok: false, 
-        error: "Falha interna no servidor", 
-        message: error.message
+      res.status(500).json({
+        ok: false,
+        error: "Falha interna no servidor",
       });
     }
   });

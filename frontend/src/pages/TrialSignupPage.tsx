@@ -113,6 +113,7 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
+  const availabilityCheckedRef = useRef<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(null);
 
@@ -191,25 +192,39 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/api/signup/check-availability`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email,
-          phone: form.phone,
-          clinicDoc: form.clinicDoc,
-        }),
-      });
-      const data = await response.json();
-      if (!data.ok) {
-        setError(data.error || 'Dados já cadastrados no sistema.');
-        return;
+      const checkKey = `${form.email}|${form.phone}|${form.clinicDoc}`;
+      if (availabilityCheckedRef.current !== checkKey) {
+        const response = await fetch(`${API_BASE}/api/signup/check-availability`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: form.email,
+            phone: form.phone,
+            clinicDoc: form.clinicDoc,
+          }),
+        });
+        const data = await response.json();
+        if (!data.ok) {
+          setError(data.error || 'Dados já cadastrados no sistema.');
+          return;
+        }
+        availabilityCheckedRef.current = checkKey;
       }
       goToStep(3);
     } catch (err) {
       setError('Erro ao verificar disponibilidade. Tente novamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    setForm(prev => ({ ...prev, phone: value }));
+    if (phoneVerified || phoneCodeSent) {
+      setPhoneVerified(false);
+      setPhoneCodeSent(false);
+      setPhoneCode('');
+      setPhoneTimer(0);
     }
   };
 
@@ -344,7 +359,7 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
 
                   <div><label className="block text-sm font-semibold text-slate-700 mb-1">Nome completo</label><input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-400 transition-colors" /></div>
                   <div><label className="block text-sm font-semibold text-slate-700 mb-1">Email</label><input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-400 transition-colors" /></div>
-                  <div><label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label><input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="(11) 99999-9999" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-400 transition-colors" /></div>
+                  <div><label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label><input type="tel" value={form.phone} onChange={e => handlePhoneChange(e.target.value)} placeholder="(11) 99999-9999" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-400 transition-colors" /></div>
                   <div><label className="block text-sm font-semibold text-slate-700 mb-1">Senha</label><input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-400 transition-colors" /></div>
                   <div><label className="block text-sm font-semibold text-slate-700 mb-1">Confirmar senha</label><input type="password" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:border-brand-400 transition-colors" /></div>
                   <button onClick={() => { if (validateStep1()) goToStep(2); }} className="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-600 text-white font-bold rounded-xl hover:opacity-90 transition-all">Próximo</button>
@@ -411,7 +426,7 @@ export function TrialSignupPage({ onLoginClick }: TrialSignupPageProps) {
                       <div className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl p-3">Validação indisponível no momento.</div>
                     )}
                     <div className="flex gap-2">
-                      <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm" />
+                      <input type="tel" value={form.phone} onChange={e => handlePhoneChange(e.target.value)} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 outline-none text-sm" />
                       <button onClick={handleSendPhoneCode} disabled={loading || !phoneVerificationEnabled} className="px-4 py-3 bg-brand-600 text-white font-bold rounded-xl text-sm disabled:opacity-60 whitespace-nowrap">
                         {loading ? '...' : phoneCodeSent ? 'Reenviar' : 'Enviar'}
                       </button>

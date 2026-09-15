@@ -669,7 +669,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone</label>
-                    <input type="tel" value={signupForm.phone} onChange={e => setSignupForm({ ...signupForm, phone: e.target.value, })} placeholder="(11) 99999-9999" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" />
+                    <input type="tel" value={signupForm.phone} onChange={e => { setSignupForm({ ...signupForm, phone: e.target.value }); if (phoneVerified || phoneCodeSent) { setPhoneVerified(false); setPhoneCodeSent(false); setPhoneCode(''); setPhoneTimer(0); } }} placeholder="(11) 99999-9999" className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Senha</label>

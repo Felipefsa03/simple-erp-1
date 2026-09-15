@@ -119,13 +119,15 @@ export function PasswordResetFlow({ onBack, onSuccess }: PasswordResetFlowProps)
       
       if (result.ok) {
         if (result.mock) {
-          // Usuário não encontrado, mas mostramos sucesso por segurança/privacidade
+          // Usuário não encontrado: não avança para a tela de código
           toast('Se este email estiver cadastrado, você receberá um código.', 'info');
+          setError('');
+          return false;
         } else {
           toast('Código enviado com sucesso!', 'success');
           setMaskedPhone(result.masked_phone || 'no seu WhatsApp');
         }
-        
+
         setCurrentUserEmail(targetEmail);
         setStep('code');
         setTimer(30);

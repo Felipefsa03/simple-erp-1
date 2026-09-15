@@ -161,6 +161,25 @@ export const createWhatsAppRoutes = ({
     const auth = resolveAuthorizedClinicId(req, requestedClinicId || req.clinicId);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
 
+    // Anti-SSRF: permitir apenas URLs https de hosts confiáveis
+    let parsed;
+    try {
+      parsed = new URL(String(imageUrl));
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: "imageUrl inválida" });
+    }
+    const allowedHosts = new Set([
+      ...(SUPABASE_URL ? [new URL(SUPABASE_URL).hostname] : []),
+      "clinxia.vercel.app",
+    ]);
+    const hostAllowed = parsed.protocol === "https:" && (
+      allowedHosts.has(parsed.hostname) ||
+      parsed.hostname.endsWith(".supabase.co")
+    );
+    if (!hostAllowed) {
+      return res.status(400).json({ ok: false, error: "imageUrl deve apontar para o storage do sistema." });
+    }
+
     try {
       if (!sendWhatsAppImage) {
         return res.status(501).json({ ok: false, error: "Envio de imagem não suportado nesta versão." });
@@ -425,14 +444,34 @@ export const createWhatsAppRoutes = ({
     return res.json({ ok: true, config: whiskey.getAIConfig(auth.clinicId) });
   });
 
+  // Rate limit de IA por clínica: 10 requisições/minuto
+  const aiRateLimit = new Map();
+  const AI_RATE_WINDOW = 60 * 1000;
+  const AI_RATE_MAX = 10;
+
   router.post("/ai/ask", async (req, res) => {
     const { clinicId: cid, message } = req.body;
     const auth = resolveAuthorizedClinicId(req, cid);
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
     if (!message) return res.status(400).json({ ok: false, error: "message é obrigatório" });
+    if (String(message).length > 2000) return res.status(400).json({ ok: false, error: "message muito longa" });
+
+    const now = Date.now();
+    const timestamps = (aiRateLimit.get(auth.clinicId) || []).filter((t) => now - t < AI_RATE_WINDOW);
+    if (timestamps.length >= AI_RATE_MAX) {
+      return res.status(429).json({ ok: false, error: "Limite de requisições de IA atingido. Aguarde um minuto." });
+    }
+    timestamps.push(now);
+    aiRateLimit.set(auth.clinicId, timestamps);
+
+    const allowedProviders = new Set(["openai", "deepseek"]);
+    const provider = allowedProviders.has(String(req.body.provider || "").toLowerCase())
+      ? String(req.body.provider).toLowerCase()
+      : "openai";
+
     try {
-      const reply = await whiskey._askAI(message, req.body.provider || "openai");
+      const reply = await whiskey._askAI(message, provider);
       return res.json({ ok: true, reply: reply || "Sem resposta da IA" });
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message });
@@ -603,8 +642,15 @@ export const createWhatsAppRoutes = ({
     if (!auth.ok) return res.status(auth.status).json({ ok: false, error: auth.error });
     if (!whiskey) return res.status(501).json({ ok: false, error: "WhiskeyService não disponível" });
     try {
+      // Apenas a sessão da clínica autorizada (nunca todas)
       const all = whiskey.getAllConnections();
-      res.json({ ok: true, data: all });
+      const own = Object.keys(all || {})
+        .filter((cid) => cid === auth.clinicId)
+        .reduce((acc, cid) => {
+          acc[cid] = all[cid];
+          return acc;
+        }, {});
+      res.json({ ok: true, data: own });
     } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
   });
 

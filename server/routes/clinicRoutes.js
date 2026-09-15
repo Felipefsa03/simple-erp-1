@@ -33,9 +33,18 @@ export const createClinicRoutes = ({
       const password = String(req.body?.password || "");
       const name = String(req.body?.name || "").trim();
       const phone = String(req.body?.phone || "").trim();
-      const role = String(req.body?.role || "receptionist").trim();
+      const requestedRole = String(req.body?.role || "receptionist").trim().toLowerCase();
       const commissionPct = Number(req.body?.commission_pct || 0);
       const requestedClinicId = String(req.body?.clinic_id || "").trim();
+
+      // Allowlist: clínica NÃO pode criar super_admin/owner via esta rota.
+      // Apenas super_admin pode atribuir qualquer role (exceto super_admin).
+      const clinicRoles = new Set(["receptionist", "dentist", "professional", "admin"]);
+      const role = actorRole === "super_admin"
+        ? (clinicRoles.has(requestedRole) ? requestedRole : "receptionist")
+        : (requestedRole === "admin" || requestedRole === "dentist" || requestedRole === "professional"
+            ? requestedRole
+            : "receptionist");
 
       console.log('[POST /api/clinic/users] email:', email, 'name:', name);
 

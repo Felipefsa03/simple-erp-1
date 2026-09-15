@@ -110,7 +110,7 @@ providers.forEach(provider => {
     }
     const clinicId = auth.clinicId;
     const config = await getIntegrationConfig(clinicId);
-    
+
     if (!config || !config[provider]) {
       return res.json({
         ok: true,
@@ -120,11 +120,33 @@ providers.forEach(provider => {
       });
     }
 
+    // Apenas admin/super_admin enxergam os valores completos.
+    // Demais perfis recebem segredos mascarados.
+    const actorRole = String(req.user?.role || "").toLowerCase();
+    const canSeeSecrets = ["admin", "super_admin", "owner"].includes(actorRole);
+    const secretKeyPattern = /token|secret|key|password|api_key|access_token|client_secret|refresh_token/i;
+    const mask = (value) => {
+      const s = String(value || "");
+      if (s.length <= 4) return "••••";
+      return `${s.slice(0, 3)}••••${s.slice(-4)}`;
+    };
+
+    let credentials = config[provider];
+    if (!canSeeSecrets && credentials && typeof credentials === "object") {
+      credentials = Object.fromEntries(
+        Object.entries(credentials).map(([k, v]) => [
+          k,
+          secretKeyPattern.test(k) ? mask(v) : v,
+        ]),
+      );
+    }
+
     return res.json({
       ok: true,
       connected: true,
       has_credentials: true,
-      credentials: config[provider],
+      credentials,
+      masked: !canSeeSecrets,
       updatedAt: config.updated_at
     });
   });
@@ -137,6 +159,12 @@ providers.forEach(provider => {
       return res.status(auth.status).json({ ok: false, error: auth.error });
     }
     const clinicId = auth.clinicId;
+
+    // Apenas admin/super_admin podem gravar credenciais de integração
+    const actorRole = String(req.user?.role || "").toLowerCase();
+    if (!["admin", "super_admin", "owner"].includes(actorRole)) {
+      return res.status(403).json({ ok: false, error: "Apenas administradores podem alterar integrações." });
+    }
 
     const success = await saveIntegrationConfig(clinicId, provider, credentials);
     

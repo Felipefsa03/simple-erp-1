@@ -576,7 +576,6 @@ app.all("/api/auth/google/callback", async (req, res) => {
 const publicPaths = [
   "/health",
   "/health/extended",
-  "/stats",
   "/webhooks/",
   "/auth/",
   "/auth/google",
@@ -1213,7 +1212,7 @@ const saveCredentialsToSupabase = async (clinicId, credentials) => {
 
     // If insert failed (duplicate), try update - use SERVICE_ROLE_KEY
     const updateRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`,
+      `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${encodeFilterValue(clinicId)}`,
       {
         method: "PATCH",
         headers: {
@@ -1245,7 +1244,7 @@ const loadCredentialsFromSupabase = async (clinicId) => {
 
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}&select=credentials`,
+      `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${encodeFilterValue(clinicId)}&select=credentials`,
       {
         headers: {
           apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -1564,7 +1563,7 @@ const createWhatsAppSocket = async (clinicId) => {
             // Limpar credenciais do Supabase
             try {
               await fetch(
-                `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`,
+                `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${encodeFilterValue(clinicId)}`,
                 {
                   method: "DELETE",
                   headers: {
@@ -2004,7 +2003,7 @@ const disconnectWhatsAppSession = async (clinicId) => {
 
   try {
     await fetch(
-      `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`,
+      `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${encodeFilterValue(clinicId)}`,
       {
         method: "DELETE",
         headers: {

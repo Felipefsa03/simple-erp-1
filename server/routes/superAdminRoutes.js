@@ -2,8 +2,23 @@ import express from 'express';
 import { supabaseAdmin } from '../services/supabase.js';
 import { requireAuth, requireSuperAdmin } from '../middleware/auth.js';
 import { addLog } from '../services/logger.js';
+import { getPlanPricesFromConfig } from '../services/paymentGateway.js';
 
 const router = express.Router();
+
+// Preços vindos da configuração global (Sistema Global), com fallback
+const getPlanPrices = async () => {
+  try {
+    const { data } = await supabaseAdmin
+      .from("integration_config")
+      .select("plan_price_basico,plan_price_profissional,plan_price_premium")
+      .eq("clinic_id", "00000000-0000-0000-0000-000000000001")
+      .maybeSingle();
+    return getPlanPricesFromConfig(data);
+  } catch (e) {
+    return { basico: 97, profissional: 197, premium: 397 };
+  }
+};
 
 // GET /api/super-admin/clinics — List all clinics from Supabase with admin info
 router.get("/clinics", requireAuth, requireSuperAdmin, async (req, res) => {
@@ -53,9 +68,9 @@ router.get("/clinics", requireAuth, requireSuperAdmin, async (req, res) => {
     }
 
     // Build response with enriched data
+    const planPrices = await getPlanPrices();
     const enriched = clinics.map(clinic => {
       const admin = adminMap[clinic.id];
-      const planPrices = { basico: 197, profissional: 397, premium: 697 };
       const planName = String(clinic.plan || "basico").toLowerCase();
       const amount = planPrices[planName] || 0;
 
@@ -102,14 +117,19 @@ router.post("/confirm-payment", requireAuth, requireSuperAdmin, async (req, res)
       last_payment_at: now.toISOString(),
     };
 
-    const { error } = await supabaseAdmin
+    const { data: updated, error } = await supabaseAdmin
       .from("clinics")
       .update(updatePayload)
-      .eq("id", clinicId);
+      .eq("id", clinicId)
+      .select("id")
+      .single();
 
     if (error) {
       console.error("[SuperAdmin] Failed to confirm payment:", error.message);
       return res.status(500).json({ ok: false, error: error.message });
+    }
+    if (!updated) {
+      return res.status(404).json({ ok: false, error: "Clínica não encontrada" });
     }
 
     addLog(`[SuperAdmin] Pagamento confirmado manualmente para clínica ${clinicId}. Próxima cobrança: ${nextBilling.toLocaleDateString('pt-BR')}`);

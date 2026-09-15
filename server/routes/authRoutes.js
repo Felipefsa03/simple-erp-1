@@ -58,6 +58,22 @@ router.post("/2fa/setup", requireAuth, require2FAPermission, async (req, res) =>
     const userEmail = req.user?.email || "user@clinxia.com";
     const isSuperAdmin = req.user?.role === "super_admin";
 
+    // Se 2FA já está ATIVO, reexecutar o setup sobrescreveria o secret
+    // e desativaria a proteção sem código. Exigir o fluxo /2fa/disable.
+    const existingRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}&select=enabled`,
+      { headers: getServerHeaders() },
+    );
+    if (existingRes.ok) {
+      const existingRows = await existingRes.json();
+      if (existingRows?.[0]?.enabled) {
+        return res.status(403).json({
+          ok: false,
+          error: "2FA já está ativo. Desative-o antes de reconfigurar.",
+        });
+      }
+    }
+
     // Generate cryptographically secure secret (32 chars base32)
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
     let secret = "";
@@ -237,10 +253,13 @@ router.post("/2fa/disable", requireAuth, require2FAPermission, async (req, res) 
     if (!userId) {
       return res.status(400).json({ ok: false, error: "userId é obrigatório" });
     }
-    await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
+    const delRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?user_id=eq.${userId}`, {
       method: "DELETE",
       headers: getServerHeaders(),
     });
+    if (!delRes.ok) {
+      return res.status(500).json({ ok: false, error: "Erro ao desativar 2FA" });
+    }
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, error: "Erro ao desativar 2FA" });
@@ -265,7 +284,7 @@ router.get("/2fa/status", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/2fa/test", async (req, res) => {
+router.get("/2fa/test", requireAuth, requireSuperAdmin, async (req, res) => {
   try {
     const testRes = await fetch(`${SUPABASE_URL}/rest/v1/user_2fa?limit=1`, {
       headers: getServerHeaders(),

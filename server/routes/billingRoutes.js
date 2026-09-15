@@ -68,7 +68,7 @@ export const createBillingRoutes = ({
   };
 
   const verifyStatusToken = (token, clinicId, email) => {
-    if (!paymentStatusSecret) return true; // fallback controlado para não quebrar ambientes sem secret
+    if (!paymentStatusSecret) return false; // fail closed
     if (!token || String(token).split(".").length !== 2) return false;
     const [payload, receivedSig] = String(token).split(".");
     const expectedSig = crypto

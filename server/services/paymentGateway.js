@@ -46,10 +46,10 @@ const pickString = (...values) => {
 };
 
 const getSupabaseWriteHeaders = () => ({
-  apikey: SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  apikey: process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
   "Content-Type": "application/json",
-  Prefer: "return=representation",
+  Prefer: "resolution=merge-duplicates,return=representation",
 });
 
 // ============================================
@@ -121,11 +121,14 @@ export const persistMercadoPagoPayment = async (payment, clinicIdOverride = "") 
   };
 
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/payments`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/payments?on_conflict=id`, {
       method: "POST",
       headers: getSupabaseWriteHeaders(),
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      addLog(`[MP] Failed to persist payment ${payment.id}: ${res.status} ${await res.text().catch(() => "")}`);
+    }
   } catch (error) {
     addLog(`[MP] Failed to persist payment ${payment.id}: ${error.message}`);
   }
@@ -202,11 +205,14 @@ export const persistAsaasPayment = async (payment, clinicIdOverride = "", metada
   };
 
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/payments`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/payments?on_conflict=id`, {
       method: "POST",
       headers: getSupabaseWriteHeaders(),
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      addLog(`[Asaas] Failed to persist payment ${payment.id}: ${res.status} ${await res.text().catch(() => "")}`);
+    }
   } catch (error) {
     addLog(`[Asaas] Failed to persist payment ${payment.id}: ${error.message}`);
   }
