@@ -1,5 +1,5 @@
-// ============================================
-// clinxia ERP — Core Type Definitions
+﻿// ============================================
+// clinxia ERP â€” Core Type Definitions
 // ============================================
 
 // --- Plans & Subscription ---
@@ -14,7 +14,6 @@ export interface PlanLimits {
   hasMarketing: boolean;
   hasProntuarios: boolean;
   hasMultiClinic: boolean;
-  hasMercado: boolean;
   hasReports: boolean;
   hasAPI: boolean;
   hasPrioritySupport: boolean;
@@ -31,7 +30,6 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasMarketing: false,
     hasProntuarios: true,
     hasMultiClinic: false,
-    hasMercado: true,
     hasReports: false,
     hasAPI: false,
     hasPrioritySupport: false,
@@ -46,7 +44,6 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasMarketing: true,
     hasProntuarios: true,
     hasMultiClinic: false,
-    hasMercado: true,
     hasReports: true,
     hasAPI: false,
     hasPrioritySupport: false,
@@ -61,7 +58,6 @@ export const PLAN_LIMITS: Record<PlanType, PlanLimits> = {
     hasMarketing: true,
     hasProntuarios: true,
     hasMultiClinic: true,
-    hasMercado: true,
     hasReports: true,
     hasAPI: true,
     hasPrioritySupport: true,
@@ -617,7 +613,7 @@ export interface ActiveSession {
     last_activity: string;
 }
 
-// --- Insurance (Convênios) ---
+// --- Insurance (ConvÃªnios) ---
 export interface Insurance {
     id: string;
     clinic_id: string;
@@ -664,4 +660,5 @@ export interface ClinicIntegration {
     created_at: string;
     updated_at: string;
 }
+
 

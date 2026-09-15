@@ -3,11 +3,19 @@ import express from "express";
 export const createPublicRoutes = ({
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY,
   supabaseAdmin,
   isUuid,
   SYSTEM_WHATSAPP_CLINIC_ID
 }) => {
   const router = express.Router();
+
+  // Booking público consulta o banco com a chave de servidor (service role):
+  // mantém o booking funcionando mesmo com RLS ativo nas tabelas.
+  const serverHeaders = {
+    'apikey': SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`
+  };
 
   router.get("/clinic/:clinicId/booking-info", async (req, res) => {
     const { clinicId } = req.params;
@@ -21,10 +29,7 @@ export const createPublicRoutes = ({
       console.log(`[Public API] Fetching clinic info via direct fetch for ID: ${clinicId}`);
       const clinicUrl = `${SUPABASE_URL}/rest/v1/clinics?id=eq.${clinicId}&select=name`;
       const clinicRes = await fetch(clinicUrl, {
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+        headers: serverHeaders
       });
 
       if (!clinicRes.ok) {
@@ -50,10 +55,7 @@ export const createPublicRoutes = ({
       // 2. Fetch services using direct fetch
       const servicesUrl = `${SUPABASE_URL}/rest/v1/services?clinic_id=eq.${clinicId}&deleted_at=is.null&select=id,name&order=name.asc`;
       const servicesRes = await fetch(servicesUrl, {
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
+        headers: serverHeaders
       });
       const services = (await servicesRes.json()) || [];
 

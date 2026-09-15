@@ -183,36 +183,15 @@ export const createWhatsAppRoutes = ({
     }
 
     try {
-      // Limpar qualquer sessão existente antes de conectar
-      if (whatsappSockets[clinicId]) {
-        try {
-          whatsappSockets[clinicId].end(undefined);
-        } catch (e) {}
-        delete whatsappSockets[clinicId];
+      // Se já existe socket vivo, reutilizar (evita quebrar sessão conectada)
+      const existingSock = whatsappSockets[clinicId];
+      if (existingSock && whatsappConnections[clinicId]?.status === "connected") {
+        return res.json({ success: true, status: "connected" });
       }
 
-      // Limpar credenciais do Supabase para forçar QR limpo
-      try {
-        await fetch(
-          `${SUPABASE_URL}/rest/v1/whatsapp_credentials?clinic_id=eq.${clinicId}`,
-          {
-            method: "DELETE",
-            headers: {
-              apikey: SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
-            },
-          },
-        );
-      } catch (e) {}
-
-      // Limpar auth local
-      try {
-        const authDir = ensureClinicStatus(clinicId);
-        if (fs.existsSync(authDir)) {
-          fs.rmSync(authDir, { recursive: true, force: true });
-          fs.mkdirSync(authDir, { recursive: true });
-        }
-      } catch (e) {}
+      // NÃO apagamos credenciais aqui: se a sessão já está pareada,
+      // ela deve reconectar automaticamente. A limpeza forçada fica
+      // apenas em /reset-session (pedido explícito do usuário).
 
       whatsappConnections[clinicId] = { status: "connecting" };
 

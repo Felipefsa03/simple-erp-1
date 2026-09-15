@@ -443,7 +443,7 @@ app.get("/api/health", (req, res) => {
 // Public Booking Endpoints
 // ============================================
 
-app.use("/api", createPublicRoutes({ SUPABASE_URL, SUPABASE_ANON_KEY, supabaseAdmin, isUuid, SYSTEM_WHATSAPP_CLINIC_ID }));
+app.use("/api", createPublicRoutes({ SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, supabaseAdmin, isUuid, SYSTEM_WHATSAPP_CLINIC_ID }));
 
 
 // Helper for UUID validation
@@ -592,14 +592,13 @@ const publicPaths = [
   "/mercadopago/create-preference",
   "/mercadopago/payment-status/",
   "/public/",
-  "/mercado/",
-  "/mercado",
   // SEGURANÇA: Rotas abaixo foram REMOVIDAS de publicPaths pela auditoria:
   // "/asaas/"         -> requer auth (SEC-07)
   // "/integrations/"  -> requer auth (SEC-06)
   // "/facebook/"      -> requer auth (SEC-06)
   // "/whatsapp/"      -> requer auth (SEC-03)
   // "/debug/tail"     -> requer auth + super_admin (SEC-02)
+  // "/mercado/"       -> módulo IQ Option removido do projeto (auditoria 14/09/2026)
 ];
 
 app.use("/api", (req, res, next) => {
@@ -2596,19 +2595,6 @@ const billingRouter = createBillingRoutes({
 });
 app.use("/api/mercadopago", billingRouter);
 app.use("/api/webhooks", billingRouter);
-
-// Mercado Financeiro Module (IQ Option Trading)
-let mercadoRouter = null;
-app.use("/api/mercado", (req, res, next) => {
-  if (mercadoRouter) return mercadoRouter(req, res, next);
-  res.json({ connected: false, tradingActive: false, engineRunning: false, copyTradingActive: false, lstmTrained: false, initializing: true });
-});
-import('./mercado-init.js').then(({ initMercado, getMercadoRouter }) => {
-  return initMercado().then(() => {
-    mercadoRouter = getMercadoRouter();
-    if (mercadoRouter) console.log('[Mercado] Module ready at /api/mercado');
-  });
-}).catch(err => console.error('[Mercado] Init failed:', err.message));
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);

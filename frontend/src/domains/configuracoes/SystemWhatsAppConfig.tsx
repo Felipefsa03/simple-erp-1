@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Globe, MessageSquare, Smartphone, RefreshCw, CheckCircle2, AlertTriangle, X, Loader2, Wifi, WifiOff, Clock, Shield, Link2, Eye, EyeOff, Phone, Key, Save, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import { useClinicStore } from '@/stores/clinicStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/useShared';
@@ -8,6 +9,24 @@ import { toast } from '@/hooks/useShared';
 const isDev = import.meta.env.DEV;
 const API_BASE = isDev ? '' : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
 const SYSTEM_CLINIC_ID = 'system-global';
+
+const getAccessToken = async () => {
+  if (!supabase) return '';
+  try {
+    const session = (await supabase.auth.getSession()).data.session;
+    return session?.access_token || '';
+  } catch {
+    return '';
+  }
+};
+
+const getAuthHeaders = async (extra: Record<string, string> = {}) => {
+  const token = await getAccessToken();
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
 
 type UIStatus = 'loading' | 'qr' | 'connected' | 'error' | 'expired' | 'disconnected' | 'pairing';
 
@@ -61,7 +80,7 @@ export function SystemWhatsAppConfig() {
       try {
         const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, { 
           cache: 'no-store',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: await getAuthHeaders({ 'ngrok-skip-browser-warning': 'true' })
         });
         if (!res.ok) {
           console.error('[WhatsApp Sistema] Poll failed:', res.status);
@@ -124,7 +143,7 @@ export function SystemWhatsAppConfig() {
     try {
       // First check if backend is available
       const healthRes = await fetch(`${API_BASE}/api/health`, {
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(30000)
       });
       
       if (!healthRes.ok) {
@@ -142,7 +161,7 @@ export function SystemWhatsAppConfig() {
     // Now get WhatsApp status
     try {
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' }
+        headers: await getAuthHeaders({ 'ngrok-skip-browser-warning': 'true' })
       });
       const data = await res.json();
       console.log('[WhatsApp Sistema] Initial status:', data.status);
@@ -163,7 +182,7 @@ export function SystemWhatsAppConfig() {
         try {
           const connectRes = await fetch(`${API_BASE}/api/whatsapp/connect`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID })
           });
           const connectData = await connectRes.json();
@@ -199,7 +218,7 @@ export function SystemWhatsAppConfig() {
     const checkStatus = async () => {
       try {
         const res = await fetch(`${API_BASE}/api/whatsapp/status/${SYSTEM_CLINIC_ID}?t=${Date.now()}`, {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: await getAuthHeaders({ 'ngrok-skip-browser-warning': 'true' })
         });
         const data = await res.json();
         
@@ -264,7 +283,7 @@ export function SystemWhatsAppConfig() {
     try {
       await fetch(`${API_BASE}/api/whatsapp/disconnect`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        headers: await getAuthHeaders({ 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' }),
         body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID }),
       });
       stopTimers();
@@ -351,7 +370,7 @@ export function SystemWhatsAppConfig() {
                     try {
                       const r = await fetch(`${API_BASE}/api/whatsapp/test-send`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
                         body: JSON.stringify({ phone, message: 'Teste de conexão Clinxia Global ✅', clinicId: SYSTEM_CLINIC_ID })
                       });
                       const d = await r.json();
@@ -374,11 +393,11 @@ export function SystemWhatsAppConfig() {
                 onClick={async () => {
                   if (!confirm('Isso vai desconectar o WhatsApp e apagar todos os arquivos de sessão do sistema. Deseja continuar?')) return;
                   try {
-                    const r = await fetch(`${API_BASE}/api/whatsapp/reset-session`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID })
-                    });
+                      const r = await fetch(`${API_BASE}/api/whatsapp/reset-session`, {
+                        method: 'POST',
+                        headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
+                        body: JSON.stringify({ clinicId: SYSTEM_CLINIC_ID })
+                      });
                     const d = await r.json();
                     if (d.ok) {
                       toast('Sessão resetada! Conecte o QR Code novamente.', 'success');
