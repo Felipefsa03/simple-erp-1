@@ -34,7 +34,7 @@ export const createSignupRoutes = ({
   const router = express.Router();
 
   // ---- Constants ----
-  const SIGNUP_CODE_TTL_MS = 30 * 1000;
+  const SIGNUP_CODE_TTL_MS = 5 * 60 * 1000;
   const SIGNUP_VERIFIED_TTL_MS = 30 * 60 * 1000;
   const SIGNUP_CODE_MAX_ATTEMPTS = 3;
   const SIGNUP_BLOCK_MS = 60 * 1000;
@@ -100,12 +100,18 @@ export const createSignupRoutes = ({
         const cleanEmail = email.trim().toLowerCase();
         const { data: userByEmail } = await supabaseAdmin
           .from('users')
-          .select('id')
+          .select('id,clinic_id,phone')
           .eq('email', cleanEmail)
           .limit(1);
 
         if (userByEmail && userByEmail.length > 0) {
-          return res.json({ ok: false, error: 'Este e-mail já está cadastrado. Faça login para continuar.' });
+          const row = userByEmail[0];
+          // Cadastro incompleto (linha criada pelo trigger de auth, sem
+          // clínica nem telefone) pode ser retomado pelo mesmo fluxo.
+          const incomplete = !row.clinic_id && !row.phone;
+          if (!incomplete) {
+            return res.json({ ok: false, error: 'Este e-mail já está cadastrado. Faça login para continuar.' });
+          }
         }
       }
 
@@ -113,12 +119,16 @@ export const createSignupRoutes = ({
         const cleanPhone = phone.replace(/\D/g, '');
         const { data: userByPhone } = await supabaseAdmin
           .from('users')
-          .select('id')
+          .select('id,clinic_id,phone')
           .like('phone', `%${cleanPhone}%`)
           .limit(1);
 
         if (userByPhone && userByPhone.length > 0) {
-          return res.json({ ok: false, error: 'Este telefone já está associado a outra conta.' });
+          const row = userByPhone[0];
+          const incomplete = !row.clinic_id && !row.phone;
+          if (!incomplete) {
+            return res.json({ ok: false, error: 'Este telefone já está associado a outra conta.' });
+          }
         }
       }
 
@@ -231,7 +241,7 @@ export const createSignupRoutes = ({
       `${greeting} Clinxia - Validação de Telefone`,
       "",
       `Seu código de verificação é: *${code}*`,
-      "Ele expira em 30 segundos.",
+      "Ele expira em 5 minutos.",
       "",
       "Use este código para concluir seu cadastro com segurança. Se não solicitou, pode ignorar esta mensagem.",
     ].join("\n");
@@ -259,7 +269,7 @@ export const createSignupRoutes = ({
 
     return res.json({
       ok: true,
-      expires_in_seconds: 30,
+      expires_in_seconds: Math.round(SIGNUP_CODE_TTL_MS / 1000),
       masked_phone: maskPhone(normalizedPhone),
       destination_name: name || "",
       debug_jid: session.phone + "@s.whatsapp.net",
@@ -513,21 +523,20 @@ export const createSignupRoutes = ({
         phone: normalizedPhone,
         role: "admin",
         active: true,
-        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
 
       console.log("[TrialProvision] User payload:", JSON.stringify(userPayload));
 
-      const existingUsr = await fetchUserByEmail(normalizedEmail);
-      if (existingUsr) {
-        const { error: usrErr } = await supabaseAdmin.from("users").update(userPayload).eq("id", existingUsr.id);
-        if (usrErr) console.error("[TrialProvision] UPDATE user failed:", usrErr);
-      } else {
-        const { error: usrErr } = await supabaseAdmin.from("users").insert(userPayload);
-        if (usrErr) {
-          console.error("[TrialProvision] INSERT user failed:", usrErr);
-          throw new Error(usrErr.message || "Erro ao criar usuario admin trial.");
-        }
+      // Upsert com onConflict id: o trigger de auth pode já ter criado a
+      // linha em users (clinic_id null) — sem isso ocorre
+      // "duplicate key value violates unique constraint users_pkey".
+      const { error: usrErr } = await supabaseAdmin
+        .from("users")
+        .upsert(userPayload, { onConflict: "id" });
+      if (usrErr) {
+        console.error("[TrialProvision] UPSERT user failed:", usrErr);
+        throw new Error(usrErr.message || "Erro ao criar usuario admin trial.");
       }
 
       consumePhoneVerification(signupId);

@@ -30,8 +30,8 @@ const isValidSupabaseKey = (key) => {
 };
 
 const getSupabaseAdminHeaders = (key) => ({
-  apikey: key,
-  Authorization: `Bearer ${key}`,
+  apikey: key || SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${key || SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
   "Content-Type": "application/json",
 });
 
@@ -307,43 +307,31 @@ const upsertClinicAdminUser = async ({
   console.log('[upsertClinicAdminUser] Starting for userId:', userId, 'clinicId:', clinicId);
 
   const existing = await fetchUserByEmail(email);
+  if (existing?.clinic_id && existing.clinic_id !== clinicId) {
+    throw new Error("Este email já está vinculado a outra clínica.");
+  }
+
   const payload = {
-    id: userId,
+    id: existing?.id || userId,
     clinic_id: clinicId,
     name,
     email,
     phone,
     role: "admin",
     active: true,
-    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 
-  if (existing) {
-    if (existing.clinic_id && existing.clinic_id !== clinicId) {
-      throw new Error("Este email já está vinculado a outra clínica.");
-    }
-    console.log('[upsertClinicAdminUser] User exists, updating...');
-    const { error } = await supabaseAdmin
-      .from("users")
-      .update({ ...payload, id: existing.id })
-      .eq("id", existing.id);
-    if (error) {
-      console.error('[upsertClinicAdminUser] UPDATE failed:', error);
-      throw new Error(error.message || "Erro ao atualizar usuário administrador");
-    }
-    return { created: false, userId: existing.id };
-  }
-
-  console.log('[upsertClinicAdminUser] Creating new admin user...');
+  console.log('[upsertClinicAdminUser] Upserting admin user (onConflict id)...');
   const { error } = await supabaseAdmin
     .from("users")
-    .insert(payload);
+    .upsert(payload, { onConflict: "id" });
   if (error) {
-    console.error('[upsertClinicAdminUser] INSERT failed:', error);
+    console.error('[upsertClinicAdminUser] UPSERT failed:', error);
     throw new Error(error.message || "Erro ao criar usuário administrador");
   }
-  console.log('[upsertClinicAdminUser] Admin user created successfully');
-  return { created: true, userId };
+  console.log('[upsertClinicAdminUser] Admin user upserted successfully');
+  return { created: !existing, userId: payload.id };
 };
 
 const upsertClinicTeamUser = async ({
@@ -367,7 +355,7 @@ const upsertClinicTeamUser = async ({
   }
 
   const payload = {
-    id: userId,
+    id: existingByEmail?.id || userId,
     clinic_id: clinicId,
     name,
     email,
@@ -375,45 +363,29 @@ const upsertClinicTeamUser = async ({
     role: normalizedRole,
     commission: normalizedCommission,
     active: true,
-    created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 
-  if (existingByEmail?.id) {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${existingByEmail.id}`,
-      {
-        method: "PATCH",
-        headers: getSupabaseWriteHeaders(token),
-        body: JSON.stringify(payload),
+  // Upsert com service_role: o trigger de auth pode já ter criado a linha
+  // (clinic_id null). merge-duplicates evita "duplicate key users_pkey".
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/users?on_conflict=id`,
+    {
+      method: "POST",
+      headers: {
+        ...getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY),
+        Prefer: "resolution=merge-duplicates,return=representation",
       },
-    );
-    if (!response.ok) {
-      const err = await safeJson(response);
-      console.error("[upsertClinicTeamUser] Failed to patch user. Response status:", response.status, "Payload:", err);
-      throw new Error(err?.message || err?.error || err?.raw_text || "Erro ao atualizar usuário da equipe");
-    }
-    return { created: false, userId: existingByEmail.id };
-  }
-
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-    method: "POST",
-    headers: getSupabaseWriteHeaders(token),
-    body: JSON.stringify(payload),
-  });
+      body: JSON.stringify(payload),
+    },
+  );
   if (!response.ok) {
-    const errText = await response.text();
-    let err;
-    try {
-      err = JSON.parse(errText);
-    } catch(e) {
-      err = { raw_text: errText };
-    }
-    console.error("[upsertClinicTeamUser] Failed to insert user. Response status:", response.status, "Payload:", errText);
+    const err = await safeJson(response);
+    console.error("[upsertClinicTeamUser] Failed to upsert user. Response status:", response.status, "Payload:", err);
     throw new Error(err?.message || err?.error || err?.raw_text || "Erro ao criar usuário da equipe");
   }
 
-  return { created: true, userId };
+  return { created: !existingByEmail, userId: payload.id };
 };
 const assertPhoneVerificationValid = async ({ signupId, phone }) => {
   const session = await getVerificationSession(signupId);
