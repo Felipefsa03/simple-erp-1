@@ -391,15 +391,13 @@ export const createSignupRoutes = ({
         return res.status(409).json({ ok: false, error: "Este email ja pertence a outra clinica." });
       }
 
-      let authUserId = existingUser?.id || null;
-      if (!authUserId) {
-        const authResult = await createSupabaseAuthUser({
-          email: normalizedEmail,
-          password: String(password),
-          name: String(name),
-        });
-        authUserId = authResult.userId;
-      }
+      // Sempre chamar: cria ou atualiza o auth user (senha digitada vale).
+      const authResult = await createSupabaseAuthUser({
+        email: normalizedEmail,
+        password: String(password),
+        name: String(name),
+      });
+      const authUserId = authResult.userId;
 
       await upsertClinicRecord({
         clinicId,
@@ -468,15 +466,14 @@ export const createSignupRoutes = ({
         return res.status(409).json({ ok: false, error: "Este email ja pertence a outra clinica." });
       }
 
-      let authUserId = existingUser?.id || null;
-      if (!authUserId) {
-        const authResult = await createSupabaseAuthUser({
-          email: normalizedEmail,
-          password: String(password),
-          name: String(name),
-        });
-        authUserId = authResult.userId;
-      }
+      // Sempre chamar: se o auth user já existir, atualiza email/senha;
+      // se não existir, cria. Garante que a senha digitada valha.
+      const authResult = await createSupabaseAuthUser({
+        email: normalizedEmail,
+        password: String(password),
+        name: String(name),
+      });
+      const authUserId = authResult.userId;
 
       const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
