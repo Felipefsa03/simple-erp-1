@@ -1,7 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { requireAuth, requireSuperAdmin, require2FAPermission } from '../middleware/auth.js';
-import { SUPABASE_URL, TOTP_ENCRYPTION_KEY } from '../config/env.js';
+import { SUPABASE_URL, TOTP_ENCRYPTION_KEY, TOTP_PREVIOUS_ENCRYPTION_KEY } from '../config/env.js';
 import { getServerHeaders } from '../services/supabase.js';
 import { 
   getPasswordResetSession, 
@@ -12,6 +12,35 @@ const router = express.Router();
 
 const hashPasswordResetCode = (email, code) =>
   crypto.createHash("sha256").update(`${email}:${code}`).digest("hex");
+
+const encryptTotpSecret = (secret, encryptionKey) => {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(
+    "aes-256-gcm",
+    crypto.scryptSync(encryptionKey, "2fa-salt", 32),
+    iv,
+  );
+  let encrypted = cipher.update(secret, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  return JSON.stringify({
+    encrypted,
+    iv: iv.toString("hex"),
+    authTag: cipher.getAuthTag().toString("hex"),
+  });
+};
+
+const decryptTotpSecret = (payload, encryptionKey) => {
+  const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm",
+    crypto.scryptSync(encryptionKey, "2fa-salt", 32),
+    Buffer.from(parsed.iv, "hex"),
+  );
+  decipher.setAuthTag(Buffer.from(parsed.authTag, "hex"));
+  let decrypted = decipher.update(parsed.encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+};
 
 // ============================================
 // Password Reset Endpoints
@@ -89,15 +118,7 @@ router.post("/2fa/setup", requireAuth, require2FAPermission, async (req, res) =>
         error: "2FA indisponível: chave de criptografia não configurada.",
       });
     }
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(
-      "aes-256-gcm",
-      crypto.scryptSync(TOTP_ENCRYPTION_KEY, "2fa-salt", 32),
-      iv,
-    );
-    let encrypted = cipher.update(secret, "utf8", "hex");
-    encrypted += cipher.final("hex");
-    const authTag = cipher.getAuthTag();
+    const secretEncrypted = encryptTotpSecret(secret, TOTP_ENCRYPTION_KEY);
 
     const upsertRes = await fetch(
       `${SUPABASE_URL}/rest/v1/user_2fa?on_conflict=user_id`,
@@ -109,11 +130,7 @@ router.post("/2fa/setup", requireAuth, require2FAPermission, async (req, res) =>
         },
         body: JSON.stringify({
           user_id: userId,
-          secret_encrypted: JSON.stringify({
-            encrypted,
-            iv: iv.toString("hex"),
-            authTag: authTag.toString("hex"),
-          }),
+          secret_encrypted: secretEncrypted,
           enabled: false,
           updated_at: new Date().toISOString(),
         }),
@@ -168,7 +185,6 @@ router.post("/2fa/verify", requireAuth, require2FAPermission, async (req, res) =
       return res.status(400).json({ ok: false, error: "2FA não configurado" });
     }
 
-    const parsed = JSON.parse(data[0].secret_encrypted);
     if (!TOTP_ENCRYPTION_KEY) {
       return res.status(503).json({
         ok: false,
@@ -176,14 +192,31 @@ router.post("/2fa/verify", requireAuth, require2FAPermission, async (req, res) =
       });
     }
     
-    const decipher = crypto.createDecipheriv(
-      "aes-256-gcm",
-      crypto.scryptSync(TOTP_ENCRYPTION_KEY, "2fa-salt", 32),
-      Buffer.from(parsed.iv, "hex"),
-    );
-    decipher.setAuthTag(Buffer.from(parsed.authTag, "hex"));
-    let decrypted = decipher.update(parsed.encrypted, "hex", "utf8");
-    decrypted += decipher.final("utf8");
+    let decrypted;
+    let isLegacyEncryption = false;
+    try {
+      decrypted = decryptTotpSecret(data[0].secret_encrypted, TOTP_ENCRYPTION_KEY);
+    } catch (currentKeyError) {
+      if (!TOTP_PREVIOUS_ENCRYPTION_KEY) {
+        console.warn("[2FA Verify] Registro 2FA não pode ser lido com a chave atual.");
+        return res.status(409).json({
+          ok: false,
+          code: "TOTP_KEY_ROTATED",
+          error: "Seu 2FA precisa ser reconfigurado após a atualização de segurança.",
+        });
+      }
+      try {
+        decrypted = decryptTotpSecret(data[0].secret_encrypted, TOTP_PREVIOUS_ENCRYPTION_KEY);
+        isLegacyEncryption = true;
+      } catch (legacyKeyError) {
+        console.warn("[2FA Verify] Registro 2FA não pode ser lido com nenhuma chave configurada.");
+        return res.status(409).json({
+          ok: false,
+          code: "TOTP_RECOVERY_REQUIRED",
+          error: "Seu 2FA precisa ser reconfigurado. Solicite a recuperação a um administrador.",
+        });
+      }
+    }
 
     function base32Decode(base32) {
       const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -229,6 +262,9 @@ router.post("/2fa/verify", requireAuth, require2FAPermission, async (req, res) =
           body: JSON.stringify({
             enabled: true,
             verified_at: new Date().toISOString(),
+            ...(isLegacyEncryption
+              ? { secret_encrypted: encryptTotpSecret(decrypted, TOTP_ENCRYPTION_KEY) }
+              : {}),
           }),
         },
       );

@@ -41,6 +41,9 @@ export const SUPABASE_SERVICE_ROLE_KEY = cleanEnv(pickEnv(
 ));
 
 export const TOTP_ENCRYPTION_KEY = cleanEnv(process.env.TOTP_ENCRYPTION_KEY || "");
+// Usada apenas durante a rotação de chaves para ler segredos 2FA já existentes.
+// Remova-a assim que todos os registros legados forem migrados no primeiro uso.
+export const TOTP_PREVIOUS_ENCRYPTION_KEY = cleanEnv(process.env.TOTP_PREVIOUS_ENCRYPTION_KEY || "");
 export const ANAMNESE_TOKEN_SECRET = cleanEnv(process.env.ANAMNESE_TOKEN_SECRET || "");
 export const PAYMENT_STATUS_TOKEN_SECRET = cleanEnv(process.env.PAYMENT_STATUS_TOKEN_SECRET || "");
 
