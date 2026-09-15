@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import { requireAuth, require2FAPermission } from '../middleware/auth.js';
+import { requireAuth, requireSuperAdmin, require2FAPermission } from '../middleware/auth.js';
 import { SUPABASE_URL, TOTP_ENCRYPTION_KEY } from '../config/env.js';
 import { getServerHeaders } from '../services/supabase.js';
 import { 
