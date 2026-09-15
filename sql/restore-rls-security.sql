@@ -276,8 +276,20 @@ create policy integration_config_select_policy on public.integration_config
 drop policy if exists integration_config_write_policy on public.integration_config;
 create policy integration_config_write_policy on public.integration_config
   for all
-  using (public.app_is_super_admin())
-  with check (public.app_is_super_admin());
+  using (
+    public.app_is_super_admin()
+    or (
+      public.app_is_clinic_admin()
+      and clinic_id::text = public.app_get_user_clinic_id()
+    )
+  )
+  with check (
+    public.app_is_super_admin()
+    or (
+      public.app_is_clinic_admin()
+      and clinic_id::text = public.app_get_user_clinic_id()
+    )
+  );
 
 -- ============================================================
 -- 9. TABELAS OPERACIONAIS — por clínica (matriz/filial/irmã)
@@ -307,7 +319,6 @@ begin
         'auth_sessions',
         'system_integrations',
         'banned_ips',
-        'audit_logs',
         'security_logs'
       )
   loop

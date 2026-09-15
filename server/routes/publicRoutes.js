@@ -17,6 +17,36 @@ export const createPublicRoutes = ({
     'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`
   };
 
+  const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
+
+  // Preços dos planos configurados pelo super admin (Sistema Global).
+  // Público: retorna SOMENTE os preços, nunca segredos.
+  router.get("/system/signup-config", async (_req, res) => {
+    try {
+      const url = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=plan_price_basico,plan_price_profissional,plan_price_premium&limit=1`;
+      const cfgRes = await fetch(url, { headers: serverHeaders });
+      const rows = cfgRes.ok ? await cfgRes.json() : [];
+      const cfg = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+
+      const parsePrice = (value, fallback) => {
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? n : fallback;
+      };
+
+      return res.json({
+        ok: true,
+        plan_prices: {
+          basico: parsePrice(cfg?.plan_price_basico, 97),
+          profissional: parsePrice(cfg?.plan_price_profissional, 197),
+          premium: parsePrice(cfg?.plan_price_premium, 397),
+        },
+      });
+    } catch (error) {
+      console.error("[Public API] Erro ao buscar preços:", error.message);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
   router.get("/clinic/:clinicId/booking-info", async (req, res) => {
     const { clinicId } = req.params;
 
