@@ -116,8 +116,15 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   }, [transactions]);
 
   // ---- Handlers ----
+  // Converte valor no padrão brasileiro (1.000,50) para número
+  const parseBRValue = (v: string): number => {
+    const cleaned = String(v || '').trim().replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(cleaned);
+    return Number.isFinite(n) ? n : 0;
+  };
+
   const handleAddTransactionInner = useCallback((data: TransacaoFormData) => {
-    const amount = parseFloat(data.amount.replace(',', '.'));
+    const amount = typeof data.amount === 'number' ? data.amount : parseBRValue(String(data.amount));
     useClinicStore.getState().addTransaction({
       clinic_id: clinicId,
       type: txnType,
@@ -181,8 +188,14 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
             amount: parcela.valor,
             status: 'pending',
             patient_name: chargeTarget.patient_name || undefined,
-            idempotency_key: `installment:${chargeTarget.id}:${parcela.numero}:${Date.now()}`,
+            due_date: parcela.vencimento,
+            idempotency_key: `installment:${chargeTarget.id}:${parcela.numero}`,
           });
+        }
+        // A transação original é substituída pelas parcelas:
+        // se já foi paga, mantém; caso contrário, baixa para não duplicar receita.
+        if (chargeTarget.status !== 'paid') {
+          useClinicStore.getState().processPayment(chargeTarget.id, 'installment');
         }
         toast(`${parcelamentoPreview.length} parcelas registradas com sucesso!`);
       } else {
@@ -264,7 +277,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
       const dateStr = `${day}/${month}/${year}`;
       const typeStr = t.type === 'income' ? 'RECEITA' : 'DESPESA';
       const statusStr = t.status === 'paid' ? 'PAGO' : t.status === 'pending' ? 'PENDENTE' : 'AGUARDANDO';
-      const amountNum = parseFloat(String(t.amount).replace(/\./g, '').replace(',', '.'));
+      const amountNum = typeof t.amount === 'number' ? t.amount : parseBRValue(String(t.amount));
       const amountStr = isNaN(amountNum) ? '0,00' : amountNum.toFixed(2).replace('.', ',');
       return [
         dateStr,
@@ -447,7 +460,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                         <td className="px-6 py-4">
                           <p className="text-sm font-bold text-slate-900">{t.description}</p>
                           {t.patient_name && <p className="text-[10px] font-medium text-slate-400">Paciente: {t.patient_name}</p>}
-                          {t.commission_amount > 0 && <p className="text-[10px] font-medium text-brand-600 mt-0.5">Comissão Prof: {formatCurrency(t.commission_amount)}</p>}
+                          {(t.commission_amount ?? 0) > 0 && <p className="text-[10px] font-medium text-brand-600 mt-0.5">Comissão Prof: {formatCurrency(t.commission_amount ?? 0)}</p>}
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-bold">{t.category}</span>

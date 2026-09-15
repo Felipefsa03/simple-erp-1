@@ -360,11 +360,11 @@ export const SupabaseSync = {
   
   async loadPatients(clinicId: string, parentId?: string) {
     const uuid = getClinicId(clinicId);
-    let filters = `?clinic_id=eq.${uuid}&select=*&order=name.asc`;
-    
+    let filters = `?clinic_id=eq.${uuid}&deleted_at=is.null&select=*&order=name.asc`;
+
     if (parentId && parentId !== clinicId) {
       const parentUuid = getClinicId(parentId);
-      filters = `?clinic_id=in.(${uuid},${parentUuid})&select=*&order=name.asc`;
+      filters = `?clinic_id=in.(${uuid},${parentUuid})&deleted_at=is.null&select=*&order=name.asc`;
     }
 
     const { data, error } = await supabaseFetch('patients', { filters });
@@ -546,7 +546,8 @@ export const SupabaseSync = {
   },
 
   async deletePatient(id: string) {
-    return supabaseFetch(`patients?id=eq.${id}`, { method: 'DELETE' });
+    // Soft delete: preserva histórico/prontuários (FK) e segue o padrão do banco
+    return supabaseFetch(`patients?id=eq.${id}`, { method: 'PATCH', body: { deleted_at: new Date().toISOString() } });
   },
 
   async deleteAppointment(id: string) {
@@ -811,7 +812,7 @@ async saveTransaction(transaction: any) {
       stock_item_id: movement.stock_item_id,
       qty: movement.qty,
       type: movement.type,
-      description: movement.description,
+      description: movement.description ?? movement.note ?? null,
       created_at: movement.created_at,
     };
     return supabaseFetch('stock_movements', { method: 'POST', body });
@@ -891,6 +892,47 @@ async saveTransaction(transaction: any) {
       method: 'DELETE',
       filters: `?id=eq.${id}`
     });
+  },
+
+  // ---- Insurances (Convênios) ----
+  async loadInsurances(clinicId: string) {
+    const uuid = getClinicId(clinicId);
+    const { data, error } = await supabaseFetch(`insurances?clinic_id=eq.${uuid}&order=created_at.desc`, { method: 'GET' });
+    if (error || !data) return [];
+    return (data || []).map((i: any) => ({
+      id: i.id,
+      clinic_id: i.clinic_id,
+      name: i.name || '',
+      notes: i.notes || '',
+      active: i.active !== false,
+      created_at: i.created_at,
+    }));
+  },
+
+  async saveInsurance(insurance: any) {
+    return supabaseFetch('insurances', {
+      method: 'POST',
+      body: {
+        id: insurance.id,
+        clinic_id: getClinicId(insurance.clinic_id),
+        name: insurance.name || '',
+        notes: insurance.notes || null,
+        active: insurance.active !== false,
+        created_at: insurance.created_at,
+      },
+    });
+  },
+
+  async updateInsurance(id: string, data: any) {
+    const body: any = {};
+    if (data.name !== undefined) body.name = data.name;
+    if (data.notes !== undefined) body.notes = data.notes;
+    if (data.active !== undefined) body.active = data.active;
+    return supabaseFetch(`insurances?id=eq.${id}`, { method: 'PATCH', body });
+  },
+
+  async deleteInsurance(id: string) {
+    return supabaseFetch(`insurances?id=eq.${id}`, { method: 'DELETE' });
   },
 
   // ---- Accounts (Contas a Pagar/Receber) ----

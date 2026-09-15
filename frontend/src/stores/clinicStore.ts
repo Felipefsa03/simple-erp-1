@@ -115,11 +115,19 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         console.log('[ClinicStore] ⏭️ Já sincronizado para esta clínica, pulando...');
         return;
     }
-    // Marcar como sincronizado no início para evitar race conditions
-    lastSyncedClinicId = clinicId;
-    
-    console.log('[ClinicStore] 🔄 Iniciando sincronização com Supabase para:', clinicId);
-    
+
+    console.log('[ClinicStore] 🚀 Iniciando sincronização com Supabase para:', clinicId);
+
+    // Helper: só sobrescreve o estado se a carga veio com dados OU o estado atual está vazio.
+    // Evita apagar dados locais válidos quando uma carga falha/retorna vazio (RLS/transitório).
+    const applyLoaded = <T,>(loaded: T[], current: T[] | undefined, setter: (v: T[]) => void) => {
+        if (Array.isArray(loaded) && loaded.length > 0) {
+            setter(loaded);
+        } else if (!Array.isArray(current) || current.length === 0) {
+            setter([]);
+        }
+    };
+
     try {
         // Carregar info da clínica para checar se é filial
         const { data: clinicInfo } = await SupabaseSync.loadClinic(clinicId);
@@ -127,77 +135,81 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 
         // Carregar pacientes - Se for filial, carrega do pai
         const patients = await SupabaseSync.loadPatients(clinicId, parentId);
-        set({ patients: normalizePatients(patients) });
+        applyLoaded(normalizePatients(patients), get().patients, (v) => set({ patients: v }));
         console.log('[ClinicStore] ✅ Pacientes carregados:', patients.length, parentId ? '(compartilhados)' : '');
 
         // Carregar filiais (apenas se for a matriz)
         if (!parentId) {
             const branches = await SupabaseSync.loadBranches(clinicId);
-            set({ branches });
+            applyLoaded(branches, get().branches, (v) => set({ branches: v }));
             console.log('[ClinicStore] ✅ Filiais carregadas:', branches.length);
         } else {
             set({ branches: [] });
         }
 
-        // Carregar profissionais - SEMPRE sobrescrever
+        // Carregar profissionais
         const professionals = await SupabaseSync.loadProfessionals(clinicId);
-        set({ professionals });
+        applyLoaded(professionals, get().professionals, (v) => set({ professionals: v }));
         console.log('[ClinicStore] ✅ Profissionais carregados:', professionals.length);
 
-        // Carregar agendamentos - SEMPRE sobrescrever
+        // Carregar agendamentos
         const appointments = await SupabaseSync.loadAppointments(clinicId);
-        set({ appointments });
+        applyLoaded(appointments, get().appointments, (v) => set({ appointments: v }));
         console.log('[ClinicStore] ✅ Agendamentos carregados:', appointments.length);
 
-        // Carregar serviços - SEMPRE sobrescrever
+        // Carregar serviços
         const services = await SupabaseSync.loadServices(clinicId);
-        set({ services });
+        applyLoaded(services, get().services, (v) => set({ services: v }));
         console.log('[ClinicStore] ✅ Serviços carregados:', services.length);
 
-        // Carregar estoque - SEMPRE sobrescrever
+        // Carregar estoque
         const stockItems = await SupabaseSync.loadStock(clinicId);
-        set({ stockItems });
+        applyLoaded(stockItems, get().stockItems, (v) => set({ stockItems: v }));
         console.log('[ClinicStore] ✅ Estoque carregado:', stockItems.length);
 
         // Carregar transações
         const transactions = await SupabaseSync.loadTransactions(clinicId);
-        set({ transactions });
+        applyLoaded(transactions, get().transactions, (v) => set({ transactions: v }));
         console.log('[ClinicStore] ✅ Transações carregadas:', transactions.length);
 
         // Carregar contas a pagar/receber
         const accounts = await SupabaseSync.loadAccounts(clinicId);
-        set({ accounts });
+        applyLoaded(accounts, get().accounts, (v) => set({ accounts: v }));
         console.log('[ClinicStore] ✅ Contas carregadas:', accounts.length);
 
         // Carregar notas fiscais
         const invoices = await SupabaseSync.loadInvoices(clinicId);
-        set({ invoices });
+        applyLoaded(invoices, get().invoices, (v) => set({ invoices: v }));
         console.log('[ClinicStore] ✅ Notas fiscais carregadas:', invoices.length);
 
         // Carregar categorias financeiras
         const financialCategories = await SupabaseSync.loadFinancialCategories(clinicId);
-        set({ financialCategories });
+        applyLoaded(financialCategories, get().financialCategories, (v) => set({ financialCategories: v }));
         console.log('[ClinicStore] ✅ Categorias financeiras carregadas:', financialCategories.length);
-
 
         // Carregar prontuários
         const medicalRecords = await SupabaseSync.loadMedicalRecords(clinicId);
-        set({ medicalRecords });
-        
+        applyLoaded(medicalRecords, get().medicalRecords, (v) => set({ medicalRecords: v }));
+
         // Carregar planos de tratamento
         const treatmentPlans = await SupabaseSync.loadTreatmentPlans(clinicId);
-        set({ treatmentPlans });
+        applyLoaded(treatmentPlans, get().treatmentPlans, (v) => set({ treatmentPlans: v }));
         console.log('[ClinicStore] ✅ Planos de tratamento carregados:', treatmentPlans.length);
 
         // Carregar movimentos de estoque
         const stockMovements = await SupabaseSync.loadStockMovements(clinicId);
-        set({ stockMovements });
+        applyLoaded(stockMovements, get().stockMovements, (v) => set({ stockMovements: v }));
         console.log('[ClinicStore] ✅ Movimentos de estoque carregados:', stockMovements.length);
 
         // Carregar logs de auditoria
         const auditLogs = await SupabaseSync.loadAuditLogs(clinicId);
-        set({ auditLogs });
+        applyLoaded(auditLogs, get().auditLogs, (v) => set({ auditLogs: v }));
         console.log('[ClinicStore] ✅ Logs de auditoria carregados:', auditLogs.length);
+
+        // Carregar convênios
+        const insurances = await SupabaseSync.loadInsurances(clinicId);
+        applyLoaded(insurances, get().insurances, (v) => set({ insurances: v }));
+        console.log('[ClinicStore] ✅ Convênios carregados:', insurances.length);
 
         // Carregar dados da clínica (preferências de notificação)
         try {
@@ -209,7 +221,7 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
         } catch (e) {
             console.error('[ClinicStore] Erro ao carregar dados da clínica:', e);
         }
-        
+
         // Mapear dados específicos de prontuário para o estado local
         const anamneseData: Record<string, any> = {};
         const odontogramData: Record<string, any> = {};
@@ -218,7 +230,7 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
             if (r.odontogram) odontogramData[r.patient_id] = r.odontogram;
         });
         set({ anamneseData, odontogramData });
-        
+
         console.log('[ClinicStore] ✅ Prontuários carregados:', medicalRecords.length);
 
         // Carregar integração config
@@ -228,9 +240,12 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
             console.log('[ClinicStore] ✅ Configuração de integração carregada');
         }
 
+        // Marcar como sincronizado APENAS após sucesso completo
+        lastSyncedClinicId = clinicId;
         console.log('[ClinicStore] ✅ Sincronização completa!');
     } catch (error) {
         console.error('[ClinicStore] ❌ Erro na sincronização:', error);
+        lastSyncedClinicId = ''; // permite nova tentativa
     }
 };
 
@@ -624,8 +639,8 @@ const INITIAL_DATA = useRealData ? {
     professionals: [],
     patients: [],
     appointments: [],
-    services: DEMO_SERVICES,
-    stockItems: DEMO_STOCK,
+    services: [],
+    stockItems: [],
     transactions: [],
 } : useDemoData ? {
     professionals: DEMO_PROFESSIONALS,
@@ -693,10 +708,10 @@ export const useClinicStore = create<ClinicStore>()(
             anamneseLinks: [],
             signatures: [],
             clinicalDocuments: [],
-            automationRules: DEMO_AUTOMATION_RULES,
+            automationRules: useRealData ? [] : DEMO_AUTOMATION_RULES,
             automationRuns: [],
-            leads: DEMO_LEADS,
-            funnelStages: DEMO_FUNNEL_STAGES,
+            leads: useRealData ? [] : DEMO_LEADS,
+            funnelStages: useRealData ? [] : DEMO_FUNNEL_STAGES,
             integrationConfig: {},
             navigationContext: {},
             insurances: [],
@@ -706,15 +721,19 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Insurance (Convênios) ----
             addInsurance: (data) => {
-                const insurance: Insurance = { ...data, id: uid(), created_at: now() };
+                const clinic_id = data.clinic_id || useAuth.getState().user?.clinic_id || 'clinic-1';
+                const insurance: Insurance = { ...data, clinic_id, id: uid(), created_at: now() };
                 set(s => ({ insurances: [insurance, ...s.insurances] }));
+                SupabaseSync.saveInsurance(insurance).catch(e => console.error('[ClinicStore] Erro ao salvar convênio:', e));
                 return insurance;
             },
             updateInsurance: (id, data) => {
                 set(s => ({ insurances: s.insurances.map(i => i.id === id ? { ...i, ...data } : i) }));
+                SupabaseSync.updateInsurance(id, data).catch(e => console.error('[ClinicStore] Erro ao atualizar convênio:', e));
             },
             deleteInsurance: (id) => {
                 set(s => ({ insurances: s.insurances.filter(i => i.id !== id) }));
+                SupabaseSync.deleteInsurance(id).catch(e => console.error('[ClinicStore] Erro ao deletar convênio:', e));
             },
 
             // ---- Branch (Filiais) ----
@@ -1102,7 +1121,7 @@ export const useClinicStore = create<ClinicStore>()(
                     chargeAmount += treatmentValue;
 
                     // Calculate explicit commission amount based on professional's current rate
-                    const professional = state.users.find(u => u.id === appointment.professional_id || u.email === appointment.professional_name);
+                    const professional = state.professionals.find(u => u.id === appointment.professional_id || u.email === appointment.professional_name);
                     const profPct = professional ? (Number(professional.commission_pct) || 0) / 100 : 0;
                     const commissionAmount = chargeAmount * profPct;
 
@@ -1537,8 +1556,14 @@ export const useClinicStore = create<ClinicStore>()(
                 }
             },
             deleteStockItem: (id) => {
+                const item = get().stockItems.find(i => i.id === id);
                 set(s => ({ stockItems: s.stockItems.filter(i => i.id !== id) }));
-                SupabaseSync.deleteStockItem(id).catch(e => console.error('[ClinicStore] Erro ao deletar estoque:', e));
+                SupabaseSync.deleteStockItem(id).catch(e => {
+                    console.error('[ClinicStore] Erro ao deletar estoque:', e);
+                    if (item) {
+                        set(s => ({ stockItems: [...s.stockItems, item] }));
+                    }
+                });
             },
             consumeStock: (items, appointmentId, userId) => {
                 const insufficient: { stock_item_id: string; required: number; available: number }[] = [];
@@ -1567,7 +1592,18 @@ export const useClinicStore = create<ClinicStore>()(
             },
             addStockMovement: (movement) => {
                 const newMovement = { ...movement, id: uid(), created_at: now() };
-                set(s => ({ stockMovements: [newMovement, ...s.stockMovements] }));
+                set(s => ({
+                    stockMovements: [newMovement, ...s.stockMovements],
+                    // Atualiza a quantidade do item junto com o movimento
+                    stockItems: s.stockItems.map(i => {
+                        if (i.id !== movement.stock_item_id) return i;
+                        const qty = Number(movement.qty) || 0;
+                        if (movement.type === 'in') return { ...i, quantity: (Number(i.quantity) || 0) + qty };
+                        if (movement.type === 'out') return { ...i, quantity: Math.max(0, (Number(i.quantity) || 0) - qty) };
+                        if (movement.type === 'adjustment') return { ...i, quantity: qty };
+                        return i;
+                    }),
+                }));
                 saveToSupabase('stock_movement', newMovement, true).catch(e => console.error('[ClinicStore] Erro ao salvar movimento de estoque:', e));
             },
 
@@ -1649,16 +1685,18 @@ export const useClinicStore = create<ClinicStore>()(
                 emitEvent('ASAAS_RECONCILED', { transaction_id: id, clinic_id: txn.clinic_id, status: nextStatus });
             },
             getMonthlyIncome: (clinicId) => {
-                const thisMonth = new Date().toISOString().slice(0, 7);
+                const d = new Date();
+                const thisMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                 return get().transactions
-                    .filter(t => t.type === 'income' && t.status === 'paid' && t.created_at.startsWith(thisMonth))
+                    .filter(t => t.type === 'income' && t.status === 'paid' && String(t.created_at || '').startsWith(thisMonth))
                     .filter(t => !clinicId || t.clinic_id === clinicId)
                     .reduce((sum, t) => sum + t.amount, 0);
             },
             getMonthlyExpenses: (clinicId) => {
-                const thisMonth = new Date().toISOString().slice(0, 7);
+                const d = new Date();
+                const thisMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                 return get().transactions
-                    .filter(t => t.type === 'expense' && t.status === 'paid' && t.created_at.startsWith(thisMonth))
+                    .filter(t => t.type === 'expense' && t.status === 'paid' && String(t.created_at || '').startsWith(thisMonth))
                     .filter(t => !clinicId || t.clinic_id === clinicId)
                     .reduce((sum, t) => sum + t.amount, 0);
             },
@@ -1892,11 +1930,9 @@ export const useClinicStore = create<ClinicStore>()(
             },
             getProfessionalCommissions: (professionalId, month) => {
                 const state = get();
-                // Ensure users array exists before calling find
-                const usersList = state.users || [];
                 const profList = state.professionals || [];
-                
-                const prof = usersList.find(p => p.id === professionalId) || profList.find(p => p.id === professionalId);
+
+                const prof = profList.find(p => p.id === professionalId);
                 if (!prof) return { total_produced: 0, commission_amount: 0, appointment_count: 0, pending_commission: 0 };
 
                 const txns = state.transactions.filter(t =>

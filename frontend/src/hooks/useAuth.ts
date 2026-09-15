@@ -46,6 +46,7 @@ interface AuthState {
   impersonateClinic: (clinicId: string) => Promise<boolean>;
   stopImpersonating: () => void;
   isImpersonating: boolean;
+  switchClinic: (clinicId: string) => Promise<void>;
 }
 
 const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
@@ -638,7 +639,7 @@ export const useAuth = create<AuthState>()(
         set((state) => {
           const updated = state.clinic ? { ...state.clinic, ...data } : null;
           if (updated && useRealData) {
-            SupabaseSync.updateClinicSettings(updated.id, data).catch(e => 
+            SupabaseSync.updateClinicSettings(updated.id, data).catch(e =>
               console.error('[AuthStore] Error updating clinic:', e)
             );
           }

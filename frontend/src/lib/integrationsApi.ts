@@ -1,10 +1,16 @@
 import { getSupabaseSession } from '@/lib/supabase';
 type Json = Record<string, any>;
 
+// Em produção, as chamadas /api/* precisam apontar para o backend
+const API_BASE = import.meta.env.DEV
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL || 'https://clinxia-backend.onrender.com');
+
 async function request<T = Json>(path: string, init?: RequestInit): Promise<T> {
   const token = getSupabaseSession()?.access_token || null;
-  
-  const response = await fetch(path, {
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+
+  const response = await fetch(url, {
     headers: {
       'content-type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

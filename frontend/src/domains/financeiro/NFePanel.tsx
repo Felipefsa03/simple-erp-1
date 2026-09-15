@@ -195,9 +195,15 @@ export function NFePanel({ clinicId }: NFePanelProps) {
   };
 
   const handleCancelar = async (nfe: Invoice) => {
+    // Notas em modo demo (reference demo-...) são canceladas localmente
     if (!nfe.reference && !nfe.access_key) {
       updateInvoice(nfe.id, { status: 'cancelled' });
       toast('NFe cancelada.', 'success');
+      return;
+    }
+    if (String(nfe.reference || '').startsWith('demo-') || !isNFeConfigured()) {
+      updateInvoice(nfe.id, { status: 'cancelled' });
+      toast('NFe cancelada (modo demonstração).', 'success');
       return;
     }
     const justificativa = 'Cancelamento solicitado pelo emitente';

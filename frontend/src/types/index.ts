@@ -375,6 +375,7 @@ export interface FinancialTransaction {
     items?: string[];
     installments?: number;
     due_date?: string;
+    commission_amount?: number;
     created_at: string;
     paid_at?: string;
 }

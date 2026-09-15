@@ -28,6 +28,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useClinicStore } from "@/stores/clinicStore";
 import { useAuth } from "@/hooks/useAuth";
 import { toast, formatCurrency } from "@/hooks/useShared";
+import { SupabaseSync } from "@/lib/supabaseSync";
 import { Modal, EmptyState, ConfirmDialog } from "@/components/shared";
 import type {
   Service,
@@ -439,10 +440,28 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_URL,
   ]);
+  const handleSaveClinic = async () => {
+    if (!clinicForm.name || !String(clinicForm.name).trim()) {
+      toast("Nome da clínica é obrigatório.", "error");
+      return;
+    }
+    const payload: Record<string, any> = {
+      name: String(clinicForm.name).trim(),
+      phone: clinicForm.phone || null,
+      email: clinicForm.email || null,
+    };
+    try {
+      updateClinic(payload);
+      if (clinic?.id) {
+        const { error } = await SupabaseSync.updateClinicSettings(clinic.id, payload);
+        if (error) throw error;
+      }
+      toast("Configurações da clínica salvas com sucesso!");
+    } catch (e: any) {
+      console.error("[Configuracoes] Erro ao salvar clínica:", e);
+      toast("Erro ao salvar configurações. Tente novamente.", "error");
+    }
 
-  const handleSaveClinic = () => {
-    updateClinic(clinicForm);
-    
     // Log de auditoria
     store.addAuditLog({
       user_id: user?.id || "",
@@ -453,8 +472,6 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       entity_type: "clinic",
       entity_id: clinic?.id || "",
     });
-
-    toast("Configurações da clínica salvas com sucesso!");
   };
 
   const handleSaveService = () => {
@@ -462,21 +479,33 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       toast("Você não tem permissão para gerenciar serviços.", "error");
       return;
     }
+    if (!svcForm.name || !String(svcForm.name).trim()) {
+      toast("Nome do serviço é obrigatório.", "error");
+      return;
+    }
     // Build professional_prices from form
     const profPrices: Record<string, number> = {};
     Object.entries(svcProfPrices).forEach(([id, val]) => {
-      const n = parseFloat(String(val).replace(",", "."));
-      if (n > 0) profPrices[id] = n;
+      const n = parseFloat(String(val).replace(".", "."));
+      if (Number.isFinite(n) && n > 0) profPrices[id] = n;
     });
+
+    const basePrice = parseFloat(String(svcForm.base_price).replace(",", "."));
+    const estimatedCost = parseFloat(String(svcForm.estimated_cost).replace(",", ".") || "0");
+    const duration = parseInt(String(svcForm.avg_duration_min), 10);
+
+    if (!Number.isFinite(basePrice) || basePrice < 0) {
+      toast("Preço base inválido.", "error");
+      return;
+    }
+
     const data = {
       clinic_id: clinicId,
-      name: svcForm.name,
+      name: String(svcForm.name).trim(),
       category: svcForm.category,
-      base_price: parseFloat(String(svcForm.base_price).replace(",", ".")),
-      avg_duration_min: parseInt(String(svcForm.avg_duration_min)),
-      estimated_cost: parseFloat(
-        String(svcForm.estimated_cost).replace(",", ".") || "0",
-      ),
+      base_price: basePrice,
+      avg_duration_min: Number.isFinite(duration) && duration > 0 ? duration : 60,
+      estimated_cost: Number.isFinite(estimatedCost) ? estimatedCost : 0,
       materials: svcMaterials,
       active: true,
       professional_prices:

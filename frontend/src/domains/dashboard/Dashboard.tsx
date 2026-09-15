@@ -150,21 +150,22 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     return () => { cancelled = true; };
   }, []);
 
-  const monthlyIncome = useMemo(() => getMonthlyIncome(clinicId), [clinicId]);
+  const monthlyIncome = useMemo(() => getMonthlyIncome(clinicId), [clinicId, clinicTransactions]);
   const lastMonthIncome = useMemo(() => {
-    const lastMonth = new Date();
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
-    const lastMonthStr = lastMonth.toISOString().slice(0, 7);
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
     return clinicTransactions
-      .filter(t => t.type === 'income' && t.status === 'paid' && t.created_at.startsWith(lastMonthStr))
+      .filter(t => t.type === 'income' && t.status === 'paid' && String(t.created_at || '').startsWith(lastMonthStr))
       .reduce((sum, t) => sum + t.amount, 0);
   }, [clinicTransactions]);
-  const incomeGrowth = lastMonthIncome > 0 
+  const incomeGrowth = lastMonthIncome > 0
     ? (((monthlyIncome - lastMonthIncome) / lastMonthIncome) * 100).toFixed(1)
-    : '0';
+    : '—';
   const newPatientsThisMonth = useMemo(() => {
-    const thisMonth = new Date().toISOString().slice(0, 7);
-    return clinicPatients.filter(p => p.created_at.startsWith(thisMonth)).length;
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return clinicPatients.filter(p => String(p.created_at || '').startsWith(thisMonth)).length;
   }, [clinicPatients]);
 
   const todayAppointments = useMemo(() => {
@@ -176,7 +177,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const attendanceRate = useMemo(() => {
     const total = clinicAppointments.filter(a => a.status === 'done' || a.status === 'no_show').length;
-    if (total === 0) return 100;
+    if (total === 0) return 0;
     const attended = clinicAppointments.filter(a => a.status === 'done').length;
     return Math.round((attended / total) * 100);
   }, [clinicAppointments]);

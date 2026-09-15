@@ -78,7 +78,7 @@ export function NFeSettings() {
         },
       });
 
-      if (response.ok || response.status === 404) {
+      if (response.ok) {
         toast('Conexão com o provedor NFe estabelecida!', 'success');
         setConnected(true);
       } else if (response.status === 401) {

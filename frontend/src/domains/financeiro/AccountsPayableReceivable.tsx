@@ -19,28 +19,35 @@ export function AccountsPayableReceivable({ clinicId }: AccountsPayableReceivabl
   const [form, setForm] = useState<Partial<Account>>({});
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
-  const filtered = useMemo(() => {
+  // Deriva o status "overdue" uma única vez e usa em lista E resumo
+  const withDerivedStatus = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
     return accounts.map(a => ({
       ...a,
-      status: a.status !== 'paid' && a.due_date < today && a.paid < a.value ? 'overdue' as AccountStatus : a.status
-    })).filter(a => {
+      status: a.status !== 'paid' && !!a.due_date && a.due_date < today && (a.paid ?? 0) < (a.value ?? 0)
+        ? 'overdue' as AccountStatus
+        : a.status
+    }));
+  }, [accounts]);
+
+  const filtered = useMemo(() => {
+    return withDerivedStatus.filter(a => {
       if (clinicId && a.clinic_id !== clinicId) return false;
       if (a.type !== activeTab) return false;
       if (filterStatus !== 'all' && a.status !== filterStatus) return false;
       return true;
     });
-  }, [accounts, activeTab, filterStatus, clinicId]);
+  }, [withDerivedStatus, activeTab, filterStatus, clinicId]);
 
   const summary = useMemo(() => {
-    const items = accounts.filter(a => a.type === activeTab && (!clinicId || a.clinic_id === clinicId));
-    const total = items.reduce((s, a) => s + a.value, 0);
-    const paid = items.filter(a => a.status === 'paid').reduce((s, a) => s + a.paid, 0);
-    const pending = items.filter(a => a.status === 'pending').reduce((s, a) => s + (a.value - a.paid), 0);
-    const partial = items.filter(a => a.status === 'partial').reduce((s, a) => s + (a.value - a.paid), 0);
-    const overdue = items.filter(a => a.status === 'overdue').reduce((s, a) => s + (a.value - a.paid), 0);
+    const items = withDerivedStatus.filter(a => a.type === activeTab && (!clinicId || a.clinic_id === clinicId));
+    const total = items.reduce((s, a) => s + (a.value || 0), 0);
+    const paid = items.filter(a => a.status === 'paid').reduce((s, a) => s + (a.paid || 0), 0);
+    const pending = items.filter(a => a.status === 'pending').reduce((s, a) => s + ((a.value || 0) - (a.paid || 0)), 0);
+    const partial = items.filter(a => a.status === 'partial').reduce((s, a) => s + ((a.value || 0) - (a.paid || 0)), 0);
+    const overdue = items.filter(a => a.status === 'overdue').reduce((s, a) => s + ((a.value || 0) - (a.paid || 0)), 0);
     return { total, paid, pending, partial, overdue };
-  }, [accounts, activeTab, clinicId]);
+  }, [withDerivedStatus, activeTab, clinicId]);
 
   const openNew = () => {
     setEditing(null);

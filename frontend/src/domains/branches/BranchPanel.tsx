@@ -18,8 +18,7 @@ export function BranchPanel({ clinicId }: BranchPanelProps) {
   const addBranch = useClinicStore(s => s.addBranch);
   const updateBranch = useClinicStore(s => s.updateBranch);
   const deleteBranch = useClinicStore(s => s.deleteBranch);
-  const { user, clinic } = useAuth();
-  const switchClinic = (id: string) => { /* mockup to bypass error, not used by default */ };
+  const { user, clinic, switchClinic } = useAuth();
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [showModal, setShowModal] = useState(false);

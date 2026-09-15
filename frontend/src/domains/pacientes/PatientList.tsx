@@ -723,7 +723,7 @@ export function PatientList({ onNavigate }: PatientListProps) {
             <div className="p-4 border-t border-slate-100 flex items-center justify-between">
               <p className="text-xs text-slate-400">{filteredPatients.length} pacientes • Página {currentPage} de {totalPages}</p>
               <div className="flex gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 5).map(page => (
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}

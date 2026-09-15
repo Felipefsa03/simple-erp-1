@@ -374,8 +374,15 @@ class NFeIOService {
 let currentConfig: NFeConfig | null = null;
 let providerService: FocusNFeService | NFeIOService | null = null;
 
+const NFE_CONFIG_STORAGE_KEY = 'clinxia_nfe_config';
+
 export function configureNFe(config: NFeConfig) {
   currentConfig = config;
+  try {
+    localStorage.setItem(NFE_CONFIG_STORAGE_KEY, JSON.stringify(config));
+  } catch {
+    // storage indisponível: mantém só em memória
+  }
 
   switch (config.provider) {
     case 'focus_nfe':
@@ -394,6 +401,19 @@ export function configureNFe(config: NFeConfig) {
 
 export function loadNFeConfig(): NFeConfig | null {
   if (currentConfig) return currentConfig;
+  try {
+    const raw = localStorage.getItem(NFE_CONFIG_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as NFeConfig;
+      if (parsed && parsed.provider) {
+        currentConfig = parsed;
+        configureNFe(parsed);
+        return currentConfig;
+      }
+    }
+  } catch {
+    // ignora storage corrompido
+  }
   return null;
 }
 

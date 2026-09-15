@@ -60,6 +60,8 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const didInitRef = useRef(false);
   const connectedNotifiedRef = useRef(false);
+  const uiStatusRef = useRef<UIStatus>('loading');
+  useEffect(() => { uiStatusRef.current = uiStatus; }, [uiStatus]);
 
   // Store for WhatsApp connection state
   const setWhatsAppConnected = useClinicStore(s => s.setWhatsAppConnected);
@@ -125,6 +127,8 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
 
         // QR CODE AVAILABLE
         if ((data.status === 'qr' || data.status === 'waiting_scan')) {
+          // Não reexibir QR antigo se já expirou (aguarda QR novo gerado pelo backend)
+          if (uiStatusRef.current === 'expired') return;
           const imgSource = data.qrBase64 || (data.qrCode?.startsWith('data:image') ? data.qrCode : null);
           if (imgSource) {
             setQrCode(imgSource);
@@ -244,8 +248,8 @@ export function WhatsAppConnectionModal({ isOpen, onClose, onConnect, clinicId =
         return;
       }
 
-      // If disconnected, need to connect to get QR code
-      if (data.status === 'disconnected' || data.status === 'disconnected') {
+      // If disconnected or no known state, connect to get QR code
+      if (data.status === 'disconnected' || data.status === 'none' || data.status === undefined) {
         try {
           const token = await getAccessToken();
           const connectRes = await fetch(`${API_BASE}/api/whatsapp/connect`, {

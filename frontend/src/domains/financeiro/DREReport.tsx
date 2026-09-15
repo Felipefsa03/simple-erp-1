@@ -25,6 +25,7 @@ export function DREReport({ clinicId }: DREReportProps) {
 
     const periodTransactions = (transactions || []).filter(t => {
       if (clinicId && t.clinic_id !== clinicId) return false;
+      if (t.status !== 'paid') return false; // só transações pagas entram no DRE
       const tDate = new Date(t.created_at || t.due_date || '');
       return tDate >= startDate && tDate <= now;
     });
@@ -48,7 +49,7 @@ export function DREReport({ clinicId }: DREReportProps) {
 
     const totalRevenue = income.reduce((s, t) => s + t.amount, 0);
     const totalExpenses = expense.reduce((s, t) => s + t.amount, 0);
-    
+
     // CPV: calcular baseado em despesas de custo/material
     const costExpenses = expense.filter(t => 
       t.category === 'custo' || 
@@ -57,15 +58,16 @@ export function DREReport({ clinicId }: DREReportProps) {
       t.category === 'supplies'
     );
     const cogs = costExpenses.reduce((s, t) => s + t.amount, 0);
-    
-    const grossProfit = totalRevenue - cogs;
-    const operatingExpenses = totalExpenses - cogs; // Despesas operacionais = total - custos
-    const operatingProfit = grossProfit - operatingExpenses;
-    
+
     // Impostos: usar categoria "imposto" se existir, senão 0
     const taxExpenses = expense.filter(t => t.category === 'imposto' || t.category === 'tax');
     const taxes = taxExpenses.reduce((s, t) => s + t.amount, 0);
-    
+
+    const grossProfit = totalRevenue - cogs;
+    // Despesas operacionais = total - custos - impostos (impostos saem no lucro líquido)
+    const operatingExpenses = totalExpenses - cogs - taxes;
+    const operatingProfit = grossProfit - operatingExpenses;
+
     const netProfit = operatingProfit - taxes;
 
     const revenueByCategory: Record<string, number> = {};
@@ -78,7 +80,7 @@ export function DREReport({ clinicId }: DREReportProps) {
       revenue: { total: totalRevenue, byCategory: revenueByCategory },
       cogs: { total: cogs },
       grossProfit: { value: grossProfit, margin: totalRevenue > 0 ? (grossProfit / totalRevenue * 100) : 0 },
-      operatingExpenses: { total: totalExpenses },
+      operatingExpenses: { total: operatingExpenses },
       operatingProfit: { value: operatingProfit, margin: totalRevenue > 0 ? (operatingProfit / totalRevenue * 100) : 0 },
       netProfit: { value: netProfit, margin: totalRevenue > 0 ? (netProfit / totalRevenue * 100) : 0 },
       taxes: { total: taxes },

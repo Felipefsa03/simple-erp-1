@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const isDev = import.meta.env.DEV;
@@ -10,11 +10,8 @@ interface WhatsAppStatus {
   phoneNumber?: string;
 }
 
-// Global sync state to avoid multiple syncs
-let globalSyncStatus: 'synced' | 'not_synced' | 'syncing' = 'not_synced';
-let lastSyncTime = 0;
-let globalLastStatus: WhatsAppStatus | null = null;
-let hasInitialized = false;
+// Cache por clínica (multi-tenant: cada clínica tem seu próprio status)
+const statusCache = new Map<string, { status: WhatsAppStatus; time: number }>();
 
 const getAccessToken = async () => {
   if (!supabase) return "";
@@ -28,27 +25,21 @@ export function useWhatsAppSync(
 ) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastStatus, setLastStatus] = useState<WhatsAppStatus | null>(null);
-  const hasSynced = useRef(false);
   
   const syncStatus = useCallback(async (force = false) => {
-    // If already synced recently and not forced, skip
-    if (!force && globalSyncStatus === 'synced' && globalLastStatus && Date.now() - lastSyncTime < 30000) {
+    const cached = statusCache.get(clinicId);
+
+    // Se tem cache recente (< 30s) e não forçado, usa o cache
+    if (!force && cached && Date.now() - cached.time < 30000) {
+      setLastStatus(cached.status);
       if (onStatusChange) {
-        onStatusChange(globalLastStatus.status === 'connected' || globalLastStatus.status === 'conectado' || globalLastStatus.status === 'Connected', globalLastStatus);
+        onStatusChange(cached.status.status === 'connected', cached.status);
       }
-      return globalLastStatus;
+      return cached.status;
     }
-    
-    if (globalSyncStatus === 'syncing') {
-      if (onStatusChange && globalLastStatus) {
-        onStatusChange(globalLastStatus.status === 'connected' || globalLastStatus.status === 'conectado' || globalLastStatus.status === 'Connected', globalLastStatus);
-      }
-      return globalLastStatus;
-    }
-    
-    globalSyncStatus = 'syncing';
+
     setIsSyncing(true);
-    
+
     try {
       const token = await getAccessToken();
       const res = await fetch(`${API_BASE}/api/whatsapp/status/${clinicId}?t=${Date.now()}`, {
@@ -58,23 +49,20 @@ export function useWhatsAppSync(
         }
       });
       const data: WhatsAppStatus = await res.json();
-      
+
       const connected = data.status === 'connected' || data.status === 'conectado' || data.status === 'Connected';
-      globalSyncStatus = connected ? 'synced' : 'not_synced';
-      lastSyncTime = Date.now();
-      globalLastStatus = data;
+      statusCache.set(clinicId, { status: data, time: Date.now() });
       setLastStatus(data);
-      
+
       if (onStatusChange) {
         onStatusChange(connected, data);
       }
-      
+
       return data;
     } catch (err: any) {
       if (err.message !== 'Failed to fetch' && !err.message?.includes('NetworkError')) {
         console.warn('[WhatsAppSync] Error:', err.message);
       }
-      globalSyncStatus = 'not_synced';
       return null;
     } finally {
       setIsSyncing(false);
@@ -82,15 +70,11 @@ export function useWhatsAppSync(
   }, [clinicId, onStatusChange]);
 
   useEffect(() => {
-    // Only sync once globally
-    if (!hasSynced.current) {
-      hasSynced.current = true;
-      syncStatus();
-    } else if (globalLastStatus && onStatusChange) {
-      // Just notify with last known status
-      onStatusChange(globalLastStatus.status === 'connected' || globalLastStatus.status === 'conectado' || globalLastStatus.status === 'Connected', globalLastStatus);
-    }
-  }, [syncStatus, onStatusChange]);
+    syncStatus();
+    // Polling leve: mantém o status atualizado a cada 30s
+    const interval = setInterval(() => syncStatus(), 30000);
+    return () => clearInterval(interval);
+  }, [syncStatus]);
 
   return { syncStatus, isSyncing, lastStatus };
 }

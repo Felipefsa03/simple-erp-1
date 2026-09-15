@@ -68,6 +68,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
     notes: '',
   });
   const swipeStartX = useRef<number | null>(null);
+  const rescheduleSourceRef = useRef<string | null>(null);
   const clinicId = useAuth(s => s.getClinicId()) || '00000000-0000-0000-0000-000000000001';
   const canCreate = hasPermission('create_appointment');
   const canFinalize = hasPermission('finalize_appointment');
@@ -231,6 +232,12 @@ export function Agenda({ onNavigate }: AgendaProps) {
     setIsModalOpen(false);
     setRecurrence({ enabled: false, frequency: 'weekly', occurrences: 4 });
     resetAptForm({ patient_id: '', professional_id: clinicProfessionals[0]?.id || '', service_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '09:00' });
+
+    // Se este agendamento foi criado como reagendamento, cancela o original
+    if (rescheduleSourceRef.current) {
+      updateAppointmentStatus(rescheduleSourceRef.current, 'cancelled');
+      rescheduleSourceRef.current = null;
+    }
   });
 
   const handleAddAppointment = handleAptSubmit((data) => handleAddAppointmentInner(data));
@@ -927,6 +934,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
           // Minimiza WhatsApp em vez de fechar
           setIsModalOpen(true);
           if (whatsappAppointment) {
+            rescheduleSourceRef.current = whatsappAppointment.id;
             setAptValue('patient_id', whatsappAppointment.patient_id);
             setAptValue('professional_id', whatsappAppointment.professional_id);
             setAptValue('service_id', whatsappAppointment.service_id || '');

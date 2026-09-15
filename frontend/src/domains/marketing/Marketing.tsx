@@ -197,7 +197,8 @@ export function Marketing() {
       }
     } catch (error) {
       console.error(error);
-      toast('Campanha criada, mas houve falha em alguma integracao.', 'warning');
+      toast('Falha no disparo da campanha.', 'error');
+      return;
     }
     toast('Campanha disparada com sucesso!', 'success');
     setIsCampaignModalOpen(false);
@@ -432,8 +433,8 @@ export function Marketing() {
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
             <Users className="w-8 h-8 text-brand-500 mb-4" />
             <p className="text-sm text-slate-500">Base Total</p>
-            <p className="text-3xl font-bold text-slate-900">{(patients || []).length}</p>
-            <p className="text-xs text-slate-400 mt-1">{(patients || []).filter(p => p.status === 'active').length} ativos</p>
+            <p className="text-3xl font-bold text-slate-900">{(clinicPatients || []).length}</p>
+            <p className="text-xs text-slate-400 mt-1">{(clinicPatients || []).filter(p => p.status === 'active').length} ativos</p>
           </div>
         </div>
       )}
@@ -753,21 +754,21 @@ export function Marketing() {
                           </button>
                           <button
                             onClick={() => handleMarkWhatsAppSent(false)}
-                            disabled={!whatsAppSessionActive || !currentWhatsApp}
+                            disabled={!whatsAppSessionActive || !currentWhatsApp || cooldownLeft > 0}
                             className="px-3 py-2 bg-brand-600 text-white text-xs font-bold rounded-lg hover:bg-brand-700 disabled:opacity-50"
                           >
                             Marcar enviado
                           </button>
                           <button
                             onClick={() => handleMarkWhatsAppSent(true)}
-                            disabled={!whatsAppSessionActive || !currentWhatsApp}
+                            disabled={!whatsAppSessionActive || !currentWhatsApp || cooldownLeft > 0}
                             className="px-3 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-200 disabled:opacity-50"
                           >
                             Simular envio
                           </button>
                           <button
                             onClick={handleSkipWhatsApp}
-                            disabled={!whatsAppSessionActive || !currentWhatsApp}
+                            disabled={!whatsAppSessionActive || !currentWhatsApp || cooldownLeft > 0}
                             className="px-3 py-2 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50 disabled:opacity-50"
                           >
                             Pular
