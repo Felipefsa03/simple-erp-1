@@ -1188,13 +1188,13 @@ export const useClinicStore = create<ClinicStore>()(
                     const profPct = professional ? (Number(professional.commission_pct) || 0) / 100 : 0;
                     const commissionAmount = chargeAmount * profPct;
 
-                    const txnIncome = get().addTransaction({
-                        clinic_id: appointment.clinic_id,
-                        appointment_id: id,
-                        patient_id: appointment.patient_id,
-                        patient_name: appointment.patient_name,
-                        professional_id: appointment.professional_id,
-                        professional_name: appointment.professional_name,
+                     const txnIncome = get().addTransaction({
+                         clinic_id: appointment.clinic_id,
+                         appointment_id: id,
+                         patient_id: appointment.patient_id,
+                         patient_name: appointment.patient_name,
+                         professional_id: appointment.professional_user_id || appointment.professional_id,
+                         professional_name: appointment.professional_name,
                         type: 'income',
                         category: 'Atendimento',
                         description: `${appointment.patient_name} - ${appointment.service_name || 'Consulta'}`,
