@@ -50,7 +50,9 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ clinicId
             expense,
             balance: income - expense,
             pendingReceivables,
-            pendingPayables
+            pendingPayables,
+            incomeCount: currentMonthTransactions.filter(t => t.type === 'income').length,
+            expenseCount: currentMonthTransactions.filter(t => t.type === 'expense').length,
         };
     }, [transactions, accounts, clinicId]);
 
@@ -105,10 +107,42 @@ export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ clinicId
 
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Resumo Geral</h3>
-                <p className="text-sm text-gray-600">
-                    O dashboard integra automaticamente transações confirmadas com contas a pagar e receber. 
-                    Utilize os painéis abaixo para gerenciar fluxos futuros e emissões de notas fiscais.
-                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-slate-50 rounded-xl">
+                        <p className="text-xs text-gray-500 uppercase font-bold mb-1">Receitas Pagas (mês)</p>
+                        <p className="text-xl font-black text-green-600">{formatCurrency(metrics.income)}</p>
+                        <p className="text-xs text-gray-400 mt-1">{metrics.incomeCount} transação(ões)</p>
+                    </div>
+                    <div className="p-4 bg-slate-50 rounded-xl">
+                        <p className="text-xs text-gray-500 uppercase font-bold mb-1">Despesas Pagas (mês)</p>
+                        <p className="text-xl font-black text-red-600">{formatCurrency(metrics.expense)}</p>
+                        <p className="text-xs text-gray-400 mt-1">{metrics.expenseCount} transação(ões)</p>
+                    </div>
+                    <div className="p-4 bg-slate-50 rounded-xl">
+                        <p className="text-xs text-gray-500 uppercase font-bold mb-1">Saldo Líquido</p>
+                        <p className={`text-xl font-black ${metrics.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(metrics.balance)}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">{metrics.pendingReceivables > 0 ? `${formatCurrency(metrics.pendingReceivables)} a receber` : 'Tudo em dia'}</p>
+                    </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                    {metrics.pendingReceivables > 0 && (
+                        <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">
+                            📌 {formatCurrency(metrics.pendingReceivables)} pendente de receber
+                        </span>
+                    )}
+                    {metrics.pendingPayables > 0 && (
+                        <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full">
+                            📌 {formatCurrency(metrics.pendingPayables)} pendente de pagar
+                        </span>
+                    )}
+                    {metrics.pendingReceivables === 0 && metrics.pendingPayables === 0 && (
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full">
+                            ✅ Tudo em dia — sem contas pendentes
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
     );
