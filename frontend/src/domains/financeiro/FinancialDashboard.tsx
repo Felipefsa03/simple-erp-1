@@ -3,7 +3,11 @@ import { useClinicStore } from '@/stores/clinicStore';
 import { formatCurrency } from '@/hooks/useShared';
 import { TrendingUp, TrendingDown, DollarSign, Wallet } from 'lucide-react';
 
-export const FinancialDashboard: React.FC = () => {
+interface FinancialDashboardProps {
+    clinicId?: string;
+}
+
+export const FinancialDashboard: React.FC<FinancialDashboardProps> = ({ clinicId }) => {
     const { transactions, accounts } = useClinicStore();
 
     const metrics = useMemo(() => {
@@ -12,19 +16,33 @@ export const FinancialDashboard: React.FC = () => {
         const currentYear = now.getFullYear();
 
         const currentMonthTransactions = transactions.filter(t => {
-            const d = new Date(t.created_at);
-            return d.getMonth() === currentMonth && d.getFullYear() === currentYear && t.status === 'paid';
+            const d = new Date(t.paid_at || t.created_at);
+            return (!clinicId || t.clinic_id === clinicId) &&
+                d.getMonth() === currentMonth && d.getFullYear() === currentYear && t.status === 'paid';
         });
 
-        const income = currentMonthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-        const expense = currentMonthTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+        const paidAccounts = accounts.filter(a => {
+            const d = new Date(a.updated_at || a.created_at);
+            return (!clinicId || a.clinic_id === clinicId) && !a.transaction_id && a.status === 'paid' &&
+                d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        });
+        const income = currentMonthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0) +
+            paidAccounts.filter(a => a.type === 'receivable').reduce((acc, a) => acc + (a.paid || 0), 0);
+        const expense = currentMonthTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0) +
+            paidAccounts.filter(a => a.type === 'payable').reduce((acc, a) => acc + (a.paid || 0), 0);
 
+        const linkedTransactionIds = new Set(accounts.map(a => a.transaction_id).filter(Boolean));
+        const openTransactionIncome = transactions
+            .filter(t => (!clinicId || t.clinic_id === clinicId) && t.type === 'income' &&
+                t.status !== 'paid' && t.status !== 'cancelled' && t.status !== 'refunded' &&
+                !linkedTransactionIds.has(t.id))
+            .reduce((acc, t) => acc + (t.amount || 0), 0);
         const pendingReceivables = accounts
-            .filter(a => a.type === 'receivable' && a.status !== 'paid' && a.status !== 'cancelled')
-            .reduce((acc, a) => acc + (a.value - (a.paid || 0)), 0);
+            .filter(a => (!clinicId || a.clinic_id === clinicId) && a.type === 'receivable' && a.status !== 'paid' && a.status !== 'cancelled')
+            .reduce((acc, a) => acc + (a.value - (a.paid || 0)), openTransactionIncome);
 
         const pendingPayables = accounts
-            .filter(a => a.type === 'payable' && a.status !== 'paid' && a.status !== 'cancelled')
+            .filter(a => (!clinicId || a.clinic_id === clinicId) && a.type === 'payable' && a.status !== 'paid' && a.status !== 'cancelled')
             .reduce((acc, a) => acc + (a.value - (a.paid || 0)), 0);
 
         return {
@@ -34,7 +52,7 @@ export const FinancialDashboard: React.FC = () => {
             pendingReceivables,
             pendingPayables
         };
-    }, [transactions, accounts]);
+    }, [transactions, accounts, clinicId]);
 
     return (
         <div className="space-y-6">

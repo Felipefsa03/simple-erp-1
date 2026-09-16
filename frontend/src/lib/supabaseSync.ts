@@ -307,7 +307,9 @@ const mapTransaction = (t: any) => ({
   clinic_id: t.clinic_id,
   appointment_id: t.appointment_id,
   patient_id: t.patient_id,
+  patient_name: t.patient_name || '',
   professional_id: t.professional_id,
+  professional_name: t.professional_name || '',
   type: t.type || 'income',
   category: t.category || '',
   description: t.description || '',
@@ -318,6 +320,9 @@ const mapTransaction = (t: any) => ({
   pix_code: t.pix || '',
   asaas_payment_id: t.asaas_id || '',
   material_cost: Number(t.material_cost) || 0,
+  commission_amount: Number(t.commission_amount) || 0,
+  service_time_min: Number(t.service_time_min) || 0,
+  idempotency_key: t.idempotency_key || '',
   due_date: t.due || '',
   paid_at: t.paid_at || '',
   created_at: t.created_at,
@@ -688,6 +693,7 @@ async saveTransaction(transaction: any) {
       clinic_id: getClinicId(transaction.clinic_id),
       appointment_id: transaction.appointment_id || null,
       patient_id: transaction.patient_id || null,
+      patient_name: transaction.patient_name || null,
       type: transaction.type || 'income',
       category: transaction.category || null,
       description: transaction.description || null,
@@ -699,6 +705,11 @@ async saveTransaction(transaction: any) {
       asaas_id: transaction.asaas_payment_id || null,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
+      material_cost: transaction.material_cost ?? null,
+      commission_amount: transaction.commission_amount ?? null,
+      service_time_min: transaction.service_time_min ?? null,
+      professional_name: transaction.professional_name || null,
+      idempotency_key: transaction.idempotency_key || null,
     };
     const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     
@@ -720,6 +731,10 @@ async saveTransaction(transaction: any) {
       asaas_id: transaction.asaas_payment_id || null,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
+      material_cost: transaction.material_cost ?? null,
+      commission_amount: transaction.commission_amount ?? null,
+      service_time_min: transaction.service_time_min ?? null,
+      professional_name: transaction.professional_name || null,
     };
     return supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body });
   },

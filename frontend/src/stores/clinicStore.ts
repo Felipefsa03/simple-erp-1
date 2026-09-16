@@ -683,6 +683,28 @@ console.log(
 export const useClinicStore = create<ClinicStore>()(
         (set, get) => {
             // A sincronização é chamada via syncWithSupabase() após login bem-sucedido
+            const ensureCommissionPayable = (txn: FinancialTransaction) => {
+                const commission = Number(txn.commission_amount) || 0;
+                const hasCommissionPayable = get().accounts.some(account =>
+                    account.transaction_id === txn.id && account.category === 'Comissão Profissional'
+                );
+                if (txn.type !== 'income' || commission <= 0 || !txn.professional_id || hasCommissionPayable) return;
+
+                get().addAccount({
+                    clinic_id: txn.clinic_id,
+                    type: 'payable',
+                    description: `Comissão - ${txn.description}`,
+                    counterparty: txn.professional_name || 'Profissional',
+                    category: 'Comissão Profissional',
+                    value: commission,
+                    paid: 0,
+                    due_date: now().slice(0, 10),
+                    status: 'pending',
+                    transaction_id: txn.id,
+                    recurrence: 'none',
+                    notes: `Comissão gerada pelo recebimento ${txn.id}`,
+                });
+            };
             
             return {
             // Initial data - based on Supabase configuration
@@ -1703,6 +1725,11 @@ export const useClinicStore = create<ClinicStore>()(
                     ),
                 }));
                 saveToSupabase('transaction', { ...txn, ...updatedData }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar transação:', e));
+
+                // A comissão só nasce quando a receita foi efetivamente recebida.
+                // Ela é uma conta a pagar (e não uma saída de caixa) até que seja
+                // liquidada, evitando reduzir o caixa duas vezes.
+                ensureCommissionPayable(txn);
                 emitEvent('PAYMENT_RECEIVED', { transaction_id: id, clinic_id: txn.clinic_id });
             },
             generatePayment: (id, method, installments) => {
@@ -1753,13 +1780,14 @@ export const useClinicStore = create<ClinicStore>()(
                 if (updatedTxn) {
                     saveToSupabase('transaction', updatedTxn, false).catch(e => console.error('[ClinicStore] Erro ao reconciliar transação:', e));
                 }
+                if (nextStatus === 'paid') ensureCommissionPayable({ ...txn, status: nextStatus, paid_at: payload?.paid_at || now() });
                 emitEvent('ASAAS_RECONCILED', { transaction_id: id, clinic_id: txn.clinic_id, status: nextStatus });
             },
             getMonthlyIncome: (clinicId) => {
                 const d = new Date();
                 const thisMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                 return get().transactions
-                    .filter(t => t.type === 'income' && t.status === 'paid' && String(t.created_at || '').startsWith(thisMonth))
+                    .filter(t => t.type === 'income' && t.status === 'paid' && String(t.paid_at || t.created_at || '').startsWith(thisMonth))
                     .filter(t => !clinicId || t.clinic_id === clinicId)
                     .reduce((sum, t) => sum + t.amount, 0);
             },
@@ -1767,7 +1795,7 @@ export const useClinicStore = create<ClinicStore>()(
                 const d = new Date();
                 const thisMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                 return get().transactions
-                    .filter(t => t.type === 'expense' && t.status === 'paid' && String(t.created_at || '').startsWith(thisMonth))
+                    .filter(t => t.type === 'expense' && t.status === 'paid' && String(t.paid_at || t.created_at || '').startsWith(thisMonth))
                     .filter(t => !clinicId || t.clinic_id === clinicId)
                     .reduce((sum, t) => sum + t.amount, 0);
             },
@@ -1781,7 +1809,15 @@ export const useClinicStore = create<ClinicStore>()(
                     .filter(t => t.type === 'expense' && t.status === 'paid')
                     .filter(t => !clinicId || t.clinic_id === clinicId)
                     .reduce((s, t) => s + t.amount, 0);
-                return income - expenses;
+                const accountIncome = state.accounts
+                    .filter(a => a.type === 'receivable' && a.status === 'paid' && !a.transaction_id)
+                    .filter(a => !clinicId || a.clinic_id === clinicId)
+                    .reduce((s, a) => s + (Number(a.paid) || 0), 0);
+                const accountExpenses = state.accounts
+                    .filter(a => a.type === 'payable' && a.status === 'paid' && !a.transaction_id)
+                    .filter(a => !clinicId || a.clinic_id === clinicId)
+                    .reduce((s, a) => s + (Number(a.paid) || 0), 0);
+                return income - expenses + accountIncome - accountExpenses;
             },
 
             // ---- Account Actions ----
@@ -2014,7 +2050,7 @@ export const useClinicStore = create<ClinicStore>()(
                 const txns = state.transactions.filter(t =>
                     (t.professional_id === professionalId || t.professional_name === prof.name || t.professional_name === prof.email) &&
                     t.type === 'income' &&
-                    (!month || t.created_at.startsWith(month))
+                    (!month || String(t.paid_at || t.created_at || '').startsWith(month))
                 );
 
                 const aptsCount = state.appointments.filter(a =>
@@ -2043,7 +2079,7 @@ export const useClinicStore = create<ClinicStore>()(
                 const state = get();
                 const txns = state.transactions.filter(t =>
                     t.clinic_id === clinicId &&
-                    t.created_at.startsWith(month) &&
+                    String(t.paid_at || t.created_at || '').startsWith(month) &&
                     t.status === 'paid'
                 );
 

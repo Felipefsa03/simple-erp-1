@@ -42,6 +42,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
   const [chargeMethod, setChargeMethod] = useState<'pix' | 'card' | 'manual'>('pix');
   const [chargeInstallments, setChargeInstallments] = useState('1');
   const [highlightedTxnId, setHighlightedTxnId] = useState<string | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<FinancialTransaction | null>(null);
   const [reconciling, setReconciling] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'dre' | 'cashflow' | 'commissions' | 'nfe' | 'accounts'>('dashboard');
   const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -405,13 +406,13 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
       <AnimatePresence mode="wait">
         {activeTab === 'dashboard' && (
           <motion.div key="dash" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-            <FinancialDashboard />
+            <FinancialDashboard clinicId={clinicId} />
           </motion.div>
         )}
 
         {activeTab === 'cashflow' && (
           <motion.div key="cf" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
-            <CashFlowProjection />
+            <CashFlowProjection clinicId={clinicId} />
           </motion.div>
         )}
 
@@ -483,7 +484,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
                           <div className="flex justify-end gap-2">
                             {t.status !== 'paid' && (
                               <button
-                                onClick={() => handleProcessPayment(t.id)}
+                                onClick={() => setPaymentTarget(t)}
                                 className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-emerald-100 bg-emerald-50/30"
                                 title="Confirmar Pagamento Manul"
                               >
@@ -581,6 +582,19 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        isOpen={!!paymentTarget}
+        onClose={() => setPaymentTarget(null)}
+        onConfirm={() => {
+          if (paymentTarget) void handleProcessPayment(paymentTarget.id);
+        }}
+        title={paymentTarget?.type === 'income' ? 'Confirmar recebimento' : 'Confirmar pagamento'}
+        message={paymentTarget
+          ? `Confirma que ${paymentTarget.type === 'income' ? 'o cliente já pagou' : 'esta despesa já foi paga'} ${formatCurrency(paymentTarget.amount)}? Esta ação fará o lançamento financeiro.`
+          : ''}
+        confirmLabel={paymentTarget?.type === 'income' ? 'Sim, foi recebido' : 'Sim, foi pago'}
+      />
 
       {/* Modals for Add / Charge */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`Lançar ${txnType === 'income' ? 'Receita' : 'Despesa'}`}>

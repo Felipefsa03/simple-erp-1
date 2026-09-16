@@ -2,14 +2,19 @@ import React, { useMemo } from 'react';
 import { useClinicStore } from '@/stores/clinicStore';
 import { formatCurrency } from '@/hooks/useShared';
 
-export const CashFlowProjection: React.FC = () => {
-    const { accounts, getBalance } = useClinicStore();
+interface CashFlowProjectionProps {
+    clinicId?: string;
+}
+
+export const CashFlowProjection: React.FC<CashFlowProjectionProps> = ({ clinicId }) => {
+    const { accounts, transactions, getBalance } = useClinicStore();
 
     const projections = useMemo(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const currentBalance = getBalance();
+        const currentBalance = getBalance(clinicId);
+        const linkedTransactionIds = new Set(accounts.map(a => a.transaction_id).filter(Boolean));
 
         const periods = [
             { label: 'Próximos 7 dias', days: 7, date: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000) },
@@ -19,19 +24,31 @@ export const CashFlowProjection: React.FC = () => {
 
         return periods.map(period => {
             const periodAccounts = accounts.filter(a => {
+                if (clinicId && a.clinic_id !== clinicId) return false;
                 if (a.status === 'paid' || a.status === 'cancelled') return false;
                 if (!a.due_date) return false;
                 const dueDate = new Date(a.due_date);
                 return dueDate >= today && dueDate <= period.date;
             });
+            const periodTransactions = transactions.filter(t => {
+                if (clinicId && t.clinic_id !== clinicId) return false;
+                if (t.status === 'paid' || t.status === 'cancelled' || t.status === 'refunded' || !t.due_date) return false;
+                if (linkedTransactionIds.has(t.id)) return false;
+                const dueDate = new Date(`${t.due_date}T00:00:00`);
+                return dueDate >= today && dueDate <= period.date;
+            });
 
             const expectedIncome = periodAccounts
                 .filter(a => a.type === 'receivable')
-                .reduce((acc, a) => acc + (a.value - (a.paid || 0)), 0);
+                .reduce((acc, a) => acc + (a.value - (a.paid || 0)), 0) +
+                periodTransactions.filter(t => t.type === 'income')
+                    .reduce((acc, t) => acc + t.amount, 0);
 
             const expectedExpense = periodAccounts
                 .filter(a => a.type === 'payable')
-                .reduce((acc, a) => acc + (a.value - (a.paid || 0)), 0);
+                .reduce((acc, a) => acc + (a.value - (a.paid || 0)), 0) +
+                periodTransactions.filter(t => t.type === 'expense')
+                    .reduce((acc, t) => acc + t.amount, 0);
 
             return {
                 ...period,
@@ -40,7 +57,7 @@ export const CashFlowProjection: React.FC = () => {
                 projectedBalance: currentBalance + expectedIncome - expectedExpense
             };
         });
-    }, [accounts, getBalance]);
+    }, [accounts, transactions, getBalance, clinicId]);
 
     return (
         <div className="space-y-6 mt-6">

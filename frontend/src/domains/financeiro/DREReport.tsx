@@ -26,7 +26,7 @@ export function DREReport({ clinicId }: DREReportProps) {
     const periodTransactions = (transactions || []).filter(t => {
       if (clinicId && t.clinic_id !== clinicId) return false;
       if (t.status !== 'paid') return false; // só transações pagas entram no DRE
-      const tDate = new Date(t.created_at || t.due_date || '');
+      const tDate = new Date(t.paid_at || t.created_at || t.due_date || '');
       return tDate >= startDate && tDate <= now;
     });
 
@@ -42,21 +42,24 @@ export function DREReport({ clinicId }: DREReportProps) {
       ...periodTransactions.filter(t => t.type === 'income').map(t => ({ amount: t.amount || 0, category: t.category })),
       ...periodAccounts.filter(a => a.type === 'receivable').map(a => ({ amount: a.paid || 0, category: a.category }))
     ];
+    const commissionExpenses = periodTransactions
+      .filter(t => t.type === 'income' && (Number(t.commission_amount) || 0) > 0)
+      .map(t => ({ amount: Number(t.commission_amount) || 0, category: 'Comissões Profissionais' }));
     const expense = [
       ...periodTransactions.filter(t => t.type === 'expense').map(t => ({ amount: t.amount || 0, category: t.category })),
-      ...periodAccounts.filter(a => a.type === 'payable').map(a => ({ amount: a.paid || 0, category: a.category }))
+      ...periodAccounts.filter(a => a.type === 'payable').map(a => ({ amount: a.paid || 0, category: a.category })),
+      ...commissionExpenses,
     ];
 
     const totalRevenue = income.reduce((s, t) => s + t.amount, 0);
     const totalExpenses = expense.reduce((s, t) => s + t.amount, 0);
 
     // CPV: calcular baseado em despesas de custo/material
-    const costExpenses = expense.filter(t => 
-      t.category === 'custo' || 
-      t.category === 'material' || 
-      t.category === 'custo_servico' ||
-      t.category === 'supplies'
-    );
+    const costExpenses = expense.filter(t => {
+      const category = String(t.category || '').toLowerCase();
+      return category === 'custo' || category === 'material' || category === 'custo_servico' ||
+        category === 'supplies' || category === 'material consumido';
+    });
     const cogs = costExpenses.reduce((s, t) => s + t.amount, 0);
 
     // Impostos: usar categoria "imposto" se existir, senão 0
