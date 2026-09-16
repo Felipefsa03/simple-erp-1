@@ -1744,6 +1744,14 @@ export const useClinicStore = create<ClinicStore>()(
                     return false;
                 }
 
+                // Pagamento confirmado: finaliza o agendamento vinculado (sai da agenda)
+                if (txn.appointment_id) {
+                    const apt = get().appointments.find(a => a.id === txn.appointment_id);
+                    if (apt && apt.status !== 'done') {
+                        get().updateAppointmentStatus(txn.appointment_id, 'done');
+                    }
+                }
+
                 // A comissão só nasce quando a receita foi efetivamente recebida.
                 // Ela é uma conta a pagar (e não uma saída de caixa) até que seja
                 // liquidada, evitando reduzir o caixa duas vezes.
