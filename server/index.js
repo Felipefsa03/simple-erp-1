@@ -27,7 +27,7 @@ import integrationsRoutes from "./routes/integrationsRoutes.js";
 // Global Error Handling for stability
 process.on('unhandledRejection', (reason, promise) => {
   const errString = String(reason);
-  if (errString.includes('Bad MAC') || errString.includes('libsignal') || errString.includes('Session error')) {
+  if (errString.includes('Bad MAC') || errString.includes('libsignal') || errString.includes('Session error') || errString.includes('Unsupported state') || errString.includes('unable to authenticate data')) {
     // Suppress noisy Baileys/libsignal decryption errors that flood the logs
     return;
   }
@@ -38,7 +38,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 process.on('uncaughtException', (error) => {
   const errString = String(error);
-  if (errString.includes('Bad MAC') || errString.includes('libsignal') || errString.includes('Session error')) {
+  if (errString.includes('Bad MAC') || errString.includes('libsignal') || errString.includes('Session error') || errString.includes('Unsupported state') || errString.includes('unable to authenticate data')) {
     // Suppress noisy Baileys/libsignal decryption errors
     return;
   }
