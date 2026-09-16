@@ -541,6 +541,7 @@ interface ClinicStore {
 
     // Financial Actions
     addTransaction: (t: Omit<FinancialTransaction, 'id' | 'created_at'> & { idempotency_key?: string }) => FinancialTransaction;
+    ensureCommissionPayable: (txn: FinancialTransaction) => void;
     processPayment: (id: string, method?: string) => Promise<boolean>;
     generatePayment: (id: string, method: string, installments?: number) => void;
     setTransactionAsaasData: (id: string, data: Partial<Pick<FinancialTransaction, 'asaas_payment_id' | 'asaas_status' | 'payment_reference' | 'payment_url' | 'pix_code'>>) => void;
@@ -689,30 +690,6 @@ console.log(
 // @ts-ignore - Zustand StateCreator incompatibility with async addAppointment
 export const useClinicStore = create<ClinicStore>()(
         (set, get) => {
-            // A sincronização é chamada via syncWithSupabase() após login bem-sucedido
-            const ensureCommissionPayable = (txn: FinancialTransaction) => {
-                const commission = Number(txn.commission_amount) || 0;
-                const hasCommissionPayable = get().accounts.some(account =>
-                    account.transaction_id === txn.id && account.category === 'Comissão Profissional'
-                );
-                if (txn.type !== 'income' || commission <= 0 || !txn.professional_id || hasCommissionPayable) return;
-
-                get().addAccount({
-                    clinic_id: txn.clinic_id,
-                    type: 'payable',
-                    description: `Comissão - ${txn.description}`,
-                    counterparty: txn.professional_name || 'Profissional',
-                    category: 'Comissão Profissional',
-                    value: commission,
-                    paid: 0,
-                    due_date: now().slice(0, 10),
-                    status: 'pending',
-                    transaction_id: txn.id,
-                    recurrence: 'none',
-                    notes: `Comissão gerada pelo recebimento ${txn.id}`,
-                });
-            };
-            
             return {
             // Initial data - based on Supabase configuration
             professionals: INITIAL_DATA.professionals,
@@ -758,6 +735,29 @@ export const useClinicStore = create<ClinicStore>()(
             branches: [],
             whatsappIntegrations: {},
             systemWhatsApp: { connected: false, token: '', phoneNumber: '', lastSync: null },
+
+            // ---- Commission payable helper ----
+            ensureCommissionPayable: (txn) => {
+                const commission = Number(txn.commission_amount) || 0;
+                const hasCommissionPayable = get().accounts.some(account =>
+                    account.transaction_id === txn.id && account.category === 'Comissão Profissional'
+                );
+                if (txn.type !== 'income' || commission <= 0 || !txn.professional_id || hasCommissionPayable) return;
+                get().addAccount({
+                    clinic_id: txn.clinic_id,
+                    type: 'payable',
+                    description: `Comissão - ${txn.description}`,
+                    counterparty: txn.professional_name || 'Profissional',
+                    category: 'Comissão Profissional',
+                    value: commission,
+                    paid: 0,
+                    due_date: now().slice(0, 10),
+                    status: 'pending',
+                    transaction_id: txn.id,
+                    recurrence: 'none',
+                    notes: `Comissão gerada pelo recebimento ${txn.id}`,
+                });
+            },
 
             // ---- Insurance (Convênios) ----
             addInsurance: (data) => {
@@ -1188,7 +1188,7 @@ export const useClinicStore = create<ClinicStore>()(
                     const profPct = professional ? (Number(professional.commission_pct) || 0) / 100 : 0;
                     const commissionAmount = chargeAmount * profPct;
 
-                    get().addTransaction({
+                    const txnIncome = get().addTransaction({
                         clinic_id: appointment.clinic_id,
                         appointment_id: id,
                         patient_id: appointment.patient_id,
@@ -1219,6 +1219,15 @@ export const useClinicStore = create<ClinicStore>()(
                             status: 'paid',
                             material_cost: materialCost,
                             idempotency_key: `apt:${id}:expense`,
+                        });
+                    }
+                    
+                    // Garante o payable da comissão do profissional
+                    // (chamado aqui para que exista mesmo que o saveSupabase falhe)
+                    if (commissionAmount > 0 && appointment.professional_id && txnIncome) {
+                        get().ensureCommissionPayable({
+                            ...txnIncome,
+                            commission_amount: commissionAmount,
                         });
                     }
                 }
@@ -1726,9 +1735,15 @@ export const useClinicStore = create<ClinicStore>()(
                 const txn: FinancialTransaction = { ...t, clinic_id, id: uid(), idempotency_key: inferredKey, created_at: now() };
                 set(s => ({ transactions: [txn, ...s.transactions] }));
                 saveToSupabase('transaction', txn, true).then(result => {
-                    if (!result?.error) return;
-                    set(s => ({ transactions: s.transactions.filter(item => item.id !== txn.id) }));
-                    toast('A transação não foi salva no servidor e foi desfeita.', 'error');
+                    if (!result?.error) {
+                        // Sucesso — garante o payable da comissão
+                        if (txn.type === 'income' && txn.commission_amount && txn.professional_id) {
+                            get().ensureCommissionPayable(txn);
+                        }
+                        return;
+                    }
+                    // Falha no Supabase: mantém a transação local (não remove) para o payable e para o usuário ver
+                    console.error(`[ClinicStore] Transação ${txn.id} não sincronizou:`, result.error);
                 }).catch(e => console.error('[ClinicStore] Erro ao salvar transação:', e));
                 
                 if (txn.type === 'income') {
@@ -1762,7 +1777,7 @@ export const useClinicStore = create<ClinicStore>()(
                 // A comissão só nasce quando a receita foi efetivamente recebida.
                 // Ela é uma conta a pagar (e não uma saída de caixa) até que seja
                 // liquidada, evitando reduzir o caixa duas vezes.
-                ensureCommissionPayable({ ...txn, ...updatedData });
+                get().ensureCommissionPayable({ ...txn, ...updatedData });
                 emitEvent('PAYMENT_RECEIVED', { transaction_id: id, clinic_id: txn.clinic_id });
                 return true;
             },
@@ -1814,7 +1829,7 @@ export const useClinicStore = create<ClinicStore>()(
                 if (updatedTxn) {
                     saveToSupabase('transaction', updatedTxn, false).catch(e => console.error('[ClinicStore] Erro ao reconciliar transação:', e));
                 }
-                if (nextStatus === 'paid') ensureCommissionPayable({ ...txn, status: nextStatus, paid_at: payload?.paid_at || now() });
+                if (nextStatus === 'paid') get().ensureCommissionPayable({ ...txn, status: nextStatus, paid_at: payload?.paid_at || now() });
                 emitEvent('ASAAS_RECONCILED', { transaction_id: id, clinic_id: txn.clinic_id, status: nextStatus });
             },
             getMonthlyIncome: (clinicId) => {
