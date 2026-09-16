@@ -717,12 +717,13 @@ export const SupabaseSync = {
   },
 
 async saveTransaction(transaction: any) {
+    // Campos que o banco NÃO tem (serão adicionados via SQL migration):
+    // commission_amount, service_time_min, patient_name, material_cost, professional_name
     const body: any = {
       id: transaction.id,
       clinic_id: getClinicId(transaction.clinic_id),
       appointment_id: transaction.appointment_id || null,
       patient_id: transaction.patient_id || null,
-      patient_name: transaction.patient_name || null,
       type: transaction.type || 'income',
       category: transaction.category || null,
       description: transaction.description || null,
@@ -734,10 +735,6 @@ async saveTransaction(transaction: any) {
       asaas_id: transaction.asaas_payment_id || null,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
-      material_cost: transaction.material_cost ?? null,
-      commission_amount: transaction.commission_amount ?? null,
-      service_time_min: transaction.service_time_min ?? null,
-      professional_name: transaction.professional_name || null,
       idempotency_key: transaction.idempotency_key || null,
     };
     const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -760,10 +757,6 @@ async saveTransaction(transaction: any) {
       asaas_id: transaction.asaas_payment_id || null,
       due: transaction.due_date || null,
       paid_at: transaction.paid_at || null,
-      material_cost: transaction.material_cost ?? null,
-      commission_amount: transaction.commission_amount ?? null,
-      service_time_min: transaction.service_time_min ?? null,
-      professional_name: transaction.professional_name || null,
     };
     return supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body });
   },
@@ -788,6 +781,7 @@ async saveTransaction(transaction: any) {
       body.professional_id = record.professional_user_id;
     }
     
+    // locked/locked_at: envia se existirem (manutenção local via Zustand)
     if (record.locked !== undefined) body.locked = Boolean(record.locked);
     if (record.locked_at !== undefined) body.locked_at = record.locked_at || null;
     
