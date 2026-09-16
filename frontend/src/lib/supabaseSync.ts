@@ -8,7 +8,7 @@ import {
   isProductionBuild,
   isSupabaseEnvConfigured,
 } from '@/lib/supabaseConfig';
-import { getSupabaseSession } from '@/lib/supabase';
+import { getSupabaseSession, getValidSupabaseSession } from '@/lib/supabase';
 
 const SUPABASE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
@@ -71,8 +71,7 @@ const getAuthToken = (): string | null => {
   return null;
 };
 
-const getHeaders = (method?: string) => {
-  const token = getAuthToken();
+const getHeaders = (token?: string | null) => {
   
   let apiKey: string;
   let authHeader: string;
@@ -103,8 +102,9 @@ async function supabaseFetch(table: string, options: {
   filters?: string;
   retries?: number;
   backoff?: number;
+  refreshed?: boolean;
 } = {}) {
-  const { method = 'GET', body, filters, retries = 3, backoff = 500 } = options;
+  const { method = 'GET', body, filters, retries = 3, backoff = 500, refreshed = false } = options;
   ensureSupabaseConfigured(`${method} ${table}`);
   if (!isConfigured) {
     return { data: null, error: 'Not configured' };
@@ -118,9 +118,10 @@ async function supabaseFetch(table: string, options: {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
+    const session = await getValidSupabaseSession();
     const response = await fetch(url, {
       method,
-      headers: getHeaders(),
+      headers: getHeaders(session?.access_token || getAuthToken()),
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
@@ -139,6 +140,13 @@ async function supabaseFetch(table: string, options: {
       }
 
       console.error(`[SupabaseSync] Erro ${method} ${table}:`, errorText);
+
+      // JWTs do Supabase expiram periodicamente. Renova uma única vez e repete
+      // a mesma mutação para que atendimento/pagamento não fiquem só em memória.
+      if (response.status === 401 && !refreshed) {
+        const renewed = await getValidSupabaseSession(true);
+        if (renewed) return supabaseFetch(table, { ...options, refreshed: true });
+      }
       
       // Caso a tabela não exista (erro 404 ou código PGRST205 do PostgREST)
       // Retornamos array vazio para não quebrar a aplicação enquanto o usuário não roda o SQL
@@ -242,6 +250,7 @@ const mapProfessional = async (p: any): Promise<any> => {
   }
   return {
     id: p.id,
+    user_id: p.user_id || null,
     clinic_id: p.clinic_id,
     name: name,
     email: '',
@@ -263,7 +272,10 @@ const mapAppointment = (a: any, patients: any[] = [], professionals: any[] = [])
     clinic_id: a.clinic_id,
     patient_id: a.patient_id,
     patient_name: patient?.name || 'Paciente',
-    professional_id: a.professional_id,
+    // A instalação antiga referencia auth.users no agendamento; a UI usa o
+    // identificador de professionals. Mantemos ambos sem perder compatibilidade.
+    professional_id: professional?.id || a.professional_id,
+    professional_user_id: professional?.user_id || (professionals.some(p => p.user_id === a.professional_id) ? a.professional_id : undefined),
     professional_name: professional?.name || 'Profissional',
     service_id: a.service_id,
     scheduled_at: a.scheduled ? new Date(a.scheduled).toISOString() : '',

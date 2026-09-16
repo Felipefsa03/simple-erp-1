@@ -16,7 +16,7 @@ import type { OdontogramEntry, TreatmentPlanItem, AppointmentMaterial } from '@/
 import { integrationsApi } from '@/lib/integrationsApi';
 import { generateCertificateHTML, generatePrescriptionHTML, generateConsentHTML } from '@/lib/documentTemplates';
 import { useEventBus } from '@/stores/eventBus';
-import { getSupabaseSession } from '@/lib/supabase';
+import { getValidSupabaseSession } from '@/lib/supabase';
 
 // FDI Tooth Numbering System - Visual representation
 const UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11];
@@ -365,7 +365,7 @@ export function Prontuario({ onNavigate, initialTab }: ProntuarioProps) {
   const handleGenerateAnamneseLink = async () => {
     if (!patientId || !user) return;
     try {
-      const session = getSupabaseSession();
+      const session = await getValidSupabaseSession();
       const response = await fetch('/api/clinic/anamnese-links', {
         method: 'POST',
         headers: {

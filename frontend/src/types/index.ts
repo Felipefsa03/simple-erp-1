@@ -92,6 +92,8 @@ export interface User {
     cro?: string;
     avatar_url?: string;
     created_at: string;
+    /** ID correspondente em auth/users quando o cadastro profissional é separado. */
+    user_id?: string;
 }
 
 export interface ClinicAddress {
@@ -169,6 +171,8 @@ export interface Appointment {
     patient_name: string;
     professional_id: string;
     professional_name: string;
+    /** Referência do usuário exigida por instalações legadas do banco. */
+    professional_user_id?: string;
     service_id?: string;
     service_name?: string;
     scheduled_at: string;
@@ -358,6 +362,7 @@ export interface FinancialTransaction {
     patient_name?: string;
     professional_id?: string;
     professional_name?: string;
+    professional_user_id?: string;
     type: 'income' | 'expense';
     category: string;
     description: string;

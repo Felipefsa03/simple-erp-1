@@ -534,7 +534,7 @@ interface ClinicStore {
 
     // Financial Actions
     addTransaction: (t: Omit<FinancialTransaction, 'id' | 'created_at'> & { idempotency_key?: string }) => FinancialTransaction;
-    processPayment: (id: string, method?: string) => void;
+    processPayment: (id: string, method?: string) => Promise<boolean>;
     generatePayment: (id: string, method: string, installments?: number) => void;
     setTransactionAsaasData: (id: string, data: Partial<Pick<FinancialTransaction, 'asaas_payment_id' | 'asaas_status' | 'payment_reference' | 'payment_url' | 'pix_code'>>) => void;
     reconcileTransaction: (id: string, nextStatus: TransactionStatus, payload?: { asaas_status?: string; paid_at?: string }) => void;
@@ -974,10 +974,12 @@ export const useClinicStore = create<ClinicStore>()(
                 if (conflict) return null;
 
                 const scheduled_at = new Date(a.scheduled_at).toISOString();
+                const professional = state.professionals.find(p => p.id === a.professional_id);
                 const appointment: Appointment = { 
                   ...a, 
                   scheduled_at,
                   clinic_id, 
+                  professional_user_id: a.professional_user_id || professional?.user_id,
                   source: a.source || 'internal', 
                   id: uid(), 
                   created_at: now() 
@@ -986,9 +988,12 @@ export const useClinicStore = create<ClinicStore>()(
 
                 // Sync to Supabase with rollback
                 if (isSupabaseConfigured()) {
-                    SupabaseSync.saveAppointment(appointment).catch((e: unknown) => {
+                    SupabaseSync.saveAppointment(appointment).then(result => {
+                        if (result?.error) throw new Error(String(result.error));
+                    }).catch((e: unknown) => {
                         console.error('[ClinicStore] Erro ao salvar agendamento, revertendo...', e);
                         set(s => ({ appointments: s.appointments.filter(a => a.id !== appointment.id) }));
+                        toast('O agendamento não foi salvo no servidor e foi desfeito.', 'error');
                     });
                 }
 
@@ -1001,7 +1006,6 @@ export const useClinicStore = create<ClinicStore>()(
                 if (get().notificationPrefs.agendaConfirmation) {
                     const msg = `Ola ${appointment.patient_name}, seu agendamento para ${appointment.service_name || 'consulta'} foi criado para ${new Date(appointment.scheduled_at).toLocaleString('pt-BR')}.`;
                     get().queueAppointmentConfirmation(appointment.id, 'whatsapp', msg);
-                    get().queueAppointmentConfirmation(appointment.id, 'email', msg);
                 }
                 return appointment;
             },
@@ -1345,6 +1349,12 @@ export const useClinicStore = create<ClinicStore>()(
             queueAppointmentConfirmation: (appointmentId, channel, message) => {
                 const appointment = get().appointments.find(a => a.id === appointmentId);
                 if (!appointment) return null;
+                // O backend atualmente entrega apenas WhatsApp. Não criamos uma
+                // confirmação que inevitavelmente falharia para e-mail/SMS ou
+                // para uma clínica sem dispositivo conectado.
+                if (channel !== 'whatsapp' || !get().getWhatsAppStatus(appointment.clinic_id).connected) return null;
+                const patient = get().patients.find(p => p.id === appointment.patient_id);
+                if (!patient?.phone) return null;
                 const confirmation: AppointmentConfirmation = {
                     id: uid(),
                     clinic_id: appointment.clinic_id,
@@ -1708,7 +1718,11 @@ export const useClinicStore = create<ClinicStore>()(
                 if (existing) return existing;
                 const txn: FinancialTransaction = { ...t, clinic_id, id: uid(), idempotency_key: inferredKey, created_at: now() };
                 set(s => ({ transactions: [txn, ...s.transactions] }));
-                saveToSupabase('transaction', txn, true).catch(e => console.error('[ClinicStore] Erro ao salvar transação:', e));
+                saveToSupabase('transaction', txn, true).then(result => {
+                    if (!result?.error) return;
+                    set(s => ({ transactions: s.transactions.filter(item => item.id !== txn.id) }));
+                    toast('A transação não foi salva no servidor e foi desfeita.', 'error');
+                }).catch(e => console.error('[ClinicStore] Erro ao salvar transação:', e));
                 
                 if (txn.type === 'income') {
                     emitEvent('PAYMENT_GENERATED', { transaction_id: txn.id, appointment_id: txn.appointment_id, clinic_id: txn.clinic_id });
@@ -1717,20 +1731,25 @@ export const useClinicStore = create<ClinicStore>()(
             },
             processPayment: async (id, method) => {
                 const txn = get().transactions.find(t => t.id === id);
-                if (!txn || txn.status === 'paid' || txn.status === 'cancelled') return;
+                if (!txn || txn.status === 'paid' || txn.status === 'cancelled') return false;
                 const updatedData = { status: 'paid' as TransactionStatus, payment_method: method || 'manual', paid_at: now() };
                 set(s => ({
                     transactions: s.transactions.map(t =>
                         t.id === id ? { ...t, ...updatedData } : t
                     ),
                 }));
-                saveToSupabase('transaction', { ...txn, ...updatedData }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar transação:', e));
+                const result = await saveToSupabase('transaction', { ...txn, ...updatedData }, false);
+                if (result?.error) {
+                    set(s => ({ transactions: s.transactions.map(t => t.id === id ? txn : t) }));
+                    return false;
+                }
 
                 // A comissão só nasce quando a receita foi efetivamente recebida.
                 // Ela é uma conta a pagar (e não uma saída de caixa) até que seja
                 // liquidada, evitando reduzir o caixa duas vezes.
-                ensureCommissionPayable(txn);
+                ensureCommissionPayable({ ...txn, ...updatedData });
                 emitEvent('PAYMENT_RECEIVED', { transaction_id: id, clinic_id: txn.clinic_id });
+                return true;
             },
             generatePayment: (id, method, installments) => {
                 const txn = get().transactions.find(t => t.id === id);
@@ -1825,7 +1844,11 @@ export const useClinicStore = create<ClinicStore>()(
                 const clinic_id = account.clinic_id || getActiveClinicId();
                 const newAccount: Account = { ...account, clinic_id, id: uid(), created_at: now(), updated_at: now() };
                 set(s => ({ accounts: [newAccount, ...s.accounts] }));
-                saveToSupabase('account', newAccount, true).catch(e => console.error('[ClinicStore] Erro ao salvar conta:', e));
+                saveToSupabase('account', newAccount, true).then(result => {
+                    if (!result?.error) return;
+                    set(s => ({ accounts: s.accounts.filter(item => item.id !== newAccount.id) }));
+                    toast('A conta não foi salva no servidor e foi desfeita.', 'error');
+                }).catch(e => console.error('[ClinicStore] Erro ao salvar conta:', e));
                 return newAccount;
             },
             updateAccount: (id, data) => {

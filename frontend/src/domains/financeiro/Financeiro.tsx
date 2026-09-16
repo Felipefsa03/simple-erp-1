@@ -169,8 +169,9 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
         setReconciling(false);
       }
     }
-    useClinicStore.getState().processPayment(id, 'manual');
-    toast('Pago!');
+    const saved = await useClinicStore.getState().processPayment(id, 'manual');
+    if (saved) toast('Pagamento confirmado e lançado no caixa.');
+    else toast('O pagamento não foi salvo. Atualize a página e tente novamente.', 'error');
   }, []);
 
   const { execute: handleConfirmCharge, isLoading: chargeLoading } = useAsyncAction(
@@ -196,7 +197,7 @@ export const Financeiro = React.memo(({ onNavigate }: FinanceiroProps) => {
         // A transação original é substituída pelas parcelas:
         // se já foi paga, mantém; caso contrário, baixa para não duplicar receita.
         if (chargeTarget.status !== 'paid') {
-          useClinicStore.getState().processPayment(chargeTarget.id, 'installment');
+          await useClinicStore.getState().processPayment(chargeTarget.id, 'installment');
         }
         toast(`${parcelamentoPreview.length} parcelas registradas com sucesso!`);
       } else {

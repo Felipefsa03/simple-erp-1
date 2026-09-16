@@ -1,6 +1,6 @@
 // Frontend NF-e client. Credentials and provider calls stay exclusively in
 // the authenticated backend proxy; this module never contacts a fiscal API.
-import { getSupabaseSession } from '@/lib/supabase';
+import { getValidSupabaseSession } from '@/lib/supabase';
 
 export type NFeProvider = 'focus_nfe';
 
@@ -90,8 +90,8 @@ export interface NFeResponse {
 
 let currentConfig: NFeConfig | null = null;
 
-const getNFeAuthHeaders = () => {
-  const session = getSupabaseSession();
+const getNFeAuthHeaders = async () => {
+  const session = await getValidSupabaseSession();
   return {
     'Content-Type': 'application/json',
     ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
@@ -108,7 +108,7 @@ export function loadNFeConfig(): NFeConfig | null {
 
 export async function loadNFeServerConfig(clinicId?: string) {
   const query = clinicId ? `?clinicId=${encodeURIComponent(clinicId)}` : '';
-  const response = await fetch(`/api/nfe/config${query}`, { headers: getNFeAuthHeaders() });
+  const response = await fetch(`/api/nfe/config${query}`, { headers: await getNFeAuthHeaders() });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Não foi possível carregar a configuração fiscal.');
   if (data.config) configureNFe(data.config);
@@ -118,7 +118,7 @@ export async function loadNFeServerConfig(clinicId?: string) {
 export async function saveNFeServerConfig(config: NFeConfig, clinicId?: string) {
   const response = await fetch('/api/nfe/config', {
     method: 'POST',
-    headers: getNFeAuthHeaders(),
+    headers: await getNFeAuthHeaders(),
     body: JSON.stringify({ clinicId, config: { ...config, provider: 'focus_nfe' } }),
   });
   const data = await response.json().catch(() => ({}));
@@ -130,7 +130,7 @@ export async function saveNFeServerConfig(config: NFeConfig, clinicId?: string) 
 export async function testNFeConnection(clinicId?: string) {
   const response = await fetch('/api/nfe/test', {
     method: 'POST',
-    headers: getNFeAuthHeaders(),
+    headers: await getNFeAuthHeaders(),
     body: JSON.stringify({ clinicId }),
   });
   const data = await response.json().catch(() => ({}));
@@ -212,7 +212,7 @@ export async function emitirNFe(emissao: NFeEmissao): Promise<NFeResponse> {
   const referencia = `clinxia-${Date.now()}`;
   const response = await fetch(`/api/nfe/emitir?ref=${encodeURIComponent(referencia)}`, {
     method: 'POST',
-    headers: getNFeAuthHeaders(),
+    headers: await getNFeAuthHeaders(),
     body: JSON.stringify({ payload: buildProviderPayload(emissao) }),
   });
   const data = await response.json().catch(() => ({}));
@@ -220,7 +220,7 @@ export async function emitirNFe(emissao: NFeEmissao): Promise<NFeResponse> {
 }
 
 export async function consultarNFe(referencia: string): Promise<NFeResponse> {
-  const response = await fetch(`/api/nfe/consultar/${encodeURIComponent(referencia)}`, { headers: getNFeAuthHeaders() });
+  const response = await fetch(`/api/nfe/consultar/${encodeURIComponent(referencia)}`, { headers: await getNFeAuthHeaders() });
   const data = await response.json().catch(() => ({}));
   return normalizeResponse(data, referencia);
 }
@@ -228,7 +228,7 @@ export async function consultarNFe(referencia: string): Promise<NFeResponse> {
 export async function cancelarNFe(referencia: string, justificativa: string): Promise<NFeResponse> {
   const response = await fetch(`/api/nfe/cancelar/${encodeURIComponent(referencia)}`, {
     method: 'DELETE',
-    headers: getNFeAuthHeaders(),
+    headers: await getNFeAuthHeaders(),
     body: JSON.stringify({ justificativa }),
   });
   const data = await response.json().catch(() => ({}));

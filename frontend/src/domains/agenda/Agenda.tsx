@@ -30,6 +30,7 @@ export function Agenda({ onNavigate }: AgendaProps) {
   const patients = useClinicStore(s => s.patients);
   const professionals = useClinicStore(s => s.professionals);
   const services = useClinicStore(s => s.services);
+  const transactions = useClinicStore(s => s.transactions);
   const waitingList = useClinicStore(s => s.waitingList);
   const navigationContext = useClinicStore(s => s.navigationContext);
 
@@ -81,6 +82,11 @@ export function Agenda({ onNavigate }: AgendaProps) {
     () => (appointments || []).filter(a => a.clinic_id === clinicId),
     [appointments, clinicId]
   );
+  const paidAppointmentIds = useMemo(() => new Set(
+    (transactions || [])
+      .filter(t => t.clinic_id === clinicId && t.type === 'income' && t.status === 'paid' && t.appointment_id)
+      .map(t => t.appointment_id as string)
+  ), [transactions, clinicId]);
   const clinicPatients = useMemo(
     () => {
       const matrixId = user?.clinic_id;
@@ -154,7 +160,10 @@ export function Agenda({ onNavigate }: AgendaProps) {
   const getAppointmentsForDay = (day: Date) => {
     return clinicAppointments.filter(a => 
       isSameDay(parseISO(a.scheduled_at), day) && 
-      a.status !== 'cancelled'
+      a.status !== 'cancelled' &&
+      // Um atendimento quitado permanece no histórico financeiro/prontuário,
+      // mas deixa a agenda operacional automaticamente.
+      !(a.status === 'done' && paidAppointmentIds.has(a.id))
     );
   };
 

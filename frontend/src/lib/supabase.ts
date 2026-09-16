@@ -27,10 +27,10 @@ if (!isConfigured) {
 }
 
 // Headers padrão para requisições - agora inclui o token da sessão
-const getHeaders = (_token?: string) => ({
+const getHeaders = (token?: string) => ({
   'Content-Type': 'application/json',
   'apikey': supabaseAnonKey,
-  ...(currentSession ? { 'Authorization': `Bearer ${currentSession.access_token}` } : {}),
+  ...(token || currentSession ? { 'Authorization': `Bearer ${token || currentSession!.access_token}` } : {}),
   'Prefer': 'return=representation',
 });
 
@@ -46,7 +46,14 @@ const getStorage = (): Storage | null => {
   return window.localStorage;
 };
 
-const saveSessionToStorage = (session: { access_token: string; user: Record<string, unknown> } | null) => {
+type StoredSession = {
+  access_token: string;
+  refresh_token?: string;
+  expires_at?: number;
+  user: Record<string, unknown>;
+};
+
+const saveSessionToStorage = (session: StoredSession | null) => {
   try {
     const storage = getStorage();
     if (!storage) return;
@@ -103,12 +110,71 @@ export const getSupabaseSession = () => currentSession;
 // Cliente Supabase Simplificado (sem pacote)
 // ============================================
 
-let currentSession: { access_token: string; user: Record<string, unknown> } | null = loadSessionFromStorage();
+let currentSession: StoredSession | null = loadSessionFromStorage();
 const authListeners = new Set<(event: string, session: typeof currentSession) => void>();
 const emitAuthStateChange = (event: string) => {
   for (const listener of authListeners) {
     try { listener(event, currentSession); } catch (error) { console.error('[Supabase] Auth listener failed:', error); }
   }
+};
+
+const tokenExpiresAt = (token?: string): number | undefined => {
+  if (!token) return undefined;
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return undefined;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(atob(normalized).split('').map(char => `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`).join(''));
+    const exp = JSON.parse(json)?.exp;
+    return typeof exp === 'number' ? exp : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const toStoredSession = (data: any): StoredSession => ({
+  access_token: data.access_token,
+  refresh_token: data.refresh_token,
+  expires_at: Number(data.expires_at) || tokenExpiresAt(data.access_token) || Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600),
+  user: data.user || currentSession?.user || {},
+});
+
+let refreshPromise: Promise<StoredSession | null> | null = null;
+
+/** Returns a usable access token and renews it before it expires. */
+export const getValidSupabaseSession = async (forceRefresh = false): Promise<StoredSession | null> => {
+  if (!currentSession) return null;
+  const expiresAt = currentSession.expires_at || tokenExpiresAt(currentSession.access_token);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!forceRefresh && (!expiresAt || expiresAt > nowSeconds + 60)) return currentSession;
+  if (!currentSession.refresh_token) return forceRefresh ? null : currentSession;
+
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: supabaseAnonKey },
+          body: JSON.stringify({ refresh_token: currentSession?.refresh_token }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.access_token) throw new Error(data.error_description || 'Não foi possível renovar a sessão.');
+        currentSession = toStoredSession(data);
+        saveSessionToStorage(currentSession);
+        emitAuthStateChange('TOKEN_REFRESHED');
+        return currentSession;
+      } catch (error) {
+        console.warn('[Supabase] Sessão expirada e não pôde ser renovada.', error);
+        currentSession = null;
+        saveSessionToStorage(null);
+        emitAuthStateChange('SIGNED_OUT');
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
 };
 
 
@@ -130,10 +196,7 @@ export const supabase = isConfigured ? {
         }
 
         if (data.access_token) {
-          currentSession = {
-            access_token: data.access_token,
-            user: data.user,
-          };
+          currentSession = toStoredSession(data);
           saveSessionToStorage(currentSession);
           emitAuthStateChange('SIGNED_IN');
           return { data: { user: data.user, session: data }, error: null };
@@ -168,10 +231,7 @@ export const supabase = isConfigured ? {
           userId: data.user?.id
         });
 
-        currentSession = {
-          access_token: data.access_token,
-          user: data.user,
-        };
+        currentSession = toStoredSession(data);
         saveSessionToStorage(currentSession);
         emitAuthStateChange('SIGNED_IN');
 
@@ -202,21 +262,22 @@ export const supabase = isConfigured ? {
 
     // Recuperar sessão
     getSession: async () => {
-      return { data: { session: currentSession }, error: null };
+      return { data: { session: await getValidSupabaseSession() }, error: null };
     },
 
     // Recuperar usuário
     getUser: async () => {
-      if (!currentSession) return { data: { user: null }, error: null };
+      const session = await getValidSupabaseSession();
+      if (!session) return { data: { user: null }, error: null };
 
       try {
         const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-          headers: getHeaders(currentSession.access_token),
+          headers: getHeaders(session.access_token),
         });
         const user = await response.json();
         return { data: { user }, error: null };
       } catch {
-        return { data: { user: currentSession.user }, error: null };
+        return { data: { user: session.user }, error: null };
       }
     },
 
@@ -239,12 +300,13 @@ export const supabase = isConfigured ? {
 
     // Atualizar senha
     updateUser: async ({ password }: { password: string }) => {
-      if (!currentSession) return { error: { message: 'Not authenticated' } };
+      const session = await getValidSupabaseSession();
+      if (!session) return { error: { message: 'Not authenticated' } };
 
       try {
         const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
           method: 'PUT',
-          headers: getHeaders(currentSession.access_token),
+          headers: getHeaders(session.access_token),
           body: JSON.stringify({ password }),
         });
         return { error: response.ok ? null : { message: 'Failed to update password' } };
@@ -324,17 +386,23 @@ export const supabase = isConfigured ? {
             url += `&limit=${limitCount}`;
           }
 
-          const token = currentSession?.access_token;
-          const headers = getHeaders(token);
-
-          const response = await fetch(url, {
+          const request = async (retryAfterRefresh = true) => {
+            const session = await getValidSupabaseSession();
+            const response = await fetch(url, {
             method,
             headers: {
-              ...headers,
+              ...getHeaders(session?.access_token),
               ...(method === 'POST' ? { 'Prefer': 'return=representation' } : {}),
             },
             body: body ? JSON.stringify(body) : undefined,
           });
+            if (response.status === 401 && retryAfterRefresh && currentSession?.refresh_token) {
+              await getValidSupabaseSession(true);
+              return request(false);
+            }
+            return response;
+          };
+          const response = await request();
 
           if (!response.ok) {
             const errorText = await response.text();
