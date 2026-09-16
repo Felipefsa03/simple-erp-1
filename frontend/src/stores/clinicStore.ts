@@ -249,6 +249,15 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
     }
 };
 
+// Evita spam de toasts quando múltiplas syncs falham ao mesmo tempo (ex: finalizeAppointment)
+let _lastSyncToastAt = 0;
+const throttledSyncToast = (msg: string) => {
+    const now = Date.now();
+    if (now - _lastSyncToastAt < 3000) return; // no máximo 1 toast a cada 3s
+    _lastSyncToastAt = now;
+    toast(msg, 'error');
+};
+
 // Wrapper para salvar no Supabase e atualizar estado local
 const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan' | 'stock_movement' | 'audit_log' | 'account' | 'invoice' | 'financial_category', data: any, isNew: boolean = true, isDelete: boolean = false) => {
     try {
@@ -310,17 +319,15 @@ const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' |
         }
 
         if (result?.error) {
-            // Notificar usuário sobre a falha para não ocorrer erro silencioso
-            toast(`Erro de sincronização: Não foi possível salvar no servidor. Os dados podem estar inconsistentes.`, 'error');
             console.error(`[ClinicStore] Erro retornado ao salvar ${type}:`, result.error);
-            // Aqui poderíamos disparar rollback de estado se fosse uma store centralizada com state history
+            throttledSyncToast(`Erro de sincronização. Verifique sua conexão.`);
             return { error: result.error };
         }
         
         return result;
     } catch (error) {
         console.error(`[ClinicStore] Erro fatal ao salvar ${type} no Supabase:`, error);
-        toast(`Erro crítico ao conectar com o servidor. Verifique sua internet.`, 'error');
+        throttledSyncToast(`Erro ao conectar com o servidor.`);
         
         // Disparar evento para uma fila de retry offline
         useEventBus.getState().emit('SYNC_ERROR', { type, data, isNew, isDelete, error });

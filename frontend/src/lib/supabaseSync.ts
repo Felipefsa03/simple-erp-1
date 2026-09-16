@@ -96,6 +96,10 @@ const getHeaders = (token?: string | null) => {
 
 const getBaseUrl = () => `${SUPABASE_URL}/rest/v1`;
 
+// Contador de falhas JWT consecutivas — se muitas, mostra aviso de re-login
+let _jwtFailCount = 0;
+let _jwtWarnShown = false;
+
 async function supabaseFetch(table: string, options: {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: any;
@@ -144,8 +148,21 @@ async function supabaseFetch(table: string, options: {
       // JWTs do Supabase expiram periodicamente. Renova uma única vez e repete
       // a mesma mutação para que atendimento/pagamento não fiquem só em memória.
       if (response.status === 401 && !refreshed) {
+        _jwtFailCount++;
         const renewed = await getValidSupabaseSession(true);
-        if (renewed) return supabaseFetch(table, { ...options, refreshed: true });
+        if (renewed) {
+          _jwtFailCount = 0;
+          return supabaseFetch(table, { ...options, refreshed: true });
+        }
+        // Sessão não pôde ser renovada (sem refresh_token ou expirada)
+        if (_jwtFailCount >= 3 && !_jwtWarnShown) {
+          _jwtWarnShown = true;
+          // Import dinâmico para evitar circular dependency
+          const { toast } = await import('@/hooks/useShared');
+          toast('Sessão expirada. Faça login novamente para continuar.', 'error');
+        }
+      } else if (response.status !== 401) {
+        _jwtFailCount = 0;
       }
       
       // Caso a tabela não exista (erro 404 ou código PGRST205 do PostgREST)

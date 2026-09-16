@@ -147,7 +147,14 @@ export const getValidSupabaseSession = async (forceRefresh = false): Promise<Sto
   const expiresAt = currentSession.expires_at || tokenExpiresAt(currentSession.access_token);
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (!forceRefresh && (!expiresAt || expiresAt > nowSeconds + 60)) return currentSession;
-  if (!currentSession.refresh_token) return forceRefresh ? null : currentSession;
+
+  // Sessão antiga sem refresh_token: não há como renovar.
+  if (!currentSession.refresh_token) {
+    if (forceRefresh) {
+      console.warn('[Supabase] Sessão sem refresh_token — impossível renovar. Faça login novamente.');
+    }
+    return forceRefresh ? null : currentSession;
+  }
 
   if (!refreshPromise) {
     refreshPromise = (async () => {
@@ -167,6 +174,7 @@ export const getValidSupabaseSession = async (forceRefresh = false): Promise<Sto
         console.warn('[Supabase] Sessão expirada e não pôde ser renovada.', error);
         currentSession = null;
         saveSessionToStorage(null);
+        stopProactiveRefresh();
         emitAuthStateChange('SIGNED_OUT');
         return null;
       } finally {
@@ -176,6 +184,29 @@ export const getValidSupabaseSession = async (forceRefresh = false): Promise<Sto
   }
   return refreshPromise;
 };
+
+// ---- Refresh proativo: renova o token a cada 5min antes de expirar ----
+let _proactiveTimer: ReturnType<typeof setInterval> | null = null;
+const startProactiveRefresh = () => {
+  if (_proactiveTimer) return;
+  _proactiveTimer = setInterval(async () => {
+    try {
+      const session = currentSession;
+      if (!session) { stopProactiveRefresh(); return; }
+      const expiresAt = session.expires_at || tokenExpiresAt(session.access_token);
+      const nowSec = Math.floor(Date.now() / 1000);
+      // Renova se faltam 5 minutos ou menos para expirar
+      if (expiresAt && expiresAt <= nowSec + 300) {
+        console.log('[Supabase] Refresh proativo: token expirando, renovando...');
+        await getValidSupabaseSession(true);
+      }
+    } catch { /* ignore */ }
+  }, 5 * 60 * 1000); // a cada 5 minutos
+};
+const stopProactiveRefresh = () => { if (_proactiveTimer) { clearInterval(_proactiveTimer); _proactiveTimer = null; } };
+
+// Inicia o timer se já há sessão (ex: ao carregar da localStorage)
+if (currentSession?.refresh_token) startProactiveRefresh();
 
 
 export const supabase = isConfigured ? {
@@ -196,10 +227,11 @@ export const supabase = isConfigured ? {
         }
 
         if (data.access_token) {
-          currentSession = toStoredSession(data);
-          saveSessionToStorage(currentSession);
-          emitAuthStateChange('SIGNED_IN');
-          return { data: { user: data.user, session: data }, error: null };
+        currentSession = toStoredSession(data);
+        saveSessionToStorage(currentSession);
+        emitAuthStateChange('SIGNED_IN');
+        startProactiveRefresh();
+        return { data: { user: data.user, session: data }, error: null };
         }
         
         return { data: { user: data.user || data, session: null }, error: null };
@@ -252,6 +284,7 @@ export const supabase = isConfigured ? {
         }
         currentSession = null;
         saveSessionToStorage(null);
+        stopProactiveRefresh();
         emitAuthStateChange('SIGNED_OUT');
         return { error: null };
       } catch (err) {
