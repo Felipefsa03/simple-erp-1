@@ -2248,6 +2248,13 @@ export const useClinicStore = create<ClinicStore>()(
                     }
                     return updated;
                 });
+                // Após salvar, refetch patients do Supabase para UI atualizar a foto
+                if (isSupabaseEnvConfigured()) {
+                  const clinicId = getActiveClinicId();
+                  SupabaseSync.loadPatients(clinicId).then(patients => {
+                    set({ patientPatients: patients });
+                  }).catch(() => {});
+                }
             },
             removePatientPhoto: (patientId, index) => {
                 set(s => {
