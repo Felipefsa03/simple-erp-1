@@ -12,6 +12,7 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "server": "node server/index.js",
     "start": "node server/index.js",
+    "keep-alive": "node scripts/keep-alive.mjs",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",

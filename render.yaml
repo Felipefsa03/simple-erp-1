@@ -19,3 +19,6 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+    cronJobs:
+      - expression: "*/10 * * * *"
+        command: curl -sf https://clinxia-backend.onrender.com/api/health > /dev/null
