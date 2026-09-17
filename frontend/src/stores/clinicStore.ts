@@ -2241,7 +2241,12 @@ export const useClinicStore = create<ClinicStore>()(
             addPatientPhoto: (patientId, dataUrl) => {
                 set(s => {
                     const current = s.patientPhotos[patientId] || [];
-                    return { patientPhotos: { ...s.patientPhotos, [patientId]: [dataUrl, ...current] } };
+                    const updated = { ...s.patientPhotos, [patientId]: [dataUrl, ...current] };
+                    // Persist to Supabase
+                    if (isSupabaseEnvConfigured()) {
+                      SupabaseSync.savePatientPhoto(patientId, updated[patientId] || []).catch(() => {});
+                    }
+                    return updated;
                 });
             },
             removePatientPhoto: (patientId, index) => {

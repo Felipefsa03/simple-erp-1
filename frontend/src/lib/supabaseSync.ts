@@ -246,6 +246,7 @@ const mapPatient = (p: any) => ({
   cep: p.zip || '',
   notes: p.notes || '',
   allergies: p.allergies ? p.allergies.split(',').map((s: string) => s.trim()) : [],
+  photos: p.photos || [],
   status: p.active ? 'active' : 'inactive',
   created_at: p.created_at,
 });
@@ -548,6 +549,7 @@ export const SupabaseSync = {
       meds: patient.meds || null,
       history: patient.history || null,
       active: patient.status === 'active',
+      photos: patient.photos || null,
     };
     return supabaseFetch('patients', { method: 'POST', body });
   },
@@ -568,9 +570,14 @@ export const SupabaseSync = {
       allergies: patient.allergies?.join(', ') || null,
       meds: patient.meds || null,
       active: patient.status === 'active',
+      photos: patient.photos || null,
       updated_at: new Date().toISOString(),
     };
     return supabaseFetch(`patients?id=eq.${id}`, { method: 'PATCH', body });
+  },
+
+  async savePatientPhoto(patientId: string, photos: string[]) {
+    return supabaseFetch(`patients?id=eq.${patientId}`, { method: 'PATCH', body: { photos } });
   },
 
   async deletePatient(id: string) {
