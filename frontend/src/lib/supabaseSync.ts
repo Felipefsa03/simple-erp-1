@@ -734,7 +734,7 @@ async saveTransaction(transaction: any) {
       category: transaction.category || null,
       description: transaction.description || null,
       amount: transaction.amount || 0,
-      status: transaction.status === 'awaiting_payment' ? 'pending' : (transaction.status || 'pending'),
+      status: transaction.status || 'pending',
       method: transaction.payment_method || null,
       reference: transaction.reference || null,
       pix: transaction.pix_code || null,
@@ -745,18 +745,9 @@ async saveTransaction(transaction: any) {
       commission_amount: transaction.commission_amount ?? null,
       service_time_min: transaction.service_time_min ?? null,
       professional_name: transaction.professional_name || null,
-      // idempotency_key: NO SUPABASE é uuid mas o frontend gera "apt:xxx:income"
-      // que é string inválida. O campo só será enviado se for um UUID válido.
+      idempotency_key: transaction.idempotency_key || null,
     };
     const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-    
-    if (transaction.professional_id && isUuid(transaction.professional_id)) {
-        body.professional_id = transaction.professional_id;
-    } else if (transaction.professional_user_id && isUuid(transaction.professional_user_id)) {
-        body.professional_id = transaction.professional_user_id;
-    }
-    
-    return supabaseFetch('transactions', { method: 'POST', body });
     
     if (transaction.professional_id && isUuid(transaction.professional_id)) {
         body.professional_id = transaction.professional_id;
