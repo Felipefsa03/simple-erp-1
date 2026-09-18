@@ -4,15 +4,30 @@
 -- ============================================
 
 -- 1. Adicionar 'awaiting_payment' ao CHECK constraint de transactions
+-- Usa pg_constraint.condef em vez de information_schema.check_constraints.definition
 DO $$
+DECLARE
+  v_constraint_exists BOOLEAN;
+  v_has_awaiting_payment BOOLEAN;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.check_constraints 
-    WHERE constraint_name = 'transactions_status_check' 
-    AND definition LIKE '%awaiting_payment%'
-  ) THEN
-    -- Remover constraint antiga e adicionar nova
-    ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_status_check;
+  SELECT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'transactions_status_check'
+  ) INTO v_constraint_exists;
+  
+  IF v_constraint_exists THEN
+    SELECT EXISTS (
+      SELECT 1 FROM pg_constraint 
+      WHERE conname = 'transactions_status_check'
+      AND condef LIKE '%awaiting_payment%'
+    ) INTO v_has_awaiting_payment;
+    
+    IF NOT v_has_awaiting_payment THEN
+      ALTER TABLE transactions DROP CONSTRAINT transactions_status_check;
+      ALTER TABLE transactions ADD CONSTRAINT transactions_status_check 
+        CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded', 'awaiting_payment'));
+    END IF;
+  ELSE
     ALTER TABLE transactions ADD CONSTRAINT transactions_status_check 
       CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded', 'awaiting_payment'));
   END IF;
