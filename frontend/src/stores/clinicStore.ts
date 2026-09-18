@@ -2239,21 +2239,15 @@ export const useClinicStore = create<ClinicStore>()(
 
             // ---- Photos ----
 addPatientPhoto: async (patientId, dataUrl) => {
+                // Atualiza localmente imediatamente
                 set(s => {
                     const current = s.patientPhotos[patientId] || [];
                     const updated = { ...s.patientPhotos, [patientId]: [dataUrl, ...current] };
                     return updated;
                 });
-                // Persist to Supabase e espera completar antes de refetch
+                // Persiste no Supabase (sem esperar, para UX imediata)
                 if (isSupabaseEnvConfigured()) {
-                  try {
-                    await SupabaseSync.savePatientPhoto(patientId, [dataUrl, ...(get().patientPhotos[patientId] || [])]);
-                    const clinicId = getActiveClinicId();
-                    const loadedPatients = await SupabaseSync.loadPatients(clinicId);
-                    set({ patients: loadedPatients });
-                  } catch (e) {
-                    console.error('[ClinicStore] Erro ao salvar foto:', e);
-                  }
+                    SupabaseSync.savePatientPhoto(patientId, get().patientPhotos[patientId] || []).catch(e => console.error('[ClinicStore] Erro ao salvar foto:', e));
                 }
             },
             removePatientPhoto: (patientId, index) => {
