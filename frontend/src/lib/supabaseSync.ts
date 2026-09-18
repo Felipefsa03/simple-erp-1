@@ -746,6 +746,7 @@ async saveTransaction(transaction: any) {
       service_time_min: transaction.service_time_min ?? null,
       professional_name: transaction.professional_name || null,
       idempotency_key: transaction.idempotency_key || null,
+      items: transaction.items || [],
     };
     const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     
@@ -772,6 +773,7 @@ async saveTransaction(transaction: any) {
       service_time_min: transaction.service_time_min ?? null,
       professional_name: transaction.professional_name || null,
       idempotency_key: transaction.idempotency_key || null,
+      items: transaction.items || [],
     };
     return supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body });
   },
