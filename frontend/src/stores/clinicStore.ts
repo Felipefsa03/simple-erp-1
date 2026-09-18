@@ -2240,11 +2240,7 @@ export const useClinicStore = create<ClinicStore>()(
             // ---- Photos ----
 addPatientPhoto: async (patientId, dataUrl) => {
                 // Atualiza localmente imediatamente
-                set(s => {
-                    const current = s.patientPhotos[patientId] || [];
-                    const updated = { ...s.patientPhotos, [patientId]: [dataUrl, ...current] };
-                    return updated;
-                });
+                set(s => ({ patientPhotos: { ...s.patientPhotos, [patientId]: [dataUrl, ...current] } }));
                 // Persiste no Supabase (sem esperar, para UX imediata)
                 if (isSupabaseEnvConfigured()) {
                     SupabaseSync.savePatientPhoto(patientId, get().patientPhotos[patientId] || []).catch(e => console.error('[ClinicStore] Erro ao salvar foto:', e));
