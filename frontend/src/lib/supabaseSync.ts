@@ -760,7 +760,7 @@ async saveTransaction(transaction: any) {
 
   async updateTransaction(id: string, transaction: any) {
     const body: any = {
-      status: transaction.status === 'awaiting_payment' ? 'pending' : (transaction.status || 'pending'),
+      status: transaction.status || 'pending',
       method: transaction.payment_method || null,
       reference: transaction.reference || null,
       pix: transaction.pix_code || null,
@@ -771,6 +771,7 @@ async saveTransaction(transaction: any) {
       commission_amount: transaction.commission_amount ?? null,
       service_time_min: transaction.service_time_min ?? null,
       professional_name: transaction.professional_name || null,
+      idempotency_key: transaction.idempotency_key || null,
     };
     return supabaseFetch(`transactions?id=eq.${id}`, { method: 'PATCH', body });
   },
