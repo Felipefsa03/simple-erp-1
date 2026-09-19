@@ -233,16 +233,56 @@ const syncWithSupabaseInternal = async (clinicId: string, set: any, get: any) =>
 
         console.log('[ClinicStore] ✅ Prontuários carregados:', medicalRecords.length);
 
-        // Carregar integração config
-        const integrationConfig = await SupabaseSync.loadIntegrationConfig(clinicId);
-        if (integrationConfig) {
-            set({ integrationConfig });
-            console.log('[ClinicStore] ✅ Configuração de integração carregada');
-        }
+         // Carregar integração config
+         const integrationConfig = await SupabaseSync.loadIntegrationConfig(clinicId);
+         if (integrationConfig) {
+             set({ integrationConfig });
+             console.log('[ClinicStore] ✅ Configuração de integração carregada');
+         }
 
-        // Marcar como sincronizado APENAS após sucesso completo
-        lastSyncedClinicId = clinicId;
-        console.log('[ClinicStore] ✅ Sincronização completa!');
+         // Carregar Waiting List
+         const waitingList = await SupabaseSync.loadWaitingList(clinicId);
+         applyLoaded(waitingList, get().waitingList, (v) => set({ waitingList: v }));
+         console.log('[ClinicStore] ✅ Waiting List carregada:', waitingList.length);
+
+         // Carregar Recurrences
+         const recurrences = await SupabaseSync.loadRecurrences(clinicId);
+         applyLoaded(recurrences, get().recurrences, (v) => set({ recurrences: v }));
+         console.log('[ClinicStore] ✅ Recurrences carregadas:', recurrences.length);
+
+         // Carregar Anamnese Links
+         const anamneseLinks = await SupabaseSync.loadAnamneseLinks(clinicId);
+         applyLoaded(anamneseLinks, get().anamneseLinks, (v) => set({ anamneseLinks: v }));
+         console.log('[ClinicStore] ✅ Anamnese Links carregadas:', anamneseLinks.length);
+
+         // Carregar Automation Rules
+         const automationRules = await SupabaseSync.loadAutomationRules(clinicId);
+         applyLoaded(automationRules, get().automationRules, (v) => set({ automationRules: v }));
+         console.log('[ClinicStore] ✅ Automation Rules carregadas:', automationRules.length);
+
+         // Carregar Automation Runs
+         const automationRuns = await SupabaseSync.loadAutomationRuns(clinicId);
+         applyLoaded(automationRuns, get().automationRuns, (v) => set({ automationRuns: v }));
+         console.log('[ClinicStore] ✅ Automation Runs carregadas:', automationRuns.length);
+
+         // Carregar Funnel Stages
+         const funnelStages = await SupabaseSync.loadFunnelStages(clinicId);
+         applyLoaded(funnelStages, get().funnelStages, (v) => set({ funnelStages: v }));
+         console.log('[ClinicStore] ✅ Funnel Stages carregadas:', funnelStages.length);
+
+         // Carregar Clinical Documents
+         const clinicalDocuments = await SupabaseSync.loadClinicalDocuments(clinicId);
+         applyLoaded(clinicalDocuments, get().clinicalDocuments, (v) => set({ clinicalDocuments: v }));
+         console.log('[ClinicStore] ✅ Clinical Documents carregadas:', clinicalDocuments.length);
+
+         // Carregar Appointment Materials (grouped by appointment_id)
+         const appointmentMaterialsGrouped = await SupabaseSync.loadAppointmentMaterials(clinicId);
+         set({ appointmentMaterials: appointmentMaterialsGrouped });
+         console.log('[ClinicStore] ✅ Appointment Materials carregadas:', Object.keys(appointmentMaterialsGrouped).length, 'appointments');
+
+         // Marcar como sincronizado APENAS após sucesso completo
+         lastSyncedClinicId = clinicId;
+         console.log('[ClinicStore] ✅ Sincronização completa!');
     } catch (error) {
         console.error('[ClinicStore] ❌ Erro na sincronização:', error);
         lastSyncedClinicId = ''; // permite nova tentativa
@@ -259,7 +299,7 @@ const throttledSyncToast = (msg: string) => {
 };
 
 // Wrapper para salvar no Supabase e atualizar estado local
-const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan' | 'stock_movement' | 'audit_log' | 'account' | 'invoice' | 'financial_category', data: any, isNew: boolean = true, isDelete: boolean = false) => {
+const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' | 'service' | 'stock' | 'transaction' | 'medical_record' | 'treatment_plan' | 'stock_movement' | 'audit_log' | 'account' | 'invoice' | 'financial_category' | 'waiting_list' | 'recurrence' | 'anamnese_link' | 'automation_rule' | 'automation_run' | 'funnel_stage' | 'clinical_document' | 'appointment_material', data: any, isNew: boolean = true, isDelete: boolean = false) => {
     try {
         let result: any = null;
         
@@ -310,12 +350,44 @@ const saveToSupabase = async (type: 'patient' | 'professional' | 'appointment' |
                 if (isDelete) result = await SupabaseSync.deleteInvoice(data.id);
                 else result = isNew ? await SupabaseSync.saveInvoice(data) : await SupabaseSync.updateInvoice(data.id, data);
                 break;
-            case 'financial_category':
-                if (isDelete) result = await SupabaseSync.deleteFinancialCategory(data.id);
-                else result = isNew ? await SupabaseSync.saveFinancialCategory(data) : await SupabaseSync.updateFinancialCategory(data.id, data);
-                break;
-            default:
-                break;
+             case 'financial_category':
+                 if (isDelete) result = await SupabaseSync.deleteFinancialCategory(data.id);
+                 else result = isNew ? await SupabaseSync.saveFinancialCategory(data) : await SupabaseSync.updateFinancialCategory(data.id, data);
+                 break;
+             case 'waiting_list':
+                 if (isDelete) result = await SupabaseSync.deleteWaitingList(data.id);
+                 else result = isNew ? await SupabaseSync.saveWaitingList(data) : await SupabaseSync.updateWaitingList(data.id, data);
+                 break;
+             case 'recurrence':
+                 if (isDelete) result = await SupabaseSync.deleteRecurrence(data.id);
+                 else result = isNew ? await SupabaseSync.saveRecurrence(data) : await SupabaseSync.updateRecurrence(data.id, data);
+                 break;
+             case 'anamnese_link':
+                 if (isDelete) result = await SupabaseSync.deleteAnamneseLink(data.id);
+                 else result = isNew ? await SupabaseSync.saveAnamneseLink(data) : await SupabaseSync.updateAnamneseLink(data.id, data);
+                 break;
+             case 'automation_rule':
+                 if (isDelete) result = await SupabaseSync.deleteAutomationRule(data.id);
+                 else result = isNew ? await SupabaseSync.saveAutomationRule(data) : await SupabaseSync.updateAutomationRule(data.id, data);
+                 break;
+             case 'automation_run':
+                 if (isDelete) result = await SupabaseSync.deleteAutomationRun(data.id);
+                 else result = isNew ? await SupabaseSync.saveAutomationRun(data) : await SupabaseSync.updateAutomationRun(data.id, data);
+                 break;
+             case 'funnel_stage':
+                 if (isDelete) result = await SupabaseSync.deleteFunnelStage(data.id);
+                 else result = isNew ? await SupabaseSync.saveFunnelStage(data) : await SupabaseSync.updateFunnelStage(data.id, data);
+                 break;
+             case 'clinical_document':
+                 if (isDelete) result = await SupabaseSync.deleteClinicalDocument(data.id);
+                 else result = isNew ? await SupabaseSync.saveClinicalDocument(data) : await SupabaseSync.updateClinicalDocument(data.id, data);
+                 break;
+             case 'appointment_material':
+                 if (isDelete) result = await SupabaseSync.deleteAppointmentMaterial(data.id);
+                 else result = isNew ? await SupabaseSync.saveAppointmentMaterial(data) : await SupabaseSync.updateAppointmentMaterial(data.id, data);
+                 break;
+             default:
+                 break;
         }
 
         if (result?.error) {

@@ -1179,9 +1179,226 @@ async saveTransaction(transaction: any) {
     });
   },
 
-  async deleteFinancialCategory(id: string) {
-    return supabaseFetch(`financial_categories?id=eq.${id}`, { method: 'DELETE' });
-  },
+   async deleteFinancialCategory(id: string) {
+     return supabaseFetch(`financial_categories?id=eq.${id}`, { method: 'DELETE' });
+   },
+
+   // ---- Waiting List ----
+   async loadWaitingList(clinicId: string) {
+     const uuid = getClinicId(clinicId);
+     const { data, error } = await supabaseFetch(`waiting_list?clinic_id=eq.${uuid}&order=created_at.desc`);
+     if (error || !data) return [];
+     return data.map((w: any) => ({
+       id: w.id, clinic_id: w.clinic_id, patient_id: w.patient_id,
+       patient_name: w.patient_name, service_id: w.service_id || null,
+       service_name: w.service_name || null,
+       preferred_days: w.preferred_days || [],
+       preferred_time_range: w.preferred_time_range || 'any',
+       channels: w.channels || [],
+       notes: w.notes || null,
+       status: w.status || 'waiting',
+       created_at: w.created_at, updated_at: w.updated_at,
+     }));
+   },
+
+   async saveWaitingList(entry: any) {
+     return supabaseFetch('waiting_list', { method: 'POST', body: entry });
+   },
+
+   async updateWaitingList(id: string, entry: any) {
+     return supabaseFetch(`waiting_list?id=eq.${id}`, { method: 'PATCH', body: entry });
+   },
+
+   async deleteWaitingList(id: string) {
+     return supabaseFetch(`waiting_list?id=eq.${id}`, { method: 'DELETE' });
+   },
+
+   // ---- Recurrences ----
+   async loadRecurrences(clinicId: string) {
+     const uuid = getClinicId(clinicId);
+     const { data, error } = await supabaseFetch(`recurrences?clinic_id=eq.${uuid}&order=created_at.desc`);
+     if (error || !data) return [];
+     return data.map((r: any) => ({
+       id: r.id, clinic_id: r.clinic_id, patient_id: r.patient_id,
+       service_id: r.service_id || null, professional_id: r.professional_id,
+       start_date: r.start_date, frequency: r.frequency,
+       occurrences: r.occurrences || 1, created_at: r.created_at,
+     }));
+   },
+
+   async saveRecurrence(recurrence: any) {
+     return supabaseFetch('recurrences', { method: 'POST', body: recurrence });
+   },
+
+   async updateRecurrence(id: string, recurrence: any) {
+     return supabaseFetch(`recurrences?id=eq.${id}`, { method: 'PATCH', body: recurrence });
+   },
+
+   async deleteRecurrence(id: string) {
+     return supabaseFetch(`recurrences?id=eq.${id}`, { method: 'DELETE' });
+   },
+
+   // ---- Anamnese Links ----
+   async loadAnamneseLinks(clinicId: string) {
+     const uuid = getClinicId(clinicId);
+     const { data, error } = await supabaseFetch(`anamnese_links?clinic_id=eq.${uuid}&order=created_at.desc`);
+     if (error || !data) return [];
+     return data.map((l: any) => ({
+       id: l.id, clinic_id: l.clinic_id, patient_id: l.patient_id,
+       token: l.token, expires_at: l.expires_at,
+       submitted_at: l.submitted_at || null,
+       status: l.status || 'active',
+       created_by: l.created_by || null,
+       created_at: l.created_at,
+     }));
+   },
+
+   async saveAnamneseLink(link: any) {
+     return supabaseFetch('anamnese_links', { method: 'POST', body: link });
+   },
+
+   async updateAnamneseLink(id: string, link: any) {
+     return supabaseFetch(`anamnese_links?id=eq.${id}`, { method: 'PATCH', body: link });
+   },
+
+   async deleteAnamneseLink(id: string) {
+     return supabaseFetch(`anamnese_links?id=eq.${id}`, { method: 'DELETE' });
+   },
+
+   // ---- Automation Rules ----
+   async loadAutomationRules(clinicId: string) {
+     const uuid = getClinicId(clinicId);
+     const { data, error } = await supabaseFetch(`automation_rules?clinic_id=eq.${uuid}&order=created_at.desc`);
+     if (error || !data) return [];
+     return data.map((r: any) => ({
+       id: r.id, clinic_id: r.clinic_id, name: r.name,
+       type: r.type, channel: r.channel,
+       enabled: r.enabled !== false,
+       trigger: r.trigger || {},
+       template: r.template || '',
+       created_at: r.created_at,
+     }));
+   },
+
+   async saveAutomationRule(rule: any) {
+     return supabaseFetch('automation_rules', { method: 'POST', body: rule });
+   },
+
+   async updateAutomationRule(id: string, rule: any) {
+     return supabaseFetch(`automation_rules?id=eq.${id}`, { method: 'PATCH', body: rule });
+   },
+
+   async deleteAutomationRule(id: string) {
+     return supabaseFetch(`automation_rules?id=eq.${id}`, { method: 'DELETE' });
+   },
+
+   // ---- Automation Runs ----
+   async loadAutomationRuns(clinicId: string) {
+     const uuid = getClinicId(clinicId);
+     const { data, error } = await supabaseFetch(`automation_runs?clinic_id=eq.${uuid}&order=created_at.desc`);
+     if (error || !data) return [];
+     return data.map((r: any) => ({
+       id: r.id, clinic_id: r.clinic_id, rule_id: r.rule_id,
+       target_id: r.target_id, channel: r.channel,
+       status: r.status || 'queued',
+       response: r.response || null,
+       created_at: r.created_at,
+     }));
+   },
+
+   async saveAutomationRun(run: any) {
+     return supabaseFetch('automation_runs', { method: 'POST', body: run });
+   },
+
+   async updateAutomationRun(id: string, run: any) {
+     return supabaseFetch(`automation_runs?id=eq.${id}`, { method: 'PATCH', body: run });
+   },
+
+   async deleteAutomationRun(id: string) {
+     return supabaseFetch(`automation_runs?id=eq.${id}`, { method: 'DELETE' });
+   },
+
+   // ---- Funnel Stages ----
+   async loadFunnelStages(clinicId: string) {
+     const uuid = getClinicId(clinicId);
+     const { data, error } = await supabaseFetch(`funnel_stages?clinic_id=eq.${uuid}&order="order".asc`);
+     if (error || !data) return [];
+     return data.map((s: any) => ({
+       id: s.id, clinic_id: s.clinic_id, name: s.name,
+       order: s.order || 0, color: s.color || '#000000',
+       created_at: s.created_at,
+     }));
+   },
+
+   async saveFunnelStage(stage: any) {
+     return supabaseFetch('funnel_stages', { method: 'POST', body: stage });
+   },
+
+   async updateFunnelStage(id: string, stage: any) {
+     return supabaseFetch(`funnel_stages?id=eq.${id}`, { method: 'PATCH', body: stage });
+   },
+
+   async deleteFunnelStage(id: string) {
+     return supabaseFetch(`funnel_stages?id=eq.${id}`, { method: 'DELETE' });
+   },
+
+   // ---- Clinical Documents ----
+   async loadClinicalDocuments(clinicId: string) {
+     const uuid = getClinicId(clinicId);
+     const { data, error } = await supabaseFetch(`clinical_documents?clinic_id=eq.${uuid}&order=created_at.desc`);
+     if (error || !data) return [];
+     return data.map((d: any) => ({
+       id: d.id, clinic_id: d.clinic_id, patient_id: d.patient_id,
+       appointment_id: d.appointment_id || null,
+       type: d.type, title: d.title, content_html: d.content_html || '',
+       professional_signature_id: d.professional_signature_id || null,
+       patient_signature_id: d.patient_signature_id || null,
+       created_by: d.created_by,
+       created_at: d.created_at,
+     }));
+   },
+
+   async saveClinicalDocument(doc: any) {
+     return supabaseFetch('clinical_documents', { method: 'POST', body: doc });
+   },
+
+   async updateClinicalDocument(id: string, doc: any) {
+     return supabaseFetch(`clinical_documents?id=eq.${id}`, { method: 'PATCH', body: doc });
+   },
+
+   async deleteClinicalDocument(id: string) {
+     return supabaseFetch(`clinical_documents?id=eq.${id}`, { method: 'DELETE' });
+   },
+
+   // ---- Appointment Materials ----
+   async loadAppointmentMaterials(clinicId: string) {
+     const uuid = getClinicId(clinicId);
+     const { data, error } = await supabaseFetch(`appointment_materials?clinic_id=eq.${uuid}&order=created_at.desc`);
+     if (error || !data) return [];
+     // Group by appointment_id for store compatibility
+     const grouped: Record<string, any[]> = {};
+     data.forEach((m: any) => {
+       if (!grouped[m.appointment_id]) grouped[m.appointment_id] = [];
+       grouped[m.appointment_id].push({
+         stock_item_id: m.stock_item_id,
+         stock_item_name: m.stock_item_name,
+         qty: m.qty,
+       });
+     });
+     return grouped;
+   },
+
+   async saveAppointmentMaterial(material: any) {
+     return supabaseFetch('appointment_materials', { method: 'POST', body: material });
+   },
+
+   async updateAppointmentMaterial(id: string, material: any) {
+     return supabaseFetch(`appointment_materials?id=eq.${id}`, { method: 'PATCH', body: material });
+   },
+
+   async deleteAppointmentMaterial(id: string) {
+     return supabaseFetch(`appointment_materials?id=eq.${id}`, { method: 'DELETE' });
+   },
 };
 
 devLog('[SupabaseSync] Módulo carregado, isConfigured:', isConfigured);

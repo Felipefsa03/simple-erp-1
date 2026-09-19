@@ -3,35 +3,10 @@
 -- Execute no SQL Editor do Supabase
 -- ============================================
 
--- 1. Adicionar 'awaiting_payment' ao CHECK constraint de transactions
--- Usa pg_constraint.condef em vez de information_schema.check_constraints.definition
-DO $$
-DECLARE
-  v_constraint_exists BOOLEAN;
-  v_has_awaiting_payment BOOLEAN;
-BEGIN
-  SELECT EXISTS (
-    SELECT 1 FROM pg_constraint 
-    WHERE conname = 'transactions_status_check'
-  ) INTO v_constraint_exists;
-  
-  IF v_constraint_exists THEN
-    SELECT EXISTS (
-      SELECT 1 FROM pg_constraint 
-      WHERE conname = 'transactions_status_check'
-      AND condef LIKE '%awaiting_payment%'
-    ) INTO v_has_awaiting_payment;
-    
-    IF NOT v_has_awaiting_payment THEN
-      ALTER TABLE transactions DROP CONSTRAINT transactions_status_check;
-      ALTER TABLE transactions ADD CONSTRAINT transactions_status_check 
-        CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded', 'awaiting_payment'));
-    END IF;
-  ELSE
-    ALTER TABLE transactions ADD CONSTRAINT transactions_status_check 
-      CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded', 'awaiting_payment'));
-  END IF;
-END $$;
+-- 1. Remover CHECK constraint antiga de transactions e adicionar nova com 'awaiting_payment'
+ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_status_check;
+ALTER TABLE transactions ADD CONSTRAINT transactions_status_check 
+  CHECK (status IN ('pending', 'paid', 'cancelled', 'refunded', 'awaiting_payment'));
 
 -- 2. Adicionar colunas faltantes em transactions
 DO $$
@@ -102,3 +77,9 @@ SELECT routine_name FROM information_schema.routines WHERE routine_name IN ('get
 
 -- 8. Verificar se RLS está habilitado em todas as tabelas
 SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public' AND rowsecurity = false ORDER BY tablename;
+
+-- 9. Verificar colunas faltantes em transactions
+SELECT column_name FROM information_schema.columns WHERE table_name = 'transactions' ORDER BY column_name;
+
+-- 10. Verificar CHECK constraint atual de transactions
+SELECT conname, pg_get_constraintdef(oid) as definition FROM pg_constraint WHERE conrelid = 'transactions'::regclass;
