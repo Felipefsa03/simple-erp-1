@@ -25,6 +25,7 @@ export const createSignupRoutes = ({
   ensureSocketConnected,
   sendWhatsAppMessage,
   SYSTEM_WHATSAPP_CLINIC_ID,
+  GLOBAL_CLINIC_ID,
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
@@ -91,10 +92,10 @@ export const createSignupRoutes = ({
 
   // ---- Routes ----
 
-  router.post("/init", async (_req, res) => {
+  router.post("/init", async (req, res) => {
     try {
       const signupId = crypto.randomUUID();
-      const clinicId = crypto.randomUUID();
+      const clinicId = GLOBAL_CLINIC_ID || "00000000-0000-0000-0000-000000000001";
       const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
       const { error } = await supabaseAdmin.from('signup_provision_intents').insert({
         signup_id: signupId,
@@ -105,7 +106,7 @@ export const createSignupRoutes = ({
       return res.json({ ok: true, signup_id: signupId, clinic_id: clinicId, expires_at: expiresAt });
     } catch (error) {
       console.error('[SignupInit] Falha ao reservar cadastro:', error.message);
-      return res.status(503).json({ ok: false, error: 'Não foi possível iniciar o cadastro.' });
+      return res.status(500).json({ ok: false, error: error.message });
     }
   });
 

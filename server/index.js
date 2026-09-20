@@ -2721,20 +2721,21 @@ app.use((err, req, res, next) => {
 
 
 // Signup Routes (phone verification, provisioning, trial)
-app.use("/api/signup", createSignupRoutes({
-  supabaseAdmin,
-  fetchGlobalIntegrationConfig,
-  get whatsappConnections() { return whatsappConnections; },
-  get ensureSocketConnected() { return ensureSocketConnected; },
-  get sendWhatsAppMessage() { return sendWhatsAppMessage; },
-  SYSTEM_WHATSAPP_CLINIC_ID,
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY,
-  SUPABASE_SERVICE_ROLE_KEY,
-  addLog,
-  isUuid,
-  brazilianPhoneCandidates,
-}));
+ app.use("/api/signup", createSignupRoutes({
+   supabaseAdmin,
+   fetchGlobalIntegrationConfig,
+   get whatsappConnections() { return whatsappConnections; },
+   get ensureSocketConnected() { return ensureSocketConnected; },
+   get sendWhatsAppMessage() { return sendWhatsAppMessage; },
+   SYSTEM_WHATSAPP_CLINIC_ID,
+   GLOBAL_CLINIC_ID,
+   SUPABASE_URL,
+   SUPABASE_ANON_KEY,
+   SUPABASE_SERVICE_ROLE_KEY,
+   addLog,
+   isUuid,
+   brazilianPhoneCandidates,
+ }));
 
 // Billing Routes (MercadoPago preferences, payment status, webhook)
 const billingRouter = createBillingRoutes({
