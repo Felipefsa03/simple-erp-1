@@ -1520,15 +1520,15 @@ export const useClinicStore = create<ClinicStore>()(
                     const existingRec = s.medicalRecords.find(r => r.patient_id === patientId && r.odontogram);
                     let newRec = null;
                     
-                    if (existingRec) {
-                        saveToSupabase('medical_record', { ...existingRec, odontogram: next }, false);
-                    } else {
-                        newRec = {
-                            id: uid(), clinic_id: getActiveClinicId(), patient_id: patientId, professional_id: useAuth.getState().user?.id,
-                            odontogram: next, content: null, locked: false, created_at: now(), updated_at: now()
-                        };
-                        saveToSupabase('medical_record', newRec, true);
-                    }
+                     if (existingRec) {
+                         saveToSupabase('medical_record', { ...existingRec, odontogram: next }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar odontogram:', e));
+                     } else {
+                         newRec = {
+                             id: uid(), clinic_id: getActiveClinicId(), patient_id: patientId, professional_id: useAuth.getState().user?.id,
+                             odontogram: next, content: null, locked: false, created_at: now(), updated_at: now()
+                         };
+                         saveToSupabase('medical_record', newRec, true).catch(e => console.error('[ClinicStore] Erro ao salvar odontogram:', e));
+                     }
                     
                     const medicalRecords = existingRec 
                         ? s.medicalRecords.map(r => r.id === existingRec.id ? { ...r, odontogram: next } : r)
@@ -1543,20 +1543,20 @@ export const useClinicStore = create<ClinicStore>()(
             getOdontogramData: (patientId) => get().odontogramData[patientId] || [],
             saveAnamnese: (data) => {
                 const existing = get().medicalRecords.find(r => r.patient_id === data.patient_id && r.anamnese);
-                if (existing) {
-                    saveToSupabase('medical_record', { ...existing, anamnese: data }, false);
-                    set(s => ({ 
-                        anamneseData: { ...s.anamneseData, [data.patient_id]: data },
-                        medicalRecords: s.medicalRecords.map(r => r.id === existing.id ? { ...r, anamnese: data } : r)
-                    }));
-                } else {
-                    const newRec = {
-                        id: uid(), clinic_id: data.clinic_id || getActiveClinicId(), patient_id: data.patient_id, professional_id: useAuth.getState().user?.id,
-                        anamnese: data, content: null, locked: false, created_at: now(), updated_at: now()
-                    };
-                    saveToSupabase('medical_record', newRec, true);
-                    set(s => ({ 
-                        anamneseData: { ...s.anamneseData, [data.patient_id]: data },
+                 if (existing) {
+                     saveToSupabase('medical_record', { ...existing, anamnese: data }, false).catch(e => console.error('[ClinicStore] Erro ao atualizar anamnese:', e));
+                     set(s => ({ 
+                         anamneseData: { ...s.anamneseData, [data.patient_id]: data },
+                         medicalRecords: s.medicalRecords.map(r => r.id === existing.id ? { ...r, anamnese: data } : r)
+                     }));
+                 } else {
+                     const newRec = {
+                         id: uid(), clinic_id: data.clinic_id || getActiveClinicId(), patient_id: data.patient_id, professional_id: useAuth.getState().user?.id,
+                         anamnese: data, content: null, locked: false, created_at: now(), updated_at: now()
+                     };
+                     saveToSupabase('medical_record', newRec, true).catch(e => console.error('[ClinicStore] Erro ao salvar anamnese:', e));
+                     set(s => ({ 
+                         anamneseData: { ...s.anamneseData, [data.patient_id]: data },
                         medicalRecords: [...s.medicalRecords, newRec as any] 
                     }));
                 }
