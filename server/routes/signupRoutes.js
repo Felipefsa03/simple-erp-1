@@ -536,7 +536,7 @@ export const createSignupRoutes = ({
       if (!signupIntent) {
         return res.status(403).json({ ok: false, error: "Sessão de provisionamento inválida ou expirada." });
       }
-      clinicId = String(signupIntent.clinic_id);
+      clinicId = crypto.randomUUID();
 
       const normalizedEmail = String(email).trim().toLowerCase();
 
