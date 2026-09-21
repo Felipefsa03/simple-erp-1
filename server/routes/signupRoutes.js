@@ -404,7 +404,8 @@ export const createSignupRoutes = ({
     let authUserCreated = false;
     let clinicCreated = false;
     try {
-      await assertPhoneVerificationValid({ signupId, phone });
+      const normalizedPhone = normalizePhoneForSignup(phone) || String(phone).replace(/\D/g, "");
+      await assertPhoneVerificationValid({ signupId, phone: normalizedPhone });
 
       const signupIntent = await loadSignupIntent(signupId);
       if (!signupIntent || String(signupIntent.clinic_id) !== String(clinicId)) {
@@ -446,7 +447,6 @@ export const createSignupRoutes = ({
       await persistMercadoPagoPayment(payment, clinicId);
 
       const normalizedEmail = String(email).trim().toLowerCase();
-      const normalizedPhone = normalizePhoneForSignup(phone) || String(phone).replace(/\D/g, "");
       const sanitizedPlan = sanitizePlan(plan || payment?.metadata?.plan);
 
       const existingUser = await fetchUserByEmail(normalizedEmail);
@@ -527,7 +527,8 @@ export const createSignupRoutes = ({
     let authUserCreated = false;
     let clinicCreated = false;
     try {
-      await assertPhoneVerificationValid({ signupId, phone });
+      const normalizedPhone = normalizePhoneForSignup(phone) || String(phone).replace(/\D/g, "");
+      await assertPhoneVerificationValid({ signupId, phone: normalizedPhone });
 
       // O identificador foi reservado pelo servidor em /signup/init. Nunca
       // aceite UUID arbitrário enviado pelo navegador em um novo tenant.
@@ -538,7 +539,6 @@ export const createSignupRoutes = ({
       clinicId = String(signupIntent.clinic_id);
 
       const normalizedEmail = String(email).trim().toLowerCase();
-      const normalizedPhone = normalizePhoneForSignup(phone) || String(phone).replace(/\D/g, "");
 
       const existingUser = await fetchUserByEmail(normalizedEmail);
       if (existingUser?.clinic_id && existingUser.clinic_id !== clinicId) {
