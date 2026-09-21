@@ -160,8 +160,8 @@ export const createBillingRoutes = ({
     const [asaasCreds, mpCreds] = await Promise.all([
       resolveAsaasCredentials(clinicId, { allowEnvFallback: false }),
       resolveMercadoPagoCredentials(clinicId, {
-        allowClinicConfig: false,
-        allowEnvFallback: superAdmin || isPublicFlow,
+        allowClinicConfig: true,
+        allowEnvFallback: true,
       }),
     ]);
 
