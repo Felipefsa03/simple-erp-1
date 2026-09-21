@@ -3,19 +3,23 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config/env.js";
 import { addLog } from "./logger.js";
 import { supabaseAdmin } from "./supabase.js";
 
-const DEFAULT_PLAN_PRICES = {
-  basico: 97.0,
-  profissional: 147.0,
-  premium: 297.0,
+export const DEFAULT_PLAN_PRICES = {
+  basico: 17.0,
+  profissional: 197.0,
+  premium: 397.0,
 };
 
-const parsePlanPrice = (val, fallback) => {
+export const parsePlanPrice = (val, fallback) => {
   const num = Number(val);
   return Number.isFinite(num) && num > 0 ? num : fallback;
 };
 
-const cleanEnv = (v) => String(v || "").trim();
-const sanitizePlan = (p) => String(p || "basico").toLowerCase().trim();
+export const cleanEnv = (v) => String(v || "").trim();
+export const sanitizePlan = (p) => {
+  const s = String(p || "basico").toLowerCase().trim();
+  const allowed = new Set(["basico", "profissional", "premium"]);
+  return allowed.has(s) ? s : "basico";
+};
 
 const getClinicIntegrationConfig = async (clinicId) => {
   const normalizedClinicId = String(clinicId || "").trim();
@@ -192,11 +196,11 @@ export const persistAsaasPayment = async (payment, clinicIdOverride = "", metada
   ).trim();
   if (!clinicId) return;
 
-  const body = {
-    id: `asaas-${payment.id}`,
-    clinic_id: clinicId,
-    mp_payment_id: String(payment.id), // Using same column as mp_payment_id
-    amount: Number(payment.value || 0),
+    const body = {
+      id: `asaas-${payment.id}`,
+      clinic_id: clinicId,
+      asaas_payment_id: String(payment.id),
+      amount: Number(payment.value || 0),
     status: String(payment.status || "PENDING").toLowerCase(),
     plan: sanitizePlan(metadata.plan || "basico"),
     payer_email: String(metadata.user_email || ""),

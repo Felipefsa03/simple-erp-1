@@ -197,7 +197,7 @@ export const createBillingRoutes = ({
 
       const normalizedClinicId = String(clinicId).trim();
       if (signupId) {
-        if (!isUuid(normalizedClinicId)) {
+        if (!isUuid(String(signupId).trim())) {
           return res.status(400).json({ ok: false, error: "Reserva de clínica inválida." });
         }
         const intentResponse = await fetch(
