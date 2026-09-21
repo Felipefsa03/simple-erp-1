@@ -604,15 +604,15 @@ const publicPaths = [
   // "/mercado/"       -> módulo IQ Option removido do projeto (auditoria 14/09/2026)
 ];
 
-app.use("/api", (req, res, next) => {
-  const pathWithoutApi = req.path;
+ app.use("/api", (req, res, next) => {
+   const pathWithoutApi = req.path.replace(/^\/api/, '');
 
-  if (publicPaths.some((p) => pathWithoutApi.startsWith(p))) {
-    return next();
-  }
+   if (publicPaths.some((p) => pathWithoutApi.startsWith(p))) {
+     return next();
+   }
 
-  return requireAuth(req, res, next);
-});
+   return requireAuth(req, res, next);
+ });
 
 app.get("/api/health/extended", async (req, res) => {
   try {
