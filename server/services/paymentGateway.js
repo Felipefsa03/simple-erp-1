@@ -70,11 +70,11 @@ export const resolveMercadoPagoCredentials = async (clinicId = "", options = {})
     null;
 
   const token = pickString(
-    ...(allowClinicConfig ? [mpClinicConfig?.access_token, mpClinicConfig?.accessToken] : []),
+    ...(allowClinicConfig ? [mpClinicConfig?.access_token, mpClinicConfig?.accessToken, config?.mp_access_token] : []),
     ...(allowEnvFallback ? [process.env.MP_ACCESS_TOKEN] : []),
   );
   const publicKey = pickString(
-    ...(allowClinicConfig ? [mpClinicConfig?.public_key, mpClinicConfig?.publicKey] : []),
+    ...(allowClinicConfig ? [mpClinicConfig?.public_key, mpClinicConfig?.publicKey, config?.mp_public_key] : []),
     ...(allowEnvFallback ? [process.env.MP_PUBLIC_KEY] : []),
   );
   const webhookSecret = pickString(
