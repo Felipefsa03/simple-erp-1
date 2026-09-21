@@ -89,7 +89,7 @@ export function AuthenticatedApp() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [subscriptionBlocked, setSubscriptionBlocked] = useState(false);
-  const [subscriptionInfo, setSubscriptionInfo] = useState<{ plan: string; amount: number; dueDate: string; qrCode: string; pixLink: string } | null>(null);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{ plan: string; amount: number; dueDate: string; qrCode: string; pixLink: string; checkoutUrl?: string } | null>(null);
   const confirmationsCount = useClinicStore(s => s.appointmentConfirmations.length);
   const { canInstall, isInstalled, isIos, promptInstall } = usePWAInstall();
 
@@ -224,8 +224,9 @@ export function AuthenticatedApp() {
         console.log('[Subscription] Nenhum pagamento aprovado, verificando plano...');
         
         // Buscar preços do integration_config global primeiro (antes de normalizar)
-        const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+        const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium,payment_gateway').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
         const prices = config as Record<string, number> || {};
+        const gateway = (config as Record<string, string>)?.payment_gateway || 'mercadopago';
         const defaultPrices: Record<string, number> = { basico: 17, profissional: 197, premium: 397 };
         
         // Normalizar plano: enterprise -> premium E atualizar no banco
@@ -236,9 +237,23 @@ export function AuthenticatedApp() {
           await supabase!.from('clinics').update({ plan: 'premium' }).eq('id', clinicId);
         }
         
-        console.log('[Subscription] Plano atual:', plan);
+        console.log('[Subscription] Plano atual:', plan, 'Gateway:', gateway);
         const amount = prices[`plan_price_${plan}`] || defaultPrices[plan] || 17;
         console.log('[Subscription] Valor do plano:', amount, 'prices from DB:', prices);
+
+        if (gateway === 'stripe') {
+          const stripeRes = await fetch(`${API_BASE}/api/mercadopago/create-stripe-checkout`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clinicId, plan, amount, email: user.email, name: user.name, phone: user.phone || '' }),
+          });
+          const stripeData = await stripeRes.json();
+          if (stripeData.ok && stripeData.checkout_url) {
+            setSubscriptionBlocked(true);
+            setSubscriptionInfo({ plan, amount, dueDate: new Date().toLocaleDateString('pt-BR'), qrCode: '', pixLink: '', checkoutUrl: stripeData.checkout_url });
+          }
+          return;
+        }
+
         const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clinicName: clinic?.name || 'Minha Clínica', email: user.email, name: user.name, phone: user.phone || '', plan, amount, clinicId }),

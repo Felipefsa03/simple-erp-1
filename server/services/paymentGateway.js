@@ -325,3 +325,142 @@ export const isAsaasPaymentApproved = (payment) => {
   const status = String(payment?.status || "").toUpperCase();
   return status === "RECEIVED" || status === "CONFIRMED";
 };
+
+export const resolveStripeCredentials = async (clinicId = "", options = {}) => {
+  const { allowClinicConfig = true, allowEnvFallback = true } = options;
+  const config = allowClinicConfig ? await getClinicIntegrationConfig(clinicId) : null;
+  const stripeConfig = config?.stripe || config?.stripe_config || null;
+  const secretKey = pickString(
+    ...(allowClinicConfig ? [stripeConfig?.secret_key, stripeConfig?.secretKey] : []),
+    ...(allowEnvFallback ? [process.env.STRIPE_SECRET_KEY] : []),
+  );
+  const publishableKey = pickString(
+    ...(allowClinicConfig ? [stripeConfig?.publishable_key, stripeConfig?.publishableKey] : []),
+    ...(allowEnvFallback ? [process.env.STRIPE_PUBLISHABLE_KEY] : []),
+  );
+  const webhookSecret = pickString(
+    ...(allowClinicConfig ? [stripeConfig?.webhook_secret, stripeConfig?.webhookSecret] : []),
+    ...(allowEnvFallback ? [process.env.STRIPE_WEBHOOK_SECRET] : []),
+  );
+  const source = stripeConfig
+    ? "clinic"
+    : secretKey || publishableKey || webhookSecret
+      ? "env"
+      : "none";
+  return { secretKey, publishableKey, webhookSecret, config: stripeConfig, source };
+};
+
+const stripeRequest = async (endpoint, { method = "GET", body } = {}, secretKey) => {
+  const response = await fetch(`https://api.stripe.com/v1${endpoint}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body ? new URLSearchParams(body).toString() : undefined,
+  });
+  const text = await response.text();
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch (err) {
+    payload = { raw_text: text };
+  }
+  if (!response.ok) {
+    throw new Error(payload?.error?.message || payload?.message || "Erro na API do Stripe");
+  }
+  return payload;
+};
+
+export const createStripeCheckoutSession = async ({
+  clinicId,
+  plan,
+  amount,
+  email,
+  name,
+  phone,
+  successUrl,
+  cancelUrl,
+  signupId = "",
+}) => {
+  const { secretKey } = await resolveStripeCredentials(clinicId);
+  if (!secretKey) return null;
+  const frontendUrl = process.env.FRONTEND_URL || "https://clinxia.vercel.app";
+  const session = await stripeRequest(
+    "/checkout/sessions",
+    {
+      method: "POST",
+      body: {
+        mode: "payment",
+        "payment_method_types[0]": "card",
+        "payment_method_types[1]": "pix",
+        success_url: successUrl || `${frontendUrl}/?payment=success`,
+        cancel_url: cancelUrl || `${frontendUrl}/?payment=failure`,
+        customer_email: email,
+        client_reference_id: String(clinicId || ""),
+        "line_items[0][quantity]": 1,
+        "line_items[0][price_data][currency]": "brl",
+        "line_items[0][price_data][unit_amount]": Math.round(Number(amount) * 100),
+        "line_items[0][price_data][product_data][name]": `Clinxia - Plano ${plan}`,
+        "metadata[clinic_id]": String(clinicId || ""),
+        "metadata[plan]": String(plan || ""),
+        "metadata[gateway]": "stripe",
+        ...(signupId ? { "metadata[signup_id]": String(signupId) } : {}),
+      },
+    },
+    secretKey,
+  );
+  return { id: session.id, url: session.url, paymentIntent: session.payment_intent };
+};
+
+export const verifyStripeSignature = (rawBody, signatureHeader, webhookSecret) => {
+  try {
+    if (!rawBody || !signatureHeader || !webhookSecret) return false;
+    const parts = String(signatureHeader).split(",").map((p) => p.trim()).filter(Boolean);
+    const ts = parts.find((p) => p.startsWith("t="))?.slice(2);
+    const v1s = parts.filter((p) => p.startsWith("v1=")).map((p) => p.slice(3));
+    if (!ts || v1s.length === 0) return false;
+    const payload = Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : String(rawBody);
+    const expected = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(`${ts}.${payload}`)
+      .digest("hex");
+    return v1s.some((v1) => {
+      if (v1.length !== expected.length) return false;
+      return crypto.timingSafeEqual(Buffer.from(v1), Buffer.from(expected));
+    });
+  } catch (err) {
+    return false;
+  }
+};
+
+export const activateClinicSubscription = async (clinicId, plan = "", gateway = "stripe") => {
+  const normalizedClinicId = String(clinicId || "").trim();
+  if (!normalizedClinicId || !SUPABASE_URL) return false;
+  const headers = {
+    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY}`,
+    "Content-Type": "application/json",
+    Prefer: "return=minimal",
+  };
+  const now = new Date().toISOString();
+  const clinicPatch = { status: "active", updated_at: now };
+  if (plan) clinicPatch.plan = sanitizePlan(plan);
+  try {
+    const [subRes, clinicRes] = await Promise.all([
+      fetch(
+        `${SUPABASE_URL}/rest/v1/clinic_subscriptions?clinic_id=eq.${encodeURIComponent(normalizedClinicId)}`,
+        { method: "PATCH", headers, body: JSON.stringify({ status: "active", gateway, updated_at: now }) },
+      ),
+      fetch(
+        `${SUPABASE_URL}/rest/v1/clinics?id=eq.${encodeURIComponent(normalizedClinicId)}`,
+        { method: "PATCH", headers, body: JSON.stringify(clinicPatch) },
+      ),
+    ]);
+    addLog(`[Payment] Clínica ${normalizedClinicId} ativada via ${gateway} (sub=${subRes.ok}, clinic=${clinicRes.ok})`);
+    return subRes.ok || clinicRes.ok;
+  } catch (err) {
+    addLog(`[Payment] Erro ao ativar assinatura de ${normalizedClinicId}: ${err.message}`);
+    return false;
+  }
+};

@@ -410,6 +410,7 @@ const passwordResetLimiter = rateLimit({
 app.use("/api/mercadopago/payment-status", paymentStatusLimiter);
 app.use("/api/mercadopago/create-preference", createPreferenceLimiter);
 app.use("/api/webhooks/mercadopago", webhookLimiter);
+app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
 app.use("/api/auth/password/reset-request", passwordResetLimiter);
 app.use("/api/auth/password/reset-confirm", passwordResetLimiter);
 
@@ -2771,6 +2772,21 @@ app.listen(PORT, async () => {
       }
     } catch (e) {
       console.log(`⚠️ Reaction column migration skipped: ${e.message}`);
+    }
+  }
+
+  // Ensure stripe column exists in integration_config
+  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const stripeRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/exec_sql`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+        body: JSON.stringify({ query: "ALTER TABLE integration_config ADD COLUMN IF NOT EXISTS stripe JSONB DEFAULT '{}'::jsonb; ALTER TABLE integration_config ADD COLUMN IF NOT EXISTS payment_gateway TEXT DEFAULT 'mercadopago'; ALTER TABLE signup_provision_intents ADD COLUMN IF NOT EXISTS paid_at timestamptz;" })
+      });
+      if (stripeRes.ok) console.log('✅ Stripe/payment_gateway columns ensured in integration_config');
+      else console.log(`⚠️ Stripe column migration skipped (status ${stripeRes.ok ? 'ok' : stripeRes.status}).`);
+    } catch (e) {
+      console.log(`⚠️ Stripe column migration skipped: ${e.message}`);
     }
   }
 

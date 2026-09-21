@@ -151,6 +151,12 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   const [bannedIPs, setBannedIPs] = useState<any[]>([]);
   const [securityLogs, setSecurityLogs] = useState<any[]>([]);
   const [securityDataLoading, setSecurityDataLoading] = useState(false);
+  const [paymentGateway, setPaymentGateway] = useState('mercadopago');
+  const [gatewaySaving, setGatewaySaving] = useState(false);
+  const [gatewayFeedback, setGatewayFeedback] = useState('');
+  const [stripeCreds, setStripeCreds] = useState({ secret_key: '', publishable_key: '', webhook_secret: '' });
+  const [stripeSaving, setStripeSaving] = useState(false);
+  const [stripeFeedback, setStripeFeedback] = useState('');
 
   // Dados de super_admin passam pelo backend, que aplica autorização e
   // devolve apenas os agregados necessários ao painel.
@@ -244,6 +250,66 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
       if (intervalId) clearInterval(intervalId);
     };
   }, [activeTab]);
+
+  // Fetch payment gateway config
+  React.useEffect(() => {
+    if (activeTab !== 'sistema') return;
+    const token = SupabaseSync.getAuthToken();
+    fetch('/api/integrations/payment-gateway', {
+      headers: { Authorization: `Bearer ${token || ''}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.ok && data.gateway) setPaymentGateway(data.gateway);
+      })
+      .catch(() => {});
+  }, [activeTab]);
+
+  const savePaymentGateway = async () => {
+    setGatewaySaving(true);
+    setGatewayFeedback('');
+    try {
+      const token = SupabaseSync.getAuthToken();
+      const res = await fetch('/api/integrations/payment-gateway', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+        body: JSON.stringify({ gateway: paymentGateway }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setGatewayFeedback('Gateway salvo com sucesso.');
+      } else {
+        setGatewayFeedback(data.error || 'Erro ao salvar gateway.');
+      }
+    } catch (e: any) {
+      setGatewayFeedback('Erro de conexão: ' + e.message);
+    } finally {
+      setGatewaySaving(false);
+    }
+  };
+
+  const saveStripeCreds = async () => {
+    setStripeSaving(true);
+    setStripeFeedback('');
+    try {
+      const token = SupabaseSync.getAuthToken();
+      const res = await fetch('/api/integrations/stripe/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+        body: JSON.stringify({ clinicId: '00000000-0000-0000-0000-000000000001', ...stripeCreds }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setStripeFeedback('Credenciais Stripe salvas com sucesso.');
+      } else {
+        setStripeFeedback(data.error || 'Erro ao salvar credenciais Stripe.');
+      }
+    } catch (e: any) {
+      setStripeFeedback('Erro de conexão: ' + e.message);
+    } finally {
+      setStripeSaving(false);
+    }
+  };
 
   // Handle confirm payment — update Supabase directly
   const handleConfirmPayment = async (clinic: any) => {
@@ -1028,6 +1094,75 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                   </span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Gateway de Pagamento */}
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
+              <CreditCard className="w-5 h-5 text-brand-500" />Gateway de Pagamento
+            </h2>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              {([
+                { id: 'mercadopago', label: 'Mercado Pago' },
+                { id: 'stripe', label: 'Stripe' },
+                { id: 'asaas', label: 'Asaas' },
+              ] as const).map(gw => (
+                <button
+                  key={gw.id}
+                  onClick={() => setPaymentGateway(gw.id)}
+                  className={cn("px-4 py-2 rounded-xl text-sm font-bold border transition-colors",
+                    paymentGateway === gw.id
+                      ? "bg-brand-600 text-white border-brand-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-brand-300")}
+                >
+                  {gw.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={savePaymentGateway}
+                disabled={gatewaySaving}
+                className="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              >
+                {gatewaySaving ? 'Salvando...' : 'Salvar gateway'}
+              </button>
+              {gatewayFeedback && <span className={cn("text-xs font-medium", gatewayFeedback.includes('sucesso') ? "text-emerald-600" : "text-red-600")}>{gatewayFeedback}</span>}
+            </div>
+
+            <div className="mt-6 border-t border-slate-100 pt-4">
+              <h3 className="text-sm font-bold text-slate-700 mb-3">Credenciais Stripe</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input
+                  value={stripeCreds.secret_key}
+                  onChange={e => setStripeCreds(prev => ({ ...prev, secret_key: e.target.value }))}
+                  placeholder="sk_test_..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <input
+                  value={stripeCreds.publishable_key}
+                  onChange={e => setStripeCreds(prev => ({ ...prev, publishable_key: e.target.value }))}
+                  placeholder="pk_test_..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <input
+                  value={stripeCreds.webhook_secret}
+                  onChange={e => setStripeCreds(prev => ({ ...prev, webhook_secret: e.target.value }))}
+                  placeholder="whsec_..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div className="flex items-center gap-3 mt-3">
+                <button
+                  onClick={saveStripeCreds}
+                  disabled={stripeSaving}
+                  className="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 transition-colors"
+                >
+                  {stripeSaving ? 'Salvando...' : 'Salvar credenciais Stripe'}
+                </button>
+                {stripeFeedback && <span className={cn("text-xs font-medium", stripeFeedback.includes('sucesso') ? "text-emerald-600" : "text-red-600")}>{stripeFeedback}</span>}
+              </div>
             </div>
           </div>
 

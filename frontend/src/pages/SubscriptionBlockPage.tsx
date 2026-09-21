@@ -4,7 +4,7 @@ import type { User, Clinic } from '@/types';
 interface SubscriptionBlockPageProps {
   user: User;
   clinic: Clinic | null;
-  subscriptionInfo: { plan: string; amount: number; dueDate: string; qrCode: string; pixLink: string };
+  subscriptionInfo: { plan: string; amount: number; dueDate: string; qrCode: string; pixLink: string; checkoutUrl?: string };
   onPaymentConfirmed: () => void;
 }
 
@@ -40,6 +40,12 @@ export function SubscriptionBlockPage({ user, subscriptionInfo, onPaymentConfirm
             <div className="w-44 h-44 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-4">
               <span className="text-4xl">📱</span>
             </div>
+          )}
+
+          {subscriptionInfo.checkoutUrl && (
+            <a href={subscriptionInfo.checkoutUrl} className="block mb-4 px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all">
+              Pagar com Cartão (Stripe) →
+            </a>
           )}
 
           {subscriptionInfo.pixLink && (

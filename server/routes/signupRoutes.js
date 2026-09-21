@@ -72,7 +72,7 @@ export const createSignupRoutes = ({
   const loadSignupIntent = async (signupId) => {
     const { data, error } = await supabaseAdmin
       .from('signup_provision_intents')
-      .select('signup_id, clinic_id, expires_at, consumed_at')
+      .select('signup_id, clinic_id, expires_at, consumed_at, paid_at')
       .eq('signup_id', String(signupId || '').trim())
       .is('consumed_at', null)
       .gt('expires_at', new Date().toISOString())
@@ -412,8 +412,10 @@ export const createSignupRoutes = ({
         return res.status(403).json({ ok: false, error: "Sessão de provisionamento inválida ou expirada." });
       }
 
+      const paidViaStripe = Boolean(signupIntent?.paid_at);
+
       const { token } = await resolveMercadoPagoCredentials();
-      if (!token) {
+      if (!token && !paidViaStripe) {
         return res.status(503).json({ ok: false, error: "Mercado Pago nao configurado." });
       }
 
@@ -430,21 +432,44 @@ export const createSignupRoutes = ({
         return res.status(409).json({ ok: false, error: "O provisionamento pago só pode criar uma clínica nova." });
       }
 
-      const { fetchLatestMercadoPagoPaymentByClinic, isPaymentApproved, persistMercadoPagoPayment } = await import("../services/paymentGateway.js");
-      const payment = await fetchLatestMercadoPagoPaymentByClinic(clinicId, token);
-      if (!payment || !isPaymentApproved(payment)) {
-        return res.status(402).json({
-          ok: false,
-          error: "Pagamento ainda nao aprovado. Aguarde a confirmacao do Mercado Pago.",
-        });
-      }
+      let payment = null;
+      if (paidViaStripe) {
+        const { data: localPayments, error: localPaymentsError } = await supabaseAdmin
+          .from('payments')
+          .select('*')
+          .eq('clinic_id', clinicId)
+          .eq('status', 'approved')
+          .limit(1);
+        if (localPaymentsError) throw localPaymentsError;
+        const localPayment = Array.isArray(localPayments) ? localPayments[0] : null;
+        if (!localPayment) {
+          return res.status(402).json({
+            ok: false,
+            error: "Pagamento ainda nao aprovado. Aguarde a confirmacao do Stripe.",
+          });
+        }
+        payment = {
+          id: String(localPayment.mp_payment_id || `stripe-${clinicId}`),
+          status: "approved",
+          metadata: { signup_id: signupId, clinic_id: clinicId, plan: localPayment.plan },
+        };
+      } else {
+        const { fetchLatestMercadoPagoPaymentByClinic, isPaymentApproved, persistMercadoPagoPayment } = await import("../services/paymentGateway.js");
+        payment = await fetchLatestMercadoPagoPaymentByClinic(clinicId, token);
+        if (!payment || !isPaymentApproved(payment)) {
+          return res.status(402).json({
+            ok: false,
+            error: "Pagamento ainda nao aprovado. Aguarde a confirmacao do Mercado Pago.",
+          });
+        }
 
-      const paymentMetadata = payment.metadata || {};
-      if (String(paymentMetadata.signup_id || '') !== String(signupId) || String(paymentMetadata.clinic_id || '') !== String(clinicId)) {
-        return res.status(403).json({ ok: false, error: "Pagamento não corresponde a esta sessão de cadastro." });
-      }
+        const paymentMetadata = payment.metadata || {};
+        if (String(paymentMetadata.signup_id || '') !== String(signupId) || String(paymentMetadata.clinic_id || '') !== String(clinicId)) {
+          return res.status(403).json({ ok: false, error: "Pagamento não corresponde a esta sessão de cadastro." });
+        }
 
-      await persistMercadoPagoPayment(payment, clinicId);
+        await persistMercadoPagoPayment(payment, clinicId);
+      }
 
       const normalizedEmail = String(email).trim().toLowerCase();
       const sanitizedPlan = sanitizePlan(plan || payment?.metadata?.plan);

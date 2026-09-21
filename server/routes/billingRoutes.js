@@ -8,6 +8,7 @@ import {
   fetchMercadoPagoPaymentById,
   fetchLatestMercadoPagoPaymentByClinic,
   isPaymentApproved as isMercadoPagoApproved,
+  sanitizePlan,
   
   resolveAsaasCredentials,
   createAsaasCustomer,
@@ -15,9 +16,12 @@ import {
   fetchAsaasPixQrCode,
   fetchAsaasPaymentStatus,
   isAsaasPaymentApproved,
-  persistAsaasPayment
+  persistAsaasPayment,
+  
+  createStripeCheckoutSession,
+  verifyStripeSignature,
+  activateClinicSubscription,
 } from "../services/paymentGateway.js";
-
 // Helper para descobrir gateway preferencial via ENV
 const getPreferredGateway = () => {
   const active = cleanEnv(process.env.ACTIVE_PAYMENT_GATEWAY || "").toLowerCase();
@@ -484,8 +488,8 @@ export const createBillingRoutes = ({
     }
   });
 
-  // Multi-gateway Webhook handler
-  router.post("/webhook", async (req, res) => {
+  // Multi-gateway Webhook handler (Asaas + Mercado Pago)
+  const handlePaymentWebhook = async (req, res) => {
     try {
       const body = req.body;
 
@@ -500,11 +504,6 @@ export const createBillingRoutes = ({
       }
 
       // 2. Otherwise assume MercadoPago Webhook
-      // Para o webhook receber chamadas tanto do global quanto de clinicas, 
-      // precisamos idealmente resolver dinamicamente, mas por segurança aceitamos se a assinatura
-      // bater com o secret Global ou com o secret da clínica especificada (no webhook não vem clinicId claro na URL por padrão, 
-      // precisariamos extrair do corpo da notificação).
-      // Por simplicidade, vamos usar o token Global para verificar webhooks de cadastro principal.
       const { token, webhookSecret } = await resolveMercadoPagoCredentials(null, { allowEnvFallback: true });
       if (webhookSecret) {
         const rawSignatureHeader = String(req.headers["x-signature"] || "");
@@ -553,12 +552,156 @@ export const createBillingRoutes = ({
         const payment = await fetchMercadoPagoPaymentById(paymentId, token);
         await persistMercadoPagoPayment(payment);
         addLog(`[MP Webhook] Pagamento ${paymentId} atualizado para ${payment.status}`);
+        const clinicId = String(payment?.metadata?.clinic_id || payment?.external_reference || "").trim();
+        if (isMercadoPagoApproved(payment) && clinicId) {
+          await activateClinicSubscription(clinicId, sanitizePlan(payment?.metadata?.plan || "premium"), "mercadopago");
+        }
       }
 
       return res.status(200).json({ ok: true });
     } catch (error) {
       addLog(`[Webhook] Error: ${error.message}`);
       return res.status(200).json({ ok: true });
+    }
+  };
+
+  router.post("/webhook", handlePaymentWebhook);
+  router.post("/mercadopago", handlePaymentWebhook);
+
+  // Stripe checkout session
+  router.post("/create-stripe-checkout", async (req, res) => {
+    const { clinicId, plan, amount, email, name, phone, signupId } = req.body || {};
+    if (!clinicId || !isUuid(clinicId)) return res.status(400).json({ ok: false, error: "clinicId invalido." });
+    if (!amount || !email) return res.status(400).json({ ok: false, error: "Dados obrigatorios ausentes." });
+
+    const normalizedClinicId = String(clinicId).trim();
+    if (signupId) {
+      if (!isUuid(String(signupId).trim())) {
+        return res.status(400).json({ ok: false, error: "Reserva de clínica inválida." });
+      }
+      const intentResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/signup_provision_intents?signup_id=eq.${encodeURIComponent(String(signupId).trim())}&clinic_id=eq.${encodeURIComponent(normalizedClinicId)}&consumed_at=is.null&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=signup_id&limit=1`,
+        { headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY) },
+      );
+      const intents = intentResponse.ok ? await safeJson(intentResponse) : [];
+      if (!Array.isArray(intents) || intents.length !== 1) {
+        return res.status(403).json({ ok: false, error: "Sessão de cadastro inválida ou expirada." });
+      }
+    }
+    if (signupId && SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)) {
+      const existingClinicResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/clinics?id=eq.${encodeURIComponent(normalizedClinicId)}&select=id&limit=1`,
+        { headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY) },
+      );
+      const existingClinics = existingClinicResponse.ok ? await safeJson(existingClinicResponse) : [];
+      if (Array.isArray(existingClinics) && existingClinics.length > 0) {
+        return res.status(403).json({ ok: false, error: "Clínica já existe. Faça login." });
+      }
+    }
+
+    try {
+      const result = await createStripeCheckoutSession({ clinicId: normalizedClinicId, plan, amount, email, name, phone, signupId });
+      if (result?.url) {
+        await persistCheckout({
+          clinicId: normalizedClinicId,
+          plan: plan || "premium",
+          billingCycle: "monthly",
+          gateway: "stripe",
+          gatewayReference: result.id,
+          paymentReference: null,
+          checkoutUrl: result.url,
+        });
+        return res.json({ ok: true, checkout_url: result.url, payment_intent: result.paymentIntent });
+      }
+      return res.status(502).json({ ok: false, error: "Não foi possível criar o checkout Stripe. Verifique as credenciais." });
+    } catch (error) {
+      return res.status(502).json({ ok: false, error: "Erro ao criar checkout Stripe." });
+    }
+  });
+
+  // Stripe webhook (raw body is parsed by express.raw middleware in index.js)
+  router.post("/stripe", async (req, res) => {
+    try {
+      const signature = String(req.headers["stripe-signature"] || "");
+      if (!signature) {
+        addLog("[Stripe Webhook] Assinatura ausente");
+        return res.status(400).json({ ok: false, error: "Assinatura ausente" });
+      }
+
+      let verified = false;
+      const globalSecret = cleanEnv(process.env.STRIPE_WEBHOOK_SECRET);
+      if (globalSecret && verifyStripeSignature(req.body, signature, globalSecret)) {
+        verified = true;
+      }
+
+      if (!verified && SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)) {
+        const configsRes = await fetch(`${SUPABASE_URL}/rest/v1/integration_config?select=stripe`, {
+          headers: getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY),
+        });
+        if (configsRes.ok) {
+          const rows = await configsRes.json().catch(() => []);
+          for (const row of Array.isArray(rows) ? rows : []) {
+            const secret = String(row?.stripe?.webhook_secret || row?.stripe?.webhookSecret || "").trim();
+            if (secret && verifyStripeSignature(req.body, signature, secret)) {
+              verified = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!verified) {
+        addLog("[Stripe Webhook] Assinatura inválida");
+        return res.status(400).json({ ok: false, error: "Assinatura inválida" });
+      }
+
+      const bodyText = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : String(req.body);
+      let event;
+      try {
+        event = JSON.parse(bodyText);
+      } catch (err) {
+        event = typeof req.body === "object" ? req.body : null;
+      }
+
+      if (event?.type === "checkout.session.completed") {
+        const session = event?.data?.object || {};
+        const clinicId = String(session?.metadata?.clinic_id || session?.client_reference_id || "").trim();
+        const plan = String(session?.metadata?.plan || "").trim();
+        const signupId = String(session?.metadata?.signup_id || "").trim();
+        if (clinicId) {
+          const adminHeaders = getSupabaseAdminHeaders(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY);
+          const paymentBody = {
+            id: `stripe-${session.id || crypto.randomUUID()}`,
+            clinic_id: clinicId,
+            mp_payment_id: `stripe-${session.payment_intent || session.id}`,
+            amount: Number(session.amount_total || 0) / 100,
+            status: "approved",
+            plan: sanitizePlan(plan || "premium"),
+            payer_email: String(session.customer_details?.email || session.customer_email || ""),
+            payer_name: String(session.customer_details?.name || ""),
+            created_at: new Date().toISOString(),
+          };
+          await fetch(`${SUPABASE_URL}/rest/v1/payments?on_conflict=id`, {
+            method: "POST",
+            headers: { ...adminHeaders, Prefer: "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify(paymentBody),
+          }).catch((err) => addLog(`[Stripe Webhook] Falha ao persistir pagamento: ${err.message}`));
+
+          if (signupId && isUuid(signupId)) {
+            await fetch(
+              `${SUPABASE_URL}/rest/v1/signup_provision_intents?signup_id=eq.${encodeURIComponent(signupId)}&clinic_id=eq.${encodeURIComponent(clinicId)}`,
+              { method: "PATCH", headers: adminHeaders, body: JSON.stringify({ paid_at: new Date().toISOString() }) },
+            ).catch((err) => addLog(`[Stripe Webhook] Falha ao marcar intent pago: ${err.message}`));
+          }
+
+          await activateClinicSubscription(clinicId, sanitizePlan(plan || "premium"), "stripe");
+        }
+      }
+
+      return res.status(200).json({ received: true });
+    } catch (error) {
+      addLog(`[Stripe Webhook] Error: ${error.message}`);
+      return res.status(400).json({ ok: false, error: error.message });
     }
   });
 

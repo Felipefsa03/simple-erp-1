@@ -78,6 +78,8 @@ const hasConfiguredCredentials = (provider, credentials) => {
   if (!credentials || typeof credentials !== "object") return false;
   const rules = {
     asaas: ["api_key", "apiKey"],
+    stripe: ["secret_key", "secretKey"],
+    mercadopago: ["access_token", "accessToken"],
     google_ads: ["developer_token", "developerToken"],
     facebook: ["accessToken", "access_token"],
     google: ["refresh_token", "client_id", "client_secret", "calendar_id"],
@@ -97,7 +99,7 @@ const hasConfiguredCredentials = (provider, credentials) => {
 };
 
 // Generic routes for all integrations
-const providers = ['google', 'google_ads', 'facebook', 'asaas', 'email_marketing', 'rd_station', 'memed', 'meta_pixel'];
+const providers = ['google', 'google_ads', 'facebook', 'asaas', 'stripe', 'mercadopago', 'email_marketing', 'rd_station', 'memed', 'meta_pixel'];
 const unsupportedProviders = new Set(['email_marketing', 'rd_station', 'memed', 'meta_pixel']);
 
 providers.forEach(provider => {
@@ -271,6 +273,44 @@ router.post("/tiss/export", (req, res) => {
 
 router.post("/pixel/event", (req, res) => {
   return res.status(501).json({ ok: false, error: "O envio de eventos de Pixel ainda não está implementado." });
+});
+
+// ============================================
+// Payment gateway preference (Super Admin)
+// ============================================
+const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
+const ALLOWED_GATEWAYS = ["mercadopago", "stripe", "asaas"];
+
+router.get("/payment-gateway", async (req, res) => {
+  try {
+    const config = await getIntegrationConfig(GLOBAL_CLINIC_ID);
+    const current = ALLOWED_GATEWAYS.includes(config?.payment_gateway) ? config.payment_gateway : "mercadopago";
+    const hasCredentials = {
+      mercadopago: Boolean(config?.mercadopago || config?.mp_access_token),
+      stripe: Boolean(config?.stripe?.secret_key || config?.stripe?.secretKey),
+      asaas: Boolean(config?.asaas?.api_key || config?.asaas_api_key),
+    };
+    return res.json({ ok: true, gateway: current, has_credentials: hasCredentials });
+  } catch (err) {
+    console.error("[Integrations] Erro ao buscar gateway:", err.message);
+    return res.status(500).json({ ok: false, error: "Erro ao buscar configuração de pagamento." });
+  }
+});
+
+router.post("/payment-gateway", async (req, res) => {
+  const actorRole = String(req.user?.role || "").toLowerCase();
+  if (actorRole !== "super_admin") {
+    return res.status(403).json({ ok: false, error: "Apenas super_admin pode alterar o gateway de pagamento." });
+  }
+  const gateway = String(req.body?.gateway || "").toLowerCase().trim();
+  if (!ALLOWED_GATEWAYS.includes(gateway)) {
+    return res.status(400).json({ ok: false, error: "Gateway inválido. Use mercadopago, stripe ou asaas." });
+  }
+  const success = await saveIntegrationConfig(GLOBAL_CLINIC_ID, "payment_gateway", gateway);
+  if (success) {
+    return res.json({ ok: true, gateway });
+  }
+  return res.status(500).json({ ok: false, error: "Falha ao salvar gateway de pagamento." });
 });
 
 export default router;

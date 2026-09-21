@@ -149,6 +149,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
   const [pollingPayment, setPollingPayment] = useState(false);
   const [paymentApproved, setPaymentApproved] = useState(false);
   const [paymentStatusToken, setPaymentStatusToken] = useState('');
+  const [paymentGateway, setPaymentGateway] = useState<'mercadopago' | 'stripe'>('mercadopago');
+  const [stripeCheckoutUrl, setStripeCheckoutUrl] = useState<string>('');
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const idsRef = useRef<{ signupId: string; clinicId: string }>({
@@ -281,6 +283,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
           },
         ]);
         setPhoneVerificationEnabled(Boolean(data.phone_verification_enabled));
+        setPaymentGateway(data.payment_gateway === 'stripe' ? 'stripe' : 'mercadopago');
         setPlansLoaded(true);
       } catch (_error) {
         // Fallback de emergência apenas quando Supabase/API falham
@@ -507,6 +510,40 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
     setSignupError('');
     setPaymentApproved(false);
     try {
+      if (paymentGateway === 'stripe') {
+        const stripeResponse = await fetch(`${API_BASE}/api/mercadopago/create-stripe-checkout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clinicId: idsRef.current.clinicId,
+            plan: signupForm.plan,
+            amount: selectedPlan.price,
+            email: signupForm.email,
+            name: signupForm.name,
+            phone: signupForm.phone,
+            signupId: idsRef.current.signupId,
+          }),
+        });
+        const stripeData = await stripeResponse.json();
+        if (!stripeData.ok || !stripeData.checkout_url) throw new Error(stripeData.error || 'Erro ao gerar checkout Stripe.');
+        setStripeCheckoutUrl(stripeData.checkout_url);
+        setPixGenerated(true);
+        setPollingPayment(true);
+        clearPaymentPolling();
+        pollIntervalRef.current = setInterval(async () => {
+          try {
+            await checkPaymentStatus();
+          } catch (_error) {
+            // polling continua
+          }
+        }, 10000);
+        pollTimeoutRef.current = setTimeout(() => {
+          clearPaymentPolling();
+          setPollingPayment(false);
+        }, 30 * 60 * 1000);
+        return;
+      }
+
       const response = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -949,6 +986,11 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
                           </svg>
                         </div>
                         <p className="text-slate-600 font-medium mb-4">Realize o pagamento para ativar sua conta</p>
+                        {stripeCheckoutUrl && (
+                          <a href={stripeCheckoutUrl} className="w-full inline-block py-3 px-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
+                            Pagar com Cartão (Stripe)
+                          </a>
+                        )}
                         {mpPreference?.init_point && (
                           <a href={mpPreference.init_point} target="_blank" rel="noopener noreferrer" className="w-full inline-block py-3 px-4 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-all shadow-lg shadow-brand-200">
                             Pagar pelo Mercado Pago
