@@ -1371,22 +1371,22 @@ async saveTransaction(transaction: any) {
    },
 
    // ---- Appointment Materials ----
-   async loadAppointmentMaterials(clinicId: string) {
-     const uuid = getClinicId(clinicId);
-     const { data, error } = await supabaseFetch(`appointment_materials?clinic_id=eq.${uuid}&order=created_at.desc`);
-     if (error || !data) return [];
-     // Group by appointment_id for store compatibility
-     const grouped: Record<string, any[]> = {};
-     data.forEach((m: any) => {
-       if (!grouped[m.appointment_id]) grouped[m.appointment_id] = [];
-       grouped[m.appointment_id].push({
-         stock_item_id: m.stock_item_id,
-         stock_item_name: m.stock_item_name,
-         qty: m.qty,
-       });
-     });
-     return grouped;
-   },
+    async loadAppointmentMaterials(clinicId: string) {
+      const uuid = getClinicId(clinicId);
+      const { data, error } = await supabaseFetch(`appointment_materials?clinic_id=eq.${uuid}&order=created_at.desc`);
+      if (error || !data) return {};
+      // Group by appointment_id for store compatibility
+      const grouped: Record<string, any[]> = {};
+      data.forEach((m: any) => {
+        if (!grouped[m.appointment_id]) grouped[m.appointment_id] = [];
+        grouped[m.appointment_id].push({
+          stock_item_id: m.stock_item_id,
+          stock_item_name: m.stock_item_name,
+          qty: m.qty,
+        });
+      });
+      return grouped;
+    },
 
    async saveAppointmentMaterial(material: any) {
      return supabaseFetch('appointment_materials', { method: 'POST', body: material });
