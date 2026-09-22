@@ -351,13 +351,18 @@ export const resolveStripeCredentials = async (clinicId = "", options = {}) => {
 };
 
 const stripeRequest = async (endpoint, { method = "GET", body } = {}, secretKey) => {
+  const formBody = body
+    ? Object.entries(body)
+        .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+        .join("&")
+    : undefined;
   const response = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     method,
     headers: {
       Authorization: `Bearer ${secretKey}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: body ? new URLSearchParams(body).toString() : undefined,
+    body: formBody,
   });
   const text = await response.text();
   let payload;

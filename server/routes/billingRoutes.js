@@ -615,7 +615,8 @@ export const createBillingRoutes = ({
       }
       return res.status(502).json({ ok: false, error: "Não foi possível criar o checkout Stripe. Verifique as credenciais." });
     } catch (error) {
-      return res.status(502).json({ ok: false, error: "Erro ao criar checkout Stripe." });
+      addLog(`[Stripe Checkout] Erro ao criar checkout: ${error.message}`);
+      return res.status(502).json({ ok: false, error: error.message || "Erro ao criar checkout Stripe." });
     }
   });
 
