@@ -398,7 +398,6 @@ export const createStripeCheckoutSession = async ({
       body: {
         mode: "payment",
         "payment_method_types[0]": "card",
-        "payment_method_types[1]": "pix",
         success_url: successUrl || `${frontendUrl}/?payment=success`,
         cancel_url: cancelUrl || `${frontendUrl}/?payment=failure`,
         customer_email: email,
