@@ -493,7 +493,27 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   useEffect(() => {
     if (activeSubTab !== "assinatura") return;
     let cancelled = false;
+    const parsePrice = (value: unknown, fallback: number) => {
+      const n = Number(value);
+      return Number.isFinite(n) && n > 0 ? n : fallback;
+    };
     (async () => {
+      try {
+        // Fonte confiável: backend (service role) lê a linha global
+        const cfgRes = await fetch(`${API_BASE}/api/system/signup-config?t=${Date.now()}`);
+        const cfgJson = await cfgRes.json().catch(() => null);
+        if (!cancelled && cfgJson?.plan_prices) {
+          setGlobalPricing({
+            basico: parsePrice(cfgJson.plan_prices.basico, 17),
+            profissional: parsePrice(cfgJson.plan_prices.profissional, 197),
+            premium: parsePrice(cfgJson.plan_prices.premium, 397),
+            payment_gateway: cfgJson.payment_gateway || "mercadopago",
+          });
+          return;
+        }
+      } catch (apiErr) {
+        console.warn("[Assinatura] signup-config indisponível:", apiErr);
+      }
       try {
         const { supabase, isSupabaseConfigured } = await import("@/lib/supabase");
         if (!isSupabaseConfigured?.() || !supabase) return;
@@ -503,10 +523,6 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID)
           .single();
         if (cancelled || !data) return;
-        const parsePrice = (value: unknown, fallback: number) => {
-          const n = Number(value);
-          return Number.isFinite(n) && n > 0 ? n : fallback;
-        };
         const next = {
           basico: parsePrice((data as any).plan_price_basico, 17),
           profissional: parsePrice((data as any).plan_price_profissional, 197),
@@ -534,7 +550,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeSubTab, SYSTEM_GLOBAL_CLINIC_ID]);
+  }, [activeSubTab, SYSTEM_GLOBAL_CLINIC_ID, API_BASE]);
 
   const handleSaveClinic = async () => {
     if (!clinicForm.name || !String(clinicForm.name).trim()) {
