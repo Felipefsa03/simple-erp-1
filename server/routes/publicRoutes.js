@@ -134,8 +134,8 @@ export const createPublicRoutes = ({
   // Público: retorna SOMENTE os preços, nunca segredos.
   router.get("/system/signup-config", async (_req, res) => {
     try {
-      const url = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=plan_price_basico,plan_price_profissional,plan_price_premium,payment_gateway&limit=1`;
-      const cfgRes = await fetch(url, { headers: serverHeaders });
+      const pricesUrl = `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=plan_price_basico,plan_price_profissional,plan_price_premium&limit=1`;
+      const cfgRes = await fetch(pricesUrl, { headers: serverHeaders });
       const rows = cfgRes.ok ? await cfgRes.json() : [];
       const cfg = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 
@@ -144,9 +144,24 @@ export const createPublicRoutes = ({
         return Number.isFinite(n) && n > 0 ? n : fallback;
       };
 
-      const gateway = ["mercadopago", "stripe", "asaas"].includes(cfg?.payment_gateway)
-        ? cfg.payment_gateway
-        : "mercadopago";
+      // payment_gateway pode ainda não existir (migração pendente): best-effort.
+      let gateway = "mercadopago";
+      try {
+        const gatewayRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${GLOBAL_CLINIC_ID}&select=payment_gateway&limit=1`,
+          { headers: serverHeaders },
+        );
+        const gatewayRows = gatewayRes.ok ? await gatewayRes.json() : [];
+        const gatewayCfg =
+          Array.isArray(gatewayRows) && gatewayRows.length > 0
+            ? gatewayRows[0]
+            : null;
+        if (gatewayCfg && ["mercadopago", "stripe", "asaas"].includes(gatewayCfg.payment_gateway)) {
+          gateway = gatewayCfg.payment_gateway;
+        }
+      } catch (gatewayErr) {
+        console.warn("[Public API] payment_gateway indisponível:", gatewayErr.message);
+      }
 
       return res.json({
         ok: true,

@@ -364,7 +364,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           };
 
           const response = await fetch(
-            `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=mp_access_token,mp_public_key,mp_webhook_secret,payment_gateway,stripe,plan_price_basico,plan_price_profissional,plan_price_premium`,
+            `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=mp_access_token,mp_public_key,mp_webhook_secret,plan_price_basico,plan_price_profissional,plan_price_premium`,
             { headers },
           );
 
@@ -380,13 +380,33 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           if (!cancelled && data && data.length > 0) {
             const config = data[0];
             console.log("[Sistema Global] Usando dados do banco:", config);
-            const stripeConfig = config.stripe || {};
+
+            let gatewayConfig: any = {};
+            try {
+              const gatewayRes = await fetch(
+                `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=payment_gateway,stripe`,
+                { headers },
+              );
+              if (gatewayRes.ok) {
+                const gatewayRows = await gatewayRes.json();
+                if (Array.isArray(gatewayRows) && gatewayRows.length > 0) {
+                  gatewayConfig = gatewayRows[0] || {};
+                }
+              }
+            } catch (gatewayErr) {
+              console.warn(
+                "[Sistema Global] Colunas payment_gateway/stripe indisponíveis:",
+                gatewayErr,
+              );
+            }
+            const stripeConfig = gatewayConfig.stripe || {};
+
             setIntegrationForm((prev) => ({
               ...prev,
               mp_access_token: config.mp_access_token || "",
               mp_public_key: config.mp_public_key || "",
               mp_webhook_secret: config.mp_webhook_secret || "",
-              payment_gateway: config.payment_gateway || "mercadopago",
+              payment_gateway: gatewayConfig.payment_gateway || "mercadopago",
               stripe_secret_key: stripeConfig.secret_key || stripeConfig.secretKey || "",
               stripe_publishable_key: stripeConfig.publishable_key || stripeConfig.publishableKey || "",
               stripe_webhook_secret: stripeConfig.webhook_secret || stripeConfig.webhookSecret || "",
@@ -399,7 +419,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             setIntegrationConfig({
               mp_access_token: config.mp_access_token || "",
               mp_public_key: config.mp_public_key || "",
-              payment_gateway: config.payment_gateway || "mercadopago",
+              payment_gateway: gatewayConfig.payment_gateway || "mercadopago",
               stripe_secret_key: stripeConfig.secret_key || stripeConfig.secretKey || "",
               stripe_publishable_key: stripeConfig.publishable_key || stripeConfig.publishableKey || "",
               stripe_webhook_secret: stripeConfig.webhook_secret || stripeConfig.webhookSecret || "",
@@ -3630,7 +3650,14 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   } as any);
                   toast(`Gateway alterado para ${gateway}!`);
                 } catch (e: any) {
-                  toast("Erro ao salvar: " + e.message, "error");
+                  if (String(e?.message || "").includes("PGRST204")) {
+                    toast(
+                      "Coluna payment_gateway ainda não existe no banco. Execute a migração sql/03-add-payment-gateway-columns.sql no SQL Editor do Supabase.",
+                      "error",
+                    );
+                  } else {
+                    toast("Erro ao salvar: " + e.message, "error");
+                  }
                 }
               }}
               className="px-6 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all"
@@ -3765,7 +3792,14 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                       } as any);
                       toast("Credenciais do Stripe salvas!");
                     } catch (e: any) {
-                      toast("Erro ao salvar: " + e.message, "error");
+                      if (String(e?.message || "").includes("PGRST204")) {
+                        toast(
+                          "Coluna stripe ainda não existe no banco. Execute a migração sql/03-add-payment-gateway-columns.sql no SQL Editor do Supabase.",
+                          "error",
+                        );
+                      } else {
+                        toast("Erro ao salvar: " + e.message, "error");
+                      }
                     }
                   }}
                   className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all"

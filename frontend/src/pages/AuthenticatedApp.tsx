@@ -224,9 +224,17 @@ export function AuthenticatedApp() {
         console.log('[Subscription] Nenhum pagamento aprovado, verificando plano...');
         
         // Buscar preços do integration_config global primeiro (antes de normalizar)
-        const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium,payment_gateway').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+        const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
         const prices = config as Record<string, number> || {};
-        const gateway = (config as Record<string, string>)?.payment_gateway || 'mercadopago';
+        let gateway = 'mercadopago';
+        try {
+          const { data: gwData } = await supabase!.from('integration_config').select('payment_gateway').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+          if (gwData && ['mercadopago', 'stripe', 'asaas'].includes((gwData as Record<string, string>)?.payment_gateway || '')) {
+            gateway = (gwData as Record<string, string>).payment_gateway;
+          }
+        } catch (gwErr) {
+          console.warn('[Subscription] payment_gateway indisponível:', gwErr);
+        }
         const defaultPrices: Record<string, number> = { basico: 17, profissional: 197, premium: 397 };
         
         // Normalizar plano: enterprise -> premium E atualizar no banco
