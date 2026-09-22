@@ -21,6 +21,7 @@ import {
   createStripeCheckoutSession,
   verifyStripeSignature,
   activateClinicSubscription,
+  fetchLatestPaidStripeSessionByClinic,
 } from "../services/paymentGateway.js";
 // Helper para descobrir gateway preferencial via ENV
 const getPreferredGateway = () => {
@@ -479,6 +480,23 @@ export const createBillingRoutes = ({
           const emailPayload = await emailRes.json();
           const first = emailPayload?.results?.[0];
           if (first && isMercadoPagoApproved(first)) payment = first;
+        }
+      }
+
+      // Stripe: consulta direta na API (cobre atraso/falha do webhook)
+      if (!payment) {
+        const stripeSession = await fetchLatestPaidStripeSessionByClinic(clinicId);
+        if (stripeSession) {
+          const stripePlan = sanitizePlan(stripeSession?.metadata?.plan || "premium");
+          await activateClinicSubscription(clinicId, stripePlan, "stripe");
+          payment = {
+            id: stripeSession.id,
+            status: "approved",
+            transaction_amount: Number(stripeSession.amount_total || 0) / 100,
+            status_detail: "stripe_confirmed",
+            metadata: { ...(stripeSession.metadata || {}), clinic_id: clinicId },
+          };
+          isLocalPayment = true;
         }
       }
 

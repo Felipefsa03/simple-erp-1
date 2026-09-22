@@ -228,9 +228,15 @@ export function AuthenticatedApp() {
         const prices = config as Record<string, number> || {};
         let gateway = 'mercadopago';
         try {
-          const { data: gwData } = await supabase!.from('integration_config').select('payment_gateway').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
-          if (gwData && ['mercadopago', 'stripe', 'asaas'].includes((gwData as Record<string, string>)?.payment_gateway || '')) {
-            gateway = (gwData as Record<string, string>).payment_gateway;
+          const gwRes = await fetch(`${API_BASE}/api/system/signup-config?t=${Date.now()}`);
+          const gwJson = await gwRes.json().catch(() => ({}));
+          if (gwJson?.payment_gateway && ['mercadopago', 'stripe', 'asaas'].includes(gwJson.payment_gateway)) {
+            gateway = gwJson.payment_gateway;
+          } else {
+            const { data: gwData } = await supabase!.from('integration_config').select('payment_gateway').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+            if (gwData && ['mercadopago', 'stripe', 'asaas'].includes((gwData as Record<string, string>)?.payment_gateway || '')) {
+              gateway = (gwData as Record<string, string>).payment_gateway;
+            }
           }
         } catch (gwErr) {
           console.warn('[Subscription] payment_gateway indisponível:', gwErr);

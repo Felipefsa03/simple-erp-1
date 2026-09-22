@@ -430,6 +430,24 @@ export const createStripeCheckoutSession = async ({
   return { id: session.id, url: session.url, paymentIntent: session.payment_intent };
 };
 
+export const fetchLatestPaidStripeSessionByClinic = async (clinicId) => {
+  const { secretKey } = await resolveStripeCredentials(clinicId);
+  if (!secretKey) return null;
+  try {
+    const sessions = await stripeRequest(
+      `/checkout/sessions?client_reference_id=${encodeURIComponent(String(clinicId))}&limit=5`,
+      {},
+      secretKey,
+    );
+    const list = Array.isArray(sessions?.data) ? sessions.data : [];
+    const paid = list.find((s) => s?.payment_status === "paid");
+    return paid || null;
+  } catch (err) {
+    addLog(`[Stripe] Falha ao consultar sessões da clínica: ${err.message}`);
+    return null;
+  }
+};
+
 export const verifyStripeSignature = (rawBody, signatureHeader, webhookSecret) => {
   try {
     if (!rawBody || !signatureHeader || !webhookSecret) return false;
