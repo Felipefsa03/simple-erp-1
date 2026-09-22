@@ -262,9 +262,14 @@ export function AuthenticatedApp() {
           if (freshSession?.access_token) {
             stripeHeaders.Authorization = `Bearer ${freshSession.access_token}`;
           }
+          const returnOrigin = window.location.origin;
           const stripeRes = await fetch(`${API_BASE}/api/mercadopago/create-stripe-checkout`, {
             method: 'POST', headers: stripeHeaders,
-            body: JSON.stringify({ clinicId, plan, amount, email: user.email, name: user.name, phone: user.phone || '' }),
+            body: JSON.stringify({
+              clinicId, plan, amount, email: user.email, name: user.name, phone: user.phone || '',
+              successUrl: `${returnOrigin}/?payment=success`,
+              cancelUrl: `${returnOrigin}/?payment=failure`,
+            }),
           });
           const stripeData = await stripeRes.json();
           if (stripeData.ok && stripeData.checkout_url) {
@@ -274,9 +279,15 @@ export function AuthenticatedApp() {
           return;
         }
 
+        const returnOrigin = window.location.origin;
         const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clinicName: clinic?.name || 'Minha Clínica', email: user.email, name: user.name, phone: user.phone || '', plan, amount, clinicId }),
+          body: JSON.stringify({
+            clinicName: clinic?.name || 'Minha Clínica', email: user.email, name: user.name, phone: user.phone || '', plan, amount, clinicId,
+            successUrl: `${returnOrigin}/?payment=success`,
+            failureUrl: `${returnOrigin}/?payment=failure`,
+            pendingUrl: `${returnOrigin}/?payment=pending`,
+          }),
         });
         const data = await res.json();
         if (data.ok) {

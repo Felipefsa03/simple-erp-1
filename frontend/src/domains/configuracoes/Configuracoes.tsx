@@ -767,6 +767,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       const amount = proportionalAmount > 0 ? proportionalAmount : newPrice;
 
       if (globalPricing.payment_gateway === "stripe") {
+        const returnOrigin = window.location.origin;
         const stripeRes = await fetch(
           `${API_BASE}/api/mercadopago/create-stripe-checkout`,
           {
@@ -779,6 +780,8 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               email: user?.email || "",
               name: user?.name || "",
               phone: user?.phone || "",
+              successUrl: `${returnOrigin}/?payment=success`,
+              cancelUrl: `${returnOrigin}/?payment=failure`,
             }),
           },
         );
@@ -792,6 +795,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
         return;
       }
 
+      const returnOrigin = window.location.origin;
       const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -803,6 +807,9 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           plan,
           amount,
           clinicId,
+          successUrl: `${returnOrigin}/?payment=success`,
+          failureUrl: `${returnOrigin}/?payment=failure`,
+          pendingUrl: `${returnOrigin}/?payment=pending`,
         }),
       });
 

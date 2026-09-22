@@ -511,6 +511,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
     setPaymentApproved(false);
     try {
       if (paymentGateway === 'stripe') {
+        const returnOrigin = window.location.origin;
         const stripeResponse = await fetch(`${API_BASE}/api/mercadopago/create-stripe-checkout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -522,6 +523,8 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
             name: signupForm.name,
             phone: signupForm.phone,
             signupId: idsRef.current.signupId,
+            successUrl: `${returnOrigin}/?payment=success`,
+            cancelUrl: `${returnOrigin}/?payment=failure`,
           }),
         });
         const stripeData = await stripeResponse.json();
@@ -544,6 +547,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
         return;
       }
 
+      const returnOrigin = window.location.origin;
       const response = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -559,6 +563,9 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
           clinicDoc: signupForm.clinicDoc,
           modality: signupForm.modality,
           signupId: idsRef.current.signupId,
+          successUrl: `${returnOrigin}/?payment=success`,
+          failureUrl: `${returnOrigin}/?payment=failure`,
+          pendingUrl: `${returnOrigin}/?payment=pending`,
         }),
       });
       const data = await response.json();

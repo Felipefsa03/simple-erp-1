@@ -43,6 +43,19 @@ export const createBillingRoutes = ({
   SUPABASE_SERVICE_ROLE_KEY,
 }) => {
   const router = express.Router();
+
+  const defaultFrontendUrl = String(process.env.FRONTEND_URL || "").trim() || "https://clinxia.com";
+
+  const safeHttpUrl = (value, fallback) => {
+    try {
+      const parsed = new URL(String(value || ""));
+      if (parsed.protocol === "https:" || parsed.protocol === "http:") return parsed.href;
+    } catch (err) {
+      // ignora URL inválida
+    }
+    return fallback;
+  };
+
   const persistCheckout = async ({ clinicId, plan, billingCycle, gateway, gatewayReference, checkoutUrl, paymentReference = null }) => {
     if (!SUPABASE_URL || !(SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY) || !gatewayReference) return;
     try {
@@ -194,6 +207,7 @@ export const createBillingRoutes = ({
     const {
       clinicName, email, name, phone, plan, amount,
       clinicId, docType, clinicDoc, modality, signupId, billingCycle,
+      successUrl, failureUrl, pendingUrl,
     } = req.body || {};
 
     try {
@@ -327,9 +341,9 @@ export const createBillingRoutes = ({
         },
         payment_methods: { excluded_payment_types: [{ id: "ticket" }], installments: 1 },
         back_urls: {
-          success: `${process.env.FRONTEND_URL || "https://clinxia.vercel.app"}/?payment=success`,
-          failure: `${process.env.FRONTEND_URL || "https://clinxia.vercel.app"}/?payment=failure`,
-          pending: `${process.env.FRONTEND_URL || "https://clinxia.vercel.app"}/?payment=pending`,
+          success: safeHttpUrl(successUrl, `${defaultFrontendUrl}/?payment=success`),
+          failure: safeHttpUrl(failureUrl, `${defaultFrontendUrl}/?payment=failure`),
+          pending: safeHttpUrl(pendingUrl, `${defaultFrontendUrl}/?payment=pending`),
         },
         notification_url: `${process.env.SERVER_URL || "https://clinxia-backend.onrender.com"}/api/webhooks/mercadopago`,
         auto_return: "approved",
@@ -594,7 +608,7 @@ export const createBillingRoutes = ({
 
   // Stripe checkout session
   router.post("/create-stripe-checkout", async (req, res) => {
-    const { clinicId, plan, amount, email, name, phone, signupId } = req.body || {};
+    const { clinicId, plan, amount, email, name, phone, signupId, successUrl, cancelUrl } = req.body || {};
     if (!clinicId || !isUuid(clinicId)) return res.status(400).json({ ok: false, error: "clinicId invalido." });
     if (!amount || !email) return res.status(400).json({ ok: false, error: "Dados obrigatorios ausentes." });
 
@@ -624,7 +638,17 @@ export const createBillingRoutes = ({
     }
 
     try {
-      const result = await createStripeCheckoutSession({ clinicId: normalizedClinicId, plan, amount, email, name, phone, signupId });
+      const result = await createStripeCheckoutSession({
+        clinicId: normalizedClinicId,
+        plan,
+        amount,
+        email,
+        name,
+        phone,
+        signupId,
+        successUrl: safeHttpUrl(successUrl, `${defaultFrontendUrl}/?payment=success`),
+        cancelUrl: safeHttpUrl(cancelUrl, `${defaultFrontendUrl}/?payment=failure`),
+      });
       if (result?.url) {
         await persistCheckout({
           clinicId: normalizedClinicId,

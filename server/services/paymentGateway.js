@@ -403,7 +403,7 @@ export const createStripeCheckoutSession = async ({
 }) => {
   const { secretKey } = await resolveStripeCredentials(clinicId);
   if (!secretKey) return null;
-  const frontendUrl = process.env.FRONTEND_URL || "https://clinxia.vercel.app";
+  const frontendUrl = process.env.FRONTEND_URL || "https://clinxia.com";
   const session = await stripeRequest(
     "/checkout/sessions",
     {
