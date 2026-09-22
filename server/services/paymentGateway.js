@@ -326,10 +326,23 @@ export const isAsaasPaymentApproved = (payment) => {
   return status === "RECEIVED" || status === "CONFIRMED";
 };
 
+const GLOBAL_CLINIC_ID = "00000000-0000-0000-0000-000000000001";
+
 export const resolveStripeCredentials = async (clinicId = "", options = {}) => {
   const { allowClinicConfig = true, allowEnvFallback = true } = options;
-  const config = allowClinicConfig ? await getClinicIntegrationConfig(clinicId) : null;
-  const stripeConfig = config?.stripe || config?.stripe_config || null;
+  const normalizedClinicId = String(clinicId || "").trim();
+  const config = allowClinicConfig ? await getClinicIntegrationConfig(normalizedClinicId) : null;
+  let stripeConfig = config?.stripe || config?.stripe_config || null;
+
+  // Stripe é configurado globalmente pelo superadmin. Se a clínica não tiver
+  // credenciais próprias, usa a configuração global do sistema.
+  if (!stripeConfig?.secret_key && !stripeConfig?.secretKey && normalizedClinicId !== GLOBAL_CLINIC_ID) {
+    const globalConfig = await getClinicIntegrationConfig(GLOBAL_CLINIC_ID);
+    const globalStripe = globalConfig?.stripe || globalConfig?.stripe_config || null;
+    if (globalStripe?.secret_key || globalStripe?.secretKey) {
+      stripeConfig = globalStripe;
+    }
+  }
   const secretKey = pickString(
     ...(allowClinicConfig ? [stripeConfig?.secret_key, stripeConfig?.secretKey] : []),
     ...(allowEnvFallback ? [process.env.STRIPE_SECRET_KEY] : []),
