@@ -3835,9 +3835,9 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                             clinicId: SYSTEM_GLOBAL_CLINIC_ID,
                             plan: "basico",
                             amount: integrationConfig?.plan_price_basico || 97,
-                            email: "teste@teste.com",
-                            name: "Usuario Teste",
-                            phone: "11999999999",
+                            email: user?.email || "teste@teste.com",
+                            name: user?.name || "Usuario Teste",
+                            phone: user?.phone || "11999999999",
                           }),
                         },
                       );
