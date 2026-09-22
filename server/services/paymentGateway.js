@@ -488,6 +488,8 @@ export const verifyStripeSignature = (rawBody, signatureHeader, webhookSecret) =
   }
 };
 
+const PLAN_RANK = { basico: 1, profissional: 2, premium: 3 };
+
 export const activateClinicSubscription = async (clinicId, plan = "", gateway = "stripe") => {
   const normalizedClinicId = String(clinicId || "").trim();
   if (!normalizedClinicId || !SUPABASE_URL) return false;
@@ -499,7 +501,29 @@ export const activateClinicSubscription = async (clinicId, plan = "", gateway = 
   };
   const now = new Date().toISOString();
   const clinicPatch = { status: "active", updated_at: now };
-  if (plan) clinicPatch.plan = sanitizePlan(plan);
+  if (plan) {
+    // Nunca rebaixar o plano por um pagamento: o plano é definido pelo
+    // superadmin/upgrade explícito. Apenas mantém ou sobe de nível.
+    const sanitizedPlan = sanitizePlan(plan);
+    const targetRank = PLAN_RANK[sanitizedPlan] || 0;
+    let currentRank = 0;
+    try {
+      const curRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/clinics?id=eq.${encodeURIComponent(normalizedClinicId)}&select=plan&limit=1`,
+        { headers },
+      );
+      if (curRes.ok) {
+        const rows = await curRes.json().catch(() => []);
+        const currentPlan = Array.isArray(rows) && rows.length > 0 ? rows[0]?.plan : "";
+        currentRank = PLAN_RANK[sanitizePlan(currentPlan)] || 0;
+      }
+    } catch (curErr) {
+      addLog(`[Payment] Falha ao ler plano atual de ${normalizedClinicId}: ${curErr.message}`);
+    }
+    if (targetRank >= currentRank) {
+      clinicPatch.plan = sanitizedPlan;
+    }
+  }
   try {
     const [subRes, clinicRes] = await Promise.all([
       fetch(

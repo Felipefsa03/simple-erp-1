@@ -250,24 +250,42 @@ export function AuthenticatedApp() {
         // Se não tem pagamento aprovado, gerar cobrança
         console.log('[Subscription] Nenhum pagamento aprovado, verificando plano...');
         
-        // Buscar preços do integration_config global primeiro (antes de normalizar)
-        const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
-        const prices = config as Record<string, number> || {};
-        let gateway = 'mercadopago';
+        // Buscar preços/gateway da config GLOBAL via backend (service role) — fonte confiável
+        let prices: Record<string, number> = {};
+        let gateway = '';
         try {
-          const gwRes = await fetch(`${API_BASE}/api/system/signup-config?t=${Date.now()}`);
-          const gwJson = await gwRes.json().catch(() => ({}));
-          if (gwJson?.payment_gateway && ['mercadopago', 'stripe', 'asaas'].includes(gwJson.payment_gateway)) {
-            gateway = gwJson.payment_gateway;
-          } else {
-            const { data: gwData } = await supabase!.from('integration_config').select('payment_gateway').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
-            if (gwData && ['mercadopago', 'stripe', 'asaas'].includes((gwData as Record<string, string>)?.payment_gateway || '')) {
-              gateway = (gwData as Record<string, string>).payment_gateway;
-            }
+          const cfgRes = await fetch(`${API_BASE}/api/system/signup-config?t=${Date.now()}`);
+          const cfgJson = await cfgRes.json().catch(() => null);
+          if (cfgJson?.plan_prices?.basico > 0) {
+            prices = {
+              plan_price_basico: Number(cfgJson.plan_prices.basico),
+              plan_price_profissional: Number(cfgJson.plan_prices.profissional),
+              plan_price_premium: Number(cfgJson.plan_prices.premium),
+            };
           }
-        } catch (gwErr) {
-          console.warn('[Subscription] payment_gateway indisponível:', gwErr);
+          if (cfgJson?.payment_gateway) gateway = String(cfgJson.payment_gateway);
+        } catch (cfgErr) {
+          console.warn('[Subscription] signup-config indisponível:', cfgErr);
         }
+
+        if (!Object.keys(prices).length) {
+          try {
+            const { data: config } = await supabase!.from('integration_config').select('plan_price_basico,plan_price_profissional,plan_price_premium').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+            prices = config as Record<string, number> || {};
+          } catch (pErr) {
+            console.warn('[Subscription] preços via client indisponíveis:', pErr);
+          }
+        }
+        if (!['mercadopago', 'stripe', 'asaas'].includes(gateway)) {
+          try {
+            const { data: gwData } = await supabase!.from('integration_config').select('payment_gateway').eq('clinic_id', '00000000-0000-0000-0000-000000000001').single();
+            const gw = (gwData as Record<string, string>)?.payment_gateway || '';
+            if (['mercadopago', 'stripe', 'asaas'].includes(gw)) gateway = gw;
+          } catch (gwErr) {
+            console.warn('[Subscription] payment_gateway indisponível:', gwErr);
+          }
+        }
+        if (!['mercadopago', 'stripe', 'asaas'].includes(gateway)) gateway = 'mercadopago';
         const defaultPrices: Record<string, number> = { basico: 17, profissional: 197, premium: 397 };
         
         // Normalizar plano: enterprise -> premium E atualizar no banco
