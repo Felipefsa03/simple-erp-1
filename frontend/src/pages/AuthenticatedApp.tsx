@@ -195,7 +195,8 @@ export function AuthenticatedApp() {
           const { getValidSupabaseSession } = await import('@/lib/supabase');
           const freshSession = await getValidSupabaseSession();
           const accessToken = freshSession?.access_token || '';
-          const statusRes = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(user?.email || '')}`, {
+          const savedToken = localStorage.getItem(`payment_status_token_${clinicId}`);
+          const statusRes = await fetch(`${API_BASE}/api/mercadopago/payment-status/${clinicId}?email=${encodeURIComponent(user?.email || '')}${savedToken ? `&token=${encodeURIComponent(savedToken)}` : ''}`, {
             headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
           });
           if (statusRes.ok) {
@@ -273,6 +274,9 @@ export function AuthenticatedApp() {
           });
           const stripeData = await stripeRes.json();
           if (stripeData.ok && stripeData.checkout_url) {
+            if (stripeData.payment_status_token) {
+              localStorage.setItem(`payment_status_token_${clinicId}`, stripeData.payment_status_token);
+            }
             setSubscriptionBlocked(true);
             setSubscriptionInfo({ plan, amount, dueDate: new Date().toLocaleDateString('pt-BR'), qrCode: '', pixLink: '', checkoutUrl: stripeData.checkout_url });
           }
@@ -291,6 +295,9 @@ export function AuthenticatedApp() {
         });
         const data = await res.json();
         if (data.ok) {
+          if (data.payment_status_token) {
+            localStorage.setItem(`payment_status_token_${clinicId}`, data.payment_status_token);
+          }
           setSubscriptionBlocked(true);
           setSubscriptionInfo({ plan, amount, dueDate: new Date().toLocaleDateString('pt-BR'), qrCode: data.qr_code || '', pixLink: data.init_point || '' });
         }

@@ -66,7 +66,8 @@ export function SubscriptionBlockPage({ user, subscriptionInfo, onPaymentConfirm
                 const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
                 const { data: sessionData } = isSupabaseConfigured() ? await supabase!.auth.getSession() : { data: { session: null } };
                 const accessToken = sessionData?.session?.access_token || '';
-                const res = await fetch(`${API_BASE}/api/mercadopago/payment-status/${user?.clinic_id}?email=${encodeURIComponent(user?.email || '')}`, {
+                const savedToken = localStorage.getItem(`payment_status_token_${user?.clinic_id}`);
+                const res = await fetch(`${API_BASE}/api/mercadopago/payment-status/${user?.clinic_id}?email=${encodeURIComponent(user?.email || '')}${savedToken ? `&token=${encodeURIComponent(savedToken)}` : ''}`, {
                   headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
                 });
                 if (res.ok) {

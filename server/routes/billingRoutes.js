@@ -683,7 +683,12 @@ export const createBillingRoutes = ({
           paymentReference: null,
           checkoutUrl: result.url,
         });
-        return res.json({ ok: true, checkout_url: result.url, payment_intent: result.paymentIntent });
+        return res.json({
+          ok: true,
+          checkout_url: result.url,
+          payment_intent: result.paymentIntent,
+          payment_status_token: signStatusToken(normalizedClinicId, email),
+        });
       }
       return res.status(502).json({ ok: false, error: "Não foi possível criar o checkout Stripe. Verifique as credenciais." });
     } catch (error) {

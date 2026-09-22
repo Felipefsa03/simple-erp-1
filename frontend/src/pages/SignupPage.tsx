@@ -530,6 +530,7 @@ export function SignupPage({ onLoginClick }: SignupPageProps) {
         const stripeData = await stripeResponse.json();
         if (!stripeData.ok || !stripeData.checkout_url) throw new Error(stripeData.error || 'Erro ao gerar checkout Stripe.');
         setStripeCheckoutUrl(stripeData.checkout_url);
+        setPaymentStatusToken(String(stripeData.payment_status_token || ''));
         setPixGenerated(true);
         setPollingPayment(true);
         clearPaymentPolling();

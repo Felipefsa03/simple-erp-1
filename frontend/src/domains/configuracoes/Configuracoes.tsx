@@ -788,6 +788,12 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
         const stripeData = await stripeRes.json();
         if (!stripeData.ok || !stripeData.checkout_url)
           throw new Error(stripeData.error || "Erro ao gerar checkout Stripe");
+        if (stripeData.payment_status_token) {
+          localStorage.setItem(
+            `payment_status_token_${clinicId}`,
+            stripeData.payment_status_token,
+          );
+        }
         window.open(stripeData.checkout_url, "_blank");
         toast(
           `Upgrade para ${plan}! Valor proporcional: R$${amount.toFixed(2)}. Após pagamento, o plano será ativado.`,
@@ -817,6 +823,12 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       if (!data.ok) throw new Error(data.error || "Erro ao gerar pagamento");
 
       if (data.init_point) {
+        if (data.payment_status_token) {
+          localStorage.setItem(
+            `payment_status_token_${clinicId}`,
+            data.payment_status_token,
+          );
+        }
         window.open(data.init_point, "_blank");
         toast(
           `Upgrade para ${plan}! Valor proporcional: R$${amount.toFixed(2)}. Após pagamento, o plano será ativado.`,
