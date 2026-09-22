@@ -250,8 +250,14 @@ export function AuthenticatedApp() {
         console.log('[Subscription] Valor do plano:', amount, 'prices from DB:', prices);
 
         if (gateway === 'stripe') {
+          const { getValidSupabaseSession } = await import('@/lib/supabase');
+          const freshSession = await getValidSupabaseSession();
+          const stripeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (freshSession?.access_token) {
+            stripeHeaders.Authorization = `Bearer ${freshSession.access_token}`;
+          }
           const stripeRes = await fetch(`${API_BASE}/api/mercadopago/create-stripe-checkout`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: stripeHeaders,
             body: JSON.stringify({ clinicId, plan, amount, email: user.email, name: user.name, phone: user.phone || '' }),
           });
           const stripeData = await stripeRes.json();

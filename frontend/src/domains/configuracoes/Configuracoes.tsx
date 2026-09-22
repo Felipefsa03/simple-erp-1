@@ -3814,11 +3814,23 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                         ? ""
                         : import.meta.env.VITE_API_BASE_URL ||
                           "https://clinxia-backend.onrender.com";
+                      const { getSupabaseSession } = await import(
+                        "@/lib/supabase"
+                      );
+                      const session = getSupabaseSession
+                        ? getSupabaseSession()
+                        : null;
+                      const headers: Record<string, string> = {
+                        "Content-Type": "application/json",
+                      };
+                      if (session?.access_token) {
+                        headers.Authorization = `Bearer ${session.access_token}`;
+                      }
                       const res = await fetch(
                         `${API_BASE}/api/mercadopago/create-stripe-checkout`,
                         {
                           method: "POST",
-                          headers: { "Content-Type": "application/json" },
+                          headers,
                           body: JSON.stringify({
                             clinicId: SYSTEM_GLOBAL_CLINIC_ID,
                             plan: "basico",
