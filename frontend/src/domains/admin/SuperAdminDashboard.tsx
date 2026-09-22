@@ -137,9 +137,9 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   const { user, impersonateClinic } = useAuth();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSub, setSelectedSub] = useState<PlatformSubscription | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ sub: PlatformSubscription; action: string } | null>(null);
-  const [changePlanModal, setChangePlanModal] = useState<PlatformSubscription | null>(null);
+  const [selectedSub, setSelectedSub] = useState<any | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ sub: any; action: string } | null>(null);
+  const [changePlanModal, setChangePlanModal] = useState<any | null>(null);
   // Real clinic data from Supabase
   const [realClinics, setRealClinics] = useState<any[]>([]);
   const [clinicsLoading, setClinicsLoading] = useState(false);
@@ -365,6 +365,10 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   const [inspectMode, setInspectMode] = useState(false);
   const [selectedClinicForInspect, setSelectedClinicForInspect] = useState<any>(null);
   const [inspectTab, setInspectTab] = useState<'overview' | 'team' | 'financial' | 'activity'>('overview');
+  const [inspectTeam, setInspectTeam] = useState<any[]>([]);
+  const [inspectTxns, setInspectTxns] = useState<any[]>([]);
+  const [inspectAppointments, setInspectAppointments] = useState<any[]>([]);
+  const [inspectLoading, setInspectLoading] = useState(false);
 
   React.useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
 
@@ -381,8 +385,8 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     return logs;
   }, [securityFilter, securityLogs]);
 
-  const handleSubAction = async (sub: PlatformSubscription, action: string) => {
-    const clinicId = String(sub.clinic_id || '');
+  const handleSubAction = async (sub: any, action: string) => {
+    const clinicId = String(sub.clinic_id || sub.id || '');
     const status = action === 'block' || action === 'suspend' ? 'blocked' : action === 'activate' ? 'active' : null;
     if (!clinicId || !status) {
       setConfirmAction(null);
@@ -404,8 +408,8 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     }
   };
 
-  const handleChangePlan = async (sub: PlatformSubscription, newPlan: 'basic' | 'pro' | 'ultra') => {
-    const clinicId = String(sub.clinic_id || '');
+  const handleChangePlan = async (sub: any, newPlan: 'basic' | 'pro' | 'ultra') => {
+    const clinicId = String(sub.clinic_id || sub.id || '');
     const plan = ({ basic: 'basico', pro: 'profissional', ultra: 'premium' } as Record<string, string>)[newPlan];
     try {
       const token = SupabaseSync.getAuthToken();
@@ -423,10 +427,26 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
     }
   };
 
-  const handleInspectClinic = (clinic: any) => {
+  const handleInspectClinic = async (clinic: any) => {
     setSelectedClinicForInspect(clinic);
     setInspectMode(true);
     setInspectTab('overview');
+    setInspectLoading(true);
+    try {
+      const [team, txns, appointments] = await Promise.all([
+        SupabaseSync.loadProfessionals(clinic.id).catch(() => []),
+        SupabaseSync.loadTransactions(clinic.id).catch(() => []),
+        SupabaseSync.loadAppointments(clinic.id).catch(() => []),
+      ]);
+      setInspectTeam(Array.isArray(team) ? team : []);
+      setInspectTxns(Array.isArray(txns) ? txns : []);
+      setInspectAppointments(Array.isArray(appointments) ? appointments : []);
+    } catch (e) {
+      console.error('[SuperAdmin] Falha ao carregar dados do inspetor:', e);
+    } finally {
+      setInspectLoading(false);
+    }
+    fetchSecurityData();
   };
 
   const handleImpersonateClinic = async (clinicId: string) => {
@@ -454,20 +474,48 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
   // ===== MODO INSPETOR =====
   if (inspectMode && selectedClinicForInspect) {
     const clinic = selectedClinicForInspect;
-    const team: any[] = [];
+    const team: any[] = inspectTeam || [];
+    const admin = team.find((m: any) => m.role === 'admin') || null;
+    const paidTxns = inspectTxns.filter((t: any) => t.status === 'paid');
+    const revenueTotal = paidTxns.reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const revenueMes = paidTxns
+      .filter((t: any) => t.created_at && new Date(t.created_at) >= monthStart)
+      .reduce((s: number, t: any) => s + (Number(t.amount) || 0), 0);
+    const ticketMedio = paidTxns.length > 0 ? revenueTotal / paidTxns.length : 0;
+    const apptStatusMap: Record<string, number> = { scheduled: 0, confirmed: 0, in_progress: 0, done: 0, no_show: 0 };
+    let appointmentsMes = 0;
+    for (const a of inspectAppointments) {
+      const st = String(a.status || '').toLowerCase();
+      if (apptStatusMap[st] !== undefined) apptStatusMap[st] += 1;
+      if (a.scheduled_at && new Date(a.scheduled_at) >= monthStart) appointmentsMes += 1;
+    }
     const stats = {
       patientsTotal: clinic.patients_count || 0,
       patientsAtivos: clinic.patients_count || 0,
       patientsInativos: 0,
-      appointmentsTotal: 0,
-      appointmentsMes: 0,
+      appointmentsTotal: inspectAppointments.length || 0,
+      appointmentsMes,
       taxaNoShow: 0,
-      revenueTotal: 0,
-      revenueMes: 0,
-      ticketMedio: 0,
-      appointmentStats: { agendados: 0, confirmados: 0, emAtendimento: 0, concluidos: 0, falta: 0 },
+      revenueTotal,
+      revenueMes,
+      ticketMedio,
+      appointmentStats: {
+        agendados: apptStatusMap.scheduled,
+        confirmados: apptStatusMap.confirmed,
+        emAtendimento: apptStatusMap.in_progress,
+        concluidos: apptStatusMap.done,
+        falta: apptStatusMap.no_show,
+      },
     };
-    const admin = team.find((m: any) => m.role === 'admin');
+    const adminDisplay = admin || {
+      name: clinic.admin_name || 'Admin',
+      email: clinic.admin_email || clinic.email || '',
+      phone: clinic.phone || '',
+      cro: '',
+      commission: 0,
+      lastLogin: '',
+    };
     const sub = {
       plan: clinic.plan || 'basico',
       amount: clinic.amount || 0,
@@ -560,40 +608,40 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
             </div>
 
             {/* Admin/Dono */}
-            {admin && (
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-3xl border border-purple-100 shadow-sm p-6">
-                <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><UserCheck className="w-5 h-5 text-purple-500" />Admin / Dono da Empresa</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div className="bg-white rounded-xl p-4 flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                      {admin.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900">{admin.name}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1"><Mail className="w-3 h-3" />{admin.email}</p>
-                    </div>
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-3xl border border-purple-100 shadow-sm p-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2"><UserCheck className="w-5 h-5 text-purple-500" />Admin / Dono da Empresa</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="bg-white rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                    {(adminDisplay.name || 'A').charAt(0)}
                   </div>
-                  <div className="bg-white rounded-xl p-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Telefone</p>
-                    <p className="font-bold text-slate-900 flex items-center gap-1"><Phone className="w-3 h-3" />{admin.phone || 'Não informado'}</p>
-                  </div>
-                  {admin.cro && (
-                    <div className="bg-white rounded-xl p-4">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">CRO</p>
-                      <p className="font-bold text-slate-900">{admin.cro}</p>
-                    </div>
-                  )}
-                  <div className="bg-white rounded-xl p-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Comissão</p>
-                    <p className="font-bold text-slate-900">{admin.commission}%</p>
-                  </div>
-                  <div className="bg-white rounded-xl p-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Último Login</p>
-                    <p className="font-bold text-slate-900">{new Date(admin.lastLogin).toLocaleString('pt-BR')}</p>
+                  <div>
+                    <p className="font-bold text-slate-900">{adminDisplay.name}</p>
+                    <p className="text-xs text-slate-500 flex items-center gap-1"><Mail className="w-3 h-3" />{adminDisplay.email || 'Não informado'}</p>
                   </div>
                 </div>
+                <div className="bg-white rounded-xl p-4">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Telefone</p>
+                  <p className="font-bold text-slate-900 flex items-center gap-1"><Phone className="w-3 h-3" />{adminDisplay.phone || 'Não informado'}</p>
+                </div>
+                {adminDisplay.cro && (
+                  <div className="bg-white rounded-xl p-4">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">CRO</p>
+                    <p className="font-bold text-slate-900">{adminDisplay.cro}</p>
+                  </div>
+                )}
+                <div className="bg-white rounded-xl p-4">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Comissão</p>
+                  <p className="font-bold text-slate-900">{adminDisplay.commission || 0}%</p>
+                </div>
+                {adminDisplay.lastLogin && (
+                  <div className="bg-white rounded-xl p-4">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Último Login</p>
+                    <p className="font-bold text-slate-900">{new Date(adminDisplay.lastLogin).toLocaleString('pt-BR')}</p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -647,7 +695,7 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Plano</p>
-                    <span className={cn("text-sm font-bold uppercase px-2 py-1 rounded-md", sub.plan === 'ultra' ? 'bg-brand-50 text-brand-700' : sub.plan === 'pro' ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-600')}>{sub.plan}</span>
+                    <span className={cn("text-sm font-bold uppercase px-2 py-1 rounded-md", sub.plan === 'premium' || sub.plan === 'ultra' ? 'bg-brand-50 text-brand-700' : sub.plan === 'profissional' || sub.plan === 'pro' ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-600')}>{sub.plan}</span>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Valor Mensal</p>
@@ -675,6 +723,11 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Users className="w-5 h-5 text-brand-500" />Equipe ({team.length} membros)</h3>
             </div>
+            {inspectLoading ? (
+              <div className="p-8 text-center text-slate-400">Carregando equipe...</div>
+            ) : team.length === 0 ? (
+              <div className="p-8 text-center text-slate-400">Nenhum membro cadastrado nesta clínica.</div>
+            ) : (
             <div className="divide-y divide-slate-100">
               {team.map(member => (
                 <div key={member.id} className="p-4 flex items-center gap-4 hover:bg-slate-50/50">
@@ -692,14 +745,15 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-slate-500">{member.phone}</p>
-                    {member.commission > 0 && <p className="text-xs font-bold text-brand-600">{member.commission}%</p>}
-                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", member.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>
-                      {member.status === 'active' ? 'Ativo' : 'Inativo'}
+                    {(Number(member.commission_pct) || 0) > 0 && <p className="text-xs font-bold text-brand-600">{Number(member.commission_pct) || 0}%</p>}
+                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", member.active !== false ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700')}>
+                      {member.active !== false ? 'Ativo' : 'Inativo'}
                     </span>
                   </div>
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -989,6 +1043,27 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                                 title="Confirmar pagamento manual">
                                 <CheckSquare className="w-3.5 h-3.5" />Confirmar Pgto
                               </button>
+                              <button
+                                onClick={() => setChangePlanModal(clinic)}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+                                title="Alterar plano da clínica">
+                                <Edit2 className="w-3.5 h-3.5" />Plano
+                              </button>
+                              {clinic.status === 'active' || clinic.status === 'trial' ? (
+                                <button
+                                  onClick={() => setConfirmAction({ sub: clinic, action: 'block' })}
+                                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                  title="Bloquear acesso">
+                                  <Ban className="w-3.5 h-3.5" />Bloquear
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmAction({ sub: clinic, action: 'activate' })}
+                                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                                  title="Ativar assinatura">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />Ativar
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1009,6 +1084,46 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
             message={`Confirmar o pagamento mensal de ${confirmPaymentClinic?.name}? A próxima cobrança será adiada em 30 dias e o status será atualizado para "Ativa".`}
             confirmLabel={paymentProcessing ? 'Processando...' : 'Confirmar Pagamento'}
           />
+
+          {/* Bloquear/Ativar Dialog */}
+          <ConfirmDialog
+            isOpen={!!confirmAction}
+            onClose={() => setConfirmAction(null)}
+            onConfirm={() => confirmAction && handleSubAction(confirmAction.sub, confirmAction.action)}
+            title={confirmAction?.action === 'block' ? 'Bloquear Acesso' : 'Ativar Assinatura'}
+            message={confirmAction?.action === 'block'
+              ? `Bloquear o acesso de ${confirmAction?.sub?.name}? O usuário não conseguirá entrar até ser reativado.`
+              : `Ativar a assinatura de ${confirmAction?.sub?.name}?`}
+            confirmLabel={confirmAction?.action === 'block' ? 'Bloquear' : 'Ativar'}
+          />
+
+          {/* Alterar Plano Modal */}
+          <Modal
+            isOpen={!!changePlanModal}
+            onClose={() => setChangePlanModal(null)}
+            title={`Alterar Plano — ${changePlanModal?.name || ''}`}
+          >
+            <div className="space-y-3">
+              <p className="text-sm text-slate-500">Escolha o novo plano da clínica:</p>
+              {[
+                { id: 'basic' as const, name: 'Básico', desc: 'Recursos essenciais' },
+                { id: 'pro' as const, name: 'Profissional', desc: 'Recursos completos' },
+                { id: 'ultra' as const, name: 'Premium', desc: 'Todos os recursos' },
+              ].map(plan => (
+                <button
+                  key={plan.id}
+                  onClick={() => handleChangePlan(changePlanModal, plan.id)}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-slate-200 hover:border-brand-400 hover:bg-brand-50/40 transition-colors"
+                >
+                  <div className="text-left">
+                    <p className="font-bold text-slate-900">{plan.name}</p>
+                    <p className="text-xs text-slate-500">{plan.desc}</p>
+                  </div>
+                  <span className="text-xs font-bold text-brand-600">Aplicar →</span>
+                </button>
+              ))}
+            </div>
+          </Modal>
         </motion.div>
       )}
 
@@ -1343,7 +1458,9 @@ export function SuperAdminDashboard({ initialTab = 'dashboard' }: SuperAdminDash
                   <p className="text-xs text-brand-600 font-bold uppercase">Status Gateway</p>
                   <div className="flex items-center gap-2 mt-1">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <p className="text-lg font-bold text-brand-900">Mercado Pago</p>
+                    <p className="text-lg font-bold text-brand-900 capitalize">
+                      {paymentGateway === 'stripe' ? 'Stripe' : paymentGateway === 'asaas' ? 'Asaas' : 'Mercado Pago'}
+                    </p>
                   </div>
                   <p className="text-[10px] text-brand-600 mt-1">Operando sem instabilidades</p>
                 </div>

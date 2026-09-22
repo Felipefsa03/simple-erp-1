@@ -16,8 +16,14 @@ const getPlanPrices = async () => {
       .maybeSingle();
     return getPlanPricesFromConfig(data);
   } catch (e) {
-    return { basico: 97, profissional: 197, premium: 397 };
+    return { basico: 17, profissional: 197, premium: 397 };
   }
+};
+
+const normalizePlan = (plan) => {
+  const map = { basic: "basico", pro: "profissional", ultra: "premium", enterprise: "premium" };
+  const normalized = String(plan || "").toLowerCase().trim();
+  return map[normalized] || normalized || "basico";
 };
 
 // GET /api/super-admin/clinics — List all clinics from Supabase with admin info
@@ -57,8 +63,7 @@ router.get("/clinics", requireAuth, requireSuperAdmin, async (req, res) => {
     const { data: userCounts } = await supabaseAdmin
       .from("users")
       .select("clinic_id")
-      .in("clinic_id", clinicIds)
-      .eq("active", true);
+      .in("clinic_id", clinicIds);
 
     const userCountMap = {};
     if (userCounts) {
@@ -81,13 +86,13 @@ router.get("/clinics", requireAuth, requireSuperAdmin, async (req, res) => {
     const planPrices = await getPlanPrices();
     const enriched = clinics.map(clinic => {
       const admin = adminMap[clinic.id];
-      const planName = String(clinic.plan || "basico").toLowerCase();
+      const planName = normalizePlan(clinic.plan);
       const amount = planPrices[planName] || 0;
 
       return {
         id: clinic.id,
         name: clinic.name || "Sem nome",
-        plan: clinic.plan || "basico",
+        plan: planName,
         status: clinic.status || "trial",
         amount,
         email: clinic.email || admin?.email || "",
