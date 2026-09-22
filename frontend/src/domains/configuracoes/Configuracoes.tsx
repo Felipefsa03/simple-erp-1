@@ -171,6 +171,10 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     mp_access_token: integrationConfig?.mp_access_token || "",
     mp_public_key: integrationConfig?.mp_public_key || "",
     mp_webhook_secret: (integrationConfig as any)?.mp_webhook_secret || "",
+    payment_gateway: (integrationConfig as any)?.payment_gateway || "mercadopago",
+    stripe_secret_key: (integrationConfig as any)?.stripe_secret_key || "",
+    stripe_publishable_key: (integrationConfig as any)?.stripe_publishable_key || "",
+    stripe_webhook_secret: (integrationConfig as any)?.stripe_webhook_secret || "",
     plan_price_basico: String(integrationConfig?.plan_price_basico ?? ""),
     plan_price_profissional: String(
       integrationConfig?.plan_price_profissional ?? "",
@@ -317,6 +321,10 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       mp_access_token: integrationConfig.mp_access_token || "",
       mp_public_key: integrationConfig.mp_public_key || "",
       mp_webhook_secret: (integrationConfig as any).mp_webhook_secret || "",
+      payment_gateway: (integrationConfig as any).payment_gateway || "mercadopago",
+      stripe_secret_key: (integrationConfig as any).stripe_secret_key || "",
+      stripe_publishable_key: (integrationConfig as any).stripe_publishable_key || "",
+      stripe_webhook_secret: (integrationConfig as any).stripe_webhook_secret || "",
       plan_price_basico: String(integrationConfig.plan_price_basico ?? ""),
       plan_price_profissional: String(
         integrationConfig.plan_price_profissional ?? "",
@@ -356,7 +364,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           };
 
           const response = await fetch(
-            `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=mp_access_token,mp_public_key,mp_webhook_secret,plan_price_basico,plan_price_profissional,plan_price_premium`,
+            `${SUPABASE_URL}/rest/v1/integration_config?clinic_id=eq.${SYSTEM_GLOBAL_CLINIC_ID}&select=mp_access_token,mp_public_key,mp_webhook_secret,payment_gateway,stripe,plan_price_basico,plan_price_profissional,plan_price_premium`,
             { headers },
           );
 
@@ -372,11 +380,16 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           if (!cancelled && data && data.length > 0) {
             const config = data[0];
             console.log("[Sistema Global] Usando dados do banco:", config);
+            const stripeConfig = config.stripe || {};
             setIntegrationForm((prev) => ({
               ...prev,
               mp_access_token: config.mp_access_token || "",
               mp_public_key: config.mp_public_key || "",
               mp_webhook_secret: config.mp_webhook_secret || "",
+              payment_gateway: config.payment_gateway || "mercadopago",
+              stripe_secret_key: stripeConfig.secret_key || stripeConfig.secretKey || "",
+              stripe_publishable_key: stripeConfig.publishable_key || stripeConfig.publishableKey || "",
+              stripe_webhook_secret: stripeConfig.webhook_secret || stripeConfig.webhookSecret || "",
               plan_price_basico: String(config.plan_price_basico ?? ""),
               plan_price_profissional: String(
                 config.plan_price_profissional ?? "",
@@ -386,12 +399,16 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             setIntegrationConfig({
               mp_access_token: config.mp_access_token || "",
               mp_public_key: config.mp_public_key || "",
+              payment_gateway: config.payment_gateway || "mercadopago",
+              stripe_secret_key: stripeConfig.secret_key || stripeConfig.secretKey || "",
+              stripe_publishable_key: stripeConfig.publishable_key || stripeConfig.publishableKey || "",
+              stripe_webhook_secret: stripeConfig.webhook_secret || stripeConfig.webhookSecret || "",
               plan_price_basico: Number(config.plan_price_basico || 0),
               plan_price_profissional: Number(
                 config.plan_price_profissional || 0,
               ),
               plan_price_premium: Number(config.plan_price_premium || 0),
-            });
+            } as any);
             return;
           } else if (error) {
             console.error("[Sistema Global] Erro na query:", error);
@@ -407,6 +424,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
         if (!cancelled && fallbackData?.ok && fallbackData.plan_prices) {
           setIntegrationForm((prev) => ({
             ...prev,
+            payment_gateway: fallbackData.payment_gateway || prev.payment_gateway || "mercadopago",
             plan_price_basico: String(fallbackData.plan_prices.basico ?? ""),
             plan_price_profissional: String(
               fallbackData.plan_prices.profissional ?? "",
@@ -414,12 +432,13 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
             plan_price_premium: String(fallbackData.plan_prices.premium ?? ""),
           }));
           setIntegrationConfig({
+            payment_gateway: fallbackData.payment_gateway || "mercadopago",
             plan_price_basico: Number(fallbackData.plan_prices.basico || 0),
             plan_price_profissional: Number(
               fallbackData.plan_prices.profissional || 0,
             ),
             plan_price_premium: Number(fallbackData.plan_prices.premium || 0),
-          });
+          } as any);
         }
       } catch (e) {
         console.error("[Sistema Global] erro ao carregar config:", e);
@@ -3534,6 +3553,266 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                   className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all"
                 >
                   Testar Geração QR Code
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Gateway de Pagamento */}
+          <div className="bg-white rounded-3xl border border-slate-100 p-6">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
+              <Settings className="w-5 h-5 text-indigo-600" />
+              Gateway de Pagamento
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Escolha qual provedor processará os pagamentos das assinaturas
+              (cadastro e renovação).
+            </p>
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {(
+                [
+                  { id: "mercadopago", label: "Mercado Pago" },
+                  { id: "stripe", label: "Stripe" },
+                  { id: "asaas", label: "Asaas" },
+                ] as const
+              ).map((gw) => (
+                <button
+                  key={gw.id}
+                  onClick={() =>
+                    setIntegrationForm((prev) => ({
+                      ...prev,
+                      payment_gateway: gw.id,
+                    }))
+                  }
+                  className={
+                    "px-4 py-2 rounded-xl text-sm font-bold border transition-colors " +
+                    (integrationForm.payment_gateway === gw.id
+                      ? "bg-brand-600 text-white border-brand-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-brand-300")
+                  }
+                >
+                  {gw.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  const { supabase } = await import("@/lib/supabase");
+                  if (!supabase) throw new Error("Supabase não configurado");
+                  const gateway = integrationForm.payment_gateway;
+                  if (!["mercadopago", "stripe", "asaas"].includes(gateway))
+                    throw new Error("Gateway inválido");
+                  const { data: existing } = await supabase
+                    .from("integration_config")
+                    .select("clinic_id")
+                    .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID)
+                    .single();
+
+                  let error;
+                  if (existing) {
+                    ({ error } = await supabase
+                      .from("integration_config")
+                      .update({ payment_gateway: gateway })
+                      .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID));
+                  } else {
+                    ({ error } = await supabase
+                      .from("integration_config")
+                      .insert({
+                        clinic_id: SYSTEM_GLOBAL_CLINIC_ID,
+                        payment_gateway: gateway,
+                      }));
+                  }
+                  if (error) throw error;
+                  setIntegrationConfig({
+                    ...integrationConfig,
+                    payment_gateway: gateway,
+                  } as any);
+                  toast(`Gateway alterado para ${gateway}!`);
+                } catch (e: any) {
+                  toast("Erro ao salvar: " + e.message, "error");
+                }
+              }}
+              className="px-6 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all"
+            >
+              Salvar Gateway
+            </button>
+          </div>
+
+          {/* Stripe Config */}
+          <div className="bg-white rounded-3xl border border-slate-100 p-6">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
+              <CreditCard className="w-5 h-5 text-indigo-600" />
+              Stripe - Pagamentos
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Credenciais para gerar cobranças por cartão e Pix via Stripe
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Secret Key
+                </label>
+                <input
+                  type="password"
+                  value={integrationForm.stripe_secret_key || ""}
+                  onChange={(e) =>
+                    setIntegrationForm({
+                      ...integrationForm,
+                      stripe_secret_key: e.target.value,
+                    })
+                  }
+                  placeholder="sk_test_..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Publishable Key
+                </label>
+                <input
+                  type="text"
+                  value={integrationForm.stripe_publishable_key || ""}
+                  onChange={(e) =>
+                    setIntegrationForm({
+                      ...integrationForm,
+                      stripe_publishable_key: e.target.value,
+                    })
+                  }
+                  placeholder="pk_test_..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Webhook Secret
+                </label>
+                <input
+                  type="password"
+                  value={integrationForm.stripe_webhook_secret || ""}
+                  onChange={(e) =>
+                    setIntegrationForm({
+                      ...integrationForm,
+                      stripe_webhook_secret: e.target.value,
+                    })
+                  }
+                  placeholder="whsec_..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none font-mono text-sm"
+                />
+              </div>
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+                <p className="text-xs text-indigo-700">
+                  <strong>Como obter:</strong> Acesse{" "}
+                  <a
+                    href="https://dashboard.stripe.com/apikeys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Stripe Dashboard
+                  </a>{" "}
+                  → Copie Secret Key e Publishable Key. No menu{" "}
+                  <em>Developers → Webhooks</em>, cadastre o endpoint{" "}
+                  <code className="bg-white/60 px-1 rounded">
+                    https://clinxia-backend.onrender.com/api/webhooks/stripe
+                  </code>{" "}
+                  com o evento <strong>checkout.session.completed</strong> e
+                  copie o <em>Signing secret</em>.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      const { supabase } = await import("@/lib/supabase");
+                      if (!supabase)
+                        throw new Error("Supabase não configurado");
+                      const { data: existing } = await supabase
+                        .from("integration_config")
+                        .select("clinic_id")
+                        .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID)
+                        .single();
+
+                      const stripePayload = {
+                        secret_key: integrationForm.stripe_secret_key,
+                        publishable_key:
+                          integrationForm.stripe_publishable_key,
+                        webhook_secret:
+                          integrationForm.stripe_webhook_secret,
+                      };
+
+                      let error;
+                      if (existing) {
+                        ({ error } = await supabase
+                          .from("integration_config")
+                          .update({ stripe: stripePayload })
+                          .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID));
+                      } else {
+                        ({ error } = await supabase
+                          .from("integration_config")
+                          .insert({
+                            clinic_id: SYSTEM_GLOBAL_CLINIC_ID,
+                            stripe: stripePayload,
+                          }));
+                      }
+                      if (error) throw error;
+                      setIntegrationConfig({
+                        ...integrationConfig,
+                        stripe_secret_key: stripePayload.secret_key,
+                        stripe_publishable_key:
+                          stripePayload.publishable_key,
+                        stripe_webhook_secret: stripePayload.webhook_secret,
+                      } as any);
+                      toast("Credenciais do Stripe salvas!");
+                    } catch (e: any) {
+                      toast("Erro ao salvar: " + e.message, "error");
+                    }
+                  }}
+                  className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all"
+                >
+                  Salvar Credenciais
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const isDev = import.meta.env.DEV;
+                      const API_BASE = isDev
+                        ? ""
+                        : import.meta.env.VITE_API_BASE_URL ||
+                          "https://clinxia-backend.onrender.com";
+                      const res = await fetch(
+                        `${API_BASE}/api/mercadopago/create-stripe-checkout`,
+                        {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            clinicId: SYSTEM_GLOBAL_CLINIC_ID,
+                            plan: "basico",
+                            amount: integrationConfig?.plan_price_basico || 97,
+                            email: "teste@teste.com",
+                            name: "Usuario Teste",
+                            phone: "11999999999",
+                          }),
+                        },
+                      );
+                      const data = await res.json();
+                      if (!data.ok || !data.checkout_url)
+                        throw new Error(
+                          data.error || "Erro ao gerar checkout Stripe",
+                        );
+                      toast(
+                        `Checkout Stripe gerado! Link: ${data.checkout_url}`,
+                        "success",
+                      );
+                      if (data.checkout_url)
+                        window.open(data.checkout_url, "_blank");
+                    } catch (e: any) {
+                      toast("Erro no teste: " + e.message, "error");
+                    }
+                  }}
+                  className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all"
+                >
+                  Testar Checkout
                 </button>
               </div>
             </div>
