@@ -150,20 +150,44 @@ export const createBillingRoutes = ({
     const bearerToken = raw.slice(7).trim();
     if (!bearerToken || !SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
     try {
+      const apiKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
       const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
         headers: {
-          apikey: SUPABASE_ANON_KEY,
+          apikey: apiKey,
           Authorization: `Bearer ${bearerToken}`,
         },
       });
       if (!response.ok) return false;
       const authUser = await response.json();
+      const userId = String(authUser?.id || "");
       const userEmail = String(authUser?.email || "").toLowerCase().trim();
-      const userClinicId = String(authUser?.user_metadata?.clinic_id || authUser?.app_metadata?.clinic_id || "").trim();
-      const userRole = String(authUser?.user_metadata?.role || authUser?.app_metadata?.role || "").toLowerCase().trim();
       const targetClinicId = String(clinicId || "").trim();
       const targetEmail = String(email || "").toLowerCase().trim();
       if (!userEmail || userEmail !== targetEmail) return false;
+
+      let userRole = String(authUser?.user_metadata?.role || authUser?.app_metadata?.role || "").toLowerCase().trim();
+      let userClinicId = String(authUser?.user_metadata?.clinic_id || authUser?.app_metadata?.clinic_id || "").trim();
+
+      // Os metadados do auth nem sempre contêm clinic_id/role: consulta a tabela users
+      if (userId && (!userClinicId || !userRole)) {
+        try {
+          const usersRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=clinic_id,role,email&limit=1`,
+            { headers: { apikey: apiKey, Authorization: `Bearer ${apiKey}` } },
+          );
+          if (usersRes.ok) {
+            const rows = await usersRes.json();
+            if (Array.isArray(rows) && rows.length > 0) {
+              const row = rows[0];
+              userClinicId = String(row?.clinic_id || userClinicId || "").trim();
+              userRole = String(row?.role || userRole || "").toLowerCase().trim();
+            }
+          }
+        } catch (usersErr) {
+          console.warn("[Billing] Falha ao consultar users:", usersErr.message);
+        }
+      }
+
       if (userRole === "super_admin") return true;
       return Boolean(userClinicId && userClinicId === targetClinicId);
     } catch (_error) {
