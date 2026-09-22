@@ -195,6 +195,17 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const [twoFASecret, setTwoFASecret] = useState("");
   const [twoFAVerifyCode, setTwoFAVerifyCode] = useState("");
   const [twoFAError, setTwoFAError] = useState("");
+  const [globalPricing, setGlobalPricing] = useState<{
+    basico: number;
+    profissional: number;
+    premium: number;
+    payment_gateway: string;
+  }>({
+    basico: 17,
+    profissional: 197,
+    premium: 397,
+    payment_gateway: "mercadopago",
+  });
   const [apiKeys, setApiKeys] = useState<
     {
       id: string;
@@ -478,6 +489,53 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
     SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_URL,
   ]);
+
+  useEffect(() => {
+    if (activeSubTab !== "assinatura") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { supabase, isSupabaseConfigured } = await import("@/lib/supabase");
+        if (!isSupabaseConfigured?.() || !supabase) return;
+        const { data } = await supabase
+          .from("integration_config")
+          .select("plan_price_basico,plan_price_profissional,plan_price_premium")
+          .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID)
+          .single();
+        if (cancelled || !data) return;
+        const parsePrice = (value: unknown, fallback: number) => {
+          const n = Number(value);
+          return Number.isFinite(n) && n > 0 ? n : fallback;
+        };
+        const next = {
+          basico: parsePrice((data as any).plan_price_basico, 17),
+          profissional: parsePrice((data as any).plan_price_profissional, 197),
+          premium: parsePrice((data as any).plan_price_premium, 397),
+          payment_gateway: "mercadopago",
+        };
+        try {
+          const { data: gwData } = await supabase
+            .from("integration_config")
+            .select("payment_gateway")
+            .eq("clinic_id", SYSTEM_GLOBAL_CLINIC_ID)
+            .single();
+          const gw = (gwData as any)?.payment_gateway;
+          if (gw && ["mercadopago", "stripe", "asaas"].includes(gw)) {
+            next.payment_gateway = gw;
+          }
+        } catch (gwErr) {
+          console.warn("[Assinatura] payment_gateway indisponível:", gwErr);
+        }
+        if (!cancelled) setGlobalPricing(next);
+      } catch (e) {
+        console.warn("[Assinatura] Falha ao carregar preços globais:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSubTab, SYSTEM_GLOBAL_CLINIC_ID]);
+
   const handleSaveClinic = async () => {
     if (!clinicForm.name || !String(clinicForm.name).trim()) {
       toast("Nome da clínica é obrigatório.", "error");
@@ -681,13 +739,13 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
   const handleUpgrade = async (plan: string) => {
     try {
       const planPrices: Record<string, number> = {
-        basico: integrationConfig?.plan_price_basico || 97,
-        profissional: integrationConfig?.plan_price_profissional || 197,
-        premium: integrationConfig?.plan_price_premium || 397,
+        basico: globalPricing.basico,
+        profissional: globalPricing.profissional,
+        premium: globalPricing.premium,
       };
       const currentPlan = clinic?.plan || "basico";
-      const currentPrice = planPrices[currentPlan] || 97;
-      const newPrice = planPrices[plan] || 97;
+      const currentPrice = planPrices[currentPlan] || 17;
+      const newPrice = planPrices[plan] || 17;
 
       // Calculate proportional cost
       const today = new Date();
@@ -706,6 +764,34 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
         : import.meta.env.VITE_API_BASE_URL ||
           "https://clinxia-backend.onrender.com";
 
+      const amount = proportionalAmount > 0 ? proportionalAmount : newPrice;
+
+      if (globalPricing.payment_gateway === "stripe") {
+        const stripeRes = await fetch(
+          `${API_BASE}/api/mercadopago/create-stripe-checkout`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clinicId,
+              plan,
+              amount,
+              email: user?.email || "",
+              name: user?.name || "",
+              phone: user?.phone || "",
+            }),
+          },
+        );
+        const stripeData = await stripeRes.json();
+        if (!stripeData.ok || !stripeData.checkout_url)
+          throw new Error(stripeData.error || "Erro ao gerar checkout Stripe");
+        window.open(stripeData.checkout_url, "_blank");
+        toast(
+          `Upgrade para ${plan}! Valor proporcional: R$${amount.toFixed(2)}. Após pagamento, o plano será ativado.`,
+        );
+        return;
+      }
+
       const res = await fetch(`${API_BASE}/api/mercadopago/create-preference`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -715,7 +801,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
           name: user?.name || "",
           phone: user?.phone || "",
           plan,
-          amount: proportionalAmount > 0 ? proportionalAmount : newPrice,
+          amount,
           clinicId,
         }),
       });
@@ -726,7 +812,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
       if (data.init_point) {
         window.open(data.init_point, "_blank");
         toast(
-          `Upgrade para ${plan}! Valor proporcional: R$${proportionalAmount.toFixed(2)}. Após pagamento, o plano será ativado.`,
+          `Upgrade para ${plan}! Valor proporcional: R$${amount.toFixed(2)}. Após pagamento, o plano será ativado.`,
         );
       }
     } catch (e: any) {
@@ -2215,10 +2301,10 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 <p className="text-3xl font-black">
                   R$
                   {clinic?.plan === "profissional"
-                    ? integrationConfig?.plan_price_profissional || 197
+                    ? globalPricing.profissional
                     : clinic?.plan === "premium"
-                      ? integrationConfig?.plan_price_premium || 397
-                      : integrationConfig?.plan_price_basico || 17}
+                      ? globalPricing.premium
+                      : globalPricing.basico}
                 </p>
                 <p className="text-sm text-white/70">/mês</p>
               </div>
@@ -2231,7 +2317,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               {
                 id: "basico",
                 name: "Básico",
-                price: integrationConfig?.plan_price_basico || 17,
+                price: globalPricing.basico,
                 desc: "Ideal para clínicas iniciantes",
                 features: [
                   "1 profissional",
@@ -2246,7 +2332,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               {
                 id: "profissional",
                 name: "Profissional",
-                price: integrationConfig?.plan_price_profissional || 197,
+                price: globalPricing.profissional,
                 desc: "Para clínicas em crescimento",
                 features: [
                   "5 profissionais",
@@ -2264,7 +2350,7 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
               {
                 id: "premium",
                 name: "Premium",
-                price: integrationConfig?.plan_price_premium || 397,
+                price: globalPricing.premium,
                 desc: "Máximo desempenho",
                 features: [
                   "Profissionais ilimitados",
@@ -2359,10 +2445,9 @@ export function Configuracoes({ onNavigate }: ConfiguracoesProps) {
                 };
                 const planId = planMap[upgradeModal.plan] || "profissional";
                 const priceMap: Record<string, number> = {
-                  basico: integrationConfig?.plan_price_basico || 17,
-                  profissional:
-                    integrationConfig?.plan_price_profissional || 197,
-                  premium: integrationConfig?.plan_price_premium || 397,
+                  basico: globalPricing.basico,
+                  profissional: globalPricing.profissional,
+                  premium: globalPricing.premium,
                 };
                 const currentPrice = priceMap[clinic?.plan || "basico"] || 17;
                 const newPrice = priceMap[planId] || 197;

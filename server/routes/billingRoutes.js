@@ -451,22 +451,28 @@ export const createBillingRoutes = ({
 
       // Mercado Pago Fallback/Logic
       const { token } = mpCreds;
-      if (!token) return res.status(503).json({ ok: false, error: "Mercado Pago não configurado." });
 
-      let payment = await fetchLatestMercadoPagoPaymentByClinic(clinicId, token);
-      
-      if (!payment && SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)) {
+      let payment = null;
+      let isLocalPayment = false;
+
+      // Primeiro verifica pagamento local aprovado (Stripe webhook persiste aqui)
+      if (SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)) {
         const localRes = await fetch(`${SUPABASE_URL}/rest/v1/payments?clinic_id=eq.${clinicId}&status=eq.approved&select=*&limit=1`, { headers: getSupabaseAdminHeaders() });
         if (localRes.ok) {
           const localPayments = await localRes.json();
           if (Array.isArray(localPayments) && localPayments.length > 0) {
             const lp = localPayments[0];
             payment = { id: lp.mp_payment_id, status: lp.status, transaction_amount: lp.amount, status_detail: "local_confirmed", metadata: { plan: lp.plan, clinic_id: lp.clinic_id } };
+            isLocalPayment = true;
           }
         }
       }
 
-      if (!payment && email) {
+      if (!payment && token) {
+        payment = await fetchLatestMercadoPagoPaymentByClinic(clinicId, token);
+      }
+
+      if (!payment && token && email) {
         const searchUrl = `https://api.mercadopago.com/v1/payments/search?payer.email=${encodeURIComponent(email)}&sort=date_created&criteria=desc&limit=1`;
         const emailRes = await fetch(searchUrl, { headers: { Authorization: `Bearer ${token}` } });
         if (emailRes.ok) {
@@ -479,7 +485,7 @@ export const createBillingRoutes = ({
       if (!payment) return res.json({ ok: true, approved: false, status: "pending", payment: null });
 
       const approved = isMercadoPagoApproved(payment);
-      if (approved) await persistMercadoPagoPayment(payment, clinicId);
+      if (approved && !isLocalPayment && token) await persistMercadoPagoPayment(payment, clinicId);
 
       return res.json({ ok: true, approved, status: approved ? "approved" : "pending", payment });
 
