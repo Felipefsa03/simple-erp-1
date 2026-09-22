@@ -190,6 +190,32 @@ export function AuthenticatedApp() {
           }
         }
 
+        // Retorno do checkout Stripe: a URL traz ?session_id=cs_... — verifica e ativa na hora
+        const urlParams = new URLSearchParams(window.location.search);
+        const stripeSessionId = urlParams.get('session_id');
+        if (stripeSessionId) {
+          try {
+            const sessRes = await fetch(`${API_BASE}/api/mercadopago/stripe-session/${encodeURIComponent(stripeSessionId)}`);
+            const sessData = await sessRes.json().catch(() => ({}));
+            if (sessData?.ok && sessData.approved) {
+              console.log('[Subscription] Sessão Stripe paga confirmada, liberando acesso');
+              const nextBilling = new Date();
+              nextBilling.setDate(nextBilling.getDate() + 30);
+              await supabase!.from('clinics').update({
+                status: 'active',
+                expires_at: nextBilling.toISOString(),
+                last_payment_at: new Date().toISOString()
+              }).eq('id', clinicId);
+              window.history.replaceState(null, '', window.location.pathname);
+              setSubscriptionBlocked(false);
+              setSubscriptionInfo(null);
+              return;
+            }
+          } catch (sessErr) {
+            console.warn('[Subscription] Erro ao verificar sessão Stripe:', sessErr);
+          }
+        }
+
         // Se não está ativa no banco local, verificar status do pagamento via backend (consulta MercadoPago)
         try {
           const { getValidSupabaseSession } = await import('@/lib/supabase');

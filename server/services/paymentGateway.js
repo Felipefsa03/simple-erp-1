@@ -404,6 +404,10 @@ export const createStripeCheckoutSession = async ({
   const { secretKey } = await resolveStripeCredentials(clinicId);
   if (!secretKey) return null;
   const frontendUrl = process.env.FRONTEND_URL || "https://clinxia.com";
+  const withSessionParam = (baseUrl) => {
+    const url = baseUrl || `${frontendUrl}/?payment=success`;
+    return `${url}${url.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`;
+  };
   const session = await stripeRequest(
     "/checkout/sessions",
     {
@@ -411,7 +415,7 @@ export const createStripeCheckoutSession = async ({
       body: {
         mode: "payment",
         "payment_method_types[0]": "card",
-        success_url: successUrl || `${frontendUrl}/?payment=success`,
+        success_url: withSessionParam(successUrl),
         cancel_url: cancelUrl || `${frontendUrl}/?payment=failure`,
         customer_email: email,
         client_reference_id: String(clinicId || ""),
@@ -444,6 +448,21 @@ export const fetchLatestPaidStripeSessionByClinic = async (clinicId) => {
     return paid || null;
   } catch (err) {
     addLog(`[Stripe] Falha ao consultar sessões da clínica: ${err.message}`);
+    return null;
+  }
+};
+
+export const fetchStripeSessionById = async (sessionId) => {
+  const { secretKey } = await resolveStripeCredentials(GLOBAL_CLINIC_ID);
+  if (!secretKey) return null;
+  try {
+    return await stripeRequest(
+      `/checkout/sessions/${encodeURIComponent(String(sessionId))}`,
+      {},
+      secretKey,
+    );
+  } catch (err) {
+    addLog(`[Stripe] Falha ao consultar sessão ${sessionId}: ${err.message}`);
     return null;
   }
 };

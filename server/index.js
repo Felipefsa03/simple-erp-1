@@ -595,6 +595,7 @@ const publicPaths = [
   "/system/signup-config",
   "/mercadopago/create-preference",
   "/mercadopago/create-stripe-checkout",
+  "/mercadopago/stripe-session/",
   "/mercadopago/payment-status/",
   "/public/",
   // SEGURANÇA: Rotas abaixo foram REMOVIDAS de publicPaths pela auditoria:

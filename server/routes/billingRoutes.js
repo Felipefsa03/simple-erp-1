@@ -22,6 +22,7 @@ import {
   verifyStripeSignature,
   activateClinicSubscription,
   fetchLatestPaidStripeSessionByClinic,
+  fetchStripeSessionById,
 } from "../services/paymentGateway.js";
 // Helper para descobrir gateway preferencial via ENV
 const getPreferredGateway = () => {
@@ -694,6 +695,32 @@ export const createBillingRoutes = ({
     } catch (error) {
       addLog(`[Stripe Checkout] Erro ao criar checkout: ${error.message}`);
       return res.status(502).json({ ok: false, error: error.message || "Erro ao criar checkout Stripe." });
+    }
+  });
+
+  // Stripe: verifica sessão por ID (o redirect traz ?session_id=cs_...). O ID da
+  // sessão funciona como capability token (imprevisível), sem depender de auth.
+  router.get("/stripe-session/:sessionId", async (req, res) => {
+    const sessionId = String(req.params?.sessionId || "").trim();
+    if (!sessionId) return res.status(400).json({ ok: false, error: "sessionId inválido." });
+    try {
+      const session = await fetchStripeSessionById(sessionId);
+      if (!session) return res.status(404).json({ ok: false, approved: false, error: "Sessão não encontrada." });
+      const clinicId = String(session?.metadata?.clinic_id || session?.client_reference_id || "").trim();
+      const paid = session?.payment_status === "paid";
+      if (paid && clinicId) {
+        await activateClinicSubscription(clinicId, sanitizePlan(session?.metadata?.plan || "premium"), "stripe");
+        addLog(`[Stripe Session] Clínica ${clinicId} ativada via sessão ${sessionId}`);
+      }
+      return res.json({
+        ok: true,
+        approved: paid,
+        clinic_id: clinicId,
+        payment_status: String(session?.payment_status || ""),
+      });
+    } catch (error) {
+      addLog(`[Stripe Session] Erro: ${error.message}`);
+      return res.status(502).json({ ok: false, error: "Erro ao consultar sessão Stripe." });
     }
   });
 
